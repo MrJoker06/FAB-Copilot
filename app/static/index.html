@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="半导体制造报表与数据分析 Agent">
+  <title>Fab Insight</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">FI</span>
+      <div><strong>Fab Insight</strong><small>制造分析控制台</small></div>
+    </div>
+    <div class="system-status"><span class="status-dot"></span><span id="systemStatus">正在连接数据源</span></div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="主导航">
+      <button class="nav-item active" data-view="dashboard" title="制造总览"><span aria-hidden="true">▦</span><span>制造总览</span></button>
+      <button class="nav-item" data-view="capability" title="制程能力"><span aria-hidden="true">◎</span><span>制程能力</span></button>
+      <button class="nav-item" data-view="monitor" title="Agent 监控"><span aria-hidden="true">◉</span><span>Agent 监控</span></button>
+      <button class="nav-item" id="focusAgent" title="分析助手"><span aria-hidden="true">◇</span><span>分析助手</span></button>
+      <div class="sidebar-meta"><span>DEMO FAB</span><small>历史数据 18 个月</small></div>
+    </aside>
+
+    <main class="main-content">
+      <section id="dashboardView" class="view active">
+        <div class="page-heading">
+          <div><p class="eyebrow">FAB OPERATIONS</p><h1>制造绩效总览</h1><p id="rangeSummary">加载数据中</p></div>
+          <form id="dateForm" class="date-filter">
+            <label>开始日期<input id="startDate" type="date" required></label>
+            <span class="date-separator">至</span>
+            <label>结束日期<input id="endDate" type="date" required></label>
+            <button type="submit" class="primary-btn">刷新报表</button>
+          </form>
+        </div>
+
+        <div id="errorBanner" class="error-banner" hidden></div>
+        <div class="kpi-grid" id="kpiGrid" aria-live="polite"></div>
+
+        <div class="report-grid">
+          <section class="panel trend-panel">
+            <div class="panel-heading"><div><h2>周良率趋势</h2><p>综合良率与 90% 参考线</p></div><span class="legend"><i></i>Yield</span></div>
+            <div class="chart-wrap"><canvas id="yieldChart" aria-label="周良率趋势图"></canvas><div id="chartTooltip" class="chart-tooltip" hidden></div></div>
+          </section>
+
+          <section class="panel defect-panel">
+            <div class="panel-heading"><div><h2>缺陷 Pareto</h2><p>按缺陷数量排序</p></div></div>
+            <div id="defectBars" class="bar-list"></div>
+          </section>
+
+          <section class="panel equipment-panel">
+            <div class="panel-heading"><div><h2>设备健康</h2><p>按异常与停机风险排序</p></div><span id="equipmentCount" class="count-label"></span></div>
+            <div class="table-wrap"><table><thead><tr><th>设备</th><th>状态</th><th>运行</th><th>异常</th><th>通过率</th><th>停机分钟</th></tr></thead><tbody id="equipmentBody"></tbody></table></div>
+          </section>
+
+          <section class="panel excursion-panel">
+            <div class="panel-heading"><div><h2>近期制程异常</h2><p>最新异常批次与关键量测</p></div></div>
+            <div class="table-wrap"><table><thead><tr><th>时间</th><th>批次</th><th>设备</th><th>异常码</th><th>关键值</th></tr></thead><tbody id="excursionBody"></tbody></table></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="capabilityView" class="view">
+        <div class="page-heading">
+          <div><p class="eyebrow">PROCESS CONTROL</p><h1>制程能力分析</h1><p>按设备比较均值、变异与 Cpk</p></div>
+          <div class="segmented" id="stepSelector" aria-label="选择制程站点">
+            <button data-step="LITHO">LITHO</button><button data-step="ETCH">ETCH</button><button data-step="CVD" class="active">CVD</button><button data-step="CMP">CMP</button>
+          </div>
+        </div>
+        <section class="panel capability-table">
+          <div class="panel-heading"><div><h2 id="capabilityTitle">CVD 膜厚能力</h2><p id="capabilityMetric">规格：95–105 nm</p></div></div>
+          <div class="table-wrap"><table><thead><tr><th>设备</th><th>样本</th><th>均值</th><th>Sigma</th><th>最小</th><th>最大</th><th>Cpk</th><th>评价</th></tr></thead><tbody id="capabilityBody"></tbody></table></div>
+        </section>
+      </section>
+
+      <section id="monitorView" class="view">
+        <div class="page-heading">
+          <div><p class="eyebrow">AGENT OBSERVABILITY</p><h1>Agent 运行监控</h1><p id="monitorWindow">最近 24 小时 · 自动刷新</p></div>
+          <div class="monitor-controls">
+            <select id="monitorHours" aria-label="监控时间范围"><option value="1">最近 1 小时</option><option value="24" selected>最近 24 小时</option><option value="168">最近 7 天</option><option value="720">最近 30 天</option></select>
+            <button id="refreshMonitor" class="primary-btn">刷新</button>
+          </div>
+        </div>
+        <div id="monitorKpis" class="kpi-grid monitor-kpis"></div>
+        <div class="monitor-grid">
+          <section class="panel">
+            <div class="panel-heading"><div><h2>最近运行</h2><p>每次对话对应一个独立 run_id</p></div><span id="monitorUpdated" class="count-label"></span></div>
+            <div class="table-wrap"><table><thead><tr><th>时间</th><th>Run ID</th><th>状态</th><th>模式</th><th>耗时</th><th>工具</th></tr></thead><tbody id="recentRunsBody"></tbody></table></div>
+          </section>
+          <section class="panel">
+            <div class="panel-heading"><div><h2>工具使用</h2><p>调用频率与错误分布</p></div></div>
+            <div id="toolUsage" class="bar-list monitor-bars"></div>
+          </section>
+        </div>
+        <div class="log-location">日志文件：<code id="logPath">logs/agent_events.jsonl</code><span>内容默认脱敏并自动轮转</span></div>
+      </section>
+    </main>
+
+    <aside class="agent-panel" aria-label="Fab Copilot">
+      <div class="agent-heading"><div class="agent-icon">◇</div><div><strong>Fab Copilot</strong><small id="agentMode">数据分析助手</small></div><button id="clearChat" class="icon-btn" title="清空对话" aria-label="清空对话">↺</button></div>
+      <div id="chatMessages" class="chat-messages" aria-live="polite">
+        <div class="message assistant"><div class="message-label">FAB COPILOT</div><div class="message-content">我可以查询制造报表、定位设备异常，并结合厂内 SOP 给出分析建议。</div></div>
+        <div class="suggestions">
+          <button>最近三个月哪些设备风险最高？</button>
+          <button>CVD-02 的膜厚是否发生漂移？</button>
+          <button>分析 CMP 划伤上升的可能原因</button>
+        </div>
+      </div>
+      <form id="chatForm" class="chat-form">
+        <textarea id="chatInput" rows="3" maxlength="4000" placeholder="询问良率、设备、批次或制程异常…" required></textarea>
+        <div class="chat-actions"><span id="chatHint">基于历史数据库与厂内知识</span><button id="sendButton" type="submit" class="send-btn" aria-label="发送">发送</button></div>
+      </form>
+    </aside>
+  </div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
