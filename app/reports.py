@@ -143,11 +143,13 @@ def defect_pareto(start: str | None = None, end: str | None = None, limit: int =
     start, end = normalize_range(start, end)
     with db_session() as connection:
         rows = connection.execute(
-            """SELECT defect_type, process_step, SUM(count) AS defect_count,
+            """SELECT defect_type,
+                      GROUP_CONCAT(DISTINCT process_step) AS process_steps,
+                      SUM(count) AS defect_count,
                       COUNT(DISTINCT lot_id) AS affected_lots,
                       ROUND(100.0 * SUM(count) / SUM(SUM(count)) OVER (), 2) AS share_pct
                FROM defect_records WHERE date(detected_time) BETWEEN ? AND ?
-               GROUP BY defect_type, process_step ORDER BY defect_count DESC LIMIT ?""",
+               GROUP BY defect_type ORDER BY defect_count DESC LIMIT ?""",
             (start, end, max(1, min(limit, 25))),
         ).fetchall()
     return rows_to_dicts(rows)

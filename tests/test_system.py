@@ -16,6 +16,9 @@ class FabInsightTests(unittest.TestCase):
         self.assertGreater(dashboard["overview"]["lots"], 300)
         self.assertGreater(dashboard["overview"]["yield_pct"], 80)
         self.assertTrue(dashboard["equipment"])
+        defect_types = [row["defect_type"] for row in dashboard["defects"]]
+        self.assertEqual(len(defect_types), len(set(defect_types)))
+        self.assertTrue(all("process_steps" in row for row in dashboard["defects"]))
 
     def test_seeded_cvd_drift_is_detectable(self):
         capability = process_capability(process_step="CVD")

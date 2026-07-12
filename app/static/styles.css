@@ -88,7 +88,7 @@ h1 { font-size: 24px; line-height: 1.15; margin: 0; font-weight: 690; }
 .bar-row { display: grid; grid-template-columns: 92px 1fr 34px; align-items: center; gap: 8px; font-size: 10px; }
 .bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar-track { height: 7px; background: #edf1f0; }
-.bar-fill { height: 100%; background: var(--coral); }
+.bar-fill { display: block; height: 100%; background: var(--coral); }
 .bar-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
 .equipment-panel, .excursion-panel { grid-column: 1 / -1; }
 .count-label { font-size: 10px; color: var(--muted); }
