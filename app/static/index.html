@@ -13,7 +13,10 @@
       <span class="brand-mark" aria-hidden="true">FI</span>
       <div><strong>Fab Insight</strong><small>制造分析控制台</small></div>
     </div>
-    <div class="system-status"><span class="status-dot"></span><span id="systemStatus">正在连接数据源</span></div>
+    <div class="topbar-actions">
+      <div class="system-status"><span class="status-dot"></span><span id="systemStatus">正在连接数据源</span></div>
+      <button id="modelSettingsButton" class="model-settings-button" title="模型设置"><span aria-hidden="true">⚙</span><span id="activeModelLabel">模型设置</span></button>
+    </div>
   </header>
 
   <div class="app-shell">
@@ -115,6 +118,21 @@
       </form>
     </aside>
   </div>
+
+  <dialog id="modelDialog" class="settings-dialog">
+    <form id="modelSettingsForm">
+      <div class="dialog-heading"><div><p class="eyebrow">MODEL PROVIDER</p><h2>DeepSeek 模型设置</h2></div><button id="closeModelDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="dialog-body">
+        <label class="field-label" for="modelSelect">模型</label>
+        <select id="modelSelect" required></select>
+        <label class="field-label" for="apiKeyInput">API Key</label>
+        <div class="password-field"><input id="apiKeyInput" type="password" autocomplete="off" placeholder="留空则继续使用当前 Key"><button id="toggleApiKey" type="button" title="显示或隐藏 API Key" aria-label="显示或隐藏 API Key">◉</button></div>
+        <div class="key-state"><span id="apiKeyState">检查配置中</span><span>仅保存在当前服务进程</span></div>
+        <div id="modelSettingsMessage" class="settings-message" hidden></div>
+      </div>
+      <div class="dialog-actions"><button id="cancelModelSettings" type="button" class="secondary-btn">取消</button><button id="saveModelSettings" type="submit" class="primary-btn">应用设置</button></div>
+    </form>
+  </dialog>
   <script src="/static/app.js" defer></script>
 </body>
 </html>

@@ -1,16 +1,17 @@
 from __future__ import annotations
 
+import uuid
 from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 from .agent import run_agent
-from .audit import monitoring_summary, read_events
-from .config import PROJECT_DIR, get_settings
+from .audit import emit, monitoring_summary, read_events
+from .config import PROJECT_DIR, get_settings, public_model_config, update_model_config
 from .database import db_session
 from .reports import process_capability, report_bundle
 from .seed import generate_database
@@ -43,6 +44,11 @@ class ChatRequest(BaseModel):
     history: list[ChatMessage] = Field(default_factory=list, max_length=20)
 
 
+class ModelConfigRequest(BaseModel):
+    model: str
+    api_key: SecretStr | None = None
+
+
 @app.get("/", include_in_schema=False)
 async def index():
     return FileResponse(PROJECT_DIR / "app" / "static" / "index.html")
@@ -60,6 +66,29 @@ def health() -> dict:
         "model": settings.deepseek_model,
         "agent_configured": bool(settings.deepseek_api_key),
     }
+
+
+@app.get("/api/settings/model")
+def get_model_config() -> dict:
+    return public_model_config()
+
+
+@app.post("/api/settings/model")
+def set_model_config(request: ModelConfigRequest) -> dict:
+    api_key = request.api_key.get_secret_value() if request.api_key is not None else None
+    try:
+        result = update_model_config(request.model, api_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    emit(
+        "model_config_changed",
+        f"config-{uuid.uuid4()}",
+        status="success",
+        model=result["model"],
+        api_key_updated=bool(api_key),
+        api_key_source=result["api_key_source"],
+    )
+    return result
 
 
 @app.get("/api/reports/dashboard")

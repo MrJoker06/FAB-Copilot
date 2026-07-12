@@ -49,6 +49,26 @@ class FabInsightTests(unittest.TestCase):
             self.assertIn("runs", payload)
             self.assertNotIn("api_key", str(payload).lower())
 
+    def test_model_can_be_switched_without_exposing_key(self):
+        with TestClient(app) as client:
+            initial = client.get("/api/settings/model")
+            self.assertEqual(initial.status_code, 200)
+            self.assertEqual(initial.json()["allowed_models"], ["deepseekv4-flash", "deepseekv4-pro"])
+            response = client.post("/api/settings/model", json={
+                "model": "deepseekv4-pro",
+                "api_key": "test-secret-api-key",
+            })
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["model"], "deepseekv4-pro")
+            self.assertEqual(response.json()["provider_model"], "deepseek-v4-pro")
+            self.assertNotIn("test-secret-api-key", response.text)
+            client.post("/api/settings/model", json={"model": "deepseekv4-flash"})
+
+    def test_unknown_model_is_rejected(self):
+        with TestClient(app) as client:
+            response = client.post("/api/settings/model", json={"model": "unknown-model"})
+            self.assertEqual(response.status_code, 400)
+
     def test_full_logging_still_redacts_credentials(self):
         payload = sanitize({
             "DEEPSEEK_API_KEY": "secret-key",

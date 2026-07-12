@@ -1,4 +1,4 @@
-const state = { dashboard: null, history: [], chartPoints: [], activeStep: 'CVD', monitorTimer: null };
+const state = { dashboard: null, history: [], chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null };
 const $ = (selector) => document.querySelector(selector);
 
 function isoDate(date) { return date.toISOString().slice(0, 10); }
@@ -18,6 +18,46 @@ async function api(url, options) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.detail || `请求失败 (${response.status})`);
   return payload;
+}
+
+function renderModelConfig(config) {
+  state.modelConfig = config;
+  $('#activeModelLabel').textContent = config.model;
+  $('#agentMode').textContent = `${config.model} · 工具分析`;
+  $('#apiKeyState').textContent = config.api_key_configured ? `已配置 ${config.api_key_masked}` : '尚未配置 API Key';
+  const select = $('#modelSelect');
+  select.innerHTML = config.allowed_models.map(model => `<option value="${escapeHtml(model)}" ${model === config.model ? 'selected' : ''}>${escapeHtml(model)}</option>`).join('');
+}
+
+async function loadModelConfig() {
+  const config = await api('/api/settings/model');
+  renderModelConfig(config);
+  return config;
+}
+
+async function openModelSettings() {
+  const message = $('#modelSettingsMessage'); message.hidden = true; message.classList.remove('error');
+  $('#apiKeyInput').value = ''; $('#apiKeyInput').type = 'password';
+  try { await loadModelConfig(); $('#modelDialog').showModal(); }
+  catch (error) { alert(`无法加载模型配置：${error.message}`); }
+}
+
+async function saveModelSettings(event) {
+  event.preventDefault();
+  const button = $('#saveModelSettings'), message = $('#modelSettingsMessage');
+  const apiKey = $('#apiKeyInput').value.trim();
+  const body = {model: $('#modelSelect').value};
+  if (apiKey) body.api_key = apiKey;
+  button.disabled = true; message.hidden = true;
+  try {
+    const config = await api('/api/settings/model', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    renderModelConfig(config); $('#apiKeyInput').value = '';
+    message.textContent = `已切换到 ${config.model}`; message.classList.remove('error'); message.hidden = false;
+    $('#systemStatus').textContent = `${formatNumber(state.dashboard?.overview?.lots ?? 0)} 批次 · ${config.model}`;
+    window.setTimeout(() => $('#modelDialog').open && $('#modelDialog').close(), 700);
+  } catch (error) {
+    message.textContent = error.message; message.classList.add('error'); message.hidden = false;
+  } finally { button.disabled = false; }
 }
 
 function renderKpis(data) {
@@ -158,7 +198,7 @@ async function sendChat(message) {
   try {
     const result = await api('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:text, history:state.history.slice(-8,-1)})});
     typing.remove(); addMessage('assistant', result.answer, result); state.history.push({role:'assistant', content:result.answer});
-    $('#agentMode').textContent = result.mode === 'deepseek' ? 'DeepSeek · 工具分析' : '本地规则分析';
+    $('#agentMode').textContent = result.mode === 'deepseek' ? `${state.modelConfig?.model || 'DeepSeek'} · 工具分析` : '本地规则分析';
   } catch (error) { typing.remove(); addMessage('assistant', `分析请求失败：${error.message}`); }
   finally { $('#sendButton').disabled = false; $('#chatInput').focus(); }
 }
@@ -174,7 +214,10 @@ function showView(name) {
 
 async function init() {
   setInitialDates();
-  try { const health = await api('/api/health'); $('#systemStatus').textContent = `${formatNumber(health.database.lots)} 批次 · ${health.agent_configured ? health.model : '离线模式'}`; } catch { $('#systemStatus').textContent='数据源不可用'; }
+  try {
+    const [health, modelConfig] = await Promise.all([api('/api/health'), loadModelConfig()]);
+    $('#systemStatus').textContent = `${formatNumber(health.database.lots)} 批次 · ${modelConfig.api_key_configured ? modelConfig.model : '离线模式'}`;
+  } catch { $('#systemStatus').textContent='数据源不可用'; }
   await loadDashboard();
   $('#dateForm').addEventListener('submit', e => { e.preventDefault(); loadDashboard(); if ($('#capabilityView').classList.contains('active')) loadCapability(); });
   document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
@@ -185,6 +228,11 @@ async function init() {
   $('#chatForm').addEventListener('submit', e => { e.preventDefault(); sendChat($('#chatInput').value); });
   document.querySelectorAll('.suggestions button').forEach(button => button.addEventListener('click', () => sendChat(button.textContent)));
   $('#clearChat').addEventListener('click', () => { state.history=[]; $('#chatMessages').innerHTML='<div class="message assistant"><div class="message-label">FAB COPILOT</div><div class="message-content">对话已清空。可以开始新的制造分析。</div></div>'; });
+  $('#modelSettingsButton').addEventListener('click', openModelSettings);
+  $('#modelSettingsForm').addEventListener('submit', saveModelSettings);
+  $('#closeModelDialog').addEventListener('click', () => $('#modelDialog').close());
+  $('#cancelModelSettings').addEventListener('click', () => $('#modelDialog').close());
+  $('#toggleApiKey').addEventListener('click', () => { const input=$('#apiKeyInput'); input.type=input.type === 'password' ? 'text' : 'password'; });
   $('#yieldChart').addEventListener('mousemove', e => { const rect=e.currentTarget.getBoundingClientRect(), mx=e.clientX-rect.left; const point=state.chartPoints.reduce((a,b)=>Math.abs(b.x-mx)<Math.abs(a.x-mx)?b:a,state.chartPoints[0]); const tip=$('#chartTooltip'); if (!point || Math.abs(point.x-mx)>18) {tip.hidden=true;return;} tip.hidden=false; tip.style.left=`${point.x}px`; tip.style.top=`${point.y}px`; tip.textContent=`${point.row.week_start} · ${point.row.yield_pct}% · ${point.row.lots}批`; });
   $('#yieldChart').addEventListener('mouseleave', () => $('#chartTooltip').hidden=true);
   window.addEventListener('resize', () => state.dashboard && drawYieldChart(state.dashboard.yield_trend));

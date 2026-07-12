@@ -23,7 +23,7 @@
 ```dotenv
 DEEPSEEK_API_KEY=your-key
 DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_MODEL=deepseekv4-flash
 AGENT_LOG_PATH=logs/agent_events.jsonl
 AGENT_LOG_MAX_BYTES=5242880
 AGENT_LOG_BACKUP_COUNT=5
@@ -45,6 +45,31 @@ run.bat
 ```
 
 浏览器访问 <http://127.0.0.1:8765>，接口文档位于 <http://127.0.0.1:8765/docs>。
+
+## 模型切换
+
+点击页面右上角的模型按钮，可以更新 API Key，并在以下模型中切换：
+
+- `deepseekv4-flash`
+- `deepseekv4-pro`
+
+界面名称会分别映射到 DeepSeek API 实际要求的 `deepseek-v4-flash` 和 `deepseek-v4-pro`。
+
+也可以直接调用：
+
+```text
+GET  /api/settings/model
+POST /api/settings/model
+```
+
+```json
+{
+  "model": "deepseekv4-pro",
+  "api_key": "your-api-key"
+}
+```
+
+API Key 只保存在当前服务进程的内存中，响应仅返回掩码，服务重启后重新读取 `.env`。只切换模型时可以省略 `api_key`。服务端使用模型白名单校验，当前样例不接受其他模型名称。
 
 如环境缺少依赖：
 
