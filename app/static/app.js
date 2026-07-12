@@ -207,20 +207,31 @@ function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(v => v.classList.remove('active'));
   $(`#${name}View`).classList.add('active'); document.querySelector(`[data-view="${name}"]`)?.classList.add('active');
+  if (!document.querySelector('.app-shell').classList.contains('agent-collapsed')) $('#focusAgent').classList.add('active');
   if (name === 'capability') loadCapability();
   else if (name === 'monitor') loadMonitor();
   else requestAnimationFrame(() => state.dashboard && drawYieldChart(state.dashboard.yield_trend));
 }
 
-function focusAgentPanel() {
-  document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-  $('#focusAgent').classList.add('active');
+function setAgentOpen(open, focusInput = true) {
+  const shell = document.querySelector('.app-shell');
   const panel = document.querySelector('.agent-panel');
+  shell.classList.toggle('agent-collapsed', !open);
+  $('#focusAgent').classList.toggle('active', open);
+  $('#focusAgent').setAttribute('aria-expanded', String(open));
+  $('#mobileAgentToggle').setAttribute('aria-expanded', String(open));
+  $('#collapseAgent').setAttribute('aria-label', open ? '收起分析助手' : '展开分析助手');
+  if (!open) return;
   panel.classList.remove('agent-panel-focus');
   void panel.offsetWidth;
   panel.classList.add('agent-panel-focus');
   panel.scrollIntoView({behavior:'smooth', block:window.innerWidth <= 980 ? 'start' : 'nearest'});
-  window.setTimeout(() => $('#chatInput').focus({preventScroll:true}), 350);
+  if (focusInput) window.setTimeout(() => $('#chatInput').focus({preventScroll:true}), 350);
+}
+
+function toggleAgentPanel() {
+  const isCollapsed = document.querySelector('.app-shell').classList.contains('agent-collapsed');
+  setAgentOpen(isCollapsed);
 }
 
 async function init() {
@@ -230,9 +241,12 @@ async function init() {
     $('#systemStatus').textContent = `${formatNumber(health.database.lots)} 批次 · ${modelConfig.api_key_configured ? modelConfig.model : '离线模式'}`;
   } catch { $('#systemStatus').textContent='数据源不可用'; }
   await loadDashboard();
+  setAgentOpen(true, false);
   $('#dateForm').addEventListener('submit', e => { e.preventDefault(); loadDashboard(); if ($('#capabilityView').classList.contains('active')) loadCapability(); });
   document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
-  $('#focusAgent').addEventListener('click', focusAgentPanel);
+  $('#focusAgent').addEventListener('click', toggleAgentPanel);
+  $('#mobileAgentToggle').addEventListener('click', toggleAgentPanel);
+  $('#collapseAgent').addEventListener('click', () => setAgentOpen(false));
   $('#stepSelector').addEventListener('click', e => { if (!e.target.dataset.step) return; document.querySelectorAll('#stepSelector button').forEach(b=>b.classList.remove('active')); e.target.classList.add('active'); loadCapability(e.target.dataset.step); });
   $('#refreshMonitor').addEventListener('click', loadMonitor);
   $('#monitorHours').addEventListener('change', loadMonitor);

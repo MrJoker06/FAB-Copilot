@@ -15,6 +15,7 @@
     </div>
     <div class="topbar-actions">
       <div class="system-status"><span class="status-dot"></span><span id="systemStatus">正在连接数据源</span></div>
+      <button id="mobileAgentToggle" class="mobile-agent-toggle" title="显示或隐藏分析助手" aria-label="显示或隐藏分析助手" aria-expanded="true">◇</button>
       <button id="modelSettingsButton" class="model-settings-button" title="模型设置"><span aria-hidden="true">⚙</span><span id="activeModelLabel">模型设置</span></button>
     </div>
   </header>
@@ -24,7 +25,7 @@
       <button class="nav-item active" data-view="dashboard" title="制造总览"><span aria-hidden="true">▦</span><span>制造总览</span></button>
       <button class="nav-item" data-view="capability" title="制程能力"><span aria-hidden="true">◎</span><span>制程能力</span></button>
       <button class="nav-item" data-view="monitor" title="Agent 监控"><span aria-hidden="true">◉</span><span>Agent 监控</span></button>
-      <button class="nav-item" id="focusAgent" title="分析助手"><span aria-hidden="true">◇</span><span>分析助手</span></button>
+      <button class="nav-item" id="focusAgent" title="显示或隐藏分析助手" aria-expanded="true"><span aria-hidden="true">◇</span><span>分析助手</span></button>
       <div class="sidebar-meta"><span>DEMO FAB</span><small>历史数据 18 个月</small></div>
     </aside>
 
@@ -103,7 +104,7 @@
     </main>
 
     <aside class="agent-panel" aria-label="Fab Copilot">
-      <div class="agent-heading"><div class="agent-icon">◇</div><div><strong>Fab Copilot</strong><small id="agentMode">数据分析助手</small></div><button id="clearChat" class="icon-btn" title="清空对话" aria-label="清空对话">↺</button></div>
+      <div class="agent-heading"><div class="agent-icon">◇</div><div><strong>Fab Copilot</strong><small id="agentMode">数据分析助手</small></div><button id="clearChat" class="icon-btn" title="清空对话" aria-label="清空对话">↺</button><button id="collapseAgent" class="icon-btn" title="收起分析助手" aria-label="收起分析助手">›</button></div>
       <div id="chatMessages" class="chat-messages" aria-live="polite">
         <div class="message assistant"><div class="message-label">FAB COPILOT</div><div class="message-content">我可以查询制造报表、定位设备异常，并结合厂内 SOP 给出分析建议。</div></div>
         <div class="suggestions">

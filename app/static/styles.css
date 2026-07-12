@@ -35,8 +35,11 @@ button { cursor: pointer; }
 .model-settings-button { height: 32px; display: flex; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid #4b5d58; border-radius: 4px; color: #d5dfdc; background: #26332f; font-size: 10px; }
 .model-settings-button:hover { border-color: #759189; background: #2e3d39; }
 .model-settings-button span:first-child { color: #82c8b8; font-size: 13px; }
+.mobile-agent-toggle { display: none; width: 32px; height: 32px; border: 1px solid #4b5d58; border-radius: 4px; color: #82c8b8; background: #26332f; font-size: 17px; }
 
-.app-shell { display: grid; grid-template-columns: 158px minmax(660px, 1fr) 380px; min-height: calc(100vh - 62px); }
+.app-shell { display: grid; grid-template-columns: 158px minmax(660px, 1fr) 380px; min-height: calc(100vh - 62px); transition: grid-template-columns .22s ease; }
+.app-shell.agent-collapsed { grid-template-columns: 158px minmax(660px, 1fr) 0; }
+.app-shell.agent-collapsed .agent-panel { opacity: 0; visibility: hidden; pointer-events: none; overflow: hidden; border-left: 0; }
 .sidebar { background: #202c29; padding: 20px 10px 16px; color: #c1ceca; display: flex; flex-direction: column; gap: 5px; }
 .nav-item { height: 42px; width: 100%; display: flex; align-items: center; gap: 10px; border: 0; border-left: 2px solid transparent; padding: 0 12px; color: #aebdb9; background: transparent; text-align: left; font-size: 13px; }
 .nav-item:hover { color: #fff; background: #293733; }
@@ -112,7 +115,7 @@ tbody tr:hover { background: #f8fbfa; }
 .log-location { min-height: 40px; margin-top: 14px; display: flex; align-items: center; gap: 8px; padding: 0 12px; color: var(--muted); background: #edf2f0; border: 1px solid var(--line); border-radius: 4px; font-size: 10px; overflow-wrap: anywhere; }
 .log-location code { color: #315c53; font-size: 10px; }.log-location span { margin-left: auto; white-space: nowrap; }
 
-.agent-panel { min-width: 0; background: var(--surface); border-left: 1px solid var(--line); display: flex; flex-direction: column; height: calc(100vh - 62px); position: sticky; top: 62px; }
+.agent-panel { min-width: 0; background: var(--surface); border-left: 1px solid var(--line); display: flex; flex-direction: column; height: calc(100vh - 62px); position: sticky; top: 62px; opacity: 1; visibility: visible; transition: opacity .16s ease, visibility .16s ease; }
 .agent-panel-focus { animation: agent-panel-focus 1s ease-out; }
 @keyframes agent-panel-focus { 0% { box-shadow: inset 4px 0 0 #54bca6; } 100% { box-shadow: inset 4px 0 0 transparent; } }
 .agent-heading { height: 68px; flex: 0 0 68px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--line); }
@@ -167,6 +170,7 @@ tbody tr:hover { background: #f8fbfa; }
 
 @media (max-width: 1280px) {
   .app-shell { grid-template-columns: 64px minmax(600px, 1fr) 340px; }
+  .app-shell.agent-collapsed { grid-template-columns: 64px minmax(600px, 1fr) 0; }
   .nav-item { justify-content: center; padding: 0; }
   .nav-item span:last-child, .sidebar-meta { display: none; }
   .nav-item span:first-child { width: auto; }
@@ -174,12 +178,14 @@ tbody tr:hover { background: #f8fbfa; }
 }
 @media (max-width: 980px) {
   .app-shell { grid-template-columns: 58px minmax(0, 1fr); }
+  .app-shell.agent-collapsed { grid-template-columns: 58px minmax(0, 1fr); }
+  .app-shell.agent-collapsed .agent-panel { display: none; }
   .agent-panel { grid-column: 2; position: static; height: 620px; border-top: 1px solid var(--line); border-left: 0; }
   .main-content { padding: 20px; }
   .monitor-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 700px) {
-  .topbar { padding: 0 13px; }.system-status { display: none; }.model-settings-button span:last-child { max-width: 112px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar { padding: 0 13px; }.system-status { display: none; }.mobile-agent-toggle { display: block; }.model-settings-button span:last-child { max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .app-shell { display: block; }.sidebar { display: none; }
   .main-content { padding: 16px 12px; }
   .page-heading { flex-direction: column; gap: 14px; }
