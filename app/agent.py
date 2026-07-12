@@ -29,12 +29,13 @@ SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的�
 
 规则：
 1. 涉及数字、趋势、设备、批次时必须先调用数据工具，不得猜测。
-2. 涉及 SOP、规范、处置建议或工艺解释时调用 search_knowledge，并使用工具返回的 chunk_id 标注为 [来源 chunk_id]。
+2. 涉及 SOP、规范、处置建议、工艺解释或历史经验时调用 search_knowledge。该工具会联合检索正式知识与历史案例，引用时必须使用返回的 reference_id，格式为 [来源 KB-数字] 或 [来源 CASE-编号]。
 3. 先给结论，再给证据；区分事实、推断和建议。不要宣称相关性就是因果性。
 4. 报告百分比时说明时间范围和样本量。若数据不足，明确说明。
 5. 不执行写库操作。高风险建议（停机、报废、配方变更）必须要求工程师复核。
 6. 回答使用简洁中文，日期使用 YYYY-MM-DD。
 7. 本演示系统的制程能力判定统一使用 Cpk 1.33：低于 1.33 为能力不足，1.33 至 1.67 为观察区间，高于或等于 1.67 为稳定；不得自行改写阈值。
+8. 历史案例只能用于生成和排序根因假设，不能证明当前问题具有相同根因。必须结合当前制造数据说明案例的相似点、差异和待验证项。
 
 数据库字段提示：
 - lots: lot_id, product, technology_nm, route, priority, start_time, complete_time, status, wafer_count, good_wafers, yield_rate(0-1), cycle_time_hours, hold_hours
@@ -60,7 +61,7 @@ TOOLS = [
     {"type": "function", "function": {"name": "get_process_capability", "description": "查询制程设备能力。CVD计算膜厚Cpk，其他站点计算缺陷密度单边Cpk", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": ["LITHO", "ETCH", "CVD", "CMP"]}})}},
     {"type": "function", "function": {"name": "get_defect_pareto", "description": "查询缺陷类型Pareto和受影响批次数", "parameters": _schema({**DATE_PROPERTIES, "limit": {"type": "integer", "minimum": 1, "maximum": 25}})}},
     {"type": "function", "function": {"name": "get_recent_excursions", "description": "查询最近的制程异常批次及量测值", "parameters": _schema({**DATE_PROPERTIES, "limit": {"type": "integer", "minimum": 1, "maximum": 100}})}},
-    {"type": "function", "function": {"name": "search_knowledge", "description": "检索厂内SOP、控制计划和故障处置知识，回答规范或建议前使用", "parameters": _schema({"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, ["query"])}},
+    {"type": "function", "function": {"name": "search_knowledge", "description": "联合检索厂内SOP、控制计划、分析方法与结构化历史案例。返回可跳转的reference_id", "parameters": _schema({"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, ["query"])}},
     {"type": "function", "function": {"name": "query_manufacturing_data", "description": "在固定报表不足时执行只读SQLite SELECT。只能访问白名单表，最多返回100行", "parameters": _schema({"sql": {"type": "string", "description": "单条SELECT语句，SQLite语法"}}, ["sql"])}},
 ]
 
@@ -105,7 +106,7 @@ async def _run_agent_impl(question: str, history: list[dict] | None, run_id: str
             messages.append({"role": role, "content": content})
     messages.append({"role": "user", "content": question})
     trace: list[dict] = []
-    sources: dict[int, dict] = {}
+    sources: dict[str, dict] = {}
     endpoint = f"{settings.deepseek_base_url}/chat/completions"
 
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
@@ -186,7 +187,7 @@ async def _run_agent_impl(question: str, history: list[dict] | None, run_id: str
                     result = handler(**arguments)
                     if name == "search_knowledge":
                         for source in result:
-                            sources[source["chunk_id"]] = source
+                            sources[source["reference_id"]] = source
                     row_count = len(result) if isinstance(result, list) else 1
                     trace.append({"tool": name, "arguments": arguments, "status": "ok", "rows": row_count})
                     emit(

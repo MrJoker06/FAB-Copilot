@@ -1,4 +1,4 @@
-const state = { dashboard: null, history: [], chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null };
+const state = { dashboard: null, history: [], chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null };
 const $ = (selector) => document.querySelector(selector);
 
 function isoDate(date) { return date.toISOString().slice(0, 10); }
@@ -20,14 +20,19 @@ async function api(url, options) {
   return payload;
 }
 
-function inlineMarkdown(value, sourceIds = new Set()) {
+function sourceLink(source, label) {
+  if (source.source_type === 'case' || source.case_id) return `<button class="citation-link" data-case-id="${escapeHtml(source.case_id)}">${escapeHtml(label)}</button>`;
+  return `<button class="citation-link" data-knowledge-chunk="${Number(source.chunk_id)}">${escapeHtml(label)}</button>`;
+}
+
+function inlineMarkdown(value, sourceReferences = new Map()) {
   let text = escapeHtml(value);
   text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
   text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-  text = text.replace(/\[来源(?:\s+chunk_id\s*:)?\s*([\d,，、\s]+)\]/gi, (match, ids) => {
-    const chunkIds = ids.split(/[,，、\s]+/).map(Number).filter(id => id && sourceIds.has(id));
-    return chunkIds.length ? chunkIds.map(chunkId => `<button class="citation-link" data-knowledge-chunk="${chunkId}">[来源 ${chunkId}]</button>`).join(' ') : match;
+  text = text.replace(/\[来源(?:\s+chunk_id\s*:)?\s*([A-Za-z0-9,，、\-\s]+)\]/gi, (match, ids) => {
+    const references = ids.split(/[,，、\s]+/).filter(Boolean).map(id => sourceReferences.get(id) || sourceReferences.get(`KB-${id}`)).filter(Boolean);
+    return references.length ? references.map(source => sourceLink(source, `[来源 ${source.reference_id || `KB-${source.chunk_id}`}]`)).join(' ') : match;
   });
   return text;
 }
@@ -36,7 +41,7 @@ function markdownCells(line) {
   return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim());
 }
 
-function renderMarkdown(markdown, sourceIds = new Set()) {
+function renderMarkdown(markdown, sourceReferences = new Map()) {
   const lines = String(markdown || '').replace(/\r/g, '').split('\n');
   const output = [];
   let index = 0;
@@ -51,27 +56,27 @@ function renderMarkdown(markdown, sourceIds = new Set()) {
       output.push(`<pre><code>${escapeHtml(code.join('\n'))}</code></pre>`); continue;
     }
     const heading = line.match(/^(#{1,4})\s+(.+)$/);
-    if (heading) { const level = Math.min(4, heading[1].length + 1); output.push(`<h${level}>${inlineMarkdown(heading[2], sourceIds)}</h${level}>`); index += 1; continue; }
+    if (heading) { const level = Math.min(4, heading[1].length + 1); output.push(`<h${level}>${inlineMarkdown(heading[2], sourceReferences)}</h${level}>`); index += 1; continue; }
     if (/^\s*---+\s*$/.test(line)) { output.push('<hr>'); index += 1; continue; }
     if (line.includes('|') && index + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[index + 1])) {
       const headers = markdownCells(line); index += 2; const rows = [];
       while (index < lines.length && lines[index].includes('|') && lines[index].trim()) { rows.push(markdownCells(lines[index])); index += 1; }
-      output.push(`<div class="markdown-table-wrap"><table><thead><tr>${headers.map(cell => `<th>${inlineMarkdown(cell, sourceIds)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${headers.map((_, i) => `<td>${inlineMarkdown(row[i] || '', sourceIds)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`); continue;
+      output.push(`<div class="markdown-table-wrap"><table><thead><tr>${headers.map(cell => `<th>${inlineMarkdown(cell, sourceReferences)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${headers.map((_, i) => `<td>${inlineMarkdown(row[i] || '', sourceReferences)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`); continue;
     }
     if (/^\s*[-*]\s+/.test(line) || /^\s*\d+\.\s+/.test(line)) {
       const ordered = /^\s*\d+\./.test(line), tag = ordered ? 'ol' : 'ul', items = [];
       const pattern = ordered ? /^\s*\d+\.\s+(.+)$/ : /^\s*[-*]\s+(.+)$/;
       while (index < lines.length) { const match = lines[index].match(pattern); if (!match) break; items.push(match[1]); index += 1; }
-      output.push(`<${tag}>${items.map(item => `<li>${inlineMarkdown(item, sourceIds)}</li>`).join('')}</${tag}>`); continue;
+      output.push(`<${tag}>${items.map(item => `<li>${inlineMarkdown(item, sourceReferences)}</li>`).join('')}</${tag}>`); continue;
     }
     if (/^>\s?/.test(line)) {
       const quote = [];
       while (index < lines.length && /^>\s?/.test(lines[index])) { quote.push(lines[index].replace(/^>\s?/, '')); index += 1; }
-      output.push(`<blockquote>${quote.map(item => inlineMarkdown(item, sourceIds)).join('<br>')}</blockquote>`); continue;
+      output.push(`<blockquote>${quote.map(item => inlineMarkdown(item, sourceReferences)).join('<br>')}</blockquote>`); continue;
     }
     const paragraph = [line.trim()]; index += 1;
     while (index < lines.length && lines[index].trim() && !isBlockStart(lines[index]) && !(lines[index].includes('|') && index + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[index + 1]))) { paragraph.push(lines[index].trim()); index += 1; }
-    output.push(`<p>${inlineMarkdown(paragraph.join(' '), sourceIds)}</p>`);
+    output.push(`<p>${inlineMarkdown(paragraph.join(' '), sourceReferences)}</p>`);
   }
   return output.join('');
 }
@@ -101,6 +106,41 @@ async function openKnowledgeChunk(chunkId) {
   $('#knowledgeContent').innerHTML = payload.chunks.map(chunk => `<section id="knowledge-chunk-${chunk.chunk_id}" class="knowledge-chunk ${chunk.chunk_id === Number(chunkId) ? 'target-chunk' : ''}"><h3>${escapeHtml(chunk.section)}</h3><div class="markdown-content">${renderMarkdown(chunk.content)}</div></section>`).join('');
   document.querySelectorAll('.knowledge-document').forEach(button => button.classList.toggle('active', Number(button.dataset.knowledgeChunk) === payload.chunks[0].chunk_id));
   window.setTimeout(() => document.querySelector(`#knowledge-chunk-${chunkId}`)?.scrollIntoView({behavior:'smooth', block:'start'}), 80);
+}
+
+function renderCaseList() {
+  const query = $('#caseFilter').value.trim().toLowerCase();
+  const step = $('#caseStepFilter').value;
+  const cases = state.cases.filter(item => {
+    const searchable = `${item.case_id} ${item.title} ${item.process_step} ${item.equipment_id || ''} ${item.problem} ${item.summary} ${item.tags}`.toLowerCase();
+    return (!step || item.process_step === step) && (!query || searchable.includes(query));
+  });
+  $('#caseCount').textContent = `${cases.length} 个案例`;
+  $('#caseList').innerHTML = cases.map(item => `<button class="case-list-item" data-case-id="${escapeHtml(item.case_id)}"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.case_id)} · ${escapeHtml(item.process_step)} · ${escapeHtml(item.occurred_date)}</span></button>`).join('') || '<p class="empty">没有匹配的历史案例</p>';
+}
+
+async function loadCaseIndex() {
+  if (!state.cases.length) {
+    state.casesPromise ||= api('/api/cases');
+    state.cases = await state.casesPromise;
+    const steps = [...new Set(state.cases.map(item => item.process_step))].sort();
+    $('#caseStepFilter').insertAdjacentHTML('beforeend', steps.map(step => `<option value="${escapeHtml(step)}">${escapeHtml(step)}</option>`).join(''));
+  }
+  renderCaseList();
+  return state.cases;
+}
+
+async function openHistoricalCase(caseId) {
+  showView('cases');
+  await loadCaseIndex();
+  const item = await api(`/api/cases/${encodeURIComponent(caseId)}`);
+  $('#caseReference').textContent = item.case_id;
+  $('#caseTitle').textContent = item.title;
+  $('#caseMeta').innerHTML = `<span>${escapeHtml(item.process_step)}</span>${item.equipment_id ? `<span>${escapeHtml(item.equipment_id)}</span>` : ''}<span>${escapeHtml(item.occurred_date)}</span><span class="severity-${item.severity.toLowerCase()}">${escapeHtml(item.severity)}</span><span>${escapeHtml(item.tags)}</span>`;
+  const sections = [['问题', item.problem], ['解决方案', item.solution], ['解决结果', item.result], ['案例总结', item.summary]];
+  $('#caseContent').innerHTML = sections.map(([title, content]) => `<section class="case-section"><h3>${title}</h3><p>${escapeHtml(content)}</p></section>`).join('');
+  document.querySelectorAll('.case-list-item').forEach(button => button.classList.toggle('active', button.dataset.caseId === caseId));
+  document.querySelector('.case-reader')?.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function renderModelConfig(config) {
@@ -259,11 +299,19 @@ async function loadMonitor() {
 function addMessage(role, content, extra = {}) {
   const el = document.createElement('div'); el.className = `message ${role}`;
   const label = role === 'user' ? 'YOU' : 'FAB COPILOT';
-  const sourceIds = new Set((extra.sources || []).map(source => Number(source.chunk_id)));
-  const renderedContent = role === 'assistant' ? renderMarkdown(content, sourceIds) : escapeHtml(content).replace(/\n/g,'<br>');
+  const sourceReferences = new Map();
+  for (const source of (extra.sources || [])) {
+    if (source.reference_id) sourceReferences.set(source.reference_id, source);
+    if (source.chunk_id) sourceReferences.set(String(source.chunk_id), source);
+  }
+  const renderedContent = role === 'assistant' ? renderMarkdown(content, sourceReferences) : escapeHtml(content).replace(/\n/g,'<br>');
   el.innerHTML = `<div class="message-label">${label}</div><div class="message-content markdown-content">${renderedContent}</div>`;
   if (extra.sources?.length) {
-    const sourceHtml = extra.sources.map(s => `<button type="button" class="source-link" data-knowledge-chunk="${s.chunk_id}">[来源 ${s.chunk_id}] ${escapeHtml(s.source)} · ${escapeHtml(s.section)}</button>`).join('');
+    const sourceHtml = extra.sources.map(source => {
+      const referenceId = source.reference_id || `KB-${source.chunk_id}`;
+      const attribute = source.source_type === 'case' ? `data-case-id="${escapeHtml(source.case_id)}"` : `data-knowledge-chunk="${source.chunk_id}"`;
+      return `<button type="button" class="source-link" ${attribute}>[来源 ${escapeHtml(referenceId)}] ${escapeHtml(source.source)} · ${escapeHtml(source.section)}</button>`;
+    }).join('');
     el.querySelector('.message-content').insertAdjacentHTML('beforeend', `<div class="source-list"><strong>知识来源</strong>${sourceHtml}</div>`);
   }
   $('#chatMessages').appendChild(el);
@@ -295,6 +343,7 @@ function showView(name) {
   if (!document.querySelector('.app-shell').classList.contains('agent-collapsed')) $('#focusAgent').classList.add('active');
   if (name === 'capability') loadCapability();
   else if (name === 'knowledge') loadKnowledgeIndex();
+  else if (name === 'cases') loadCaseIndex();
   else if (name === 'monitor') loadMonitor();
   else requestAnimationFrame(() => state.dashboard && drawYieldChart(state.dashboard.yield_trend));
 }
@@ -338,7 +387,15 @@ async function init() {
   $('#monitorHours').addEventListener('change', loadMonitor);
   $('#knowledgeFilter').addEventListener('input', event => renderKnowledgeDocuments(event.target.value));
   $('#knowledgeDocuments').addEventListener('click', event => { const target=event.target.closest('[data-knowledge-chunk]'); if (target) openKnowledgeChunk(Number(target.dataset.knowledgeChunk)); });
-  $('#chatMessages').addEventListener('click', event => { const target=event.target.closest('[data-knowledge-chunk]'); if (target) openKnowledgeChunk(Number(target.dataset.knowledgeChunk)); });
+  $('#caseFilter').addEventListener('input', renderCaseList);
+  $('#caseStepFilter').addEventListener('change', renderCaseList);
+  $('#caseList').addEventListener('click', event => { const target=event.target.closest('[data-case-id]'); if (target) openHistoricalCase(target.dataset.caseId); });
+  $('#chatMessages').addEventListener('click', event => {
+    const knowledgeTarget=event.target.closest('[data-knowledge-chunk]');
+    const caseTarget=event.target.closest('[data-case-id]');
+    if (knowledgeTarget) openKnowledgeChunk(Number(knowledgeTarget.dataset.knowledgeChunk));
+    else if (caseTarget) openHistoricalCase(caseTarget.dataset.caseId);
+  });
   $('#chatForm').addEventListener('submit', e => { e.preventDefault(); sendChat($('#chatInput').value); });
   document.querySelectorAll('.suggestions button').forEach(button => button.addEventListener('click', () => sendChat(button.textContent)));
   $('#clearChat').addEventListener('click', () => { state.history=[]; $('#chatMessages').innerHTML='<div class="message assistant"><div class="message-label">FAB COPILOT</div><div class="message-content">对话已清空。可以开始新的制造分析。</div></div>'; });

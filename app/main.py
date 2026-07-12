@@ -13,9 +13,14 @@ from .agent import run_agent
 from .audit import emit, monitoring_summary, read_events
 from .config import PROJECT_DIR, get_settings, public_model_config, update_model_config
 from .database import db_session
-from .rag import get_knowledge_document, list_knowledge_documents
+from .rag import (
+    get_historical_case,
+    get_knowledge_document,
+    list_historical_cases,
+    list_knowledge_documents,
+)
 from .reports import process_capability, report_bundle
-from .seed import generate_database
+from .seed import generate_database, seed_reference_data
 
 
 @asynccontextmanager
@@ -23,6 +28,8 @@ async def lifespan(_: FastAPI):
     settings = get_settings()
     if not settings.database_path.exists():
         generate_database(settings.database_path)
+    else:
+        seed_reference_data(settings.database_path)
     yield
 
 
@@ -61,11 +68,14 @@ def health() -> dict:
     with db_session() as connection:
         lots = connection.execute("SELECT COUNT(*) FROM lots").fetchone()[0]
         date_range = connection.execute("SELECT MIN(date(start_time)), MAX(date(COALESCE(complete_time, start_time))) FROM lots").fetchone()
+        knowledge_chunks = connection.execute("SELECT COUNT(*) FROM knowledge_chunks").fetchone()[0]
+        historical_cases = connection.execute("SELECT COUNT(*) FROM historical_cases").fetchone()[0]
     return {
         "status": "ok",
         "database": {"lots": lots, "start": date_range[0], "end": date_range[1]},
         "model": settings.deepseek_model,
         "agent_configured": bool(settings.deepseek_api_key),
+        "reference_data": {"knowledge_chunks": knowledge_chunks, "historical_cases": historical_cases},
     }
 
 
@@ -121,6 +131,19 @@ def knowledge_documents() -> list[dict]:
 def knowledge_document(chunk_id: int) -> dict:
     try:
         return get_knowledge_document(chunk_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/cases")
+def historical_cases() -> list[dict]:
+    return list_historical_cases()
+
+
+@app.get("/api/cases/{case_id}")
+def historical_case(case_id: str) -> dict:
+    try:
+        return get_historical_case(case_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

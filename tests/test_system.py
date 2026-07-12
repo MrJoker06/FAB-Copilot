@@ -1,16 +1,23 @@
 from __future__ import annotations
 
 import unittest
+from datetime import date
 
 from fastapi.testclient import TestClient
 
 from app.audit import sanitize
+from app.database import db_session
 from app.main import app
 from app.rag import search_knowledge
 from app.reports import process_capability, report_bundle, safe_select
+from app.seed import seed_reference_data
 
 
 class FabInsightTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        seed_reference_data()
+
     def test_dashboard_has_manufacturing_data(self):
         dashboard = report_bundle()
         self.assertGreater(dashboard["overview"]["lots"], 300)
@@ -26,23 +33,42 @@ class FabInsightTests(unittest.TestCase):
         peers = [row for row in capability if row["equipment_id"] != "CVD-02"]
         self.assertLess(cvd_02["cpk"], min(row["cpk"] for row in peers))
 
+    def test_history_contains_no_future_process_records(self):
+        with db_session() as connection:
+            max_run = connection.execute("SELECT MAX(date(run_time)) FROM process_runs").fetchone()[0]
+            max_defect = connection.execute("SELECT MAX(date(detected_time)) FROM defect_records").fetchone()[0]
+        self.assertLessEqual(max_run, date.today().isoformat())
+        self.assertLessEqual(max_defect, date.today().isoformat())
+
     def test_rag_returns_cited_source(self):
-        results = search_knowledge("CVD 膜厚偏高处置", 3)
+        results = search_knowledge("CMP 划伤 Pad Conditioner", 10)
         self.assertTrue(results)
-        self.assertEqual(results[0]["source"], "CVD_control_plan.md")
-        self.assertIn("section", results[0])
+        self.assertEqual({item["source_type"] for item in results}, {"knowledge", "case"})
+        self.assertTrue(all(item["reference_id"] for item in results))
 
     def test_knowledge_documents_support_chunk_navigation(self):
         with TestClient(app) as client:
             documents = client.get("/api/knowledge/documents")
             self.assertEqual(documents.status_code, 200)
-            self.assertGreaterEqual(len(documents.json()), 4)
+            self.assertGreaterEqual(len(documents.json()), 12)
             first_chunk_id = documents.json()[0]["first_chunk_id"]
             document = client.get(f"/api/knowledge/chunks/{first_chunk_id}")
             self.assertEqual(document.status_code, 200)
             self.assertEqual(document.json()["selected_chunk_id"], first_chunk_id)
             self.assertTrue(document.json()["chunks"])
             self.assertTrue(all("content" in chunk for chunk in document.json()["chunks"]))
+
+    def test_historical_case_has_fixed_format(self):
+        with TestClient(app) as client:
+            cases = client.get("/api/cases")
+            self.assertEqual(cases.status_code, 200)
+            self.assertGreaterEqual(len(cases.json()), 12)
+            case_id = cases.json()[0]["case_id"]
+            detail = client.get(f"/api/cases/{case_id}")
+            self.assertEqual(detail.status_code, 200)
+            required = {"problem", "solution", "result", "summary"}
+            self.assertTrue(required.issubset(detail.json()))
+            self.assertTrue(all(detail.json()[field] for field in required))
 
     def test_sql_guard_rejects_writes(self):
         with self.assertRaises(ValueError):
@@ -55,6 +81,8 @@ class FabInsightTests(unittest.TestCase):
             response = client.get("/api/health")
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["status"], "ok")
+            self.assertEqual(response.json()["reference_data"]["knowledge_chunks"], 48)
+            self.assertEqual(response.json()["reference_data"]["historical_cases"], 12)
 
     def test_monitor_endpoint_is_sanitized(self):
         with TestClient(app) as client:

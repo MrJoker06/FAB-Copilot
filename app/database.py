@@ -74,9 +74,29 @@ CREATE TABLE IF NOT EXISTS knowledge_chunks (
     content TEXT NOT NULL
 );
 
-CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts USING fts5(
+CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_trigram_fts USING fts5(
     title, section, content, content='knowledge_chunks', content_rowid='chunk_id',
-    tokenize='unicode61 remove_diacritics 2'
+    tokenize='trigram'
+);
+
+CREATE TABLE IF NOT EXISTS historical_cases (
+    case_id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    process_step TEXT NOT NULL,
+    equipment_id TEXT,
+    occurred_date TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    problem TEXT NOT NULL,
+    solution TEXT NOT NULL,
+    result TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    tags TEXT NOT NULL
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS case_trigram_fts USING fts5(
+    title, process_step, equipment_id, problem, solution, result, summary, tags,
+    content='historical_cases', content_rowid='rowid',
+    tokenize='trigram'
 );
 
 CREATE INDEX IF NOT EXISTS idx_lots_complete ON lots(complete_time);
@@ -84,6 +104,7 @@ CREATE INDEX IF NOT EXISTS idx_runs_time ON process_runs(run_time);
 CREATE INDEX IF NOT EXISTS idx_runs_equipment ON process_runs(equipment_id, run_time);
 CREATE INDEX IF NOT EXISTS idx_defects_time ON defect_records(detected_time);
 CREATE INDEX IF NOT EXISTS idx_events_time ON equipment_events(event_time);
+CREATE INDEX IF NOT EXISTS idx_cases_step_date ON historical_cases(process_step, occurred_date);
 """
 
 
@@ -97,8 +118,11 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
 
 
 def initialize(path: Path | None = None) -> None:
-    with connect(path) as connection:
+    connection = connect(path)
+    try:
         connection.executescript(SCHEMA)
+    finally:
+        connection.close()
 
 
 @contextmanager

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import random
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 from .config import PROJECT_DIR, get_settings
-from .database import connect, initialize
+from .database import db_session, initialize
 
 
 PRODUCTS = [
@@ -54,8 +55,8 @@ def _clip(value: float, low: float, high: float) -> float:
 
 
 def _seed_knowledge(connection) -> int:
-    connection.execute("DELETE FROM knowledge_fts")
     connection.execute("DELETE FROM knowledge_chunks")
+    connection.execute("DELETE FROM sqlite_sequence WHERE name = 'knowledge_chunks'")
     count = 0
     for path in sorted((PROJECT_DIR / "knowledge").glob("*.md")):
         title = path.stem.replace("_", " ")
@@ -67,13 +68,9 @@ def _seed_knowledge(connection) -> int:
             content = "\n".join(buffer).strip()
             if not content:
                 return
-            cursor = connection.execute(
+            connection.execute(
                 "INSERT INTO knowledge_chunks(title, source, section, content) VALUES (?, ?, ?, ?)",
                 (title, path.name, section, content),
-            )
-            connection.execute(
-                "INSERT INTO knowledge_fts(rowid, title, section, content) VALUES (?, ?, ?, ?)",
-                (cursor.lastrowid, title, section, content),
             )
             count += 1
             buffer = []
@@ -85,7 +82,46 @@ def _seed_knowledge(connection) -> int:
             elif not line.startswith("# "):
                 buffer.append(line)
         flush()
+    connection.execute("INSERT INTO knowledge_trigram_fts(knowledge_trigram_fts) VALUES ('rebuild')")
     return count
+
+
+def _seed_cases(connection) -> int:
+    path = PROJECT_DIR / "cases" / "historical_cases.json"
+    cases = json.loads(path.read_text(encoding="utf-8"))
+    required = {
+        "case_id", "title", "process_step", "equipment_id", "occurred_date",
+        "severity", "problem", "solution", "result", "summary", "tags",
+    }
+    connection.execute("DELETE FROM historical_cases")
+    for item in cases:
+        missing = required.difference(item)
+        if missing:
+            raise ValueError(f"案例 {item.get('case_id', '<unknown>')} 缺少字段: {sorted(missing)}")
+        tags = ", ".join(item["tags"]) if isinstance(item["tags"], list) else str(item["tags"])
+        connection.execute(
+            """INSERT INTO historical_cases(
+                   case_id, title, process_step, equipment_id, occurred_date, severity,
+                   problem, solution, result, summary, tags
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                item["case_id"], item["title"], item["process_step"], item["equipment_id"],
+                item["occurred_date"], item["severity"], item["problem"], item["solution"],
+                item["result"], item["summary"], tags,
+            ),
+        )
+    connection.execute("INSERT INTO case_trigram_fts(case_trigram_fts) VALUES ('rebuild')")
+    return len(cases)
+
+
+def seed_reference_data(path: Path | None = None) -> dict:
+    db_path = path or get_settings().database_path
+    initialize(db_path)
+    with db_session(db_path) as connection:
+        knowledge_count = _seed_knowledge(connection)
+        case_count = _seed_cases(connection)
+        connection.commit()
+    return {"knowledge_chunks": knowledge_count, "historical_cases": case_count}
 
 
 def generate_database(path: Path | None = None, days: int = 548, seed: int = 20260712) -> dict:
@@ -93,6 +129,7 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
     initialize(db_path)
     rng = random.Random(seed)
     end_day = date.today()
+    as_of = datetime.combine(end_day, time(23, 59, 59))
     start_day = end_day - timedelta(days=days - 1)
     lots: list[tuple] = []
     runs: list[tuple] = []
@@ -164,15 +201,16 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
                             equipment_penalty += 0.024
 
                 pass_flag = int(excursion is None and defect_density < 0.48)
-                lot_runs.append((
-                    lot_id, step, equipment, chamber, recipe, run_dt.isoformat(timespec="seconds"),
-                    round(temp, 3), round(pressure, 4), round(duration, 2),
-                    round(thickness, 3) if thickness is not None else None,
-                    round(uniformity, 3) if uniformity is not None else None,
-                    round(defect_density, 4), pass_flag, excursion,
-                ))
+                if run_dt <= as_of:
+                    lot_runs.append((
+                        lot_id, step, equipment, chamber, recipe, run_dt.isoformat(timespec="seconds"),
+                        round(temp, 3), round(pressure, 4), round(duration, 2),
+                        round(thickness, 3) if thickness is not None else None,
+                        round(uniformity, 3) if uniformity is not None else None,
+                        round(defect_density, 4), pass_flag, excursion,
+                    ))
                 defect_probability = 0.12 + (0.15 if excursion else 0)
-                if rng.random() < defect_probability:
+                if run_dt <= as_of and rng.random() < defect_probability:
                     defect_type = rng.choice(DEFECTS[step])
                     if excursion == "CMP-SCRATCH":
                         defect_type = "Scratch"
@@ -208,7 +246,7 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
                 event_dt = datetime.combine(current_day, time(rng.randint(0, 23), rng.randint(0, 59)))
                 events.append((equipment, event_dt.isoformat(timespec="seconds"), event_type, round(duration, 1), severity, reason))
 
-    with connect(db_path) as connection:
+    with db_session(db_path) as connection:
         connection.execute("DELETE FROM defect_records")
         connection.execute("DELETE FROM process_runs")
         connection.execute("DELETE FROM equipment_events")
@@ -231,6 +269,7 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
             defects,
         )
         knowledge_count = _seed_knowledge(connection)
+        case_count = _seed_cases(connection)
         connection.commit()
 
     return {
@@ -241,6 +280,7 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
         "equipment_events": len(events),
         "defect_records": len(defects),
         "knowledge_chunks": knowledge_count,
+        "historical_cases": case_count,
     }
 
 

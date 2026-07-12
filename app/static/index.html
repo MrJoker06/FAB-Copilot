@@ -25,6 +25,7 @@
       <button class="nav-item active" data-view="dashboard" title="制造总览"><span aria-hidden="true">▦</span><span>制造总览</span></button>
       <button class="nav-item" data-view="capability" title="制程能力"><span aria-hidden="true">◎</span><span>制程能力</span></button>
       <button class="nav-item" data-view="knowledge" title="知识库"><span aria-hidden="true">▤</span><span>知识库</span></button>
+      <button class="nav-item" data-view="cases" title="历史案例库"><span aria-hidden="true">▥</span><span>案例库</span></button>
       <button class="nav-item" data-view="monitor" title="Agent 监控"><span aria-hidden="true">◉</span><span>Agent 监控</span></button>
       <button class="nav-item" id="focusAgent" title="显示或隐藏分析助手" aria-expanded="true"><span aria-hidden="true">◇</span><span>分析助手</span></button>
       <div class="sidebar-meta"><span>DEMO FAB</span><small>历史数据 18 个月</small></div>
@@ -94,6 +95,23 @@
           <article class="panel knowledge-reader">
             <div class="knowledge-reader-heading"><div><p id="knowledgeSource" class="eyebrow">KNOWLEDGE BASE</p><h2 id="knowledgeTitle">选择一份知识文档</h2></div></div>
             <div id="knowledgeContent" class="knowledge-content"><p class="empty">从左侧选择文档，或点击 Agent 回答中的来源。</p></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="casesView" class="view">
+        <div class="page-heading">
+          <div><p class="eyebrow">LESSONS LEARNED</p><h1>历史案例库</h1><p>结构化问题、措施、结果与经验总结</p></div>
+          <div class="case-filters"><input id="caseFilter" type="search" placeholder="搜索案例、设备或标签" aria-label="搜索历史案例"><select id="caseStepFilter" aria-label="筛选制程"><option value="">全部制程</option></select></div>
+        </div>
+        <div class="case-layout">
+          <aside class="panel case-index">
+            <div class="panel-heading"><div><h2>案例记录</h2><p id="caseCount">加载中</p></div></div>
+            <div id="caseList" class="case-list"></div>
+          </aside>
+          <article class="panel case-reader">
+            <div class="case-reader-heading"><div><p id="caseReference" class="eyebrow">HISTORICAL CASE</p><h2 id="caseTitle">选择一个历史案例</h2><div id="caseMeta" class="case-meta"></div></div></div>
+            <div id="caseContent" class="case-content"><p class="empty">历史案例用于提供排查假设，不代表当前问题具有相同根因。</p></div>
           </article>
         </div>
       </section>
