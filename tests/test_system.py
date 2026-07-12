@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import unittest
 from datetime import date
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -45,6 +47,19 @@ class FabInsightTests(unittest.TestCase):
         self.assertTrue(results)
         self.assertEqual({item["source_type"] for item in results}, {"knowledge", "case"})
         self.assertTrue(all(item["reference_id"] for item in results))
+        self.assertTrue(all(item["retrieval"]["selection_reason"] for item in results))
+
+    def test_rag_gold_dataset(self):
+        dataset_path = Path(__file__).resolve().parent.parent / "evaluations" / "rag_gold.json"
+        dataset = json.loads(dataset_path.read_text(encoding="utf-8"))
+        for item in dataset:
+            with self.subTest(item=item["id"]):
+                results = search_knowledge(item["query"], limit=6, **item.get("filters", {}))
+                references = {result["reference_id"] for result in results}
+                source_types = {result["source_type"] for result in results}
+                self.assertTrue(references.intersection(item["expected_any"]))
+                self.assertTrue(set(item.get("required_source_types", [])).issubset(source_types))
+                self.assertFalse(references.intersection(item.get("forbidden", [])))
 
     def test_knowledge_documents_support_chunk_navigation(self):
         with TestClient(app) as client:
@@ -57,6 +72,9 @@ class FabInsightTests(unittest.TestCase):
             self.assertEqual(document.json()["selected_chunk_id"], first_chunk_id)
             self.assertTrue(document.json()["chunks"])
             self.assertTrue(all("content" in chunk for chunk in document.json()["chunks"]))
+            self.assertEqual(document.json()["document"]["status"], "Active")
+            self.assertTrue(document.json()["document"]["version"])
+            self.assertGreaterEqual(document.json()["document"]["authority"], 1)
 
     def test_historical_case_has_fixed_format(self):
         with TestClient(app) as client:
@@ -66,7 +84,11 @@ class FabInsightTests(unittest.TestCase):
             case_id = cases.json()[0]["case_id"]
             detail = client.get(f"/api/cases/{case_id}")
             self.assertEqual(detail.status_code, 200)
-            required = {"problem", "solution", "result", "summary"}
+            required = {
+                "problem", "solution", "result", "summary", "root_cause",
+                "root_cause_confidence", "validation_method", "recurrence_status",
+                "approved_by", "case_status",
+            }
             self.assertTrue(required.issubset(detail.json()))
             self.assertTrue(all(detail.json()[field] for field in required))
 

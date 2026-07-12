@@ -55,11 +55,32 @@ def _clip(value: float, low: float, high: float) -> float:
 
 
 def _seed_knowledge(connection) -> int:
+    catalog_path = PROJECT_DIR / "knowledge" / "catalog.json"
+    catalog_items = json.loads(catalog_path.read_text(encoding="utf-8"))
+    catalog = {item["source"]: item for item in catalog_items}
+    markdown_paths = sorted((PROJECT_DIR / "knowledge").glob("*.md"))
+    markdown_sources = {path.name for path in markdown_paths}
+    if markdown_sources != set(catalog):
+        raise ValueError(f"知识目录与文档不一致: files={sorted(markdown_sources)}, catalog={sorted(catalog)}")
+    connection.execute("DELETE FROM knowledge_documents")
     connection.execute("DELETE FROM knowledge_chunks")
     connection.execute("DELETE FROM sqlite_sequence WHERE name = 'knowledge_chunks'")
+    for item in catalog_items:
+        connection.execute(
+            """INSERT INTO knowledge_documents(
+                   source, title, doc_type, version, status, effective_date, owner,
+                   authority, process_steps, equipment_families, tags
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                item["source"], item["title"], item["doc_type"], item["version"],
+                item["status"], item["effective_date"], item["owner"], item["authority"],
+                ", ".join(item["process_steps"]), ", ".join(item["equipment_families"]),
+                ", ".join(item["tags"]),
+            ),
+        )
     count = 0
-    for path in sorted((PROJECT_DIR / "knowledge").glob("*.md")):
-        title = path.stem.replace("_", " ")
+    for path in markdown_paths:
+        title = catalog[path.name]["title"]
         section = "概述"
         buffer: list[str] = []
 
@@ -89,25 +110,47 @@ def _seed_knowledge(connection) -> int:
 def _seed_cases(connection) -> int:
     path = PROJECT_DIR / "cases" / "historical_cases.json"
     cases = json.loads(path.read_text(encoding="utf-8"))
+    governance_path = PROJECT_DIR / "cases" / "catalog.json"
+    governance_items = json.loads(governance_path.read_text(encoding="utf-8"))
+    governance = {item["case_id"]: item for item in governance_items}
     required = {
         "case_id", "title", "process_step", "equipment_id", "occurred_date",
         "severity", "problem", "solution", "result", "summary", "tags",
     }
+    governance_required = {
+        "case_id", "equipment_family", "defect_type", "symptoms", "root_cause",
+        "root_cause_confidence", "validation_method", "recurrence_status",
+        "approved_by", "case_status",
+    }
+    case_ids = {item["case_id"] for item in cases}
+    if case_ids != set(governance):
+        raise ValueError("案例正文与治理目录的 case_id 不一致")
     connection.execute("DELETE FROM historical_cases")
     for item in cases:
         missing = required.difference(item)
         if missing:
             raise ValueError(f"案例 {item.get('case_id', '<unknown>')} 缺少字段: {sorted(missing)}")
-        tags = ", ".join(item["tags"]) if isinstance(item["tags"], list) else str(item["tags"])
+        governance_item = governance[item["case_id"]]
+        governance_missing = governance_required.difference(governance_item)
+        if governance_missing:
+            raise ValueError(f"案例治理 {item['case_id']} 缺少字段: {sorted(governance_missing)}")
+        original_tags = item["tags"] if isinstance(item["tags"], list) else [str(item["tags"])]
+        tags = ", ".join(dict.fromkeys(original_tags + governance_item["symptoms"]))
         connection.execute(
             """INSERT INTO historical_cases(
                    case_id, title, process_step, equipment_id, occurred_date, severity,
-                   problem, solution, result, summary, tags
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   problem, solution, result, summary, tags, equipment_family, defect_type,
+                   symptoms, root_cause, root_cause_confidence, validation_method,
+                   recurrence_status, approved_by, case_status
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 item["case_id"], item["title"], item["process_step"], item["equipment_id"],
                 item["occurred_date"], item["severity"], item["problem"], item["solution"],
-                item["result"], item["summary"], tags,
+                item["result"], item["summary"], tags, governance_item["equipment_family"],
+                governance_item["defect_type"], ", ".join(governance_item["symptoms"]),
+                governance_item["root_cause"], governance_item["root_cause_confidence"],
+                governance_item["validation_method"], governance_item["recurrence_status"],
+                governance_item["approved_by"], governance_item["case_status"],
             ),
         )
     connection.execute("INSERT INTO case_trigram_fts(case_trigram_fts) VALUES ('rebuild')")

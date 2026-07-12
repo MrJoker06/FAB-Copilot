@@ -126,6 +126,38 @@ problem, solution, result, summary, tags
 
 案例只用于生成根因假设，不能单独证明当前问题具有相同根因。
 
+### 检索治理与重排
+
+知识治理配置位于 `knowledge/catalog.json`，包含版本、生效日期、责任人、状态、权威等级、适用站点和标签。案例治理配置位于 `cases/catalog.json`，包含结构化症状、已验证根因、根因置信度、验证方法、复发状态、审批人和案例状态。
+
+检索流程：
+
+```text
+中文 trigram 候选召回（每来源 Top 30）
+  -> 查询实体推断（站点 / 设备 / 缺陷）
+  -> Active / Validated 状态过滤
+  -> 站点、设备、缺陷、权威和案例置信度加权
+  -> 低置信度案例抑制
+  -> 知识与案例来源多样化
+  -> 最终 Top 1-10
+```
+
+每个结果包含 `retrieval.lexical_rank`、`final_score`、`confidence`、`selection_reason` 和实际过滤条件。可通过只读调试接口检查：
+
+```text
+GET /api/rag/search?q=CMP-03划伤&process_step=CMP&equipment_id=CMP-03&defect_type=Scratch
+```
+
+### RAG 回归评测
+
+黄金评测集位于 `evaluations/rag_gold.json`，当前覆盖10类典型问题。运行：
+
+```bash
+python3 scripts/evaluate_rag.py
+```
+
+评估输出包括命中率、来源覆盖率、MRR 和错误案例命中数。新增知识、案例或修改排序算法后，应先通过该评测再合并代码。当前基线要求全部问题命中、所需来源类型完整且错误案例命中为0。
+
 ## Agent 日志与监控
 
 前端“Agent 监控”页面每 30 秒刷新一次，也可直接查询：
@@ -165,6 +197,8 @@ app/
   static/       报表与 Agent 前端
 knowledge/      虚拟厂内 SOP / 控制计划
 cases/          固定格式历史案例 JSON
+evaluations/    RAG 黄金问题与预期来源
+scripts/        RAG 评估脚本
 data/           生成的 SQLite 数据库
 tests/          关键链路测试
 logs/           Agent JSONL 审计日志（不提交）

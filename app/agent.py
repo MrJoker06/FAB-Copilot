@@ -36,6 +36,7 @@ SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的�
 6. 回答使用简洁中文，日期使用 YYYY-MM-DD。
 7. 本演示系统的制程能力判定统一使用 Cpk 1.33：低于 1.33 为能力不足，1.33 至 1.67 为观察区间，高于或等于 1.67 为稳定；不得自行改写阈值。
 8. 历史案例只能用于生成和排序根因假设，不能证明当前问题具有相同根因。必须结合当前制造数据说明案例的相似点、差异和待验证项。
+9. 检索结果包含 retrieval.confidence、final_score 和 selection_reason。若所有结果均为 low，必须说明检索证据不足并请求补充站点、设备、缺陷或时间范围；不得用低置信度材料形成确定性结论。
 
 数据库字段提示：
 - lots: lot_id, product, technology_nm, route, priority, start_time, complete_time, status, wafer_count, good_wafers, yield_rate(0-1), cycle_time_hours, hold_hours
@@ -61,7 +62,7 @@ TOOLS = [
     {"type": "function", "function": {"name": "get_process_capability", "description": "查询制程设备能力。CVD计算膜厚Cpk，其他站点计算缺陷密度单边Cpk", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": ["LITHO", "ETCH", "CVD", "CMP"]}})}},
     {"type": "function", "function": {"name": "get_defect_pareto", "description": "查询缺陷类型Pareto和受影响批次数", "parameters": _schema({**DATE_PROPERTIES, "limit": {"type": "integer", "minimum": 1, "maximum": 25}})}},
     {"type": "function", "function": {"name": "get_recent_excursions", "description": "查询最近的制程异常批次及量测值", "parameters": _schema({**DATE_PROPERTIES, "limit": {"type": "integer", "minimum": 1, "maximum": 100}})}},
-    {"type": "function", "function": {"name": "search_knowledge", "description": "联合检索厂内SOP、控制计划、分析方法与结构化历史案例。返回可跳转的reference_id", "parameters": _schema({"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, ["query"])}},
+    {"type": "function", "function": {"name": "search_knowledge", "description": "联合检索厂内SOP、控制计划、分析方法与已验证历史案例。可按元数据过滤，返回可解释评分和reference_id", "parameters": _schema({"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}, "process_step": {"type": "string", "enum": ["CMP", "CVD", "ETCH", "LITHO", "METROLOGY", "EQUIPMENT", "WIP", "YIELD"]}, "equipment_id": {"type": "string"}, "defect_type": {"type": "string"}, "source_types": {"type": "array", "items": {"type": "string", "enum": ["knowledge", "case"]}}}, ["query"])}},
     {"type": "function", "function": {"name": "query_manufacturing_data", "description": "在固定报表不足时执行只读SQLite SELECT。只能访问白名单表，最多返回100行", "parameters": _schema({"sql": {"type": "string", "description": "单条SELECT语句，SQLite语法"}}, ["sql"])}},
 ]
 

@@ -74,6 +74,20 @@ CREATE TABLE IF NOT EXISTS knowledge_chunks (
     content TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS knowledge_documents (
+    source TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    doc_type TEXT NOT NULL,
+    version TEXT NOT NULL,
+    status TEXT NOT NULL,
+    effective_date TEXT NOT NULL,
+    owner TEXT NOT NULL,
+    authority INTEGER NOT NULL,
+    process_steps TEXT NOT NULL,
+    equipment_families TEXT NOT NULL,
+    tags TEXT NOT NULL
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_trigram_fts USING fts5(
     title, section, content, content='knowledge_chunks', content_rowid='chunk_id',
     tokenize='trigram'
@@ -90,7 +104,16 @@ CREATE TABLE IF NOT EXISTS historical_cases (
     solution TEXT NOT NULL,
     result TEXT NOT NULL,
     summary TEXT NOT NULL,
-    tags TEXT NOT NULL
+    tags TEXT NOT NULL,
+    equipment_family TEXT NOT NULL DEFAULT '',
+    defect_type TEXT NOT NULL DEFAULT '',
+    symptoms TEXT NOT NULL DEFAULT '',
+    root_cause TEXT NOT NULL DEFAULT '',
+    root_cause_confidence REAL NOT NULL DEFAULT 0,
+    validation_method TEXT NOT NULL DEFAULT '',
+    recurrence_status TEXT NOT NULL DEFAULT 'Unknown',
+    approved_by TEXT NOT NULL DEFAULT '',
+    case_status TEXT NOT NULL DEFAULT 'Draft'
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS case_trigram_fts USING fts5(
@@ -108,6 +131,19 @@ CREATE INDEX IF NOT EXISTS idx_cases_step_date ON historical_cases(process_step,
 """
 
 
+CASE_GOVERNANCE_COLUMNS = {
+    "equipment_family": "TEXT NOT NULL DEFAULT ''",
+    "defect_type": "TEXT NOT NULL DEFAULT ''",
+    "symptoms": "TEXT NOT NULL DEFAULT ''",
+    "root_cause": "TEXT NOT NULL DEFAULT ''",
+    "root_cause_confidence": "REAL NOT NULL DEFAULT 0",
+    "validation_method": "TEXT NOT NULL DEFAULT ''",
+    "recurrence_status": "TEXT NOT NULL DEFAULT 'Unknown'",
+    "approved_by": "TEXT NOT NULL DEFAULT ''",
+    "case_status": "TEXT NOT NULL DEFAULT 'Draft'",
+}
+
+
 def connect(path: Path | None = None) -> sqlite3.Connection:
     db_path = path or get_settings().database_path
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -121,6 +157,12 @@ def initialize(path: Path | None = None) -> None:
     connection = connect(path)
     try:
         connection.executescript(SCHEMA)
+        existing_columns = {row[1] for row in connection.execute("PRAGMA table_info(historical_cases)")}
+        for name, definition in CASE_GOVERNANCE_COLUMNS.items():
+            if name not in existing_columns:
+                connection.execute(f"ALTER TABLE historical_cases ADD COLUMN {name} {definition}")
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_cases_governance ON historical_cases(case_status, process_step, defect_type)")
+        connection.commit()
     finally:
         connection.close()
 

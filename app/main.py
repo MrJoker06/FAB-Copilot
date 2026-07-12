@@ -18,6 +18,7 @@ from .rag import (
     get_knowledge_document,
     list_historical_cases,
     list_knowledge_documents,
+    search_knowledge,
 )
 from .reports import process_capability, report_bundle
 from .seed import generate_database, seed_reference_data
@@ -146,6 +147,19 @@ def historical_case(case_id: str) -> dict:
         return get_historical_case(case_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/rag/search")
+def rag_search(
+    q: str = Query(min_length=2, max_length=500),
+    limit: int = Query(6, ge=1, le=10),
+    process_step: str | None = None,
+    equipment_id: str | None = None,
+    defect_type: str | None = None,
+    source_type: list[str] | None = Query(None),
+) -> dict:
+    results = search_knowledge(q, limit, process_step, equipment_id, defect_type, source_type)
+    return {"query": q, "count": len(results), "results": results}
 
 
 @app.post("/api/chat")

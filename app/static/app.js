@@ -85,7 +85,7 @@ function renderKnowledgeDocuments(filter = '') {
   const query = filter.trim().toLowerCase();
   const documents = state.knowledgeDocuments.filter(doc => `${doc.title} ${doc.source} ${doc.sections}`.toLowerCase().includes(query));
   $('#knowledgeCount').textContent = `${documents.length} 份文档`;
-  $('#knowledgeDocuments').innerHTML = documents.map(doc => `<button class="knowledge-document" data-knowledge-chunk="${doc.first_chunk_id}" title="${escapeHtml(doc.sections)}"><strong>${escapeHtml(doc.title)}</strong><span>${doc.section_count} 个章节 · ${escapeHtml(doc.source)}</span></button>`).join('') || '<p class="empty">没有匹配的文档</p>';
+  $('#knowledgeDocuments').innerHTML = documents.map(doc => `<button class="knowledge-document" data-knowledge-chunk="${doc.first_chunk_id}" title="${escapeHtml(doc.sections)}"><strong>${escapeHtml(doc.title)}</strong><span>${escapeHtml(doc.doc_type)} · v${escapeHtml(doc.version)} · ${doc.section_count} 章</span></button>`).join('') || '<p class="empty">没有匹配的文档</p>';
 }
 
 async function loadKnowledgeIndex() {
@@ -102,7 +102,7 @@ async function openKnowledgeChunk(chunkId) {
   await loadKnowledgeIndex();
   const payload = await api(`/api/knowledge/chunks/${chunkId}`);
   $('#knowledgeTitle').textContent = payload.document.title;
-  $('#knowledgeSource').textContent = payload.document.source;
+  $('#knowledgeSource').textContent = `${payload.document.source} · v${payload.document.version} · ${payload.document.status}`;
   $('#knowledgeContent').innerHTML = payload.chunks.map(chunk => `<section id="knowledge-chunk-${chunk.chunk_id}" class="knowledge-chunk ${chunk.chunk_id === Number(chunkId) ? 'target-chunk' : ''}"><h3>${escapeHtml(chunk.section)}</h3><div class="markdown-content">${renderMarkdown(chunk.content)}</div></section>`).join('');
   document.querySelectorAll('.knowledge-document').forEach(button => button.classList.toggle('active', Number(button.dataset.knowledgeChunk) === payload.chunks[0].chunk_id));
   window.setTimeout(() => document.querySelector(`#knowledge-chunk-${chunkId}`)?.scrollIntoView({behavior:'smooth', block:'start'}), 80);
@@ -136,9 +136,9 @@ async function openHistoricalCase(caseId) {
   const item = await api(`/api/cases/${encodeURIComponent(caseId)}`);
   $('#caseReference').textContent = item.case_id;
   $('#caseTitle').textContent = item.title;
-  $('#caseMeta').innerHTML = `<span>${escapeHtml(item.process_step)}</span>${item.equipment_id ? `<span>${escapeHtml(item.equipment_id)}</span>` : ''}<span>${escapeHtml(item.occurred_date)}</span><span class="severity-${item.severity.toLowerCase()}">${escapeHtml(item.severity)}</span><span>${escapeHtml(item.tags)}</span>`;
+  $('#caseMeta').innerHTML = `<span>${escapeHtml(item.process_step)}</span>${item.equipment_id ? `<span>${escapeHtml(item.equipment_id)}</span>` : ''}<span>${escapeHtml(item.defect_type)}</span><span>${escapeHtml(item.occurred_date)}</span><span class="severity-${item.severity.toLowerCase()}">${escapeHtml(item.severity)}</span><span>${escapeHtml(item.case_status)}</span><span>RCA ${(Number(item.root_cause_confidence) * 100).toFixed(0)}%</span>`;
   const sections = [['问题', item.problem], ['解决方案', item.solution], ['解决结果', item.result], ['案例总结', item.summary]];
-  $('#caseContent').innerHTML = sections.map(([title, content]) => `<section class="case-section"><h3>${title}</h3><p>${escapeHtml(content)}</p></section>`).join('');
+  $('#caseContent').innerHTML = `<div class="case-governance"><strong>已验证根因</strong><span>${escapeHtml(item.root_cause)}</span><small>${escapeHtml(item.validation_method)} · ${escapeHtml(item.recurrence_status)} · ${escapeHtml(item.approved_by)}</small></div>${sections.map(([title, content]) => `<section class="case-section"><h3>${title}</h3><p>${escapeHtml(content)}</p></section>`).join('')}`;
   document.querySelectorAll('.case-list-item').forEach(button => button.classList.toggle('active', button.dataset.caseId === caseId));
   document.querySelector('.case-reader')?.scrollIntoView({behavior:'smooth', block:'start'});
 }
@@ -310,7 +310,9 @@ function addMessage(role, content, extra = {}) {
     const sourceHtml = extra.sources.map(source => {
       const referenceId = source.reference_id || `KB-${source.chunk_id}`;
       const attribute = source.source_type === 'case' ? `data-case-id="${escapeHtml(source.case_id)}"` : `data-knowledge-chunk="${source.chunk_id}"`;
-      return `<button type="button" class="source-link" ${attribute}>[来源 ${escapeHtml(referenceId)}] ${escapeHtml(source.source)} · ${escapeHtml(source.section)}</button>`;
+      const retrieval = source.retrieval || {};
+      const scoreTitle = retrieval.final_score != null ? `${retrieval.confidence} · score ${retrieval.final_score} · ${(retrieval.selection_reason || []).join(' · ')}` : '';
+      return `<button type="button" class="source-link" ${attribute} title="${escapeHtml(scoreTitle)}">[来源 ${escapeHtml(referenceId)}] ${escapeHtml(source.source)} · ${escapeHtml(source.section)}</button>`;
     }).join('');
     el.querySelector('.message-content').insertAdjacentHTML('beforeend', `<div class="source-list"><strong>知识来源</strong>${sourceHtml}</div>`);
   }

@@ -1,0 +1,12 @@
+[
+  {"id":"cmp-scratch","query":"CMP-03 跨产品持续划伤 Pad Conditioner 潜在原因","filters":{"process_step":"CMP","equipment_id":"CMP-03","defect_type":"Scratch"},"expected_any":["KB-2","CASE-CMP-001"],"required_source_types":["knowledge","case"],"forbidden":["CASE-CMP-002"]},
+  {"id":"cvd-thickness","query":"CVD-02 膜厚持续偏高 MFC 漂移如何处置","filters":{"process_step":"CVD","equipment_id":"CVD-02","defect_type":"Thickness"},"expected_any":["KB-7","CASE-CVD-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
+  {"id":"etch-endpoint","query":"ETCH-02 endpoint 信号衰减和 CD Shift","filters":{"process_step":"ETCH","equipment_id":"ETCH-02","defect_type":"CD Shift"},"expected_any":["KB-22","CASE-ETCH-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
+  {"id":"litho-overlay","query":"LITHO-02 跨产品固定方向 Overlay 偏移","filters":{"process_step":"LITHO","equipment_id":"LITHO-02","defect_type":"Overlay"},"expected_any":["KB-25","CASE-LITHO-001"],"required_source_types":["knowledge","case"],"forbidden":["CASE-LITHO-002"]},
+  {"id":"yield-mix","query":"产品组合变化造成综合良率下降怎么判断","filters":{"process_step":"YIELD","defect_type":"Yield"},"expected_any":["KB-45","CASE-YIELD-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
+  {"id":"spc-rules","query":"SPC 连续七点同侧如何判定和围堵","filters":{},"expected_any":["KB-41","KB-43"],"required_source_types":["knowledge"],"forbidden":[]},
+  {"id":"hold-cycle","query":"Hold 和整批复测导致周期时间上升","filters":{"process_step":"WIP","defect_type":"Cycle Time"},"expected_any":["KB-32","CASE-WIP-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
+  {"id":"inspection-particle","query":"检测机灵敏度变化导致 Particle 假报警","filters":{"process_step":"METROLOGY","defect_type":"Particle"},"expected_any":["KB-15","CASE-MET-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
+  {"id":"recipe-change","query":"量产 Recipe 参数变更验证和回退要求","filters":{},"expected_any":["KB-33","KB-34","KB-35","KB-36"],"required_source_types":["knowledge"],"forbidden":[]},
+  {"id":"rca-evidence","query":"根因分析如何区分事实推断并防止直接套用历史案例","filters":{},"expected_any":["KB-37","KB-38","KB-39"],"required_source_types":["knowledge"],"forbidden":[]}
+]
