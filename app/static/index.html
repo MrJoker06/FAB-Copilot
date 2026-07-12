@@ -24,6 +24,7 @@
     <aside class="sidebar" aria-label="主导航">
       <button class="nav-item active" data-view="dashboard" title="制造总览"><span aria-hidden="true">▦</span><span>制造总览</span></button>
       <button class="nav-item" data-view="capability" title="制程能力"><span aria-hidden="true">◎</span><span>制程能力</span></button>
+      <button class="nav-item" data-view="knowledge" title="知识库"><span aria-hidden="true">▤</span><span>知识库</span></button>
       <button class="nav-item" data-view="monitor" title="Agent 监控"><span aria-hidden="true">◉</span><span>Agent 监控</span></button>
       <button class="nav-item" id="focusAgent" title="显示或隐藏分析助手" aria-expanded="true"><span aria-hidden="true">◇</span><span>分析助手</span></button>
       <div class="sidebar-meta"><span>DEMO FAB</span><small>历史数据 18 个月</small></div>
@@ -78,6 +79,23 @@
           <div class="panel-heading"><div><h2 id="capabilityTitle">CVD 膜厚能力</h2><p id="capabilityMetric">规格：95–105 nm</p></div></div>
           <div class="table-wrap"><table><thead><tr><th>设备</th><th>样本</th><th>均值</th><th>Sigma</th><th>最小</th><th>最大</th><th>Cpk</th><th>评价</th></tr></thead><tbody id="capabilityBody"></tbody></table></div>
         </section>
+      </section>
+
+      <section id="knowledgeView" class="view">
+        <div class="page-heading">
+          <div><p class="eyebrow">PROCESS KNOWLEDGE</p><h1>制造知识库</h1><p>厂内 SOP、控制计划与分析手册</p></div>
+          <div class="knowledge-search"><input id="knowledgeFilter" type="search" placeholder="筛选文档或章节" aria-label="筛选知识库"><span id="knowledgeCount"></span></div>
+        </div>
+        <div class="knowledge-layout">
+          <aside class="panel knowledge-index">
+            <div class="panel-heading"><div><h2>文档目录</h2><p>按文档浏览章节</p></div></div>
+            <div id="knowledgeDocuments" class="knowledge-document-list"></div>
+          </aside>
+          <article class="panel knowledge-reader">
+            <div class="knowledge-reader-heading"><div><p id="knowledgeSource" class="eyebrow">KNOWLEDGE BASE</p><h2 id="knowledgeTitle">选择一份知识文档</h2></div></div>
+            <div id="knowledgeContent" class="knowledge-content"><p class="empty">从左侧选择文档，或点击 Agent 回答中的来源。</p></div>
+          </article>
+        </div>
       </section>
 
       <section id="monitorView" class="view">

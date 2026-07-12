@@ -32,6 +32,18 @@ class FabInsightTests(unittest.TestCase):
         self.assertEqual(results[0]["source"], "CVD_control_plan.md")
         self.assertIn("section", results[0])
 
+    def test_knowledge_documents_support_chunk_navigation(self):
+        with TestClient(app) as client:
+            documents = client.get("/api/knowledge/documents")
+            self.assertEqual(documents.status_code, 200)
+            self.assertGreaterEqual(len(documents.json()), 4)
+            first_chunk_id = documents.json()[0]["first_chunk_id"]
+            document = client.get(f"/api/knowledge/chunks/{first_chunk_id}")
+            self.assertEqual(document.status_code, 200)
+            self.assertEqual(document.json()["selected_chunk_id"], first_chunk_id)
+            self.assertTrue(document.json()["chunks"])
+            self.assertTrue(all("content" in chunk for chunk in document.json()["chunks"]))
+
     def test_sql_guard_rejects_writes(self):
         with self.assertRaises(ValueError):
             safe_select("DELETE FROM lots")

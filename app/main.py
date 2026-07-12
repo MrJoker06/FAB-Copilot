@@ -13,6 +13,7 @@ from .agent import run_agent
 from .audit import emit, monitoring_summary, read_events
 from .config import PROJECT_DIR, get_settings, public_model_config, update_model_config
 from .database import db_session
+from .rag import get_knowledge_document, list_knowledge_documents
 from .reports import process_capability, report_bundle
 from .seed import generate_database
 
@@ -109,6 +110,19 @@ def capability(
         return process_capability(start, end, process_step)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/knowledge/documents")
+def knowledge_documents() -> list[dict]:
+    return list_knowledge_documents()
+
+
+@app.get("/api/knowledge/chunks/{chunk_id}")
+def knowledge_document(chunk_id: int) -> dict:
+    try:
+        return get_knowledge_document(chunk_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.post("/api/chat")

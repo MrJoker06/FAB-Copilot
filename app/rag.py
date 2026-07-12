@@ -28,3 +28,32 @@ def search_knowledge(query: str, limit: int = 5) -> list[dict]:
             (fts_query, max(1, min(limit, 10))),
         ).fetchall()
     return rows_to_dicts(rows)
+
+
+def list_knowledge_documents() -> list[dict]:
+    with db_session() as connection:
+        rows = connection.execute(
+            """SELECT title, source, COUNT(*) AS section_count,
+                      GROUP_CONCAT(section, ' · ') AS sections,
+                      MIN(chunk_id) AS first_chunk_id
+               FROM knowledge_chunks
+               GROUP BY title, source
+               ORDER BY source"""
+        ).fetchall()
+    return rows_to_dicts(rows)
+
+
+def get_knowledge_document(chunk_id: int) -> dict:
+    with db_session() as connection:
+        selected = connection.execute(
+            "SELECT chunk_id, title, source, section FROM knowledge_chunks WHERE chunk_id = ?",
+            (chunk_id,),
+        ).fetchone()
+        if selected is None:
+            raise ValueError(f"知识章节不存在: {chunk_id}")
+        rows = connection.execute(
+            """SELECT chunk_id, title, source, section, content
+               FROM knowledge_chunks WHERE source = ? ORDER BY chunk_id""",
+            (selected["source"],),
+        ).fetchall()
+    return {"selected_chunk_id": chunk_id, "document": dict(selected), "chunks": rows_to_dicts(rows)}

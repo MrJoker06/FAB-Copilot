@@ -1,4 +1,4 @@
-const state = { dashboard: null, history: [], chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null };
+const state = { dashboard: null, history: [], chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null };
 const $ = (selector) => document.querySelector(selector);
 
 function isoDate(date) { return date.toISOString().slice(0, 10); }
@@ -18,6 +18,89 @@ async function api(url, options) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.detail || `请求失败 (${response.status})`);
   return payload;
+}
+
+function inlineMarkdown(value, sourceIds = new Set()) {
+  let text = escapeHtml(value);
+  text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  text = text.replace(/\[来源(?:\s+chunk_id\s*:)?\s*([\d,，、\s]+)\]/gi, (match, ids) => {
+    const chunkIds = ids.split(/[,，、\s]+/).map(Number).filter(id => id && sourceIds.has(id));
+    return chunkIds.length ? chunkIds.map(chunkId => `<button class="citation-link" data-knowledge-chunk="${chunkId}">[来源 ${chunkId}]</button>`).join(' ') : match;
+  });
+  return text;
+}
+
+function markdownCells(line) {
+  return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim());
+}
+
+function renderMarkdown(markdown, sourceIds = new Set()) {
+  const lines = String(markdown || '').replace(/\r/g, '').split('\n');
+  const output = [];
+  let index = 0;
+  const isBlockStart = line => /^(#{1,4})\s+/.test(line) || /^\s*[-*]\s+/.test(line) || /^\s*\d+\.\s+/.test(line) || /^>\s?/.test(line) || /^```/.test(line) || /^\s*---+\s*$/.test(line);
+  while (index < lines.length) {
+    const line = lines[index];
+    if (!line.trim()) { index += 1; continue; }
+    if (/^```/.test(line)) {
+      const code = []; index += 1;
+      while (index < lines.length && !/^```/.test(lines[index])) { code.push(lines[index]); index += 1; }
+      index += index < lines.length ? 1 : 0;
+      output.push(`<pre><code>${escapeHtml(code.join('\n'))}</code></pre>`); continue;
+    }
+    const heading = line.match(/^(#{1,4})\s+(.+)$/);
+    if (heading) { const level = Math.min(4, heading[1].length + 1); output.push(`<h${level}>${inlineMarkdown(heading[2], sourceIds)}</h${level}>`); index += 1; continue; }
+    if (/^\s*---+\s*$/.test(line)) { output.push('<hr>'); index += 1; continue; }
+    if (line.includes('|') && index + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[index + 1])) {
+      const headers = markdownCells(line); index += 2; const rows = [];
+      while (index < lines.length && lines[index].includes('|') && lines[index].trim()) { rows.push(markdownCells(lines[index])); index += 1; }
+      output.push(`<div class="markdown-table-wrap"><table><thead><tr>${headers.map(cell => `<th>${inlineMarkdown(cell, sourceIds)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${headers.map((_, i) => `<td>${inlineMarkdown(row[i] || '', sourceIds)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`); continue;
+    }
+    if (/^\s*[-*]\s+/.test(line) || /^\s*\d+\.\s+/.test(line)) {
+      const ordered = /^\s*\d+\./.test(line), tag = ordered ? 'ol' : 'ul', items = [];
+      const pattern = ordered ? /^\s*\d+\.\s+(.+)$/ : /^\s*[-*]\s+(.+)$/;
+      while (index < lines.length) { const match = lines[index].match(pattern); if (!match) break; items.push(match[1]); index += 1; }
+      output.push(`<${tag}>${items.map(item => `<li>${inlineMarkdown(item, sourceIds)}</li>`).join('')}</${tag}>`); continue;
+    }
+    if (/^>\s?/.test(line)) {
+      const quote = [];
+      while (index < lines.length && /^>\s?/.test(lines[index])) { quote.push(lines[index].replace(/^>\s?/, '')); index += 1; }
+      output.push(`<blockquote>${quote.map(item => inlineMarkdown(item, sourceIds)).join('<br>')}</blockquote>`); continue;
+    }
+    const paragraph = [line.trim()]; index += 1;
+    while (index < lines.length && lines[index].trim() && !isBlockStart(lines[index]) && !(lines[index].includes('|') && index + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[index + 1]))) { paragraph.push(lines[index].trim()); index += 1; }
+    output.push(`<p>${inlineMarkdown(paragraph.join(' '), sourceIds)}</p>`);
+  }
+  return output.join('');
+}
+
+function renderKnowledgeDocuments(filter = '') {
+  const query = filter.trim().toLowerCase();
+  const documents = state.knowledgeDocuments.filter(doc => `${doc.title} ${doc.source} ${doc.sections}`.toLowerCase().includes(query));
+  $('#knowledgeCount').textContent = `${documents.length} 份文档`;
+  $('#knowledgeDocuments').innerHTML = documents.map(doc => `<button class="knowledge-document" data-knowledge-chunk="${doc.first_chunk_id}" title="${escapeHtml(doc.sections)}"><strong>${escapeHtml(doc.title)}</strong><span>${doc.section_count} 个章节 · ${escapeHtml(doc.source)}</span></button>`).join('') || '<p class="empty">没有匹配的文档</p>';
+}
+
+async function loadKnowledgeIndex() {
+  if (!state.knowledgeDocuments.length) {
+    state.knowledgeIndexPromise ||= api('/api/knowledge/documents');
+    state.knowledgeDocuments = await state.knowledgeIndexPromise;
+  }
+  renderKnowledgeDocuments($('#knowledgeFilter').value);
+  return state.knowledgeDocuments;
+}
+
+async function openKnowledgeChunk(chunkId) {
+  showView('knowledge');
+  await loadKnowledgeIndex();
+  const payload = await api(`/api/knowledge/chunks/${chunkId}`);
+  $('#knowledgeTitle').textContent = payload.document.title;
+  $('#knowledgeSource').textContent = payload.document.source;
+  $('#knowledgeContent').innerHTML = payload.chunks.map(chunk => `<section id="knowledge-chunk-${chunk.chunk_id}" class="knowledge-chunk ${chunk.chunk_id === Number(chunkId) ? 'target-chunk' : ''}"><h3>${escapeHtml(chunk.section)}</h3><div class="markdown-content">${renderMarkdown(chunk.content)}</div></section>`).join('');
+  document.querySelectorAll('.knowledge-document').forEach(button => button.classList.toggle('active', Number(button.dataset.knowledgeChunk) === payload.chunks[0].chunk_id));
+  window.setTimeout(() => document.querySelector(`#knowledge-chunk-${chunkId}`)?.scrollIntoView({behavior:'smooth', block:'start'}), 80);
 }
 
 function renderModelConfig(config) {
@@ -176,9 +259,11 @@ async function loadMonitor() {
 function addMessage(role, content, extra = {}) {
   const el = document.createElement('div'); el.className = `message ${role}`;
   const label = role === 'user' ? 'YOU' : 'FAB COPILOT';
-  el.innerHTML = `<div class="message-label">${label}</div><div class="message-content">${escapeHtml(content).replace(/\n/g,'<br>')}</div>`;
+  const sourceIds = new Set((extra.sources || []).map(source => Number(source.chunk_id)));
+  const renderedContent = role === 'assistant' ? renderMarkdown(content, sourceIds) : escapeHtml(content).replace(/\n/g,'<br>');
+  el.innerHTML = `<div class="message-label">${label}</div><div class="message-content markdown-content">${renderedContent}</div>`;
   if (extra.sources?.length) {
-    const sourceHtml = extra.sources.map(s => `<div>[来源 ${s.chunk_id}] ${escapeHtml(s.source)} · ${escapeHtml(s.section)}</div>`).join('');
+    const sourceHtml = extra.sources.map(s => `<button type="button" class="source-link" data-knowledge-chunk="${s.chunk_id}">[来源 ${s.chunk_id}] ${escapeHtml(s.source)} · ${escapeHtml(s.section)}</button>`).join('');
     el.querySelector('.message-content').insertAdjacentHTML('beforeend', `<div class="source-list"><strong>知识来源</strong>${sourceHtml}</div>`);
   }
   $('#chatMessages').appendChild(el);
@@ -209,6 +294,7 @@ function showView(name) {
   $(`#${name}View`).classList.add('active'); document.querySelector(`[data-view="${name}"]`)?.classList.add('active');
   if (!document.querySelector('.app-shell').classList.contains('agent-collapsed')) $('#focusAgent').classList.add('active');
   if (name === 'capability') loadCapability();
+  else if (name === 'knowledge') loadKnowledgeIndex();
   else if (name === 'monitor') loadMonitor();
   else requestAnimationFrame(() => state.dashboard && drawYieldChart(state.dashboard.yield_trend));
 }
@@ -250,6 +336,9 @@ async function init() {
   $('#stepSelector').addEventListener('click', e => { if (!e.target.dataset.step) return; document.querySelectorAll('#stepSelector button').forEach(b=>b.classList.remove('active')); e.target.classList.add('active'); loadCapability(e.target.dataset.step); });
   $('#refreshMonitor').addEventListener('click', loadMonitor);
   $('#monitorHours').addEventListener('change', loadMonitor);
+  $('#knowledgeFilter').addEventListener('input', event => renderKnowledgeDocuments(event.target.value));
+  $('#knowledgeDocuments').addEventListener('click', event => { const target=event.target.closest('[data-knowledge-chunk]'); if (target) openKnowledgeChunk(Number(target.dataset.knowledgeChunk)); });
+  $('#chatMessages').addEventListener('click', event => { const target=event.target.closest('[data-knowledge-chunk]'); if (target) openKnowledgeChunk(Number(target.dataset.knowledgeChunk)); });
   $('#chatForm').addEventListener('submit', e => { e.preventDefault(); sendChat($('#chatInput').value); });
   document.querySelectorAll('.suggestions button').forEach(button => button.addEventListener('click', () => sendChat(button.textContent)));
   $('#clearChat').addEventListener('click', () => { state.history=[]; $('#chatMessages').innerHTML='<div class="message assistant"><div class="message-label">FAB COPILOT</div><div class="message-content">对话已清空。可以开始新的制造分析。</div></div>'; });
