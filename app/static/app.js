@@ -212,6 +212,17 @@ function showView(name) {
   else requestAnimationFrame(() => state.dashboard && drawYieldChart(state.dashboard.yield_trend));
 }
 
+function focusAgentPanel() {
+  document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+  $('#focusAgent').classList.add('active');
+  const panel = document.querySelector('.agent-panel');
+  panel.classList.remove('agent-panel-focus');
+  void panel.offsetWidth;
+  panel.classList.add('agent-panel-focus');
+  panel.scrollIntoView({behavior:'smooth', block:window.innerWidth <= 980 ? 'start' : 'nearest'});
+  window.setTimeout(() => $('#chatInput').focus({preventScroll:true}), 350);
+}
+
 async function init() {
   setInitialDates();
   try {
@@ -221,7 +232,7 @@ async function init() {
   await loadDashboard();
   $('#dateForm').addEventListener('submit', e => { e.preventDefault(); loadDashboard(); if ($('#capabilityView').classList.contains('active')) loadCapability(); });
   document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
-  $('#focusAgent').addEventListener('click', () => $('#chatInput').focus());
+  $('#focusAgent').addEventListener('click', focusAgentPanel);
   $('#stepSelector').addEventListener('click', e => { if (!e.target.dataset.step) return; document.querySelectorAll('#stepSelector button').forEach(b=>b.classList.remove('active')); e.target.classList.add('active'); loadCapability(e.target.dataset.step); });
   $('#refreshMonitor').addEventListener('click', loadMonitor);
   $('#monitorHours').addEventListener('change', loadMonitor);
