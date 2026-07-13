@@ -304,7 +304,7 @@ function renderToolTrace(trace, runId) {
     return `<li><div class="trace-step-heading"><span>${index + 1}. ${escapeHtml(toolLabels[item.tool] || item.tool || '未知工具')}</span><small class="trace-status-${item.status === 'error' ? 'error' : 'ok'}">${result}</small></div><code>${escapeHtml(argumentsText)}</code>${error}</li>`;
   }).join('');
   const runLabel = runId ? `<span title="${escapeHtml(runId)}">运行 ${escapeHtml(runId.slice(0, 8))}</span>` : '';
-  return `<details class="analysis-trace"><summary><span>分析过程</span><small>${trace.length} 步</small></summary><ol>${items}</ol><div class="trace-footer"><span>展示可审计的工具调用，不包含模型内部草稿</span>${runLabel}</div></details>`;
+  return `<details class="analysis-trace" open><summary><span>分析过程</span><small>${trace.length} 步</small></summary><ol>${items}</ol><div class="trace-footer"><span>展示可审计的工具调用，不包含模型内部草稿</span>${runLabel}</div></details>`;
 }
 
 async function loadMonitor() {
@@ -343,14 +343,14 @@ function addMessage(role, content, extra = {}) {
     if (source.chunk_id) sourceReferences.set(String(source.chunk_id), source);
   }
   const renderedContent = role === 'assistant' ? renderMarkdown(content, sourceReferences) : escapeHtml(content).replace(/\n/g,'<br>');
-  const copyButton = role === 'assistant' ? '<button type="button" class="copy-answer" title="复制回答" aria-label="复制回答">⧉</button>' : '';
+  const copyButton = role === 'assistant' ? '<button type="button" class="copy-answer" title="复制回答" aria-label="复制回答"><span aria-hidden="true">⧉</span><span>复制</span></button>' : '';
   el.innerHTML = `<div class="message-meta"><div class="message-label">${label}</div>${copyButton}</div><div class="message-content markdown-content">${renderedContent}</div>${renderToolTrace(extra.tool_trace, extra.run_id)}`;
   const copyAnswer = el.querySelector('.copy-answer');
   if (copyAnswer) copyAnswer.addEventListener('click', async () => {
     try {
       await copyText(content);
-      copyAnswer.textContent = '✓'; copyAnswer.classList.add('copied'); copyAnswer.title = '已复制';
-      window.setTimeout(() => { copyAnswer.textContent = '⧉'; copyAnswer.classList.remove('copied'); copyAnswer.title = '复制回答'; }, 1600);
+      copyAnswer.innerHTML = '<span aria-hidden="true">✓</span><span>已复制</span>'; copyAnswer.classList.add('copied'); copyAnswer.title = '已复制';
+      window.setTimeout(() => { copyAnswer.innerHTML = '<span aria-hidden="true">⧉</span><span>复制</span>'; copyAnswer.classList.remove('copied'); copyAnswer.title = '复制回答'; }, 1600);
     } catch (error) {
       copyAnswer.title = error.message; copyAnswer.classList.add('copy-error');
       window.setTimeout(() => copyAnswer.classList.remove('copy-error'), 1600);

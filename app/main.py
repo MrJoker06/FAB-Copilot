@@ -70,7 +70,10 @@ class ModelConfigRequest(BaseModel):
 
 @app.get("/", include_in_schema=False)
 async def index():
-    return FileResponse(PROJECT_DIR / "app" / "static" / "index.html")
+    return FileResponse(
+        PROJECT_DIR / "app" / "static" / "index.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 @app.get("/api/health")
