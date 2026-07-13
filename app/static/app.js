@@ -1,4 +1,4 @@
-const state = { dashboard: null, history: [], sessionId: null, sessions: [], streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null };
+const state = { dashboard: null, history: [], sessionId: null, sessions: [], streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
 const $ = (selector) => document.querySelector(selector);
 const processLabels = { LITHO: '光刻', ETCH: '刻蚀', CVD: '化学气相沉积', PVD: '物理气相沉积', DIFFUSION: '扩散/炉管', IMPLANT: '离子注入', CMP: '化学机械研磨', CLEAN: '湿法清洗', METROLOGY: '量测' };
 const toolLabels = { get_fab_overview: '查询工厂总览', get_yield_trend: '查询良率趋势', get_equipment_health: '查询设备健康', get_equipment_productivity: '查询设备生产状态', get_process_capability: '查询制程能力', get_defect_pareto: '查询缺陷 Pareto', get_recent_excursions: '查询近期异常', get_sensor_summary: '查询传感器摘要', search_knowledge: '检索知识与案例', query_manufacturing_data: '执行制造数据查询' };
@@ -260,14 +260,46 @@ function capabilityRating(cpk) {
 async function loadCapability(step = state.activeStep) {
   state.activeStep = step;
   const start = $('#startDate').value, end = $('#endDate').value;
-  const rows = await api(`/api/reports/capability?process_step=${step}&start=${start}&end=${end}`);
+  const cacheKey = `${step}:${start}:${end}`;
+  const table = $('#capabilityBody').closest('table');
+  state.capabilityController?.abort();
+  state.capabilityController = null;
+  const requestId = ++state.capabilityRequestId;
+  table.removeAttribute('aria-busy');
+  table.classList.remove('table-loading');
+  const cachedRows = state.capabilityCache.get(cacheKey);
+  if (cachedRows) { renderCapability(step, cachedRows); return; }
+
+  const controller = new AbortController();
+  state.capabilityController = controller;
+  table.setAttribute('aria-busy', 'true');
+  table.classList.add('table-loading');
+  $('#capabilityMetric').textContent = '正在计算制程能力…';
+  try {
+    const rows = await api(`/api/reports/capability?process_step=${encodeURIComponent(step)}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, {signal: controller.signal});
+    if (requestId !== state.capabilityRequestId) return;
+    state.capabilityCache.set(cacheKey, rows);
+    renderCapability(step, rows);
+  } catch (error) {
+    if (error.name === 'AbortError') return;
+    if (requestId === state.capabilityRequestId) $('#capabilityMetric').textContent = `读取失败：${error.message}`;
+  } finally {
+    if (requestId === state.capabilityRequestId) {
+      table.removeAttribute('aria-busy');
+      table.classList.remove('table-loading');
+      state.capabilityController = null;
+    }
+  }
+}
+
+function renderCapability(step, rows) {
   const metric = rows[0];
   $('#capabilityTitle').textContent = `${processLabels[step] || step} · ${metric?.metric_name || '关键量测'}能力`;
   const lower = metric?.spec_lsl == null ? null : `LSL ${metric.spec_lsl}`;
   const upper = metric?.spec_usl == null ? null : `USL ${metric.spec_usl}`;
   const specification = [lower, upper].filter(Boolean).join(' / ');
   $('#capabilityMetric').textContent = metric ? `${specification} ${metric.metric_unit}；Cpk < 1.33 需关注` : '当前范围没有可用量测';
-  $('#capabilityBody').innerHTML = rows.map(row => { const [rating, cls] = capabilityRating(row.cpk); return `<tr><td><strong>${row.equipment_id}</strong></td><td>${row.samples}</td><td>${row.mean_value}</td><td>${row.sigma}</td><td>${row.min_value}</td><td>${row.max_value}</td><td class="${cls}">${row.cpk ?? '—'}</td><td class="${cls}">${rating}</td></tr>`; }).join('');
+  $('#capabilityBody').innerHTML = rows.map(row => { const [rating, cls] = capabilityRating(row.cpk); return `<tr><td><strong>${row.equipment_id}</strong></td><td>${row.samples}</td><td>${row.mean_value}</td><td>${row.sigma}</td><td>${row.min_value}</td><td>${row.max_value}</td><td class="${cls}">${row.cpk ?? '—'}</td><td class="${cls}">${rating}</td></tr>`; }).join('') || '<tr><td colspan="8" class="empty">当前范围没有可用量测</td></tr>';
 }
 
 function formatDuration(milliseconds) {
@@ -638,7 +670,7 @@ async function init() {
   await loadDashboard();
   await restoreConversation();
   setAgentOpen(true, false);
-  $('#dateForm').addEventListener('submit', e => { e.preventDefault(); loadDashboard(); if ($('#capabilityView').classList.contains('active')) loadCapability(); });
+  $('#dateForm').addEventListener('submit', e => { e.preventDefault(); state.capabilityCache.clear(); loadDashboard(); if ($('#capabilityView').classList.contains('active')) loadCapability(); });
   document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
   $('#focusAgent').addEventListener('click', toggleAgentPanel);
   $('#mobileAgentToggle').addEventListener('click', toggleAgentPanel);

@@ -45,6 +45,7 @@ async def lifespan(_: FastAPI):
     else:
         with db_session(settings.database_path) as connection:
             tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+            indexes = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'index'")}
             session_columns = {row[1] for row in connection.execute("PRAGMA table_info(chat_sessions)")}
             run_columns = {row[1] for row in connection.execute("PRAGMA table_info(process_runs)")}
         required_tables = {
@@ -55,6 +56,7 @@ async def lifespan(_: FastAPI):
             not required_tables.issubset(tables)
             or not {"model", "archived_at", "last_message_preview"}.issubset(session_columns)
             or not {"operation_seq", "layer_name", "scenario_id"}.issubset(run_columns)
+            or "idx_runs_step_time" not in indexes
         )
         if needs_migration:
             initialize(settings.database_path)

@@ -108,6 +108,8 @@ tbody tr:hover { background: #f8fbfa; }
 .segmented button { min-width: 64px; border: 0; background: transparent; color: var(--muted); font-size: 10px; border-radius: 3px; }
 .segmented button.active { background: var(--nav); color: #fff; }
 .capability-table { min-height: 300px; }
+.capability-table table { transition: opacity 120ms ease; }
+.capability-table table.table-loading { opacity: .55; }
 .knowledge-search { display: flex; align-items: center; gap: 9px; }
 .knowledge-search input { width: 230px; height: 36px; border: 1px solid var(--line); border-radius: 4px; padding: 0 10px; color: var(--ink); background: var(--surface); font-size: 11px; }
 .knowledge-search span { color: var(--muted); font-size: 10px; }

@@ -26,6 +26,13 @@ def normalize_range(start: str | None, end: str | None) -> tuple[str, str]:
     return start_value.isoformat(), end_value.isoformat()
 
 
+def timestamp_bounds(start: str | None, end: str | None) -> tuple[str, str]:
+    """Return an inclusive start and exclusive end for ISO timestamp filters."""
+    start_value, end_value = normalize_range(start, end)
+    end_exclusive = (date.fromisoformat(end_value) + timedelta(days=1)).isoformat()
+    return start_value, end_exclusive
+
+
 def fab_overview(start: str | None = None, end: str | None = None) -> dict:
     start, end = normalize_range(start, end)
     with db_session() as connection:
@@ -157,7 +164,7 @@ def sensor_summary(
 
 
 def process_capability(start: str | None = None, end: str | None = None, process_step: str = "CVD") -> list[dict]:
-    start, end = normalize_range(start, end)
+    start, end_exclusive = timestamp_bounds(start, end)
     process_step = process_step.upper()
     with db_session() as connection:
         rows = connection.execute(
@@ -172,7 +179,7 @@ def process_capability(start: str | None = None, end: str | None = None, process
                           MIN(spec_lsl) AS spec_lsl,
                           MAX(spec_usl) AS spec_usl
                    FROM process_runs
-                   WHERE process_step = ? AND date(run_time) BETWEEN ? AND ?
+                   WHERE process_step = ? AND run_time >= ? AND run_time < ?
                          AND measurement_value IS NOT NULL
                    GROUP BY equipment_id
                )
@@ -189,7 +196,7 @@ def process_capability(start: str | None = None, end: str | None = None, process
                       END, 2) AS cpk,
                       metric_name, metric_unit, spec_lsl, spec_usl
                FROM stats ORDER BY cpk""",
-            (process_step, start, end),
+            (process_step, start, end_exclusive),
         ).fetchall()
     return rows_to_dicts(rows)
 

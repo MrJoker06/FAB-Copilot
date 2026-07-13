@@ -239,6 +239,7 @@ CREATE INDEX IF NOT EXISTS idx_lots_complete ON lots(complete_time);
 CREATE INDEX IF NOT EXISTS idx_runs_time ON process_runs(run_time);
 CREATE INDEX IF NOT EXISTS idx_runs_equipment ON process_runs(equipment_id, run_time);
 CREATE INDEX IF NOT EXISTS idx_runs_lot_step ON process_runs(lot_id, process_step, run_time DESC);
+CREATE INDEX IF NOT EXISTS idx_runs_step_time ON process_runs(process_step, run_time);
 CREATE INDEX IF NOT EXISTS idx_defects_time ON defect_records(detected_time);
 CREATE INDEX IF NOT EXISTS idx_events_time ON equipment_events(event_time);
 CREATE INDEX IF NOT EXISTS idx_sensor_equipment_time ON sensor_readings(equipment_id, sample_time);

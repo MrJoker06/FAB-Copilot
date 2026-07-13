@@ -13,7 +13,7 @@ from app.database import db_session
 from app.main import app
 from app.processes import MANUFACTURING_STEPS
 from app.rag import search_knowledge
-from app.reports import process_capability, recent_excursions, report_bundle, safe_select
+from app.reports import process_capability, recent_excursions, report_bundle, safe_select, timestamp_bounds
 from app.seed import seed_reference_data
 from app.sessions import append_message
 
@@ -37,6 +37,16 @@ class FabInsightTests(unittest.TestCase):
         cvd_02 = next(row for row in capability if row["equipment_id"] == "CVD-02")
         peers = [row for row in capability if row["equipment_id"] != "CVD-02"]
         self.assertLess(cvd_02["cpk"], min(row["cpk"] for row in peers))
+
+    def test_capability_range_is_sargable_and_keeps_end_date_inclusive(self):
+        self.assertEqual(timestamp_bounds("2026-07-01", "2026-07-13"), ("2026-07-01", "2026-07-14"))
+        with db_session() as connection:
+            plan = connection.execute(
+                "EXPLAIN QUERY PLAN SELECT equipment_id FROM process_runs "
+                "WHERE process_step = ? AND run_time >= ? AND run_time < ?",
+                ("CMP", "2026-07-01", "2026-07-14"),
+            ).fetchall()
+        self.assertTrue(any("idx_runs_step_time" in row[3] for row in plan), plan)
 
     def test_all_manufacturing_steps_have_equipment_and_capability(self):
         with db_session() as connection:
