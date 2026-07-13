@@ -43,7 +43,21 @@ async def lifespan(_: FastAPI):
     if not settings.database_path.exists():
         generate_database(settings.database_path)
     else:
-        initialize(settings.database_path)
+        with db_session(settings.database_path) as connection:
+            tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+            session_columns = {row[1] for row in connection.execute("PRAGMA table_info(chat_sessions)")}
+            run_columns = {row[1] for row in connection.execute("PRAGMA table_info(process_runs)")}
+        required_tables = {
+            "sensor_readings", "equipment_state_intervals", "wafer_maps",
+            "agent_runs", "agent_tool_events", "message_sources",
+        }
+        needs_migration = (
+            not required_tables.issubset(tables)
+            or not {"model", "archived_at", "last_message_preview"}.issubset(session_columns)
+            or not {"operation_seq", "layer_name", "scenario_id"}.issubset(run_columns)
+        )
+        if needs_migration:
+            initialize(settings.database_path)
         with db_session(settings.database_path) as connection:
             populated_steps = {
                 row[0]
