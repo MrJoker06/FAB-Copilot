@@ -93,6 +93,44 @@ MEASUREMENTS = {
     "METROLOGY": ("Gauge correlation", "R2", 0.90, None, 0.97, 0.012),
 }
 
+# Repeated module visits approximate a layered wafer route instead of treating each
+# process family as a single pass. The exact recipes remain synthetic.
+ROUTE_SEQUENCE = (
+    ("CLEAN", "FEOL-START"), ("DIFFUSION", "WELL"), ("IMPLANT", "WELL"),
+    ("LITHO", "GATE"), ("ETCH", "GATE"), ("CVD", "SPACER"),
+    ("ETCH", "SPACER"), ("CLEAN", "POST-ETCH"), ("IMPLANT", "SOURCE-DRAIN"),
+    ("DIFFUSION", "ANNEAL"), ("CVD", "ILD"), ("CMP", "ILD"),
+    ("METROLOGY", "ILD"), ("LITHO", "METAL-1"), ("ETCH", "VIA-1"),
+    ("PVD", "METAL-1"), ("CMP", "METAL-1"), ("METROLOGY", "FINAL"),
+)
+
+SENSOR_PROFILES = {
+    "LITHO": [("Focus offset", "nm", 0.0, 18.0), ("Exposure dose", "mJ/cm2", 24.0, 0.35), ("Overlay X", "nm", 0.0, 1.0), ("Alignment score", "index", 0.94, 0.025), ("Stage temperature", "C", 22.0, 0.12), ("Resist thickness", "nm", 1100.0, 18.0)],
+    "ETCH": [("RF source power", "W", 900.0, 18.0), ("RF bias power", "W", 185.0, 6.0), ("Chamber pressure", "Torr", 0.09, 0.006), ("Endpoint time", "s", 88.0, 4.5), ("CF4 flow", "sccm", 82.0, 1.7), ("CD bias", "nm", 0.0, 0.7)],
+    "CVD": [("Wafer temperature", "C", 405.0, 2.2), ("Chamber pressure", "Torr", 2.2, 0.06), ("SiH4 flow", "sccm", 145.0, 2.8), ("Deposition rate", "nm/min", 32.5, 0.8), ("Film thickness", "nm", 100.0, 1.5), ("Within-wafer non-uniformity", "%", 1.85, 0.24)],
+    "PVD": [("DC target power", "kW", 8.2, 0.16), ("Base pressure", "Torr", 0.000006, 0.000001), ("Argon flow", "sccm", 42.0, 1.1), ("Deposition rate", "nm/min", 21.0, 0.55), ("Film thickness", "nm", 50.0, 0.36), ("Film stress", "MPa", 120.0, 14.0)],
+    "DIFFUSION": [("Zone 1 temperature", "C", 925.0, 2.5), ("Zone 2 temperature", "C", 925.0, 2.2), ("Zone 3 temperature", "C", 925.0, 2.6), ("O2 flow", "slm", 8.0, 0.15), ("Boat position", "mm", 0.0, 0.35), ("Sheet resistance", "ohm/sq", 100.0, 1.1)],
+    "IMPLANT": [("Beam current", "mA", 4.8, 0.15), ("Dose monitor", "% target", 100.0, 0.35), ("Implant energy", "keV", 45.0, 0.25), ("Tilt angle", "deg", 7.0, 0.08), ("End station vacuum", "Torr", 0.00002, 0.000003), ("Source pressure", "Torr", 0.004, 0.0003)],
+    "CMP": [("Carrier pressure", "psi", 3.1, 0.1), ("Platen current", "A", 12.5, 0.55), ("Slurry flow", "ml/min", 220.0, 6.0), ("Pad conditioner torque", "Nm", 3.8, 0.22), ("Removal rate", "nm/min", 300.0, 3.4), ("WIWNU", "%", 2.1, 0.3)],
+    "CLEAN": [("Chemical concentration", "%", 2.0, 0.06), ("UPW resistivity", "Mohm-cm", 18.1, 0.12), ("Filter differential pressure", "kPa", 32.0, 2.0), ("Spin speed", "rpm", 1450.0, 16.0), ("Contact angle", "deg", 12.0, 1.2), ("Particle adders", "count", 1.2, 0.7)],
+    "METROLOGY": [("Reference bias", "nm", 0.0, 0.18), ("Repeatability", "nm", 0.42, 0.06), ("Tool correlation", "R2", 0.97, 0.012), ("Autofocus retries", "count", 0.5, 0.55), ("Stage temperature", "C", 22.0, 0.1), ("Reference wafer age", "runs", 70.0, 24.0)],
+}
+
+SCENARIO_DEFINITIONS = {
+    "LITHO": ("SIM-LITHO-OVERLAY", "LITHO-02", 80, "LITHO-OVL-HI", "Reticle alignment reference drift", "Overlay X,Alignment score,Reference bias"),
+    "ETCH": ("SIM-ETCH-ENDPOINT", "ETCH-04", 75, "ETCH-CD-HI", "Endpoint window shifted by chamber wall condition", "Endpoint time,CD bias,Chamber pressure"),
+    "CVD": ("SIM-CVD-THICKNESS", "CVD-02", 70, "CVD-THK-HI", "MFC zero drift after extended chamber seasoning", "Film thickness,SiH4 flow,Within-wafer non-uniformity"),
+    "PVD": ("SIM-PVD-TARGET", "PVD-02", 55, "PVD-THK-LOW", "Target erosion changes deposition rate", "DC target power,Deposition rate,Film thickness"),
+    "DIFFUSION": ("SIM-DIFF-ZONE", "DIFFUSION-03", 65, "DIFF-RS-HI", "Furnace center-zone thermocouple bias", "Zone 2 temperature,Sheet resistance,Boat position"),
+    "IMPLANT": ("SIM-IMP-DOSE", "IMPLANT-03", 45, "IMP-DOSE-HI", "Dose monitor gain drift", "Dose monitor,Beam current,Source pressure"),
+    "CMP": ("SIM-CMP-PAD", "CMP-03", 95, "CMP-SCRATCH", "Pad conditioner wear and slurry agglomeration", "Pad conditioner torque,Platen current,Particle adders"),
+    "CLEAN": ("SIM-CLEAN-PARTICLE", "CLEAN-02", 60, "CLEAN-PARTICLE-HI", "Recirculation filter loading", "Particle adders,Filter differential pressure,UPW resistivity"),
+    "METROLOGY": ("SIM-METRO-CAL", "METROLOGY-02", 50, "METRO-CORR-LOW", "Reference wafer calibration interval exceeded", "Tool correlation,Reference bias,Reference wafer age"),
+}
+
+WAFER_PATTERNS = ["None", "Center", "Donut", "Edge-Loc", "Edge-Ring", "Loc", "Random", "Scratch", "Near-Full"]
+WAFER_PATTERN_WEIGHTS = [85.2, 1.0, 0.7, 2.4, 1.8, 3.2, 3.0, 1.5, 1.2]
+
 
 def _clip(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
@@ -211,7 +249,7 @@ def seed_reference_data(path: Path | None = None) -> dict:
     return {"knowledge_chunks": knowledge_count, "historical_cases": case_count}
 
 
-def generate_database(path: Path | None = None, days: int = 548, seed: int = 20260712) -> dict:
+def generate_database(path: Path | None = None, days: int = 730, seed: int = 20260712) -> dict:
     db_path = path or get_settings().database_path
     initialize(db_path)
     rng = random.Random(seed)
@@ -222,12 +260,14 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
     runs: list[tuple] = []
     events: list[tuple] = []
     defects: list[tuple] = []
+    equipment_states: list[tuple] = []
+    wafer_maps: list[tuple] = []
     lot_sequence = 1
 
     for day_index in range(days):
         current_day = start_day + timedelta(days=day_index)
         seasonal = math.sin(day_index / 34) * 0.006
-        daily_lots = rng.randint(3, 6)
+        daily_lots = rng.randint(10, 16)
         for _ in range(daily_lots):
             product, node, route, baseline_yield = rng.choices(
                 PRODUCTS, weights=[25, 18, 22, 15, 20], k=1
@@ -251,13 +291,21 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
 
             equipment_penalty = 0.0
             lot_runs: list[tuple] = []
-            for step_index, (step, equipment_options) in enumerate(STEPS.items()):
+            lot_scenarios: list[tuple[str, str, datetime, str]] = []
+            last_equipment = "CLEAN-01"
+            last_step = "CLEAN"
+            last_run_dt = start_dt
+            for step_index, (step, layer_name) in enumerate(ROUTE_SEQUENCE):
+                equipment_options = STEPS[step]
                 equipment = rng.choice(equipment_options)
-                run_dt = start_dt + timedelta(hours=(step_index + 1) * cycle_time / (len(STEPS) + 1))
+                run_dt = start_dt + timedelta(hours=(step_index + 1) * cycle_time / (len(ROUTE_SEQUENCE) + 1))
                 chamber = rng.choice(["A", "B"])
                 recipe = f"{step}-{node}N-R{rng.randint(1, 3)}"
                 excursion = None
+                scenario_id = None
                 defect_density = max(0.01, rng.lognormvariate(-2.6, 0.45))
+                queue_hours = max(0.03, rng.lognormvariate(-0.25, 0.65))
+                rework_flag = int(rng.random() < 0.018)
 
                 measurement_name, measurement_unit, spec_lsl, spec_usl, target, sigma = MEASUREMENTS[step]
                 measurement_value = rng.gauss(target, sigma)
@@ -273,46 +321,19 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
                     thickness = rng.gauss(100, 1.45)
                     measurement_value = thickness
                     uniformity = max(0.5, rng.gauss(1.85, 0.28))
-                    if equipment == "CVD-02" and age_days < 70:
-                        drift = (70 - age_days) / 70
-                        thickness += 3.5 * drift
-                        uniformity += 0.9 * drift
-                        defect_density += 0.12 * drift
-                        if thickness > 103.0 or uniformity > 2.55:
-                            excursion = "CVD-THK-HI"
-                            equipment_penalty += 0.018
                     measurement_value = thickness
                 elif step == "CMP":
                     temp, pressure, duration = rng.gauss(24, 0.6), rng.gauss(3.1, 0.12), rng.gauss(132, 8)
                     thickness, uniformity = None, None
-                    if equipment == "CMP-03" and age_days < 95:
-                        drift = (95 - age_days) / 95
-                        defect_density += 0.28 * drift
-                        if defect_density > 0.34:
-                            excursion = "CMP-SCRATCH"
-                            equipment_penalty += 0.024
                 elif step == "PVD":
                     temp, pressure, duration = rng.gauss(190, 3.0), rng.gauss(0.006, 0.0008), rng.gauss(145, 7)
                     thickness, uniformity = measurement_value, max(0.4, rng.gauss(1.5, 0.22))
-                    if equipment == "PVD-02" and age_days < 55:
-                        drift = (55 - age_days) / 55
-                        measurement_value -= 2.1 * drift
-                        thickness = measurement_value
-                        if measurement_value < 48.0:
-                            excursion = "PVD-THK-LOW"
-                            equipment_penalty += 0.016
                 elif step == "DIFFUSION":
                     temp, pressure, duration = rng.gauss(925, 4.5), rng.gauss(760, 4), rng.gauss(3100, 120)
                     thickness, uniformity = None, max(0.4, rng.gauss(1.7, 0.24))
                 elif step == "IMPLANT":
                     temp, pressure, duration = rng.gauss(23, 0.5), rng.gauss(0.00002, 0.000004), rng.gauss(82, 5)
                     thickness, uniformity = None, None
-                    if equipment == "IMPLANT-03" and age_days < 45:
-                        drift = (45 - age_days) / 45
-                        measurement_value += 2.15 * drift
-                        if measurement_value > 102.0:
-                            excursion = "IMP-DOSE-HI"
-                            equipment_penalty += 0.014
                 elif step == "CLEAN":
                     temp, pressure, duration = rng.gauss(48, 1.2), rng.gauss(760, 3), rng.gauss(240, 12)
                     thickness, uniformity = None, None
@@ -321,7 +342,49 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
                     temp, pressure, duration = rng.gauss(22, 0.4), rng.gauss(760, 3), rng.gauss(54, 4)
                     thickness, uniformity = None, None
 
-                pass_flag = int(excursion is None and defect_density < 0.48)
+                definition = SCENARIO_DEFINITIONS[step]
+                defined_id, affected_equipment, active_days, scenario_code, _, _ = definition
+                if equipment == affected_equipment and age_days < active_days:
+                    drift = (active_days - age_days) / active_days
+                    scenario_id = defined_id
+                    if step == "LITHO":
+                        measurement_value += 3.8 * drift
+                    elif step == "ETCH":
+                        measurement_value += 3.6 * drift
+                    elif step == "CVD":
+                        measurement_value += 3.5 * drift
+                        thickness = measurement_value
+                        uniformity += 0.9 * drift
+                    elif step == "PVD":
+                        measurement_value -= 2.2 * drift
+                        thickness = measurement_value
+                    elif step == "DIFFUSION":
+                        measurement_value += 6.5 * drift
+                    elif step == "IMPLANT":
+                        measurement_value += 2.15 * drift
+                    elif step == "CMP":
+                        measurement_value -= 18.0 * drift
+                        defect_density += 0.30 * drift
+                    elif step == "CLEAN":
+                        measurement_value += 5.2 * drift
+                    elif step == "METROLOGY":
+                        measurement_value -= 0.09 * drift
+                    outside_spec = (
+                        (spec_lsl is not None and measurement_value < spec_lsl)
+                        or (spec_usl is not None and measurement_value > spec_usl)
+                        or (step == "CMP" and defect_density > 0.34)
+                    )
+                    if outside_spec:
+                        excursion = scenario_code
+                        equipment_penalty += 0.012 + 0.014 * drift
+                        if run_dt <= as_of:
+                            lot_scenarios.append((scenario_id, step, run_dt, equipment))
+
+                in_spec = not (
+                    (spec_lsl is not None and measurement_value < spec_lsl)
+                    or (spec_usl is not None and measurement_value > spec_usl)
+                )
+                pass_flag = int(excursion is None and in_spec and defect_density < 0.48)
                 if run_dt <= as_of:
                     lot_runs.append((
                         lot_id, step, equipment, chamber, recipe, run_dt.isoformat(timespec="seconds"),
@@ -330,7 +393,11 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
                         round(uniformity, 3) if uniformity is not None else None,
                         round(defect_density, 4), measurement_name, round(measurement_value, 4),
                         measurement_unit, spec_lsl, spec_usl, pass_flag, excursion,
+                        step_index + 1, layer_name, round(queue_hours, 3), rework_flag, scenario_id,
                     ))
+                    last_equipment = equipment
+                    last_step = step
+                    last_run_dt = run_dt
                 defect_probability = 0.12 + (0.15 if excursion else 0)
                 if run_dt <= as_of and rng.random() < defect_probability:
                     defect_type = rng.choice(DEFECTS[step])
@@ -341,6 +408,23 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
                     count = max(1, int(rng.lognormvariate(1.7, 0.55) * (2 if excursion else 1)))
                     disposition = rng.choices(["Accept", "Rework", "Scrap"], [65, 28, 7], k=1)[0]
                     defects.append((lot_id, run_dt.isoformat(timespec="seconds"), step, defect_type, count, disposition))
+
+            if last_run_dt <= as_of:
+                pattern = rng.choices(WAFER_PATTERNS, weights=WAFER_PATTERN_WEIGHTS, k=1)[0]
+                map_step = last_step
+                if lot_scenarios and rng.random() < 0.72:
+                    _, map_step, last_run_dt, last_equipment = lot_scenarios[-1]
+                    pattern = {
+                        "LITHO": "Loc", "ETCH": "Edge-Ring", "CVD": "Center",
+                        "PVD": "Donut", "DIFFUSION": "Edge-Loc", "IMPLANT": "Loc",
+                        "CMP": "Scratch", "CLEAN": "Random", "METROLOGY": "Near-Full",
+                    }[map_step]
+                tested_dies = rng.randint(520, 760)
+                failed_dies = rng.randint(0, 4) if pattern == "None" else rng.randint(8, 95)
+                wafer_maps.append((
+                    lot_id, rng.randint(1, wafer_count), last_run_dt.isoformat(timespec="seconds"),
+                    map_step, last_equipment, pattern, tested_dies, failed_dies, rng.randint(1, 2_000_000_000),
+                ))
 
             actual_yield = _clip(
                 baseline_yield + seasonal + rng.gauss(0, 0.018) - equipment_penalty - hold_hours * 0.0003,
@@ -356,6 +440,20 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
             runs.extend(lot_runs)
 
         for equipment in [item for values in STEPS.values() for item in values]:
+            state_start = datetime.combine(current_day, time(0, rng.randint(0, 20)))
+            productive_minutes = rng.uniform(860, 1330)
+            equipment_states.append((equipment, rng.choice(["A", "B"]), state_start.isoformat(timespec="seconds"), round(productive_minutes, 1), "Productive", "Production lots"))
+            if rng.random() < 0.62:
+                other_state = rng.choices(
+                    ["Standby", "Engineering", "Scheduled Downtime", "Unscheduled Downtime", "Non-Scheduled"],
+                    [46, 18, 19, 7, 10], k=1,
+                )[0]
+                equipment_states.append((
+                    equipment, rng.choice(["A", "B"]),
+                    (state_start + timedelta(minutes=productive_minutes)).isoformat(timespec="seconds"),
+                    round(max(10.0, 1440.0 - productive_minutes), 1), other_state,
+                    {"Standby": "No production demand", "Engineering": "Process qualification", "Scheduled Downtime": "Preventive maintenance", "Unscheduled Downtime": "Equipment fault", "Non-Scheduled": "Facility calendar"}[other_state],
+                ))
             if rng.random() < 0.018:
                 event_type = rng.choices(["Alarm", "PM", "Unscheduled Down"], [54, 31, 15], k=1)[0]
                 severity = {"Alarm": "Medium", "PM": "Info", "Unscheduled Down": "High"}[event_type]
@@ -369,6 +467,10 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
                 events.append((equipment, event_dt.isoformat(timespec="seconds"), event_type, round(duration, 1), severity, reason))
 
     with db_session(db_path) as connection:
+        connection.execute("DELETE FROM sensor_readings")
+        connection.execute("DELETE FROM wafer_maps")
+        connection.execute("DELETE FROM equipment_state_intervals")
+        connection.execute("DELETE FROM simulation_scenarios")
         connection.execute("DELETE FROM defect_records")
         connection.execute("DELETE FROM process_runs")
         connection.execute("DELETE FROM equipment_events")
@@ -379,8 +481,9 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
                 lot_id, process_step, equipment_id, chamber, recipe, run_time,
                 temperature_c, pressure_torr, duration_sec, thickness_nm,
                 uniformity_pct, defect_density, measurement_name, measurement_value,
-                measurement_unit, spec_lsl, spec_usl, pass_flag, excursion_code
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                measurement_unit, spec_lsl, spec_usl, pass_flag, excursion_code,
+                operation_seq, layer_name, queue_hours, rework_flag, scenario_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             runs,
         )
         connection.executemany(
@@ -391,6 +494,84 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
             "INSERT INTO defect_records(lot_id, detected_time, process_step, defect_type, count, disposition) VALUES (?, ?, ?, ?, ?, ?)",
             defects,
         )
+        connection.executemany(
+            """INSERT INTO equipment_state_intervals(
+                   equipment_id, chamber, start_time, duration_minutes, semi_e10_state, reason
+               ) VALUES (?, ?, ?, ?, ?, ?)""",
+            equipment_states,
+        )
+        connection.executemany(
+            """INSERT INTO wafer_maps(
+                   lot_id, wafer_no, detected_time, process_step, equipment_id,
+                   pattern_class, tested_dies, failed_dies, map_seed
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            wafer_maps,
+        )
+        scenario_rows = []
+        for step, definition in SCENARIO_DEFINITIONS.items():
+            scenario_id, equipment_id, active_days, scenario_type, root_cause, signals = definition
+            scenario_rows.append((
+                scenario_id, step, equipment_id, scenario_type,
+                (end_day - timedelta(days=active_days - 1)).isoformat(), end_day.isoformat(),
+                root_cause, signals, "SECOM-shape + SEMI-E10 + WM-811K-patterns + NIST-SPC", 0,
+            ))
+        connection.executemany(
+            """INSERT INTO simulation_scenarios(
+                   scenario_id, process_step, equipment_id, scenario_type, start_date,
+                   end_date, root_cause, observable_signals, source_profile, visible_to_agent
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            scenario_rows,
+        )
+
+        sensor_count = 0
+        sensor_batch: list[tuple] = []
+        cursor = connection.execute(
+            """SELECT lot_id, operation_seq, process_step, equipment_id, chamber, run_time,
+                      measurement_name, measurement_value, scenario_id
+               FROM process_runs ORDER BY run_id"""
+        )
+        for run in cursor:
+            for signal_index, (signal_name, unit, mean, sigma) in enumerate(SENSOR_PROFILES[run["process_step"]]):
+                is_missing = int(rng.random() < 0.014)
+                is_outlier = int(rng.random() < (0.12 if run["scenario_id"] else 0.0025))
+                if is_missing:
+                    value = None
+                elif signal_name == run["measurement_name"]:
+                    value = run["measurement_value"]
+                else:
+                    value = rng.gauss(mean, sigma)
+                    if run["scenario_id"] and is_outlier:
+                        value += sigma * rng.choice([-1, 1]) * rng.uniform(2.0, 4.2)
+                    if unit in {"count", "Torr", "sccm", "slm", "W", "kW", "A", "ml/min", "rpm", "runs"}:
+                        value = max(0.0, value)
+                    if unit == "R2":
+                        value = _clip(value, 0.0, 1.0)
+                    value = round(value, 6)
+                sample_time = datetime.fromisoformat(run["run_time"]) + timedelta(seconds=signal_index * 3)
+                sensor_batch.append((
+                    run["lot_id"], run["operation_seq"], run["process_step"], run["equipment_id"],
+                    run["chamber"], sample_time.isoformat(timespec="seconds"), signal_name, value,
+                    unit, is_missing, is_outlier,
+                ))
+                if len(sensor_batch) >= 25000:
+                    connection.executemany(
+                        """INSERT INTO sensor_readings(
+                               lot_id, operation_seq, process_step, equipment_id, chamber,
+                               sample_time, signal_name, signal_value, signal_unit, is_missing, is_outlier
+                           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        sensor_batch,
+                    )
+                    sensor_count += len(sensor_batch)
+                    sensor_batch.clear()
+        if sensor_batch:
+            connection.executemany(
+                """INSERT INTO sensor_readings(
+                       lot_id, operation_seq, process_step, equipment_id, chamber,
+                       sample_time, signal_name, signal_value, signal_unit, is_missing, is_outlier
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                sensor_batch,
+            )
+            sensor_count += len(sensor_batch)
         knowledge_count = _seed_knowledge(connection)
         case_count = _seed_cases(connection)
         connection.commit()
@@ -401,7 +582,11 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
         "lots": len(lots),
         "process_runs": len(runs),
         "equipment_events": len(events),
+        "equipment_state_intervals": len(equipment_states),
         "defect_records": len(defects),
+        "sensor_readings": sensor_count,
+        "wafer_maps": len(wafer_maps),
+        "simulation_scenarios": len(SCENARIO_DEFINITIONS),
         "knowledge_chunks": knowledge_count,
         "historical_cases": case_count,
     }
@@ -409,7 +594,7 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate deterministic semiconductor fab history")
-    parser.add_argument("--days", type=int, default=548)
+    parser.add_argument("--days", type=int, default=730)
     parser.add_argument("--force", action="store_true", help="Regenerate even when the database exists")
     args = parser.parse_args()
     target = get_settings().database_path

@@ -5,7 +5,7 @@ import json
 import time
 import traceback
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any, Callable
 
 import httpx
@@ -17,10 +17,12 @@ from .rag import search_knowledge
 from .reports import (
     defect_pareto,
     equipment_health,
+    equipment_productivity,
     fab_overview,
     process_capability,
     recent_excursions,
     safe_select,
+    sensor_summary,
     yield_trend,
 )
 
@@ -39,12 +41,18 @@ SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的�
 7. 本演示系统的制程能力判定统一使用 Cpk 1.33：低于 1.33 为能力不足，1.33 至 1.67 为观察区间，高于或等于 1.67 为稳定；不得自行改写阈值。
 8. 历史案例只能用于生成和排序根因假设，不能证明当前问题具有相同根因。必须结合当前制造数据说明案例的相似点、差异和待验证项。
 9. 检索结果包含 retrieval.confidence、final_score 和 selection_reason。若所有结果均为 low，必须说明检索证据不足并请求补充站点、设备、缺陷或时间范围；不得用低置信度材料形成确定性结论。
+10. 需要调用工具时直接返回 tool_calls，该轮 content 必须为空；只有所有工具调用完成后的最终结论才输出文字。
 
 数据库字段提示：
 - lots: lot_id, product, technology_nm, route, priority, start_time, complete_time, status, wafer_count, good_wafers, yield_rate(0-1), cycle_time_hours, hold_hours
-- process_runs: lot_id, process_step, equipment_id, run_time, temperature_c, pressure_torr, duration_sec, thickness_nm, uniformity_pct, defect_density, measurement_name, measurement_value, measurement_unit, spec_lsl, spec_usl, pass_flag, excursion_code
+- process_runs: lot_id, operation_seq, layer_name, process_step, equipment_id, chamber, recipe, run_time, queue_hours, rework_flag, temperature_c, pressure_torr, duration_sec, thickness_nm, uniformity_pct, defect_density, measurement_name, measurement_value, measurement_unit, spec_lsl, spec_usl, pass_flag, excursion_code
 - equipment_events: equipment_id, event_time, event_type, duration_minutes, severity, reason
 - defect_records: lot_id, detected_time, process_step, defect_type, count, disposition
+- sensor_readings: lot_id, operation_seq, process_step, equipment_id, chamber, sample_time, signal_name, signal_value, signal_unit, is_missing, is_outlier
+- equipment_state_intervals: equipment_id, chamber, start_time, duration_minutes, semi_e10_state, reason
+- wafer_maps: lot_id, wafer_no, detected_time, process_step, equipment_id, pattern_class, tested_dies, failed_dies
+
+simulation_scenarios 为评测真值表，Agent 无权访问，不得尝试查询。
 """
 
 
@@ -61,9 +69,11 @@ TOOLS = [
     {"type": "function", "function": {"name": "get_fab_overview", "description": "查询工厂批次、晶圆、良率、周期、hold和异常总览", "parameters": _schema(DATE_PROPERTIES)}},
     {"type": "function", "function": {"name": "get_yield_trend", "description": "按周查询良率和周期趋势，可按产品过滤", "parameters": _schema({**DATE_PROPERTIES, "product": {"type": "string", "description": "产品名，如 Nova-P1"}})}},
     {"type": "function", "function": {"name": "get_equipment_health", "description": "查询设备运行数、异常数、缺陷密度、停机和健康状态", "parameters": _schema(DATE_PROPERTIES)}},
+    {"type": "function", "function": {"name": "get_equipment_productivity", "description": "按SEMI E10状态查询设备生产、待机、工程和停机时间占比", "parameters": _schema(DATE_PROPERTIES)}},
     {"type": "function", "function": {"name": "get_process_capability", "description": "按站点关键量测和规格限查询各设备Cpk", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}})}},
     {"type": "function", "function": {"name": "get_defect_pareto", "description": "查询缺陷类型Pareto和受影响批次数", "parameters": _schema({**DATE_PROPERTIES, "limit": {"type": "integer", "minimum": 1, "maximum": 25}})}},
-    {"type": "function", "function": {"name": "get_recent_excursions", "description": "查询最近的制程异常批次及量测值", "parameters": _schema({**DATE_PROPERTIES, "limit": {"type": "integer", "minimum": 1, "maximum": 100}})}},
+    {"type": "function", "function": {"name": "get_recent_excursions", "description": "查询最近的制程异常批次及量测值，可按站点过滤", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "limit": {"type": "integer", "minimum": 1, "maximum": 100}})}},
+    {"type": "function", "function": {"name": "get_sensor_summary", "description": "按站点、设备或信号查询传感器均值、范围、缺失和异常标记", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "equipment_id": {"type": "string"}, "signal_name": {"type": "string"}})}},
     {"type": "function", "function": {"name": "search_knowledge", "description": "联合检索厂内SOP、控制计划、分析方法与已验证历史案例。可按元数据过滤，返回可解释评分和reference_id", "parameters": _schema({"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}, "process_step": {"type": "string", "enum": list(ANALYSIS_SCOPES)}, "equipment_id": {"type": "string"}, "defect_type": {"type": "string"}, "source_types": {"type": "array", "items": {"type": "string", "enum": ["knowledge", "case"]}}}, ["query"])}},
     {"type": "function", "function": {"name": "query_manufacturing_data", "description": "在固定报表不足时执行只读SQLite SELECT。只能访问白名单表，最多返回100行", "parameters": _schema({"sql": {"type": "string", "description": "单条SELECT语句，SQLite语法"}}, ["sql"])}},
 ]
@@ -73,9 +83,11 @@ TOOL_HANDLERS: dict[str, Callable[..., Any]] = {
     "get_fab_overview": fab_overview,
     "get_yield_trend": yield_trend,
     "get_equipment_health": equipment_health,
+    "get_equipment_productivity": equipment_productivity,
     "get_process_capability": process_capability,
     "get_defect_pareto": defect_pareto,
     "get_recent_excursions": recent_excursions,
+    "get_sensor_summary": sensor_summary,
     "search_knowledge": search_knowledge,
     "query_manufacturing_data": safe_select,
 }
@@ -106,6 +118,76 @@ def _offline_answer(question: str) -> dict:
     return {"answer": "\n\n".join(lines), "tool_trace": [{"tool": "get_fab_overview", "status": "local"}, {"tool": "get_equipment_health", "status": "local"}], "sources": [], "mode": "offline"}
 
 
+async def _stream_completion(
+    client: httpx.AsyncClient,
+    endpoint: str,
+    headers: dict,
+    request_payload: dict,
+    progress: ProgressCallback | None,
+) -> tuple[dict, dict, str | None]:
+    payload = {**request_payload, "stream": True, "stream_options": {"include_usage": True}}
+    content_parts: list[str] = []
+    pending_answer_parts: list[str] = []
+    pending_answer_length = 0
+    answer_started = False
+    has_tool_calls = False
+    tool_parts: dict[int, dict] = {}
+    usage: dict = {}
+    finish_reason: str | None = None
+    response_id: str | None = None
+    async with client.stream("POST", endpoint, headers=headers, json=payload) as response:
+        response.raise_for_status()
+        async for raw_line in response.aiter_lines():
+            line = raw_line.strip()
+            if not line or not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if data == "[DONE]":
+                break
+            chunk = json.loads(data)
+            response_id = response_id or chunk.get("id")
+            if chunk.get("usage"):
+                usage = chunk["usage"]
+            choices = chunk.get("choices") or []
+            if not choices:
+                continue
+            choice = choices[0]
+            finish_reason = choice.get("finish_reason") or finish_reason
+            delta = choice.get("delta") or {}
+            content = delta.get("content")
+            if content:
+                content_parts.append(content)
+                if answer_started:
+                    await _notify(progress, {"event": "answer_delta", "delta": content})
+                elif not has_tool_calls:
+                    pending_answer_parts.append(content)
+                    pending_answer_length += len(content)
+                    if pending_answer_length >= 64:
+                        answer_started = True
+                        for part in pending_answer_parts:
+                            await _notify(progress, {"event": "answer_delta", "delta": part})
+                        pending_answer_parts.clear()
+            for tool_delta in delta.get("tool_calls") or []:
+                has_tool_calls = True
+                pending_answer_parts.clear()
+                index = int(tool_delta.get("index", 0))
+                item = tool_parts.setdefault(index, {"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
+                if tool_delta.get("id"):
+                    item["id"] = tool_delta["id"]
+                function_delta = tool_delta.get("function") or {}
+                if function_delta.get("name"):
+                    item["function"]["name"] += function_delta["name"]
+                if function_delta.get("arguments"):
+                    item["function"]["arguments"] += function_delta["arguments"]
+    assistant = {"role": "assistant", "content": "".join(content_parts)}
+    if tool_parts:
+        assistant["tool_calls"] = [tool_parts[index] for index in sorted(tool_parts)]
+    elif not answer_started:
+        for part in pending_answer_parts:
+            await _notify(progress, {"event": "answer_delta", "delta": part})
+    return assistant, usage, response_id
+
+
 async def _run_agent_impl(
     question: str,
     history: list[dict] | None,
@@ -120,6 +202,9 @@ async def _run_agent_impl(
             await _notify(progress, {"event": "tool_started", "tool": item["tool"], "arguments": {}})
             await _notify(progress, {"event": "tool_finished", **item})
         await _notify(progress, {"event": "stage", "stage": "synthesis", "message": "正在汇总本地分析结果"})
+        await _notify(progress, {"event": "answer_delta", "delta": result["answer"]})
+        result["model"] = "local-rules"
+        result["usage"] = {}
         return result
 
     messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -132,6 +217,7 @@ async def _run_agent_impl(
     trace: list[dict] = []
     sources: dict[str, dict] = {}
     endpoint = f"{settings.deepseek_base_url}/chat/completions"
+    total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
         for iteration in range(6):
@@ -158,12 +244,13 @@ async def _run_agent_impl(
                 **({"request": request_payload} if CONTENT_MODE == "full" else {}),
             )
             try:
-                response = await client.post(
+                assistant, usage, response_id = await _stream_completion(
+                    client,
                     endpoint,
-                    headers={"Authorization": f"Bearer {settings.deepseek_api_key}", "Content-Type": "application/json"},
-                    json=request_payload,
+                    {"Authorization": f"Bearer {settings.deepseek_api_key}", "Content-Type": "application/json"},
+                    request_payload,
+                    progress,
                 )
-                response.raise_for_status()
             except Exception as exc:
                 emit(
                     "model_call_finished",
@@ -176,8 +263,8 @@ async def _run_agent_impl(
                     **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
                 )
                 raise
-            payload = response.json()
-            usage = payload.get("usage") or {}
+            for key in total_usage:
+                total_usage[key] += int(usage.get(key, 0) or 0)
             emit(
                 "model_call_finished",
                 run_id,
@@ -188,16 +275,14 @@ async def _run_agent_impl(
                 input_tokens=usage.get("prompt_tokens", 0),
                 output_tokens=usage.get("completion_tokens", 0),
                 total_tokens=usage.get("total_tokens", 0),
-                finish_reason=(payload.get("choices") or [{}])[0].get("finish_reason"),
-                response_id=payload.get("id"),
-                **({"response": payload} if CONTENT_MODE == "full" else {}),
+                finish_reason="tool_calls" if assistant.get("tool_calls") else "stop",
+                response_id=response_id,
+                **({"response": assistant} if CONTENT_MODE == "full" else {}),
             )
-            assistant = payload["choices"][0]["message"]
             messages.append(assistant)
             tool_calls = assistant.get("tool_calls") or []
             if not tool_calls:
-                await _notify(progress, {"event": "stage", "stage": "synthesis", "message": "数据收集完成，正在组织结论与证据"})
-                return {"answer": assistant.get("content") or "分析完成，但模型没有返回文字。", "tool_trace": trace, "sources": list(sources.values()), "mode": "deepseek"}
+                return {"answer": assistant.get("content") or "分析完成，但模型没有返回文字。", "tool_trace": trace, "sources": list(sources.values()), "mode": "deepseek", "model": settings.deepseek_model, "usage": total_usage}
 
             for call in tool_calls:
                 function = call.get("function", {})
@@ -221,20 +306,22 @@ async def _run_agent_impl(
                         for source in result:
                             sources[source["reference_id"]] = source
                     row_count = len(result) if isinstance(result, list) else 1
-                    trace.append({"tool": name, "arguments": arguments, "status": "ok", "rows": row_count})
+                    tool_duration_ms = round((time.perf_counter() - tool_started) * 1000, 1)
+                    trace.append({"tool": name, "arguments": arguments, "status": "ok", "rows": row_count, "duration_ms": tool_duration_ms})
                     await _notify(progress, {
                         "event": "tool_finished",
                         "tool": name,
                         "arguments": arguments,
                         "status": "ok",
                         "rows": row_count,
+                        "duration_ms": tool_duration_ms,
                     })
                     emit(
                         "tool_call_finished",
                         run_id,
                         status="success",
                         tool=name,
-                        duration_ms=round((time.perf_counter() - tool_started) * 1000, 1),
+                        duration_ms=tool_duration_ms,
                         rows=row_count,
                         **({"result": result} if CONTENT_MODE == "full" else {}),
                     )
@@ -259,7 +346,9 @@ async def _run_agent_impl(
                     content = json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
                 messages.append({"role": "tool", "tool_call_id": call["id"], "content": content})
 
-    return {"answer": "工具调用达到上限。请缩小问题范围后重试。", "tool_trace": trace, "sources": list(sources.values()), "mode": "deepseek"}
+    answer = "工具调用达到上限。请缩小问题范围后重试。"
+    await _notify(progress, {"event": "answer_delta", "delta": answer})
+    return {"answer": answer, "tool_trace": trace, "sources": list(sources.values()), "mode": "deepseek", "model": settings.deepseek_model, "usage": total_usage}
 
 
 async def run_agent(
@@ -269,6 +358,14 @@ async def run_agent(
 ) -> dict:
     run_id = str(uuid.uuid4())
     started = time.perf_counter()
+    started_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    first_token_at: float | None = None
+
+    async def tracked_progress(event: dict) -> None:
+        nonlocal first_token_at
+        if event.get("event") == "answer_delta" and first_token_at is None:
+            first_token_at = time.perf_counter()
+        await _notify(progress, event)
     emit(
         "agent_run_started",
         run_id,
@@ -277,16 +374,21 @@ async def run_agent(
         history_messages=len(history or []),
         **({"question": question, "history": history or []} if CONTENT_MODE == "full" else {}),
     )
-    await _notify(progress, {"event": "run_started", "run_id": run_id, "message": "分析任务已创建"})
+    await tracked_progress({"event": "run_started", "run_id": run_id, "message": "分析任务已创建"})
     try:
-        result = await _run_agent_impl(question, history, run_id, progress)
+        result = await _run_agent_impl(question, history, run_id, tracked_progress)
         result["run_id"] = run_id
+        result["status"] = "success"
+        result["started_at"] = started_at
+        result["completed_at"] = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+        result["duration_ms"] = round((time.perf_counter() - started) * 1000, 1)
+        result["first_token_ms"] = round((first_token_at - started) * 1000, 1) if first_token_at else None
         emit(
             "agent_run_finished",
             run_id,
             status="success",
             mode=result.get("mode", "unknown"),
-            duration_ms=round((time.perf_counter() - started) * 1000, 1),
+            duration_ms=result["duration_ms"],
             tool_count=len(result.get("tool_trace", [])),
             source_count=len(result.get("sources", [])),
             **({
@@ -297,7 +399,7 @@ async def run_agent(
         )
         return result
     except Exception as exc:
-        await _notify(progress, {"event": "run_failed", "run_id": run_id, "message": str(exc)})
+        await tracked_progress({"event": "run_failed", "run_id": run_id, "message": str(exc)})
         emit(
             "agent_run_finished",
             run_id,

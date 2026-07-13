@@ -103,6 +103,59 @@ def equipment_health(start: str | None = None, end: str | None = None) -> list[d
     return rows_to_dicts(rows)
 
 
+def equipment_productivity(start: str | None = None, end: str | None = None) -> list[dict]:
+    start, end = normalize_range(start, end)
+    with db_session() as connection:
+        rows = connection.execute(
+            """SELECT equipment_id,
+                      ROUND(SUM(duration_minutes), 1) AS recorded_minutes,
+                      ROUND(SUM(CASE WHEN semi_e10_state = 'Productive' THEN duration_minutes ELSE 0 END), 1) AS productive_minutes,
+                      ROUND(100.0 * SUM(CASE WHEN semi_e10_state = 'Productive' THEN duration_minutes ELSE 0 END)
+                            / NULLIF(SUM(duration_minutes), 0), 2) AS productive_pct,
+                      ROUND(SUM(CASE WHEN semi_e10_state = 'Unscheduled Downtime' THEN duration_minutes ELSE 0 END), 1) AS unscheduled_down_minutes,
+                      ROUND(SUM(CASE WHEN semi_e10_state = 'Scheduled Downtime' THEN duration_minutes ELSE 0 END), 1) AS scheduled_down_minutes
+               FROM equipment_state_intervals
+               WHERE date(start_time) BETWEEN ? AND ?
+               GROUP BY equipment_id
+               ORDER BY productive_pct, unscheduled_down_minutes DESC""",
+            (start, end),
+        ).fetchall()
+    return rows_to_dicts(rows)
+
+
+def sensor_summary(
+    start: str | None = None,
+    end: str | None = None,
+    process_step: str | None = None,
+    equipment_id: str | None = None,
+    signal_name: str | None = None,
+) -> list[dict]:
+    start, end = normalize_range(start, end)
+    clauses = ["date(sample_time) BETWEEN ? AND ?"]
+    params: list[Any] = [start, end]
+    for column, value in (("process_step", process_step), ("equipment_id", equipment_id), ("signal_name", signal_name)):
+        if value:
+            clauses.append(f"{column} = ?")
+            params.append(value.upper() if column == "process_step" else value)
+    with db_session() as connection:
+        rows = connection.execute(
+            f"""SELECT process_step, equipment_id, signal_name, MAX(signal_unit) AS signal_unit,
+                       COUNT(*) AS samples,
+                       SUM(is_missing) AS missing_samples,
+                       SUM(is_outlier) AS flagged_outliers,
+                       ROUND(AVG(signal_value), 5) AS mean_value,
+                       ROUND(MIN(signal_value), 5) AS min_value,
+                       ROUND(MAX(signal_value), 5) AS max_value
+                FROM sensor_readings
+                WHERE {' AND '.join(clauses)}
+                GROUP BY process_step, equipment_id, signal_name
+                ORDER BY flagged_outliers DESC, missing_samples DESC, process_step, equipment_id
+                LIMIT 100""",
+            params,
+        ).fetchall()
+    return rows_to_dicts(rows)
+
+
 def process_capability(start: str | None = None, end: str | None = None, process_step: str = "CVD") -> list[dict]:
     start, end = normalize_range(start, end)
     process_step = process_step.upper()
@@ -157,23 +210,37 @@ def defect_pareto(start: str | None = None, end: str | None = None, limit: int =
     return rows_to_dicts(rows)
 
 
-def recent_excursions(start: str | None = None, end: str | None = None, limit: int = 20) -> list[dict]:
+def recent_excursions(
+    start: str | None = None,
+    end: str | None = None,
+    limit: int = 20,
+    process_step: str | None = None,
+) -> list[dict]:
     start, end = normalize_range(start, end)
+    process_clause = "AND process_step = ?" if process_step else ""
+    params: list[Any] = [start, end]
+    if process_step:
+        params.append(process_step.upper())
+    params.append(max(1, min(limit, 100)))
     with db_session() as connection:
         rows = connection.execute(
-            """SELECT run_time, lot_id, process_step, equipment_id, excursion_code,
+            f"""SELECT run_time, lot_id, process_step, equipment_id, excursion_code,
                       thickness_nm, uniformity_pct, defect_density,
                       measurement_name, measurement_value, measurement_unit,
                       spec_lsl, spec_usl
                FROM process_runs
                WHERE date(run_time) BETWEEN ? AND ? AND excursion_code IS NOT NULL
+                     {process_clause}
                ORDER BY run_time DESC LIMIT ?""",
-            (start, end, max(1, min(limit, 100))),
+            params,
         ).fetchall()
     return rows_to_dicts(rows)
 
 
-ALLOWED_TABLES = {"lots", "process_runs", "equipment_events", "defect_records"}
+ALLOWED_TABLES = {
+    "lots", "process_runs", "equipment_events", "defect_records",
+    "sensor_readings", "equipment_state_intervals", "wafer_maps",
+}
 
 
 def safe_select(sql: str) -> list[dict]:
@@ -182,7 +249,8 @@ def safe_select(sql: str) -> list[dict]:
     if not re.match(r"(?is)^select\b", normalized):
         raise ValueError("只允许 SELECT 查询")
     forbidden = re.compile(r"(?is)\b(insert|update|delete|drop|alter|create|attach|detach|pragma|vacuum|replace)\b")
-    if forbidden.search(normalized) or ";" in normalized:
+    hidden_ground_truth = re.compile(r"(?i)\b(simulation_scenarios|scenario_id|root_cause)\b")
+    if forbidden.search(normalized) or hidden_ground_truth.search(normalized) or ";" in normalized:
         raise ValueError("查询包含不允许的语句")
     referenced = set(re.findall(r"(?i)\b(?:from|join)\s+([a-z_][a-z0-9_]*)", normalized))
     if not referenced or not referenced.issubset(ALLOWED_TABLES):

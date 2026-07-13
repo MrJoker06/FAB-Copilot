@@ -1,7 +1,7 @@
-const state = { dashboard: null, history: [], sessionId: null, streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null };
+const state = { dashboard: null, history: [], sessionId: null, sessions: [], streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null };
 const $ = (selector) => document.querySelector(selector);
 const processLabels = { LITHO: '光刻', ETCH: '刻蚀', CVD: '化学气相沉积', PVD: '物理气相沉积', DIFFUSION: '扩散/炉管', IMPLANT: '离子注入', CMP: '化学机械研磨', CLEAN: '湿法清洗', METROLOGY: '量测' };
-const toolLabels = { get_fab_overview: '查询工厂总览', get_yield_trend: '查询良率趋势', get_equipment_health: '查询设备健康', get_process_capability: '查询制程能力', get_defect_pareto: '查询缺陷 Pareto', get_recent_excursions: '查询近期异常', search_knowledge: '检索知识与案例', query_manufacturing_data: '执行制造数据查询' };
+const toolLabels = { get_fab_overview: '查询工厂总览', get_yield_trend: '查询良率趋势', get_equipment_health: '查询设备健康', get_equipment_productivity: '查询设备生产状态', get_process_capability: '查询制程能力', get_defect_pareto: '查询缺陷 Pareto', get_recent_excursions: '查询近期异常', get_sensor_summary: '查询传感器摘要', search_knowledge: '检索知识与案例', query_manufacturing_data: '执行制造数据查询' };
 
 function isoDate(date) { return date.toISOString().slice(0, 10); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
@@ -304,8 +304,11 @@ function renderToolTrace(trace, runId) {
     const statusClass = item.status === 'error' ? 'error' : (item.status === 'running' ? 'running' : 'ok');
     return `<li><div class="trace-step-heading"><span>${index + 1}. ${escapeHtml(item.label || toolLabels[item.tool] || item.tool || '未知工具')}</span><small class="trace-status-${statusClass}">${result}</small></div><code>${escapeHtml(argumentsText)}</code>${error}</li>`;
   }).join('');
+  const failed = trace.some(item => item.status === 'error');
+  const duration = trace.reduce((sum, item) => sum + Number(item.duration_ms || 0), 0);
+  const summary = failed ? `执行路径异常 · ${trace.length} 个工具` : `执行路径已完成 · ${trace.length} 个工具${duration ? ` · ${formatDuration(duration)}` : ''}`;
   const runLabel = runId ? `<span title="${escapeHtml(runId)}">运行 ${escapeHtml(runId.slice(0, 8))}</span>` : '';
-  return `<details class="analysis-trace" open><summary><span>分析过程</span><small>${trace.length} 步</small></summary><ol>${items}</ol><div class="trace-footer"><span>展示可审计的工具调用，不包含模型内部草稿</span>${runLabel}</div></details>`;
+  return `<details class="analysis-trace" ${failed ? 'open' : ''}><summary><span>${summary}</span><small>可展开</small></summary><ol>${items}</ol><div class="trace-footer"><span>可审计工具路径，不包含模型内部草稿</span>${runLabel}</div></details>`;
 }
 
 function welcomeMarkup(message = '我可以查询制造报表、定位设备异常，并结合厂内 SOP 给出分析建议。') {
@@ -343,15 +346,70 @@ async function restoreConversation() {
   await createConversation();
 }
 
+function sessionGroup(timestamp) {
+  const value = new Date(timestamp);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const day = new Date(value); day.setHours(0, 0, 0, 0);
+  const distance = Math.round((today - day) / 86400000);
+  if (distance === 0) return '今天';
+  if (distance === 1) return '昨天';
+  if (distance < 7) return '最近 7 天';
+  return '更早';
+}
+
+function renderSessionHistory() {
+  const groups = new Map();
+  for (const session of state.sessions) {
+    const group = sessionGroup(session.updated_at);
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push(session);
+  }
+  $('#sessionHistoryCount').textContent = `${state.sessions.length} 个会话`;
+  $('#sessionHistoryList').innerHTML = [...groups.entries()].map(([group, sessions]) => `
+    <section class="session-group"><h3>${group}</h3>${sessions.map(session => {
+      const active = session.session_id === state.sessionId ? ' active' : '';
+      const time = new Date(session.updated_at).toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false});
+      return `<article class="session-item${active}" data-session-id="${escapeHtml(session.session_id)}"><button class="session-open" type="button"><strong>${escapeHtml(session.title)}</strong><span>${time} · ${session.message_count} 条${session.model ? ` · ${escapeHtml(session.model)}` : ''}</span><small>${escapeHtml(session.last_message_preview || '空会话')}</small></button><div class="session-item-actions"><button type="button" data-session-action="rename">重命名</button><button type="button" data-session-action="archive">归档</button></div></article>`;
+    }).join('')}</section>`).join('') || '<p class="empty session-empty">没有匹配的历史会话</p>';
+}
+
+async function loadSessionHistory(query = '') {
+  state.sessions = await api(`/api/sessions?q=${encodeURIComponent(query)}&limit=200`);
+  renderSessionHistory();
+}
+
+async function showSessionHistory(show = true) {
+  $('#sessionHistoryView').hidden = !show;
+  $('#chatMessages').hidden = show;
+  $('#chatForm').hidden = show;
+  $('#sessionHistoryButton').classList.toggle('active', show);
+  if (show) {
+    await loadSessionHistory($('#sessionHistorySearch').value);
+    $('#sessionHistorySearch').focus();
+  } else {
+    $('#chatInput').focus();
+  }
+}
+
+async function openSession(sessionId) {
+  const session = await api(`/api/sessions/${encodeURIComponent(sessionId)}`);
+  state.sessionId = session.session_id;
+  localStorage.setItem('fabInsightSessionId', state.sessionId);
+  renderConversation(session.messages);
+  $('#agentMode').textContent = session.messages.length ? `已恢复 · ${session.messages.length} 条消息` : '数据分析助手';
+  await showSessionHistory(false);
+}
+
 function createLiveAnalysis() {
   const el = document.createElement('div'); el.className = 'message assistant live-analysis';
-  el.innerHTML = '<div class="message-meta"><div class="message-label">FAB COPILOT · 分析中</div><span class="live-indicator">运行中</span></div><div class="live-path"><div class="live-path-title">正在建立分析路径</div><ol></ol><div class="trace-footer"><span>工具调用会在执行时实时更新</span><span class="live-run-id"></span></div></div>';
+  el.innerHTML = '<div class="message-meta"><div class="message-label">FAB COPILOT · 分析中</div><span class="live-indicator">运行中</span></div><details class="live-path" open><summary><span class="live-path-title">正在建立分析路径</span><small class="live-path-count">准备中</small></summary><div class="live-path-body"><ol></ol><div class="trace-footer"><span>工具调用会在执行时实时更新</span><span class="live-run-id"></span></div></div></details><div class="message-content markdown-content streaming-answer" hidden></div>';
   $('#chatMessages').appendChild(el); $('#chatMessages').scrollTop = $('#chatMessages').scrollHeight;
-  return {el, steps: [], runId: null};
+  return {el, steps: [], runId: null, answer: '', renderTimer: null, firstToken: false};
 }
 
 function renderLiveAnalysis(live) {
   live.el.querySelector('.live-path-title').textContent = live.steps.at(-1)?.label || '正在建立分析路径';
+  live.el.querySelector('.live-path-count').textContent = `${live.steps.length} 步`;
   live.el.querySelector('ol').innerHTML = live.steps.map((item, index) => {
     const status = item.status === 'error' ? '失败' : (item.status === 'running' ? '进行中' : '完成');
     const statusClass = item.status === 'error' ? 'error' : (item.status === 'running' ? 'running' : 'ok');
@@ -362,7 +420,32 @@ function renderLiveAnalysis(live) {
     return `<li><div class="trace-step-heading"><span>${index + 1}. ${escapeHtml(item.label)}</span><small class="trace-status-${statusClass}">${result}</small></div>${argumentsText ? `<code>${escapeHtml(argumentsText)}</code>` : ''}${item.error ? `<p class="trace-error">${escapeHtml(item.error)}</p>` : ''}</li>`;
   }).join('');
   live.el.querySelector('.live-run-id').textContent = live.runId ? `运行 ${live.runId.slice(0, 8)}` : '';
-  $('#chatMessages').scrollTop = $('#chatMessages').scrollHeight;
+  const container = $('#chatMessages');
+  if (container.scrollHeight - container.scrollTop - container.clientHeight < 120) container.scrollTop = container.scrollHeight;
+}
+
+function appendLiveAnswer(live, delta) {
+  if (!delta) return;
+  const container = $('#chatMessages');
+  const follow = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+  live.answer += delta;
+  if (!live.firstToken) {
+    live.firstToken = true;
+    const running = live.steps.at(-1); if (running?.status === 'running') running.status = 'ok';
+    const path = live.el.querySelector('.live-path');
+    path.open = false;
+    live.el.querySelector('.live-path-title').textContent = `执行路径已完成 · ${live.steps.filter(step => step.tool).length} 个工具`;
+    live.el.querySelector('.live-path-count').textContent = '可展开';
+    live.el.querySelector('.streaming-answer').hidden = false;
+    live.el.classList.add('answer-streaming');
+  }
+  if (live.renderTimer) return;
+  live.renderTimer = window.setTimeout(() => {
+    live.renderTimer = null;
+    const answer = live.el.querySelector('.streaming-answer');
+    answer.innerHTML = renderMarkdown(live.answer);
+    if (follow) container.scrollTop = container.scrollHeight;
+  }, 45);
 }
 
 function updateLiveAnalysis(live, event) {
@@ -380,6 +463,10 @@ function updateLiveAnalysis(live, event) {
     if (item) Object.assign(item, {status:event.status || 'ok', rows:event.rows, error:event.error});
   } else if (event.event === 'run_failed') {
     live.steps.push({label:event.message || '分析失败', status:'error'});
+    live.el.querySelector('.live-path').open = true;
+  } else if (event.event === 'answer_delta') {
+    appendLiveAnswer(live, event.delta);
+    return;
   }
   renderLiveAnalysis(live);
 }
@@ -439,19 +526,18 @@ async function loadMonitor() {
   }
 }
 
-function addMessage(role, content, extra = {}) {
-  const el = document.createElement('div'); el.className = `message ${role}`;
-  const label = role === 'user' ? 'YOU' : 'FAB COPILOT';
+function renderAssistantInto(el, content, extra = {}) {
   const sourceReferences = new Map();
   for (const source of (extra.sources || [])) {
     if (source.reference_id) sourceReferences.set(source.reference_id, source);
     if (source.chunk_id) sourceReferences.set(String(source.chunk_id), source);
   }
-  const renderedContent = role === 'assistant' ? renderMarkdown(content, sourceReferences) : escapeHtml(content).replace(/\n/g,'<br>');
-  const copyButton = role === 'assistant' ? '<button type="button" class="copy-answer" title="复制回答" aria-label="复制回答"><span aria-hidden="true">⧉</span><span>复制</span></button>' : '';
-  el.innerHTML = `<div class="message-meta"><div class="message-label">${label}</div>${copyButton}</div><div class="message-content markdown-content">${renderedContent}</div>${renderToolTrace(extra.tool_trace, extra.run_id)}`;
+  const renderedContent = renderMarkdown(content, sourceReferences);
+  const copyButton = '<button type="button" class="copy-answer" title="复制回答" aria-label="复制回答"><span aria-hidden="true">⧉</span><span>复制</span></button>';
+  el.className = 'message assistant';
+  el.innerHTML = `<div class="message-meta"><div class="message-label">FAB COPILOT</div>${copyButton}</div>${renderToolTrace(extra.tool_trace, extra.run_id)}<div class="message-content markdown-content">${renderedContent}</div>`;
   const copyAnswer = el.querySelector('.copy-answer');
-  if (copyAnswer) copyAnswer.addEventListener('click', async () => {
+  copyAnswer.addEventListener('click', async () => {
     try {
       await copyText(content);
       copyAnswer.innerHTML = '<span aria-hidden="true">✓</span><span>已复制</span>'; copyAnswer.classList.add('copied'); copyAnswer.title = '已复制';
@@ -471,8 +557,19 @@ function addMessage(role, content, extra = {}) {
     }).join('');
     el.querySelector('.message-content').insertAdjacentHTML('beforeend', `<div class="source-list"><strong>知识来源</strong>${sourceHtml}</div>`);
   }
+}
+
+function addMessage(role, content, extra = {}) {
+  const el = document.createElement('div');
+  if (role === 'assistant') {
+    renderAssistantInto(el, content, extra);
+  } else {
+    el.className = 'message user';
+    el.innerHTML = `<div class="message-meta"><div class="message-label">YOU</div></div><div class="message-content">${escapeHtml(content).replace(/\n/g,'<br>')}</div>`;
+  }
   $('#chatMessages').appendChild(el);
   $('#chatMessages').scrollTop = $('#chatMessages').scrollHeight;
+  return el;
 }
 
 async function sendChat(message) {
@@ -484,9 +581,16 @@ async function sendChat(message) {
   const live = createLiveAnalysis();
   try {
     const result = await streamAgent(text, event => updateLiveAnalysis(live, event));
-    live.el.remove(); addMessage('assistant', result.answer, result); state.history.push({role:'assistant', content:result.answer});
+    if (live.renderTimer) { window.clearTimeout(live.renderTimer); live.renderTimer = null; }
+    renderAssistantInto(live.el, result.answer, result);
+    state.history.push({role:'assistant', content:result.answer});
     $('#agentMode').textContent = result.mode === 'deepseek' ? `${state.modelConfig?.model || 'DeepSeek'} · 工具分析` : '本地规则分析';
-  } catch (error) { live.el.remove(); addMessage('assistant', `分析请求失败：${error.message}`); }
+  } catch (error) {
+    updateLiveAnalysis(live, {event:'run_failed', message:error.message});
+    const answer = live.el.querySelector('.streaming-answer'); answer.hidden = false;
+    answer.innerHTML = `<p class="stream-error">分析请求失败：${escapeHtml(error.message)}</p>`;
+    live.el.querySelector('.live-indicator').textContent = '失败';
+  }
   finally { state.streaming = false; $('#sendButton').disabled = false; $('#chatInput').focus(); }
 }
 
@@ -514,8 +618,10 @@ function setAgentOpen(open, focusInput = true) {
   panel.classList.remove('agent-panel-focus');
   void panel.offsetWidth;
   panel.classList.add('agent-panel-focus');
-  panel.scrollIntoView({behavior:'smooth', block:window.innerWidth <= 980 ? 'start' : 'nearest'});
-  if (focusInput) window.setTimeout(() => $('#chatInput').focus({preventScroll:true}), 350);
+  if (focusInput) {
+    panel.scrollIntoView({behavior:'smooth', block:window.innerWidth <= 980 ? 'start' : 'nearest'});
+    window.setTimeout(() => $('#chatInput').focus({preventScroll:true}), 350);
+  }
 }
 
 function toggleAgentPanel() {
@@ -537,6 +643,32 @@ async function init() {
   $('#focusAgent').addEventListener('click', toggleAgentPanel);
   $('#mobileAgentToggle').addEventListener('click', toggleAgentPanel);
   $('#collapseAgent').addEventListener('click', () => setAgentOpen(false));
+  $('#sessionHistoryButton').addEventListener('click', () => { if (!state.streaming) showSessionHistory($('#sessionHistoryView').hidden); });
+  $('#closeSessionHistory').addEventListener('click', () => showSessionHistory(false));
+  let sessionSearchTimer = null;
+  $('#sessionHistorySearch').addEventListener('input', event => {
+    window.clearTimeout(sessionSearchTimer);
+    sessionSearchTimer = window.setTimeout(() => loadSessionHistory(event.target.value), 180);
+  });
+  $('#sessionHistoryList').addEventListener('click', async event => {
+    const item = event.target.closest('[data-session-id]');
+    if (!item || state.streaming) return;
+    const sessionId = item.dataset.sessionId;
+    const action = event.target.closest('[data-session-action]')?.dataset.sessionAction;
+    if (!action) { await openSession(sessionId); return; }
+    const session = state.sessions.find(value => value.session_id === sessionId);
+    if (action === 'rename') {
+      const title = window.prompt('会话标题', session?.title || '');
+      if (title?.trim()) {
+        await api(`/api/sessions/${encodeURIComponent(sessionId)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:title.trim()})});
+        await loadSessionHistory($('#sessionHistorySearch').value);
+      }
+    } else if (action === 'archive' && window.confirm(`归档会话“${session?.title || '未命名会话'}”？`)) {
+      await api(`/api/sessions/${encodeURIComponent(sessionId)}`, {method:'DELETE'});
+      if (sessionId === state.sessionId) await createConversation();
+      await loadSessionHistory($('#sessionHistorySearch').value);
+    }
+  });
   $('#stepSelector').addEventListener('click', e => { if (!e.target.dataset.step) return; document.querySelectorAll('#stepSelector button').forEach(b=>b.classList.remove('active')); e.target.classList.add('active'); loadCapability(e.target.dataset.step); });
   $('#refreshMonitor').addEventListener('click', loadMonitor);
   $('#monitorHours').addEventListener('change', loadMonitor);
@@ -554,7 +686,7 @@ async function init() {
     else if (suggestion) sendChat(suggestion.textContent);
   });
   $('#chatForm').addEventListener('submit', e => { e.preventDefault(); sendChat($('#chatInput').value); });
-  $('#clearChat').addEventListener('click', async () => { if (!state.streaming) await createConversation('已创建新会话。'); });
+  $('#clearChat').addEventListener('click', async () => { if (!state.streaming) { await createConversation('已创建新会话。'); await showSessionHistory(false); } });
   $('#modelSettingsButton').addEventListener('click', openModelSettings);
   $('#modelSettingsForm').addEventListener('submit', saveModelSettings);
   $('#closeModelDialog').addEventListener('click', () => $('#modelDialog').close());

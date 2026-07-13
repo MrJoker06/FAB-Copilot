@@ -1,23 +1,34 @@
 # Fab Insight Agent
 
-一个可运行的虚拟半导体制造报表系统，包含 18 个月历史数据、制造 KPI、制程能力分析、设备异常检测、知识库 RAG，以及通过 DeepSeek 工具调用驱动的数据分析 Agent。
+一个可运行的虚拟半导体制造报表系统，包含 24 个月历史数据、制造 KPI、制程能力分析、设备异常检测、知识库 RAG，以及通过 DeepSeek 工具调用驱动的数据分析 Agent。
 
 ## 已实现能力
 
-- 约 2,450 个制造批次、22,000 条制程记录、28 台设备及对应事件和缺陷记录
+- 约 9,500 个制造批次、170,000 条分层工序、100 万条传感器记录、28 台设备及对应状态、事件和缺陷记录
 - 综合良率、周期时间、Hold、异常数等 KPI
 - 周良率趋势、设备健康、缺陷 Pareto、近期异常批次
 - 覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗和量测，各站点按自身关键量测与规格计算 Cpk
-- 内置可复现异常：近期 `CVD-02` 膜厚漂移、`CMP-03` 划伤风险
+- 九类制程各有一个可复现异常场景，隐藏根因真值不向 Agent 开放
 - DeepSeek Agent 多轮工具调用，支持固定报表和受限只读 SQL
-- 对话加载期间实时展示规划、工具调用和结果返回路径；回答支持一键复制并保留可审计分析过程
-- 会话与消息持久化到 SQLite，刷新页面后自动恢复当前会话
+- 工具执行期间实时展开路径；收到最终答案首批 Token 后立即折叠，Markdown 答案流式输出并支持一键复制
+- 会话、消息、运行、工具和来源结构化保存到 SQLite；右侧助手内可搜索、恢复、重命名和归档历史会话
 - Agent 可观测性：运行成功率、延迟、Token、工具使用和错误类型
 - 68 个知识章节与 17 个固定格式历史案例
 - SQLite FTS5 trigram 双来源 RAG，支持中文检索与引用跳转
 - DeepSeek 不可用时自动提供本地规则分析
 
-> 所有数据和知识文档均为演示用途，不代表真实工厂或量产规范。
+> 所有数据和知识文档均为演示用途，不代表真实工厂或量产规范。公开数据只用于校准数据形态和统计特征，具体配方、规格与根因均为可复现合成内容。
+
+## 模拟数据依据
+
+数据生成器采用“公开真实数据形态 + 行业指标定义 + 工艺约束”的混合方法：
+
+- [UCI SECOM](https://archive.ics.uci.edu/dataset/179/secom)：校准高维传感器、缺失值、噪声和稀疏异常形态。
+- [SEMI E10/E79](https://www.semi.org/en/products-services/standards/step/equipment-performance-metrics)：组织 Productive、Standby、Engineering、Scheduled/Unscheduled Downtime 等设备状态与生产率指标。
+- [WM-811K 论文记录](https://scholars.lib.ntu.edu.tw/entities/publication/563e8f2c-74ee-4733-bd62-ba5e409d8424)：校准 None、Center、Donut、Edge、Loc、Random、Scratch 等 Wafer Map 类别和不平衡形态。
+- [NIST Control Charts](https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc31.htm)：构造稳定基线、缓慢漂移、突变和控制限异常。
+
+默认 Route 包含 18 个重复模块节点，覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗和量测。`simulation_scenarios` 保存评测根因，但不在 SQL 白名单和 Agent 工具中。
 
 ## 快速启动
 
@@ -28,6 +39,7 @@ DEEPSEEK_API_KEY=your-key
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseekv4-flash
 AGENT_LOG_PATH=logs/agent_events.jsonl
+AGENT_RUN_LOG_DIR=logs/agent
 AGENT_LOG_MAX_BYTES=5242880
 AGENT_LOG_BACKUP_COUNT=5
 AGENT_LOG_CONTENT=metadata
@@ -169,7 +181,7 @@ GET /api/monitor/summary?hours=24
 GET /api/monitor/events?limit=100
 ```
 
-日志默认写入 `logs/agent_events.jsonl`，达到 5 MB 后轮转并保留 5 份。每次 Agent 运行使用同一个 `run_id` 关联以下事件：
+汇总日志默认写入 `logs/agent_events.jsonl`，达到 5 MB 后轮转并保留 5 份；每次运行的完整事件同时写入 `logs/agent/YYYY-MM-DD/<run_id>.jsonl`。每次 Agent 运行使用同一个 `run_id` 关联以下事件：
 
 - `agent_run_started`：问题长度、问题指纹和历史消息数
 - `model_call_finished`：模型、延迟、Token 和状态

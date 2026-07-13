@@ -19,6 +19,10 @@ LOG_PATH = Path(os.getenv("AGENT_LOG_PATH", PROJECT_DIR / "logs" / "agent_events
 if not LOG_PATH.is_absolute():
     LOG_PATH = PROJECT_DIR / LOG_PATH
 LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+RUN_LOG_DIR = Path(os.getenv("AGENT_RUN_LOG_DIR", PROJECT_DIR / "logs" / "agent"))
+if not RUN_LOG_DIR.is_absolute():
+    RUN_LOG_DIR = PROJECT_DIR / RUN_LOG_DIR
+RUN_LOG_DIR.mkdir(parents=True, exist_ok=True)
 CONTENT_MODE = os.getenv("AGENT_LOG_CONTENT", "metadata").strip().lower()
 if CONTENT_MODE not in {"metadata", "redacted", "full"}:
     CONTENT_MODE = "metadata"
@@ -93,8 +97,14 @@ def emit(event: str, run_id: str, **fields: Any) -> None:
         "run_id": run_id,
         **fields,
     })
+    line = json.dumps(record, ensure_ascii=False, separators=(",", ":"), default=str)
+    safe_run_id = "".join(character for character in run_id if character.isalnum() or character in {"-", "_"})[:120] or "unknown"
+    day_directory = RUN_LOG_DIR / record["timestamp"][:10]
     with _lock:
-        _logger.info(json.dumps(record, ensure_ascii=False, separators=(",", ":"), default=str))
+        _logger.info(line)
+        day_directory.mkdir(parents=True, exist_ok=True)
+        with (day_directory / f"{safe_run_id}.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
 
 
 def _log_files() -> list[Path]:
@@ -143,6 +153,7 @@ def monitoring_summary(hours: int = 24, recent_limit: int = 20) -> dict:
     return {
         "window_hours": hours,
         "log_path": str(LOG_PATH),
+        "run_log_directory": str(RUN_LOG_DIR),
         "runs": len(finished),
         "success_runs": success_count,
         "failed_runs": len(finished) - success_count,

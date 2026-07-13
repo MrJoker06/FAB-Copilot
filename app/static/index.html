@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="半导体制造报表与数据分析 Agent">
   <title>Fab Insight</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20260713-3">
+  <link rel="stylesheet" href="/static/styles.css?v=20260713-4">
 </head>
 <body>
   <header class="topbar">
@@ -28,7 +28,7 @@
       <button class="nav-item" data-view="cases" title="历史案例库"><span aria-hidden="true">▥</span><span>案例库</span></button>
       <button class="nav-item" data-view="monitor" title="Agent 监控"><span aria-hidden="true">◉</span><span>Agent 监控</span></button>
       <button class="nav-item" id="focusAgent" title="显示或隐藏分析助手" aria-expanded="true"><span aria-hidden="true">◇</span><span>分析助手</span></button>
-      <div class="sidebar-meta"><span>DEMO FAB</span><small>历史数据 18 个月</small></div>
+      <div class="sidebar-meta"><span>DEMO FAB</span><small>历史数据 24 个月</small></div>
     </aside>
 
     <main class="main-content">
@@ -140,7 +140,12 @@
     </main>
 
     <aside class="agent-panel" aria-label="Fab Copilot">
-      <div class="agent-heading"><div class="agent-icon">◇</div><div><strong>Fab Copilot</strong><small id="agentMode">数据分析助手</small></div><button id="clearChat" class="icon-btn" title="新建会话" aria-label="新建会话">＋</button><button id="collapseAgent" class="icon-btn" title="收起分析助手" aria-label="收起分析助手">›</button></div>
+      <div class="agent-heading"><div class="agent-icon">◇</div><div class="agent-heading-copy"><strong>Fab Copilot</strong><small id="agentMode">数据分析助手</small></div><button id="sessionHistoryButton" class="icon-btn" title="历史会话" aria-label="历史会话">↶</button><button id="clearChat" class="icon-btn" title="新建会话" aria-label="新建会话">＋</button><button id="collapseAgent" class="icon-btn" title="收起分析助手" aria-label="收起分析助手">›</button></div>
+      <section id="sessionHistoryView" class="session-history-view" hidden>
+        <div class="session-history-heading"><button id="closeSessionHistory" class="icon-btn" type="button" title="返回当前会话" aria-label="返回当前会话">‹</button><div><strong>历史会话</strong><small id="sessionHistoryCount">正在加载</small></div></div>
+        <div class="session-history-search"><input id="sessionHistorySearch" type="search" maxlength="100" placeholder="搜索问题或标题" aria-label="搜索历史会话"></div>
+        <div id="sessionHistoryList" class="session-history-list"></div>
+      </section>
       <div id="chatMessages" class="chat-messages" aria-live="polite">
         <div class="message assistant"><div class="message-label">FAB COPILOT</div><div class="message-content">我可以查询制造报表、定位设备异常，并结合厂内 SOP 给出分析建议。</div></div>
         <div class="suggestions">
@@ -170,6 +175,6 @@
       <div class="dialog-actions"><button id="cancelModelSettings" type="button" class="secondary-btn">取消</button><button id="saveModelSettings" type="submit" class="primary-btn">应用设置</button></div>
     </form>
   </dialog>
-  <script src="/static/app.js?v=20260713-3" defer></script>
+  <script src="/static/app.js?v=20260713-4" defer></script>
 </body>
 </html>

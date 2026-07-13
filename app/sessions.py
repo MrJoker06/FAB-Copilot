@@ -26,7 +26,8 @@ def create_session(title: str = "新会话") -> dict:
 def get_session(session_id: str) -> dict:
     with db_session() as connection:
         session = connection.execute(
-            "SELECT session_id, title, created_at, updated_at FROM chat_sessions WHERE session_id = ?",
+            """SELECT session_id, title, created_at, updated_at, model, archived_at
+               FROM chat_sessions WHERE session_id = ?""",
             (session_id,),
         ).fetchone()
         if session is None:
@@ -47,6 +48,61 @@ def get_session(session_id: str) -> dict:
     result = dict(session)
     result["messages"] = messages
     return result
+
+
+def list_sessions(query: str = "", limit: int = 100, include_archived: bool = False) -> list[dict]:
+    clauses = ["1 = 1"]
+    params: list[object] = []
+    if not include_archived:
+        clauses.append("s.archived_at IS NULL")
+    if query.strip():
+        clauses.append("(s.title LIKE ? OR s.last_message_preview LIKE ?)")
+        value = f"%{query.strip()}%"
+        params.extend([value, value])
+    params.append(max(1, min(limit, 200)))
+    with db_session() as connection:
+        rows = connection.execute(
+            f"""SELECT s.session_id, s.title, s.created_at, s.updated_at, s.model,
+                       s.archived_at, s.last_message_preview,
+                       COUNT(m.message_id) AS message_count
+                FROM chat_sessions s
+                LEFT JOIN chat_messages m ON m.session_id = s.session_id
+                WHERE {' AND '.join(clauses)}
+                GROUP BY s.session_id
+                ORDER BY s.updated_at DESC
+                LIMIT ?""",
+            params,
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def rename_session(session_id: str, title: str) -> dict:
+    cleaned = " ".join(title.strip().split())[:80]
+    if not cleaned:
+        raise ValueError("会话标题不能为空")
+    timestamp = _now()
+    with db_session() as connection:
+        cursor = connection.execute(
+            "UPDATE chat_sessions SET title = ?, updated_at = ? WHERE session_id = ?",
+            (cleaned, timestamp, session_id),
+        )
+        if cursor.rowcount == 0:
+            raise ValueError("会话不存在")
+        connection.commit()
+    return {"session_id": session_id, "title": cleaned, "updated_at": timestamp}
+
+
+def archive_session(session_id: str) -> dict:
+    timestamp = _now()
+    with db_session() as connection:
+        cursor = connection.execute(
+            "UPDATE chat_sessions SET archived_at = ?, updated_at = ? WHERE session_id = ?",
+            (timestamp, timestamp, session_id),
+        )
+        if cursor.rowcount == 0:
+            raise ValueError("会话不存在")
+        connection.commit()
+    return {"session_id": session_id, "archived_at": timestamp}
 
 
 def session_history(session_id: str, limit: int = 8) -> list[dict]:
@@ -83,9 +139,68 @@ def append_message(session_id: str, role: str, content: str, metadata: dict | No
         title = session["title"]
         if role == "user" and title == "新会话":
             title = content.strip().replace("\n", " ")[:50] or title
+        model = str((metadata or {}).get("model") or "") if role == "assistant" else ""
+        preview = " ".join(content.strip().split())[:140]
         connection.execute(
-            "UPDATE chat_sessions SET title = ?, updated_at = ? WHERE session_id = ?",
-            (title, timestamp, session_id),
+            """UPDATE chat_sessions
+               SET title = ?, updated_at = ?, last_message_preview = ?,
+                   model = CASE WHEN ? = '' THEN model ELSE ? END,
+                   archived_at = NULL
+               WHERE session_id = ?""",
+            (title, timestamp, preview, model, model, session_id),
         )
         connection.commit()
     return {"message_id": cursor.lastrowid, "role": role, "content": content, "metadata": metadata or {}, "created_at": timestamp}
+
+
+def record_agent_result(session_id: str, assistant_message_id: int, result: dict) -> None:
+    run_id = str(result.get("run_id") or "")
+    if not run_id:
+        return
+    completed_at = str(result.get("completed_at") or _now())
+    started_at = str(result.get("started_at") or completed_at)
+    usage = result.get("usage") or {}
+    with db_session() as connection:
+        connection.execute(
+            """INSERT OR REPLACE INTO agent_runs(
+                   run_id, session_id, assistant_message_id, model, mode, status,
+                   started_at, completed_at, first_token_ms, duration_ms,
+                   input_tokens, output_tokens, error_message
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                run_id, session_id, assistant_message_id, str(result.get("model") or ""),
+                str(result.get("mode") or "unknown"), str(result.get("status") or "success"),
+                started_at, completed_at, result.get("first_token_ms"), result.get("duration_ms"),
+                int(usage.get("prompt_tokens", 0) or 0), int(usage.get("completion_tokens", 0) or 0),
+                result.get("error_message"),
+            ),
+        )
+        connection.execute("DELETE FROM agent_tool_events WHERE run_id = ?", (run_id,))
+        for sequence_no, item in enumerate(result.get("tool_trace") or [], start=1):
+            connection.execute(
+                """INSERT INTO agent_tool_events(
+                       run_id, sequence_no, tool_name, arguments_json, status,
+                       row_count, duration_ms, error_message
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    run_id, sequence_no, str(item.get("tool") or "unknown"),
+                    json.dumps(item.get("arguments") or {}, ensure_ascii=False, default=str),
+                    str(item.get("status") or "unknown"), item.get("rows"),
+                    item.get("duration_ms"), item.get("error"),
+                ),
+            )
+        connection.execute("DELETE FROM message_sources WHERE message_id = ?", (assistant_message_id,))
+        for source in result.get("sources") or []:
+            locator = str(source.get("case_id") or source.get("chunk_id") or source.get("source") or "")
+            connection.execute(
+                """INSERT INTO message_sources(
+                       message_id, reference_id, source_type, source_locator, title, section
+                   ) VALUES (?, ?, ?, ?, ?, ?)""",
+                (
+                    assistant_message_id, str(source.get("reference_id") or ""),
+                    str(source.get("source_type") or "knowledge"), locator,
+                    str(source.get("title") or source.get("source") or ""),
+                    str(source.get("section") or ""),
+                ),
+            )
+        connection.commit()

@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, SecretStr
 from .agent import run_agent
 from .audit import emit, monitoring_summary, read_events
 from .config import PROJECT_DIR, get_settings, public_model_config, update_model_config
-from .database import db_session
+from .database import db_session, initialize
 from .processes import MANUFACTURING_STEPS, PROCESS_STEP_PATTERN
 from .rag import (
     get_historical_case,
@@ -25,7 +25,16 @@ from .rag import (
 )
 from .reports import process_capability, report_bundle
 from .seed import generate_database, seed_reference_data
-from .sessions import append_message, create_session, get_session, session_history
+from .sessions import (
+    append_message,
+    archive_session,
+    create_session,
+    get_session,
+    list_sessions,
+    record_agent_result,
+    rename_session,
+    session_history,
+)
 
 
 @asynccontextmanager
@@ -34,7 +43,7 @@ async def lifespan(_: FastAPI):
     if not settings.database_path.exists():
         generate_database(settings.database_path)
     else:
-        seed_reference_data(settings.database_path)
+        initialize(settings.database_path)
         with db_session(settings.database_path) as connection:
             populated_steps = {
                 row[0]
@@ -42,8 +51,13 @@ async def lifespan(_: FastAPI):
                     "SELECT DISTINCT process_step FROM process_runs WHERE measurement_value IS NOT NULL"
                 )
             }
-        if not set(MANUFACTURING_STEPS).issubset(populated_steps):
+            has_sensor_data = bool(connection.execute("SELECT EXISTS(SELECT 1 FROM sensor_readings LIMIT 1)").fetchone()[0])
+            max_operation = connection.execute("SELECT MAX(operation_seq) FROM process_runs").fetchone()[0] or 0
+            knowledge_count = connection.execute("SELECT COUNT(*) FROM knowledge_chunks").fetchone()[0]
+        if not set(MANUFACTURING_STEPS).issubset(populated_steps) or not has_sensor_data or max_operation < 18:
             generate_database(settings.database_path)
+        elif knowledge_count == 0:
+            seed_reference_data(settings.database_path)
     yield
 
 
@@ -72,6 +86,10 @@ class ModelConfigRequest(BaseModel):
     api_key: SecretStr | None = None
 
 
+class SessionUpdateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=80)
+
+
 @app.get("/", include_in_schema=False)
 async def index():
     return FileResponse(
@@ -88,9 +106,12 @@ def health() -> dict:
         date_range = connection.execute("SELECT MIN(date(start_time)), MAX(date(COALESCE(complete_time, start_time))) FROM lots").fetchone()
         knowledge_chunks = connection.execute("SELECT COUNT(*) FROM knowledge_chunks").fetchone()[0]
         historical_cases = connection.execute("SELECT COUNT(*) FROM historical_cases").fetchone()[0]
+        process_runs = connection.execute("SELECT COUNT(*) FROM process_runs").fetchone()[0]
+        sensor_readings = connection.execute("SELECT COUNT(*) FROM sensor_readings").fetchone()[0]
+        wafer_maps = connection.execute("SELECT COUNT(*) FROM wafer_maps").fetchone()[0]
     return {
         "status": "ok",
-        "database": {"lots": lots, "start": date_range[0], "end": date_range[1]},
+        "database": {"lots": lots, "process_runs": process_runs, "sensor_readings": sensor_readings, "wafer_maps": wafer_maps, "start": date_range[0], "end": date_range[1]},
         "model": settings.deepseek_model,
         "agent_configured": bool(settings.deepseek_api_key),
         "reference_data": {"knowledge_chunks": knowledge_chunks, "historical_cases": historical_cases},
@@ -191,7 +212,8 @@ async def chat(request: ChatRequest) -> dict:
     try:
         result = await run_agent(request.message, history or [item.model_dump() for item in request.history])
         result["session_id"] = session_id
-        append_message(session_id, "assistant", result["answer"], result)
+        message = append_message(session_id, "assistant", result["answer"], result)
+        record_agent_result(session_id, message["message_id"], result)
         return result
     except httpx.HTTPStatusError as exc:
         detail = f"DeepSeek API 返回 {exc.response.status_code}"
@@ -209,6 +231,31 @@ async def chat(request: ChatRequest) -> dict:
 @app.post("/api/sessions")
 def start_session() -> dict:
     return create_session()
+
+
+@app.get("/api/sessions")
+def session_list(
+    q: str = Query("", max_length=100),
+    limit: int = Query(100, ge=1, le=200),
+    include_archived: bool = False,
+) -> list[dict]:
+    return list_sessions(q, limit, include_archived)
+
+
+@app.patch("/api/sessions/{session_id}")
+def update_session(session_id: str, request: SessionUpdateRequest) -> dict:
+    try:
+        return rename_session(session_id, request.title)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.delete("/api/sessions/{session_id}")
+def delete_session(session_id: str) -> dict:
+    try:
+        return archive_session(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.get("/api/sessions/{session_id}")
@@ -251,7 +298,8 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                 yield _stream_line("progress", **event)
             result = await task
             result["session_id"] = session_id
-            append_message(session_id, "assistant", result["answer"], result)
+            message = append_message(session_id, "assistant", result["answer"], result)
+            record_agent_result(session_id, message["message_id"], result)
             yield _stream_line("result", result=result)
         except asyncio.CancelledError:
             task.cancel()

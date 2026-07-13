@@ -13,7 +13,7 @@ from app.database import db_session
 from app.main import app
 from app.processes import MANUFACTURING_STEPS
 from app.rag import search_knowledge
-from app.reports import process_capability, report_bundle, safe_select
+from app.reports import process_capability, recent_excursions, report_bundle, safe_select
 from app.seed import seed_reference_data
 from app.sessions import append_message
 
@@ -53,12 +53,40 @@ class FabInsightTests(unittest.TestCase):
                 self.assertEqual(len(capability), equipment_counts[step])
                 self.assertTrue(all(row["metric_name"] and row["metric_unit"] for row in capability))
 
+    def test_expanded_fab_history_has_route_sensor_and_hidden_ground_truth(self):
+        with db_session() as connection:
+            counts = {
+                table: connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                for table in ("lots", "process_runs", "sensor_readings", "equipment_state_intervals", "wafer_maps")
+            }
+            scenarios = connection.execute(
+                "SELECT COUNT(*), SUM(visible_to_agent) FROM simulation_scenarios"
+            ).fetchone()
+            max_operation = connection.execute("SELECT MAX(operation_seq) FROM process_runs").fetchone()[0]
+            signal_coverage = connection.execute(
+                "SELECT process_step, COUNT(DISTINCT signal_name) FROM sensor_readings GROUP BY process_step"
+            ).fetchall()
+        self.assertGreaterEqual(counts["lots"], 9000)
+        self.assertGreaterEqual(counts["process_runs"], 150000)
+        self.assertGreaterEqual(counts["sensor_readings"], 1000000)
+        self.assertGreater(counts["equipment_state_intervals"], 25000)
+        self.assertEqual(counts["wafer_maps"], counts["lots"])
+        self.assertEqual(tuple(scenarios), (9, 0))
+        self.assertEqual(max_operation, 18)
+        self.assertEqual({row[0] for row in signal_coverage}, set(MANUFACTURING_STEPS))
+        self.assertTrue(all(row[1] >= 6 for row in signal_coverage))
+
     def test_history_contains_no_future_process_records(self):
         with db_session() as connection:
             max_run = connection.execute("SELECT MAX(date(run_time)) FROM process_runs").fetchone()[0]
             max_defect = connection.execute("SELECT MAX(date(detected_time)) FROM defect_records").fetchone()[0]
         self.assertLessEqual(max_run, date.today().isoformat())
         self.assertLessEqual(max_defect, date.today().isoformat())
+
+    def test_recent_excursions_supports_process_filter(self):
+        rows = recent_excursions(process_step="CMP", limit=20)
+        self.assertTrue(rows)
+        self.assertTrue(all(row["process_step"] == "CMP" for row in rows))
 
     def test_rag_returns_cited_source(self):
         results = search_knowledge("CMP 划伤 Pad Conditioner", 10)
@@ -122,6 +150,8 @@ class FabInsightTests(unittest.TestCase):
             safe_select("DELETE FROM lots")
         with self.assertRaises(ValueError):
             safe_select("SELECT * FROM sqlite_master")
+        with self.assertRaises(ValueError):
+            safe_select("SELECT scenario_id FROM process_runs")
 
     def test_health_endpoint(self):
         with TestClient(app) as client:
@@ -180,6 +210,21 @@ class FabInsightTests(unittest.TestCase):
             self.assertEqual(restored.status_code, 200)
             self.assertEqual([item["role"] for item in restored.json()["messages"]], ["user", "assistant"])
             self.assertEqual(restored.json()["messages"][1]["metadata"]["tool_trace"][0]["rows"], 3)
+            client.delete(f"/api/sessions/{session_id}")
+
+    def test_session_history_can_list_rename_and_archive(self):
+        with TestClient(app) as client:
+            session = client.post("/api/sessions").json()
+            append_message(session["session_id"], "user", "检查 ETCH-04 endpoint")
+            listed = client.get("/api/sessions?q=ETCH-04").json()
+            self.assertIn(session["session_id"], {item["session_id"] for item in listed})
+            renamed = client.patch(f"/api/sessions/{session['session_id']}", json={"title": "ETCH endpoint 历史"})
+            self.assertEqual(renamed.status_code, 200)
+            self.assertEqual(renamed.json()["title"], "ETCH endpoint 历史")
+            archived = client.delete(f"/api/sessions/{session['session_id']}")
+            self.assertEqual(archived.status_code, 200)
+            active_ids = {item["session_id"] for item in client.get("/api/sessions").json()}
+            self.assertNotIn(session["session_id"], active_ids)
 
     def test_streaming_chat_emits_progress_before_result_and_persists(self):
         async def fake_agent(question, history, progress=None):
@@ -188,6 +233,8 @@ class FabInsightTests(unittest.TestCase):
             await progress({"event": "tool_started", "tool": "get_process_capability", "arguments": {"process_step": "CMP"}})
             await progress({"event": "tool_finished", "tool": "get_process_capability", "arguments": {"process_step": "CMP"}, "status": "ok", "rows": 3})
             await progress({"event": "stage", "stage": "synthesis", "message": "正在汇总结论"})
+            await progress({"event": "answer_delta", "delta": "CMP "})
+            await progress({"event": "answer_delta", "delta": "分析完成"})
             return {
                 "answer": "CMP 分析完成",
                 "tool_trace": [{"tool": "get_process_capability", "arguments": {"process_step": "CMP"}, "status": "ok", "rows": 3}],
@@ -206,9 +253,12 @@ class FabInsightTests(unittest.TestCase):
             self.assertGreaterEqual(event_types.count("progress"), 5)
             self.assertEqual(event_types[-1], "result")
             self.assertLess(event_types.index("progress"), event_types.index("result"))
+            answer_events = [event for event in events if event.get("event") == "answer_delta"]
+            self.assertEqual("".join(event["delta"] for event in answer_events), "CMP 分析完成")
             restored = client.get(f"/api/sessions/{created['session_id']}").json()
             self.assertEqual([item["role"] for item in restored["messages"]], ["user", "assistant"])
             self.assertEqual(restored["messages"][1]["metadata"]["run_id"], "run-test")
+            client.delete(f"/api/sessions/{created['session_id']}")
 
 
 if __name__ == "__main__":
