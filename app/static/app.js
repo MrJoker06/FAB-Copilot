@@ -1,6 +1,7 @@
 const state = { dashboard: null, history: [], chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null };
 const $ = (selector) => document.querySelector(selector);
 const processLabels = { LITHO: '光刻', ETCH: '刻蚀', CVD: '化学气相沉积', PVD: '物理气相沉积', DIFFUSION: '扩散/炉管', IMPLANT: '离子注入', CMP: '化学机械研磨', CLEAN: '湿法清洗', METROLOGY: '量测' };
+const toolLabels = { get_fab_overview: '查询工厂总览', get_yield_trend: '查询良率趋势', get_equipment_health: '查询设备健康', get_process_capability: '查询制程能力', get_defect_pareto: '查询缺陷 Pareto', get_recent_excursions: '查询近期异常', search_knowledge: '检索知识与案例', query_manufacturing_data: '执行制造数据查询' };
 
 function isoDate(date) { return date.toISOString().slice(0, 10); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
@@ -275,6 +276,37 @@ function formatDuration(milliseconds) {
   return `${(milliseconds / 1000).toFixed(2)} s`;
 }
 
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall through when Clipboard API exists but the browser denies permission.
+    }
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = text; textarea.setAttribute('readonly', ''); textarea.style.position = 'fixed'; textarea.style.opacity = '0';
+  document.body.appendChild(textarea); textarea.select();
+  const copied = document.execCommand('copy'); textarea.remove();
+  if (!copied) throw new Error('浏览器未允许复制');
+}
+
+function renderToolTrace(trace, runId) {
+  if (!trace?.length) return '';
+  const items = trace.map((item, index) => {
+    const status = item.status === 'error' ? '失败' : (item.status === 'local' ? '本地' : '成功');
+    const result = item.rows == null ? status : `${status} · ${item.rows} 条结果`;
+    const argumentsText = item.arguments && Object.keys(item.arguments).length
+      ? Object.entries(item.arguments).map(([key, value]) => `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}`).join(' · ')
+      : '使用默认参数';
+    const error = item.error ? `<p class="trace-error">${escapeHtml(item.error)}</p>` : '';
+    return `<li><div class="trace-step-heading"><span>${index + 1}. ${escapeHtml(toolLabels[item.tool] || item.tool || '未知工具')}</span><small class="trace-status-${item.status === 'error' ? 'error' : 'ok'}">${result}</small></div><code>${escapeHtml(argumentsText)}</code>${error}</li>`;
+  }).join('');
+  const runLabel = runId ? `<span title="${escapeHtml(runId)}">运行 ${escapeHtml(runId.slice(0, 8))}</span>` : '';
+  return `<details class="analysis-trace"><summary><span>分析过程</span><small>${trace.length} 步</small></summary><ol>${items}</ol><div class="trace-footer"><span>展示可审计的工具调用，不包含模型内部草稿</span>${runLabel}</div></details>`;
+}
+
 async function loadMonitor() {
   const hours = $('#monitorHours').value;
   try {
@@ -311,7 +343,19 @@ function addMessage(role, content, extra = {}) {
     if (source.chunk_id) sourceReferences.set(String(source.chunk_id), source);
   }
   const renderedContent = role === 'assistant' ? renderMarkdown(content, sourceReferences) : escapeHtml(content).replace(/\n/g,'<br>');
-  el.innerHTML = `<div class="message-label">${label}</div><div class="message-content markdown-content">${renderedContent}</div>`;
+  const copyButton = role === 'assistant' ? '<button type="button" class="copy-answer" title="复制回答" aria-label="复制回答">⧉</button>' : '';
+  el.innerHTML = `<div class="message-meta"><div class="message-label">${label}</div>${copyButton}</div><div class="message-content markdown-content">${renderedContent}</div>${renderToolTrace(extra.tool_trace, extra.run_id)}`;
+  const copyAnswer = el.querySelector('.copy-answer');
+  if (copyAnswer) copyAnswer.addEventListener('click', async () => {
+    try {
+      await copyText(content);
+      copyAnswer.textContent = '✓'; copyAnswer.classList.add('copied'); copyAnswer.title = '已复制';
+      window.setTimeout(() => { copyAnswer.textContent = '⧉'; copyAnswer.classList.remove('copied'); copyAnswer.title = '复制回答'; }, 1600);
+    } catch (error) {
+      copyAnswer.title = error.message; copyAnswer.classList.add('copy-error');
+      window.setTimeout(() => copyAnswer.classList.remove('copy-error'), 1600);
+    }
+  });
   if (extra.sources?.length) {
     const sourceHtml = extra.sources.map(source => {
       const referenceId = source.reference_id || `KB-${source.chunk_id}`;
@@ -323,11 +367,6 @@ function addMessage(role, content, extra = {}) {
     el.querySelector('.message-content').insertAdjacentHTML('beforeend', `<div class="source-list"><strong>知识来源</strong>${sourceHtml}</div>`);
   }
   $('#chatMessages').appendChild(el);
-  if (extra.tool_trace?.length) {
-    const trace = document.createElement('div'); trace.className = 'tool-trace';
-    trace.textContent = `已调用：${extra.tool_trace.map(t => t.tool).join(' → ')}`;
-    $('#chatMessages').appendChild(trace);
-  }
   $('#chatMessages').scrollTop = $('#chatMessages').scrollHeight;
 }
 
