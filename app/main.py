@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
+import json
 import uuid
 from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, SecretStr
 
@@ -23,6 +25,7 @@ from .rag import (
 )
 from .reports import process_capability, report_bundle
 from .seed import generate_database, seed_reference_data
+from .sessions import append_message, create_session, get_session, session_history
 
 
 @asynccontextmanager
@@ -61,6 +64,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(min_length=2, max_length=4000)
     history: list[ChatMessage] = Field(default_factory=list, max_length=20)
+    session_id: str | None = None
 
 
 class ModelConfigRequest(BaseModel):
@@ -178,7 +182,17 @@ def rag_search(
 @app.post("/api/chat")
 async def chat(request: ChatRequest) -> dict:
     try:
-        return await run_agent(request.message, [item.model_dump() for item in request.history])
+        session = create_session(request.message[:50]) if not request.session_id else get_session(request.session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    session_id = session["session_id"]
+    history = session_history(session_id)
+    append_message(session_id, "user", request.message)
+    try:
+        result = await run_agent(request.message, history or [item.model_dump() for item in request.history])
+        result["session_id"] = session_id
+        append_message(session_id, "assistant", result["answer"], result)
+        return result
     except httpx.HTTPStatusError as exc:
         detail = f"DeepSeek API 返回 {exc.response.status_code}"
         try:
@@ -190,6 +204,80 @@ async def chat(request: ChatRequest) -> dict:
         raise HTTPException(status_code=502, detail=detail) from exc
     except httpx.RequestError as exc:
         raise HTTPException(status_code=502, detail=f"无法连接 DeepSeek API: {exc}") from exc
+
+
+@app.post("/api/sessions")
+def start_session() -> dict:
+    return create_session()
+
+
+@app.get("/api/sessions/{session_id}")
+def read_session(session_id: str) -> dict:
+    try:
+        return get_session(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def _stream_line(event_type: str, **payload) -> bytes:
+    return (json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str) + "\n").encode("utf-8")
+
+
+@app.post("/api/chat/stream")
+async def chat_stream(request: ChatRequest) -> StreamingResponse:
+    try:
+        session = create_session(request.message[:50]) if not request.session_id else get_session(request.session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    session_id = session["session_id"]
+    history = session_history(session_id)
+    append_message(session_id, "user", request.message)
+
+    async def event_stream():
+        queue: asyncio.Queue[dict] = asyncio.Queue()
+
+        async def progress(event: dict) -> None:
+            await queue.put(event)
+            await asyncio.sleep(0)
+
+        task = asyncio.create_task(run_agent(request.message, history, progress))
+        yield _stream_line("session", session_id=session_id)
+        try:
+            while not task.done() or not queue.empty():
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=0.25)
+                except TimeoutError:
+                    continue
+                yield _stream_line("progress", **event)
+            result = await task
+            result["session_id"] = session_id
+            append_message(session_id, "assistant", result["answer"], result)
+            yield _stream_line("result", result=result)
+        except asyncio.CancelledError:
+            task.cancel()
+            raise
+        except httpx.HTTPStatusError as exc:
+            detail = f"DeepSeek API 返回 {exc.response.status_code}"
+            try:
+                api_error = exc.response.json().get("error", {}).get("message")
+                if api_error:
+                    detail += f": {api_error}"
+            except Exception:
+                pass
+            yield _stream_line("error", detail=detail)
+        except httpx.RequestError as exc:
+            yield _stream_line("error", detail=f"无法连接 DeepSeek API: {exc}")
+        except Exception as exc:
+            yield _stream_line("error", detail=f"分析失败: {exc}")
+        finally:
+            if not task.done():
+                task.cancel()
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/api/monitor/summary")

@@ -4,6 +4,7 @@ import json
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -14,6 +15,7 @@ from app.processes import MANUFACTURING_STEPS
 from app.rag import search_knowledge
 from app.reports import process_capability, report_bundle, safe_select
 from app.seed import seed_reference_data
+from app.sessions import append_message
 
 
 class FabInsightTests(unittest.TestCase):
@@ -166,6 +168,47 @@ class FabInsightTests(unittest.TestCase):
         self.assertEqual(payload["DEEPSEEK_API_KEY"], "<redacted>")
         self.assertEqual(payload["headers"]["Authorization"], "<redacted>")
         self.assertEqual(payload["input_tokens"], 42)
+
+    def test_session_messages_survive_reload(self):
+        with TestClient(app) as client:
+            created = client.post("/api/sessions")
+            self.assertEqual(created.status_code, 200)
+            session_id = created.json()["session_id"]
+            append_message(session_id, "user", "分析 CMP-03")
+            append_message(session_id, "assistant", "测试回答", {"tool_trace": [{"tool": "get_equipment_health", "status": "ok", "rows": 3}]})
+            restored = client.get(f"/api/sessions/{session_id}")
+            self.assertEqual(restored.status_code, 200)
+            self.assertEqual([item["role"] for item in restored.json()["messages"]], ["user", "assistant"])
+            self.assertEqual(restored.json()["messages"][1]["metadata"]["tool_trace"][0]["rows"], 3)
+
+    def test_streaming_chat_emits_progress_before_result_and_persists(self):
+        async def fake_agent(question, history, progress=None):
+            await progress({"event": "run_started", "run_id": "run-test", "message": "分析任务已创建"})
+            await progress({"event": "stage", "stage": "planning", "message": "正在规划分析路径"})
+            await progress({"event": "tool_started", "tool": "get_process_capability", "arguments": {"process_step": "CMP"}})
+            await progress({"event": "tool_finished", "tool": "get_process_capability", "arguments": {"process_step": "CMP"}, "status": "ok", "rows": 3})
+            await progress({"event": "stage", "stage": "synthesis", "message": "正在汇总结论"})
+            return {
+                "answer": "CMP 分析完成",
+                "tool_trace": [{"tool": "get_process_capability", "arguments": {"process_step": "CMP"}, "status": "ok", "rows": 3}],
+                "sources": [],
+                "mode": "test",
+                "run_id": "run-test",
+            }
+
+        with patch("app.main.run_agent", new=fake_agent), TestClient(app) as client:
+            created = client.post("/api/sessions").json()
+            response = client.post("/api/chat/stream", json={"message": "分析 CMP", "session_id": created["session_id"]})
+            self.assertEqual(response.status_code, 200)
+            events = [json.loads(line) for line in response.text.splitlines() if line]
+            event_types = [event["type"] for event in events]
+            self.assertEqual(event_types[0], "session")
+            self.assertGreaterEqual(event_types.count("progress"), 5)
+            self.assertEqual(event_types[-1], "result")
+            self.assertLess(event_types.index("progress"), event_types.index("result"))
+            restored = client.get(f"/api/sessions/{created['session_id']}").json()
+            self.assertEqual([item["role"] for item in restored["messages"]], ["user", "assistant"])
+            self.assertEqual(restored["messages"][1]["metadata"]["run_id"], "run-test")
 
 
 if __name__ == "__main__":

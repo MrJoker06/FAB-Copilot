@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 import time
 import traceback
@@ -79,6 +80,16 @@ TOOL_HANDLERS: dict[str, Callable[..., Any]] = {
     "query_manufacturing_data": safe_select,
 }
 
+ProgressCallback = Callable[[dict], Any]
+
+
+async def _notify(progress: ProgressCallback | None, event: dict) -> None:
+    if progress is None:
+        return
+    result = progress(event)
+    if inspect.isawaitable(result):
+        await result
+
 
 def _offline_answer(question: str) -> dict:
     overview = fab_overview()
@@ -95,10 +106,21 @@ def _offline_answer(question: str) -> dict:
     return {"answer": "\n\n".join(lines), "tool_trace": [{"tool": "get_fab_overview", "status": "local"}, {"tool": "get_equipment_health", "status": "local"}], "sources": [], "mode": "offline"}
 
 
-async def _run_agent_impl(question: str, history: list[dict] | None, run_id: str) -> dict:
+async def _run_agent_impl(
+    question: str,
+    history: list[dict] | None,
+    run_id: str,
+    progress: ProgressCallback | None = None,
+) -> dict:
     settings = get_settings()
     if not settings.deepseek_api_key:
-        return _offline_answer(question)
+        await _notify(progress, {"event": "stage", "stage": "planning", "message": "正在使用本地规则规划分析路径"})
+        result = _offline_answer(question)
+        for item in result["tool_trace"]:
+            await _notify(progress, {"event": "tool_started", "tool": item["tool"], "arguments": {}})
+            await _notify(progress, {"event": "tool_finished", **item})
+        await _notify(progress, {"event": "stage", "stage": "synthesis", "message": "正在汇总本地分析结果"})
+        return result
 
     messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
     for item in (history or [])[-8:]:
@@ -114,6 +136,12 @@ async def _run_agent_impl(question: str, history: list[dict] | None, run_id: str
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
         for iteration in range(6):
             model_started = time.perf_counter()
+            await _notify(progress, {
+                "event": "stage",
+                "stage": "planning",
+                "iteration": iteration + 1,
+                "message": "正在理解问题并规划分析路径" if iteration == 0 else "正在结合工具结果判断是否继续，并组织结论",
+            })
             request_payload = {
                 "model": settings.deepseek_model,
                 "messages": messages,
@@ -168,6 +196,7 @@ async def _run_agent_impl(question: str, history: list[dict] | None, run_id: str
             messages.append(assistant)
             tool_calls = assistant.get("tool_calls") or []
             if not tool_calls:
+                await _notify(progress, {"event": "stage", "stage": "synthesis", "message": "数据收集完成，正在组织结论与证据"})
                 return {"answer": assistant.get("content") or "分析完成，但模型没有返回文字。", "tool_trace": trace, "sources": list(sources.values()), "mode": "deepseek"}
 
             for call in tool_calls:
@@ -176,6 +205,7 @@ async def _run_agent_impl(question: str, history: list[dict] | None, run_id: str
                 tool_started = time.perf_counter()
                 try:
                     arguments = json.loads(function.get("arguments") or "{}")
+                    await _notify(progress, {"event": "tool_started", "tool": name, "arguments": arguments})
                     emit(
                         "tool_call_started",
                         run_id,
@@ -192,6 +222,13 @@ async def _run_agent_impl(question: str, history: list[dict] | None, run_id: str
                             sources[source["reference_id"]] = source
                     row_count = len(result) if isinstance(result, list) else 1
                     trace.append({"tool": name, "arguments": arguments, "status": "ok", "rows": row_count})
+                    await _notify(progress, {
+                        "event": "tool_finished",
+                        "tool": name,
+                        "arguments": arguments,
+                        "status": "ok",
+                        "rows": row_count,
+                    })
                     emit(
                         "tool_call_finished",
                         run_id,
@@ -204,6 +241,12 @@ async def _run_agent_impl(question: str, history: list[dict] | None, run_id: str
                     content = json.dumps({"ok": True, "data": result}, ensure_ascii=False, default=str)
                 except Exception as exc:
                     trace.append({"tool": name, "status": "error", "error": str(exc)})
+                    await _notify(progress, {
+                        "event": "tool_finished",
+                        "tool": name,
+                        "status": "error",
+                        "error": str(exc),
+                    })
                     emit(
                         "tool_call_finished",
                         run_id,
@@ -219,7 +262,11 @@ async def _run_agent_impl(question: str, history: list[dict] | None, run_id: str
     return {"answer": "工具调用达到上限。请缩小问题范围后重试。", "tool_trace": trace, "sources": list(sources.values()), "mode": "deepseek"}
 
 
-async def run_agent(question: str, history: list[dict] | None = None) -> dict:
+async def run_agent(
+    question: str,
+    history: list[dict] | None = None,
+    progress: ProgressCallback | None = None,
+) -> dict:
     run_id = str(uuid.uuid4())
     started = time.perf_counter()
     emit(
@@ -230,8 +277,9 @@ async def run_agent(question: str, history: list[dict] | None = None) -> dict:
         history_messages=len(history or []),
         **({"question": question, "history": history or []} if CONTENT_MODE == "full" else {}),
     )
+    await _notify(progress, {"event": "run_started", "run_id": run_id, "message": "分析任务已创建"})
     try:
-        result = await _run_agent_impl(question, history, run_id)
+        result = await _run_agent_impl(question, history, run_id, progress)
         result["run_id"] = run_id
         emit(
             "agent_run_finished",
@@ -249,6 +297,7 @@ async def run_agent(question: str, history: list[dict] | None = None) -> dict:
         )
         return result
     except Exception as exc:
+        await _notify(progress, {"event": "run_failed", "run_id": run_id, "message": str(exc)})
         emit(
             "agent_run_finished",
             run_id,

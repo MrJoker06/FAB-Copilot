@@ -1,4 +1,4 @@
-const state = { dashboard: null, history: [], chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null };
+const state = { dashboard: null, history: [], sessionId: null, streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null };
 const $ = (selector) => document.querySelector(selector);
 const processLabels = { LITHO: '光刻', ETCH: '刻蚀', CVD: '化学气相沉积', PVD: '物理气相沉积', DIFFUSION: '扩散/炉管', IMPLANT: '离子注入', CMP: '化学机械研磨', CLEAN: '湿法清洗', METROLOGY: '量测' };
 const toolLabels = { get_fab_overview: '查询工厂总览', get_yield_trend: '查询良率趋势', get_equipment_health: '查询设备健康', get_process_capability: '查询制程能力', get_defect_pareto: '查询缺陷 Pareto', get_recent_excursions: '查询近期异常', search_knowledge: '检索知识与案例', query_manufacturing_data: '执行制造数据查询' };
@@ -295,16 +295,121 @@ async function copyText(text) {
 function renderToolTrace(trace, runId) {
   if (!trace?.length) return '';
   const items = trace.map((item, index) => {
-    const status = item.status === 'error' ? '失败' : (item.status === 'local' ? '本地' : '成功');
+    const status = item.status === 'error' ? '失败' : (item.status === 'local' ? '本地' : (item.status === 'running' ? '进行中' : '成功'));
     const result = item.rows == null ? status : `${status} · ${item.rows} 条结果`;
     const argumentsText = item.arguments && Object.keys(item.arguments).length
       ? Object.entries(item.arguments).map(([key, value]) => `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}`).join(' · ')
       : '使用默认参数';
     const error = item.error ? `<p class="trace-error">${escapeHtml(item.error)}</p>` : '';
-    return `<li><div class="trace-step-heading"><span>${index + 1}. ${escapeHtml(toolLabels[item.tool] || item.tool || '未知工具')}</span><small class="trace-status-${item.status === 'error' ? 'error' : 'ok'}">${result}</small></div><code>${escapeHtml(argumentsText)}</code>${error}</li>`;
+    const statusClass = item.status === 'error' ? 'error' : (item.status === 'running' ? 'running' : 'ok');
+    return `<li><div class="trace-step-heading"><span>${index + 1}. ${escapeHtml(item.label || toolLabels[item.tool] || item.tool || '未知工具')}</span><small class="trace-status-${statusClass}">${result}</small></div><code>${escapeHtml(argumentsText)}</code>${error}</li>`;
   }).join('');
   const runLabel = runId ? `<span title="${escapeHtml(runId)}">运行 ${escapeHtml(runId.slice(0, 8))}</span>` : '';
   return `<details class="analysis-trace" open><summary><span>分析过程</span><small>${trace.length} 步</small></summary><ol>${items}</ol><div class="trace-footer"><span>展示可审计的工具调用，不包含模型内部草稿</span>${runLabel}</div></details>`;
+}
+
+function welcomeMarkup(message = '我可以查询制造报表、定位设备异常，并结合厂内 SOP 给出分析建议。') {
+  return `<div class="message assistant"><div class="message-meta"><div class="message-label">FAB COPILOT</div></div><div class="message-content">${escapeHtml(message)}</div></div><div class="suggestions"><button>最近三个月哪些设备风险最高？</button><button>CVD-02 的膜厚是否发生漂移？</button><button>分析刻蚀设备 CD 偏移的潜在原因</button></div>`;
+}
+
+function renderConversation(messages = []) {
+  const container = $('#chatMessages'); container.innerHTML = ''; state.history = [];
+  if (!messages.length) { container.innerHTML = welcomeMarkup(); return; }
+  for (const item of messages) {
+    addMessage(item.role, item.content, item.metadata || {});
+    state.history.push({role:item.role, content:item.content});
+  }
+}
+
+async function createConversation(message) {
+  const session = await api('/api/sessions', {method:'POST'});
+  state.sessionId = session.session_id; state.history = [];
+  localStorage.setItem('fabInsightSessionId', state.sessionId);
+  renderConversation([]);
+  if (message) $('#chatMessages').innerHTML = welcomeMarkup(message);
+  return session;
+}
+
+async function restoreConversation() {
+  const savedSessionId = localStorage.getItem('fabInsightSessionId');
+  if (savedSessionId) {
+    try {
+      const session = await api(`/api/sessions/${encodeURIComponent(savedSessionId)}`);
+      state.sessionId = session.session_id; renderConversation(session.messages);
+      $('#agentMode').textContent = session.messages.length ? `已恢复 · ${session.messages.length} 条消息` : '数据分析助手';
+      return;
+    } catch { localStorage.removeItem('fabInsightSessionId'); }
+  }
+  await createConversation();
+}
+
+function createLiveAnalysis() {
+  const el = document.createElement('div'); el.className = 'message assistant live-analysis';
+  el.innerHTML = '<div class="message-meta"><div class="message-label">FAB COPILOT · 分析中</div><span class="live-indicator">运行中</span></div><div class="live-path"><div class="live-path-title">正在建立分析路径</div><ol></ol><div class="trace-footer"><span>工具调用会在执行时实时更新</span><span class="live-run-id"></span></div></div>';
+  $('#chatMessages').appendChild(el); $('#chatMessages').scrollTop = $('#chatMessages').scrollHeight;
+  return {el, steps: [], runId: null};
+}
+
+function renderLiveAnalysis(live) {
+  live.el.querySelector('.live-path-title').textContent = live.steps.at(-1)?.label || '正在建立分析路径';
+  live.el.querySelector('ol').innerHTML = live.steps.map((item, index) => {
+    const status = item.status === 'error' ? '失败' : (item.status === 'running' ? '进行中' : '完成');
+    const statusClass = item.status === 'error' ? 'error' : (item.status === 'running' ? 'running' : 'ok');
+    const argumentsText = item.arguments && Object.keys(item.arguments).length
+      ? Object.entries(item.arguments).map(([key, value]) => `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}`).join(' · ')
+      : '';
+    const result = item.rows == null ? status : `${status} · ${item.rows} 条结果`;
+    return `<li><div class="trace-step-heading"><span>${index + 1}. ${escapeHtml(item.label)}</span><small class="trace-status-${statusClass}">${result}</small></div>${argumentsText ? `<code>${escapeHtml(argumentsText)}</code>` : ''}${item.error ? `<p class="trace-error">${escapeHtml(item.error)}</p>` : ''}</li>`;
+  }).join('');
+  live.el.querySelector('.live-run-id').textContent = live.runId ? `运行 ${live.runId.slice(0, 8)}` : '';
+  $('#chatMessages').scrollTop = $('#chatMessages').scrollHeight;
+}
+
+function updateLiveAnalysis(live, event) {
+  if (event.event === 'run_started') {
+    live.runId = event.run_id;
+    live.steps.push({label:'建立分析任务', status:'ok'});
+  } else if (event.event === 'stage') {
+    const previous = live.steps.at(-1); if (previous?.status === 'running') previous.status = 'ok';
+    live.steps.push({label:event.message || '规划下一步', status:'running'});
+  } else if (event.event === 'tool_started') {
+    const previous = live.steps.at(-1); if (previous?.status === 'running') previous.status = 'ok';
+    live.steps.push({tool:event.tool, label:toolLabels[event.tool] || event.tool, arguments:event.arguments || {}, status:'running'});
+  } else if (event.event === 'tool_finished') {
+    const item = [...live.steps].reverse().find(step => step.tool === event.tool && step.status === 'running');
+    if (item) Object.assign(item, {status:event.status || 'ok', rows:event.rows, error:event.error});
+  } else if (event.event === 'run_failed') {
+    live.steps.push({label:event.message || '分析失败', status:'error'});
+  }
+  renderLiveAnalysis(live);
+}
+
+async function streamAgent(message, onProgress) {
+  const response = await fetch('/api/chat/stream', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message, session_id:state.sessionId})});
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.detail || `请求失败 (${response.status})`);
+  }
+  if (!response.body) throw new Error('浏览器不支持流式响应');
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let buffer = '', finalResult = null;
+  while (true) {
+    const {value, done} = await reader.read();
+    buffer += decoder.decode(value || new Uint8Array(), {stream:!done});
+    const lines = buffer.split('\n'); buffer = lines.pop() || '';
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const event = JSON.parse(line);
+      if (event.type === 'session') {
+        state.sessionId = event.session_id; localStorage.setItem('fabInsightSessionId', state.sessionId);
+      } else if (event.type === 'progress') onProgress(event);
+      else if (event.type === 'result') finalResult = event.result;
+      else if (event.type === 'error') throw new Error(event.detail || '分析失败');
+    }
+    if (done) break;
+  }
+  if (!finalResult) throw new Error('分析结束但未收到结果');
+  return finalResult;
 }
 
 async function loadMonitor() {
@@ -371,16 +476,18 @@ function addMessage(role, content, extra = {}) {
 }
 
 async function sendChat(message) {
-  const text = message.trim(); if (!text) return;
+  const text = message.trim(); if (!text || state.streaming) return;
+  if (!state.sessionId) await createConversation();
+  $('.suggestions')?.remove();
   addMessage('user', text); state.history.push({role:'user', content:text});
-  $('#chatInput').value = ''; $('#sendButton').disabled = true;
-  const typing = document.createElement('div'); typing.className='typing'; typing.id='typing'; typing.innerHTML='<i></i><i></i><i></i>'; $('#chatMessages').appendChild(typing); $('#chatMessages').scrollTop=$('#chatMessages').scrollHeight;
+  $('#chatInput').value = ''; $('#sendButton').disabled = true; state.streaming = true;
+  const live = createLiveAnalysis();
   try {
-    const result = await api('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:text, history:state.history.slice(-8,-1)})});
-    typing.remove(); addMessage('assistant', result.answer, result); state.history.push({role:'assistant', content:result.answer});
+    const result = await streamAgent(text, event => updateLiveAnalysis(live, event));
+    live.el.remove(); addMessage('assistant', result.answer, result); state.history.push({role:'assistant', content:result.answer});
     $('#agentMode').textContent = result.mode === 'deepseek' ? `${state.modelConfig?.model || 'DeepSeek'} · 工具分析` : '本地规则分析';
-  } catch (error) { typing.remove(); addMessage('assistant', `分析请求失败：${error.message}`); }
-  finally { $('#sendButton').disabled = false; $('#chatInput').focus(); }
+  } catch (error) { live.el.remove(); addMessage('assistant', `分析请求失败：${error.message}`); }
+  finally { state.streaming = false; $('#sendButton').disabled = false; $('#chatInput').focus(); }
 }
 
 function showView(name) {
@@ -423,6 +530,7 @@ async function init() {
     $('#systemStatus').textContent = `${formatNumber(health.database.lots)} 批次 · ${modelConfig.api_key_configured ? modelConfig.model : '离线模式'}`;
   } catch { $('#systemStatus').textContent='数据源不可用'; }
   await loadDashboard();
+  await restoreConversation();
   setAgentOpen(true, false);
   $('#dateForm').addEventListener('submit', e => { e.preventDefault(); loadDashboard(); if ($('#capabilityView').classList.contains('active')) loadCapability(); });
   document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
@@ -440,12 +548,13 @@ async function init() {
   $('#chatMessages').addEventListener('click', event => {
     const knowledgeTarget=event.target.closest('[data-knowledge-chunk]');
     const caseTarget=event.target.closest('[data-case-id]');
+    const suggestion = event.target.closest('.suggestions button');
     if (knowledgeTarget) openKnowledgeChunk(Number(knowledgeTarget.dataset.knowledgeChunk));
     else if (caseTarget) openHistoricalCase(caseTarget.dataset.caseId);
+    else if (suggestion) sendChat(suggestion.textContent);
   });
   $('#chatForm').addEventListener('submit', e => { e.preventDefault(); sendChat($('#chatInput').value); });
-  document.querySelectorAll('.suggestions button').forEach(button => button.addEventListener('click', () => sendChat(button.textContent)));
-  $('#clearChat').addEventListener('click', () => { state.history=[]; $('#chatMessages').innerHTML='<div class="message assistant"><div class="message-label">FAB COPILOT</div><div class="message-content">对话已清空。可以开始新的制造分析。</div></div>'; });
+  $('#clearChat').addEventListener('click', async () => { if (!state.streaming) await createConversation('已创建新会话。'); });
   $('#modelSettingsButton').addEventListener('click', openModelSettings);
   $('#modelSettingsForm').addEventListener('submit', saveModelSettings);
   $('#closeModelDialog').addEventListener('click', () => $('#modelDialog').close());
