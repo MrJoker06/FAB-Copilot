@@ -73,11 +73,11 @@
         <div class="page-heading">
           <div><p class="eyebrow">PROCESS CONTROL</p><h1>制程能力分析</h1><p>按设备比较均值、变异与 Cpk</p></div>
           <div class="segmented" id="stepSelector" aria-label="选择制程站点">
-            <button data-step="LITHO">LITHO</button><button data-step="ETCH">ETCH</button><button data-step="CVD" class="active">CVD</button><button data-step="CMP">CMP</button>
+            <button data-step="LITHO">光刻</button><button data-step="ETCH">刻蚀</button><button data-step="CVD" class="active">CVD</button><button data-step="PVD">PVD</button><button data-step="DIFFUSION">扩散</button><button data-step="IMPLANT">注入</button><button data-step="CMP">CMP</button><button data-step="CLEAN">清洗</button><button data-step="METROLOGY">量测</button>
           </div>
         </div>
         <section class="panel capability-table">
-          <div class="panel-heading"><div><h2 id="capabilityTitle">CVD 膜厚能力</h2><p id="capabilityMetric">规格：95–105 nm</p></div></div>
+          <div class="panel-heading"><div><h2 id="capabilityTitle">CVD 制程能力</h2><p id="capabilityMetric">正在读取关键量测规格</p></div></div>
           <div class="table-wrap"><table><thead><tr><th>设备</th><th>样本</th><th>均值</th><th>Sigma</th><th>最小</th><th>最大</th><th>Cpk</th><th>评价</th></tr></thead><tbody id="capabilityBody"></tbody></table></div>
         </section>
       </section>
@@ -146,7 +146,7 @@
         <div class="suggestions">
           <button>最近三个月哪些设备风险最高？</button>
           <button>CVD-02 的膜厚是否发生漂移？</button>
-          <button>分析 CMP 划伤上升的可能原因</button>
+          <button>分析刻蚀设备 CD 偏移的潜在原因</button>
         </div>
       </div>
       <form id="chatForm" class="chat-form">

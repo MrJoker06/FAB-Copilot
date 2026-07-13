@@ -13,6 +13,7 @@ from .agent import run_agent
 from .audit import emit, monitoring_summary, read_events
 from .config import PROJECT_DIR, get_settings, public_model_config, update_model_config
 from .database import db_session
+from .processes import MANUFACTURING_STEPS, PROCESS_STEP_PATTERN
 from .rag import (
     get_historical_case,
     get_knowledge_document,
@@ -31,6 +32,15 @@ async def lifespan(_: FastAPI):
         generate_database(settings.database_path)
     else:
         seed_reference_data(settings.database_path)
+        with db_session(settings.database_path) as connection:
+            populated_steps = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT DISTINCT process_step FROM process_runs WHERE measurement_value IS NOT NULL"
+                )
+            }
+        if not set(MANUFACTURING_STEPS).issubset(populated_steps):
+            generate_database(settings.database_path)
     yield
 
 
@@ -113,7 +123,7 @@ def dashboard(start: str | None = None, end: str | None = None) -> dict:
 
 @app.get("/api/reports/capability")
 def capability(
-    process_step: str = Query("CVD", pattern="^(LITHO|ETCH|CVD|CMP)$"),
+    process_step: str = Query("CVD", pattern=PROCESS_STEP_PATTERN),
     start: str | None = None,
     end: str | None = None,
 ) -> list[dict]:

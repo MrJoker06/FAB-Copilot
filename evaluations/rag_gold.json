@@ -8,5 +8,10 @@
   {"id":"hold-cycle","query":"Hold 和整批复测导致周期时间上升","filters":{"process_step":"WIP","defect_type":"Cycle Time"},"expected_any":["KB-32","CASE-WIP-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
   {"id":"inspection-particle","query":"检测机灵敏度变化导致 Particle 假报警","filters":{"process_step":"METROLOGY","defect_type":"Particle"},"expected_any":["KB-15","CASE-MET-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
   {"id":"recipe-change","query":"量产 Recipe 参数变更验证和回退要求","filters":{},"expected_any":["KB-33","KB-34","KB-35","KB-36"],"required_source_types":["knowledge"],"forbidden":[]},
-  {"id":"rca-evidence","query":"根因分析如何区分事实推断并防止直接套用历史案例","filters":{},"expected_any":["KB-37","KB-38","KB-39"],"required_source_types":["knowledge"],"forbidden":[]}
+  {"id":"rca-evidence","query":"根因分析如何区分事实推断并防止直接套用历史案例","filters":{},"expected_any":["KB-37","KB-38","KB-39"],"required_source_types":["knowledge"],"forbidden":[]},
+  {"id":"pvd-thickness","query":"PVD-02 膜厚渐进偏低 靶材侵蚀和功率补偿","filters":{"process_step":"PVD","equipment_id":"PVD-02","defect_type":"Thickness"},"expected_any":["KB-50","CASE-PVD-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
+  {"id":"diffusion-sheet-resistance","query":"扩散炉舟尾片阻偏高 温区热电偶偏差","filters":{"process_step":"DIFFUSION","equipment_id":"DIFFUSION-02","defect_type":"Sheet Resistance"},"expected_any":["KB-54","CASE-DIFF-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
+  {"id":"implant-dose","query":"IMPLANT-03 剂量偏高 Faraday cup 污染","filters":{"process_step":"IMPLANT","equipment_id":"IMPLANT-03","defect_type":"Dose Shift"},"expected_any":["KB-58","CASE-IMP-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
+  {"id":"clean-particle","query":"CLEAN-02 清洗后颗粒增加 过滤器旁路密封","filters":{"process_step":"CLEAN","equipment_id":"CLEAN-02","defect_type":"Particle"},"expected_any":["KB-62","CASE-CLEAN-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
+  {"id":"metrology-correlation","query":"METROLOGY-03 相关性下降 参考片老化校准漂移","filters":{"process_step":"METROLOGY","equipment_id":"METROLOGY-03","defect_type":"Measurement Drift"},"expected_any":["KB-66","CASE-MET-002"],"required_source_types":["knowledge","case"],"forbidden":[]}
 ]

@@ -1,5 +1,6 @@
 const state = { dashboard: null, history: [], chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null };
 const $ = (selector) => document.querySelector(selector);
+const processLabels = { LITHO: '光刻', ETCH: '刻蚀', CVD: '化学气相沉积', PVD: '物理气相沉积', DIFFUSION: '扩散/炉管', IMPLANT: '离子注入', CMP: '化学机械研磨', CLEAN: '湿法清洗', METROLOGY: '量测' };
 
 function isoDate(date) { return date.toISOString().slice(0, 10); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
@@ -206,8 +207,9 @@ function renderDefects(rows) {
 
 function renderExcursions(rows) {
   $('#excursionBody').innerHTML = rows.map(row => {
-    let metric = `缺陷 ${row.defect_density}`;
-    if (row.thickness_nm != null) metric = `膜厚 ${row.thickness_nm} nm`;
+    const metric = row.measurement_value == null
+      ? `缺陷密度 ${row.defect_density}`
+      : `${row.measurement_name} ${row.measurement_value} ${row.measurement_unit}`;
     return `<tr><td>${escapeHtml(row.run_time.slice(0, 10))}</td><td>${escapeHtml(row.lot_id)}</td><td><strong>${escapeHtml(row.equipment_id)}</strong></td><td><span class="status-pill status-critical">${escapeHtml(row.excursion_code)}</span></td><td>${metric}</td></tr>`;
   }).join('') || '<tr><td colspan="5">范围内没有制程异常</td></tr>';
 }
@@ -258,8 +260,12 @@ async function loadCapability(step = state.activeStep) {
   state.activeStep = step;
   const start = $('#startDate').value, end = $('#endDate').value;
   const rows = await api(`/api/reports/capability?process_step=${step}&start=${start}&end=${end}`);
-  $('#capabilityTitle').textContent = step === 'CVD' ? 'CVD 膜厚能力' : `${step} 缺陷密度能力`;
-  $('#capabilityMetric').textContent = step === 'CVD' ? '规格：95–105 nm；Cpk < 1.33 需关注' : '单边规格上限：0.5；Cpk < 1.33 需关注';
+  const metric = rows[0];
+  $('#capabilityTitle').textContent = `${processLabels[step] || step} · ${metric?.metric_name || '关键量测'}能力`;
+  const lower = metric?.spec_lsl == null ? null : `LSL ${metric.spec_lsl}`;
+  const upper = metric?.spec_usl == null ? null : `USL ${metric.spec_usl}`;
+  const specification = [lower, upper].filter(Boolean).join(' / ');
+  $('#capabilityMetric').textContent = metric ? `${specification} ${metric.metric_unit}；Cpk < 1.33 需关注` : '当前范围没有可用量测';
   $('#capabilityBody').innerHTML = rows.map(row => { const [rating, cls] = capabilityRating(row.cpk); return `<tr><td><strong>${row.equipment_id}</strong></td><td>${row.samples}</td><td>${row.mean_value}</td><td>${row.sigma}</td><td>${row.min_value}</td><td>${row.max_value}</td><td class="${cls}">${row.cpk ?? '—'}</td><td class="${cls}">${rating}</td></tr>`; }).join('');
 }
 

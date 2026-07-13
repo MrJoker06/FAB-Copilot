@@ -11,6 +11,7 @@ import httpx
 
 from .audit import CONTENT_MODE, content_fingerprint, emit
 from .config import get_settings
+from .processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS
 from .rag import search_knowledge
 from .reports import (
     defect_pareto,
@@ -40,7 +41,7 @@ SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的�
 
 数据库字段提示：
 - lots: lot_id, product, technology_nm, route, priority, start_time, complete_time, status, wafer_count, good_wafers, yield_rate(0-1), cycle_time_hours, hold_hours
-- process_runs: lot_id, process_step, equipment_id, run_time, temperature_c, pressure_torr, duration_sec, thickness_nm, uniformity_pct, defect_density, pass_flag, excursion_code
+- process_runs: lot_id, process_step, equipment_id, run_time, temperature_c, pressure_torr, duration_sec, thickness_nm, uniformity_pct, defect_density, measurement_name, measurement_value, measurement_unit, spec_lsl, spec_usl, pass_flag, excursion_code
 - equipment_events: equipment_id, event_time, event_type, duration_minutes, severity, reason
 - defect_records: lot_id, detected_time, process_step, defect_type, count, disposition
 """
@@ -59,10 +60,10 @@ TOOLS = [
     {"type": "function", "function": {"name": "get_fab_overview", "description": "查询工厂批次、晶圆、良率、周期、hold和异常总览", "parameters": _schema(DATE_PROPERTIES)}},
     {"type": "function", "function": {"name": "get_yield_trend", "description": "按周查询良率和周期趋势，可按产品过滤", "parameters": _schema({**DATE_PROPERTIES, "product": {"type": "string", "description": "产品名，如 Nova-P1"}})}},
     {"type": "function", "function": {"name": "get_equipment_health", "description": "查询设备运行数、异常数、缺陷密度、停机和健康状态", "parameters": _schema(DATE_PROPERTIES)}},
-    {"type": "function", "function": {"name": "get_process_capability", "description": "查询制程设备能力。CVD计算膜厚Cpk，其他站点计算缺陷密度单边Cpk", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": ["LITHO", "ETCH", "CVD", "CMP"]}})}},
+    {"type": "function", "function": {"name": "get_process_capability", "description": "按站点关键量测和规格限查询各设备Cpk", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}})}},
     {"type": "function", "function": {"name": "get_defect_pareto", "description": "查询缺陷类型Pareto和受影响批次数", "parameters": _schema({**DATE_PROPERTIES, "limit": {"type": "integer", "minimum": 1, "maximum": 25}})}},
     {"type": "function", "function": {"name": "get_recent_excursions", "description": "查询最近的制程异常批次及量测值", "parameters": _schema({**DATE_PROPERTIES, "limit": {"type": "integer", "minimum": 1, "maximum": 100}})}},
-    {"type": "function", "function": {"name": "search_knowledge", "description": "联合检索厂内SOP、控制计划、分析方法与已验证历史案例。可按元数据过滤，返回可解释评分和reference_id", "parameters": _schema({"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}, "process_step": {"type": "string", "enum": ["CMP", "CVD", "ETCH", "LITHO", "METROLOGY", "EQUIPMENT", "WIP", "YIELD"]}, "equipment_id": {"type": "string"}, "defect_type": {"type": "string"}, "source_types": {"type": "array", "items": {"type": "string", "enum": ["knowledge", "case"]}}}, ["query"])}},
+    {"type": "function", "function": {"name": "search_knowledge", "description": "联合检索厂内SOP、控制计划、分析方法与已验证历史案例。可按元数据过滤，返回可解释评分和reference_id", "parameters": _schema({"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}, "process_step": {"type": "string", "enum": list(ANALYSIS_SCOPES)}, "equipment_id": {"type": "string"}, "defect_type": {"type": "string"}, "source_types": {"type": "array", "items": {"type": "string", "enum": ["knowledge", "case"]}}}, ["query"])}},
     {"type": "function", "function": {"name": "query_manufacturing_data", "description": "在固定报表不足时执行只读SQLite SELECT。只能访问白名单表，最多返回100行", "parameters": _schema({"sql": {"type": "string", "description": "单条SELECT语句，SQLite语法"}}, ["sql"])}},
 ]
 

@@ -42,6 +42,11 @@ CREATE TABLE IF NOT EXISTS process_runs (
     thickness_nm REAL,
     uniformity_pct REAL,
     defect_density REAL NOT NULL,
+    measurement_name TEXT NOT NULL DEFAULT 'Defect density',
+    measurement_value REAL,
+    measurement_unit TEXT NOT NULL DEFAULT '',
+    spec_lsl REAL,
+    spec_usl REAL,
     pass_flag INTEGER NOT NULL,
     excursion_code TEXT
 );
@@ -143,6 +148,14 @@ CASE_GOVERNANCE_COLUMNS = {
     "case_status": "TEXT NOT NULL DEFAULT 'Draft'",
 }
 
+PROCESS_RUN_MEASUREMENT_COLUMNS = {
+    "measurement_name": "TEXT NOT NULL DEFAULT 'Defect density'",
+    "measurement_value": "REAL",
+    "measurement_unit": "TEXT NOT NULL DEFAULT ''",
+    "spec_lsl": "REAL",
+    "spec_usl": "REAL",
+}
+
 
 def connect(path: Path | None = None) -> sqlite3.Connection:
     db_path = path or get_settings().database_path
@@ -161,6 +174,10 @@ def initialize(path: Path | None = None) -> None:
         for name, definition in CASE_GOVERNANCE_COLUMNS.items():
             if name not in existing_columns:
                 connection.execute(f"ALTER TABLE historical_cases ADD COLUMN {name} {definition}")
+        run_columns = {row[1] for row in connection.execute("PRAGMA table_info(process_runs)")}
+        for name, definition in PROCESS_RUN_MEASUREMENT_COLUMNS.items():
+            if name not in run_columns:
+                connection.execute(f"ALTER TABLE process_runs ADD COLUMN {name} {definition}")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_cases_governance ON historical_cases(case_status, process_step, defect_type)")
         connection.commit()
     finally:

@@ -4,6 +4,7 @@ import re
 from datetime import date
 
 from .database import db_session, rows_to_dicts
+from .processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS, PROCESS_ALIASES
 
 
 def _tokenize_query(text: str) -> list[str]:
@@ -24,7 +25,7 @@ def _search_terms(text: str) -> list[str]:
     return _tokenize_query(text)
 
 
-PROCESS_STEPS = ("CMP", "CVD", "ETCH", "LITHO", "METROLOGY", "EQUIPMENT", "WIP", "YIELD")
+PROCESS_STEPS = ANALYSIS_SCOPES
 DEFECT_ALIASES = {
     "Scratch": ("scratch", "划伤"),
     "Thickness": ("thickness", "膜厚"),
@@ -37,17 +38,30 @@ DEFECT_ALIASES = {
     "Dishing": ("dishing", "蝶形凹陷"),
     "Yield": ("yield", "良率"),
     "Cycle Time": ("cycle time", "周期时间"),
+    "Peeling": ("peeling", "剥落"),
+    "Sheet Resistance": ("sheet resistance", "片阻"),
+    "Dose Shift": ("dose shift", "剂量偏移"),
+    "Watermark": ("watermark", "水印"),
+    "Metal Contamination": ("metal contamination", "金属污染"),
+    "Measurement Drift": ("measurement drift", "量测漂移", "测量漂移"),
 }
 
 
 def _infer_filters(query: str, process_step: str | None, equipment_id: str | None, defect_type: str | None) -> dict:
     upper = query.upper()
-    inferred_equipment = equipment_id.upper() if equipment_id else next(iter(re.findall(r"\b(?:CMP|CVD|ETCH|LITHO)-\d+\b", upper)), None)
+    equipment_families = "|".join(re.escape(step) for step in MANUFACTURING_STEPS)
+    inferred_equipment = equipment_id.upper() if equipment_id else next(iter(re.findall(rf"\b(?:{equipment_families})-\d+\b", upper)), None)
     inferred_step = process_step.upper() if process_step else None
     if inferred_step is None and inferred_equipment:
         inferred_step = inferred_equipment.split("-", 1)[0]
     if inferred_step is None:
         inferred_step = next((step for step in PROCESS_STEPS if re.search(rf"\b{step}\b", upper)), None)
+    if inferred_step is None:
+        compact_query = query.lower().replace(" ", "")
+        inferred_step = next(
+            (step for step, aliases in PROCESS_ALIASES.items() if any(alias.lower().replace(" ", "") in compact_query for alias in aliases)),
+            None,
+        )
     lower = query.lower().replace(" ", "")
     inferred_defect = defect_type or next(
         (name for name, aliases in DEFECT_ALIASES.items() if any(alias.lower().replace(" ", "") in lower for alias in aliases)),
@@ -154,8 +168,11 @@ def search_knowledge(
     source_types: list[str] | None = None,
 ) -> list[dict]:
     """Search both governed knowledge and historical cases with auditable references."""
-    fts_query = _fts_query(query)
-    terms = _search_terms(query)
+    filters = _infer_filters(query, process_step, equipment_id, defect_type)
+    enrichment = " ".join(str(value) for value in filters.values() if value)
+    retrieval_query = f"{query} {enrichment}".strip()
+    fts_query = _fts_query(retrieval_query)
+    terms = _search_terms(retrieval_query)
     if not terms:
         return []
     bounded_limit = max(1, min(limit, 10))
@@ -225,7 +242,6 @@ def search_knowledge(
             ).fetchall()
     combined = rows_to_dicts(knowledge_rows) + rows_to_dicts(case_rows)
     combined.sort(key=lambda item: item.get("score", 0))
-    filters = _infer_filters(query, process_step, equipment_id, defect_type)
     return _metadata_rerank(combined, filters, bounded_limit, source_types)
 
 

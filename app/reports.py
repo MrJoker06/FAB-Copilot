@@ -107,35 +107,37 @@ def process_capability(start: str | None = None, end: str | None = None, process
     start, end = normalize_range(start, end)
     process_step = process_step.upper()
     with db_session() as connection:
-        if process_step == "CVD":
-            rows = connection.execute(
-                """SELECT equipment_id, COUNT(*) AS samples,
-                          ROUND(AVG(thickness_nm), 3) AS mean_value,
-                          ROUND(SQRT(AVG(thickness_nm * thickness_nm) - AVG(thickness_nm) * AVG(thickness_nm)), 3) AS sigma,
-                          ROUND(MIN(thickness_nm), 3) AS min_value,
-                          ROUND(MAX(thickness_nm), 3) AS max_value,
-                          ROUND(MIN((105.0 - AVG(thickness_nm)) / (3.0 * NULLIF(SQRT(AVG(thickness_nm * thickness_nm) - AVG(thickness_nm) * AVG(thickness_nm)), 0)),
-                                    (AVG(thickness_nm) - 95.0) / (3.0 * NULLIF(SQRT(AVG(thickness_nm * thickness_nm) - AVG(thickness_nm) * AVG(thickness_nm)), 0))), 2) AS cpk,
-                          'Thickness nm (LSL 95 / USL 105)' AS metric
-                   FROM process_runs
-                   WHERE process_step = 'CVD' AND date(run_time) BETWEEN ? AND ?
-                   GROUP BY equipment_id ORDER BY cpk""",
-                (start, end),
-            ).fetchall()
-        else:
-            rows = connection.execute(
-                """SELECT equipment_id, COUNT(*) AS samples,
-                          ROUND(AVG(defect_density), 3) AS mean_value,
-                          ROUND(SQRT(AVG(defect_density * defect_density) - AVG(defect_density) * AVG(defect_density)), 3) AS sigma,
-                          ROUND(MIN(defect_density), 3) AS min_value,
-                          ROUND(MAX(defect_density), 3) AS max_value,
-                          ROUND((0.5 - AVG(defect_density)) / (3.0 * NULLIF(SQRT(AVG(defect_density * defect_density) - AVG(defect_density) * AVG(defect_density)), 0)), 2) AS cpk,
-                          'Defect density (USL 0.5)' AS metric
+        rows = connection.execute(
+            """WITH stats AS (
+                   SELECT equipment_id, COUNT(measurement_value) AS samples,
+                          AVG(measurement_value) AS mean_value,
+                          SQRT(AVG(measurement_value * measurement_value) - AVG(measurement_value) * AVG(measurement_value)) AS sigma,
+                          MIN(measurement_value) AS min_value,
+                          MAX(measurement_value) AS max_value,
+                          MAX(measurement_name) AS metric_name,
+                          MAX(measurement_unit) AS metric_unit,
+                          MIN(spec_lsl) AS spec_lsl,
+                          MAX(spec_usl) AS spec_usl
                    FROM process_runs
                    WHERE process_step = ? AND date(run_time) BETWEEN ? AND ?
-                   GROUP BY equipment_id ORDER BY cpk""",
-                (process_step, start, end),
-            ).fetchall()
+                         AND measurement_value IS NOT NULL
+                   GROUP BY equipment_id
+               )
+               SELECT equipment_id, samples,
+                      ROUND(mean_value, 3) AS mean_value,
+                      ROUND(sigma, 3) AS sigma,
+                      ROUND(min_value, 3) AS min_value,
+                      ROUND(max_value, 3) AS max_value,
+                      ROUND(CASE
+                        WHEN spec_lsl IS NULL THEN (spec_usl - mean_value) / (3.0 * NULLIF(sigma, 0))
+                        WHEN spec_usl IS NULL THEN (mean_value - spec_lsl) / (3.0 * NULLIF(sigma, 0))
+                        ELSE MIN((spec_usl - mean_value) / (3.0 * NULLIF(sigma, 0)),
+                                 (mean_value - spec_lsl) / (3.0 * NULLIF(sigma, 0)))
+                      END, 2) AS cpk,
+                      metric_name, metric_unit, spec_lsl, spec_usl
+               FROM stats ORDER BY cpk""",
+            (process_step, start, end),
+        ).fetchall()
     return rows_to_dicts(rows)
 
 
@@ -160,7 +162,9 @@ def recent_excursions(start: str | None = None, end: str | None = None, limit: i
     with db_session() as connection:
         rows = connection.execute(
             """SELECT run_time, lot_id, process_step, equipment_id, excursion_code,
-                      thickness_nm, uniformity_pct, defect_density
+                      thickness_nm, uniformity_pct, defect_density,
+                      measurement_name, measurement_value, measurement_unit,
+                      spec_lsl, spec_usl
                FROM process_runs
                WHERE date(run_time) BETWEEN ? AND ? AND excursion_code IS NOT NULL
                ORDER BY run_time DESC LIMIT ?""",

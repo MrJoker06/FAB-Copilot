@@ -4,14 +4,14 @@
 
 ## 已实现能力
 
-- 2,478 个制造批次、9,866 条制程记录、设备事件和缺陷记录
+- 约 2,450 个制造批次、22,000 条制程记录、28 台设备及对应事件和缺陷记录
 - 综合良率、周期时间、Hold、异常数等 KPI
 - 周良率趋势、设备健康、缺陷 Pareto、近期异常批次
-- CVD 膜厚 Cpk，以及 LITHO / ETCH / CMP 缺陷密度能力
+- 覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗和量测，各站点按自身关键量测与规格计算 Cpk
 - 内置可复现异常：近期 `CVD-02` 膜厚漂移、`CMP-03` 划伤风险
 - DeepSeek Agent 多轮工具调用，支持固定报表和受限只读 SQL
 - Agent 可观测性：运行成功率、延迟、Token、工具使用和错误类型
-- 48 个知识章节与 12 个固定格式历史案例
+- 68 个知识章节与 17 个固定格式历史案例
 - SQLite FTS5 trigram 双来源 RAG，支持中文检索与引用跳转
 - DeepSeek 不可用时自动提供本地规则分析
 
@@ -110,9 +110,9 @@ Agent 不直接访问数据库连接，而是通过 `app/agent.py` 中声明的�
 
 ## 知识库与历史案例库
 
-左侧“知识库”包含 12 份制造文档、48 个稳定引用章节，覆盖 CVD、CMP、ETCH、LITHO、SPC、缺陷分析、Hold、Recipe 变更、根因分析、良率和数据治理。
+左侧“知识库”包含 17 份制造文档、68 个稳定引用章节，覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗、量测、SPC、Hold、Recipe 变更、根因分析、良率和数据治理。
 
-左侧“案例库”包含 12 个结构化案例。案例源文件为 `cases/historical_cases.json`，每条记录必须包含：
+左侧“案例库”包含 17 个结构化案例。案例源文件为 `cases/historical_cases.json`，每条记录必须包含：
 
 ```text
 case_id, title, process_step, equipment_id, occurred_date, severity,

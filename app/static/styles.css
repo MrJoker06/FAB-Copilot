@@ -104,7 +104,7 @@ tbody tr:hover { background: #f8fbfa; }
 .metric-alert { color: var(--coral); font-weight: 700; }
 .metric-good { color: var(--green); font-weight: 700; }
 
-.segmented { height: 36px; display: flex; border: 1px solid var(--line); background: var(--surface); padding: 3px; border-radius: 5px; }
+.segmented { min-height: 36px; max-width: 660px; display: flex; flex-wrap: wrap; justify-content: flex-end; border: 1px solid var(--line); background: var(--surface); padding: 3px; border-radius: 5px; }
 .segmented button { min-width: 64px; border: 0; background: transparent; color: var(--muted); font-size: 10px; border-radius: 3px; }
 .segmented button.active { background: var(--nav); color: #fff; }
 .capability-table { min-height: 300px; }
@@ -238,7 +238,7 @@ tbody tr:hover { background: #f8fbfa; }
   .kpi-value { font-size: 21px; }
   .report-grid { grid-template-columns: minmax(0, 1fr); }.equipment-panel, .excursion-panel { grid-column: auto; }
   .agent-panel { height: 600px; }
-  .segmented { width: 100%; }.segmented button { flex: 1; min-width: 0; }
+  .segmented { width: 100%; max-width: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }.segmented button { min-width: 0; min-height: 30px; }
   .monitor-controls { width: 100%; }.monitor-controls select { flex: 1; }
   .knowledge-search { width: 100%; }.knowledge-search input { flex: 1; width: auto; }.knowledge-layout { grid-template-columns: minmax(0, 1fr); }.knowledge-index { position: static; max-height: 250px; }.knowledge-document-list { max-height: 188px; }
   .case-filters { width: 100%; flex-wrap: wrap; }.case-filters input { flex: 1; min-width: 180px; width: auto; }.case-layout { grid-template-columns: minmax(0, 1fr); }.case-index { position: static; max-height: 300px; }.case-list { max-height: 238px; }

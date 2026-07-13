@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .config import PROJECT_DIR, get_settings
 from .database import db_session, initialize
+from .processes import MANUFACTURING_STEPS
 
 
 PRODUCTS = [
@@ -20,10 +21,16 @@ PRODUCTS = [
 ]
 STEPS = {
     "LITHO": ["LITHO-01", "LITHO-02", "LITHO-03"],
-    "ETCH": ["ETCH-01", "ETCH-02", "ETCH-03"],
+    "ETCH": ["ETCH-01", "ETCH-02", "ETCH-03", "ETCH-04"],
     "CVD": ["CVD-01", "CVD-02", "CVD-03"],
+    "PVD": ["PVD-01", "PVD-02", "PVD-03"],
+    "DIFFUSION": ["DIFFUSION-01", "DIFFUSION-02", "DIFFUSION-03"],
+    "IMPLANT": ["IMPLANT-01", "IMPLANT-02", "IMPLANT-03"],
     "CMP": ["CMP-01", "CMP-02", "CMP-03"],
+    "CLEAN": ["CLEAN-01", "CLEAN-02", "CLEAN-03"],
+    "METROLOGY": ["METROLOGY-01", "METROLOGY-02", "METROLOGY-03"],
 }
+assert tuple(STEPS) == MANUFACTURING_STEPS
 EVENT_REASONS = {
     "LITHO": {
         "Alarm": ["Focus servo warning", "Reticle handler timeout", "Stage temperature unstable"],
@@ -41,12 +48,49 @@ EVENT_REASONS = {
         "Alarm": ["Slurry flow low", "Pad conditioner torque high", "Carrier pressure unstable"],
         "Unscheduled Down": ["Platen motor fault", "Slurry pump failure", "Carrier head leak"],
     },
+    "PVD": {
+        "Alarm": ["Target power unstable", "Base pressure high", "Cooling water warning"],
+        "Unscheduled Down": ["DC power supply fault", "Cryopump fault", "Target clamp failure"],
+    },
+    "DIFFUSION": {
+        "Alarm": ["Tube temperature deviation", "Gas cabinet warning", "Boat loader timeout"],
+        "Unscheduled Down": ["Heater zone failure", "Quartz tube leak", "Exhaust interlock"],
+    },
+    "IMPLANT": {
+        "Alarm": ["Beam current unstable", "Dose monitor warning", "Source pressure high"],
+        "Unscheduled Down": ["Ion source failure", "Magnet power fault", "End station vacuum fault"],
+    },
+    "CLEAN": {
+        "Alarm": ["Chemical concentration warning", "Spin speed deviation", "Rinse resistivity low"],
+        "Unscheduled Down": ["Chemical pump fault", "Robot transfer fault", "Exhaust flow interlock"],
+    },
+    "METROLOGY": {
+        "Alarm": ["Reference drift warning", "Autofocus retry high", "Stage repeatability warning"],
+        "Unscheduled Down": ["Light source failure", "Stage controller fault", "Detector communication fault"],
+    },
 }
 DEFECTS = {
     "LITHO": ["Overlay", "Focus", "Particle"],
     "ETCH": ["Residue", "Micro-trench", "CD Shift"],
     "CVD": ["Particle", "Thickness", "Non-uniformity"],
     "CMP": ["Scratch", "Dishing", "Erosion"],
+    "PVD": ["Thickness", "Particle", "Peeling"],
+    "DIFFUSION": ["Sheet Resistance", "Slip", "Oxide Non-uniformity"],
+    "IMPLANT": ["Dose Shift", "Channeling", "Particle"],
+    "CLEAN": ["Particle", "Watermark", "Metal Contamination"],
+    "METROLOGY": ["Measurement Drift", "False Defect", "Correlation"],
+}
+
+MEASUREMENTS = {
+    "LITHO": ("Overlay X", "nm", -4.0, 4.0, 0.0, 0.65),
+    "ETCH": ("CD bias", "nm", -3.0, 3.0, 0.0, 0.55),
+    "CVD": ("Film thickness", "nm", 95.0, 105.0, 100.0, 1.45),
+    "PVD": ("Film thickness", "nm", 48.0, 52.0, 50.0, 0.34),
+    "DIFFUSION": ("Sheet resistance", "ohm/sq", 95.0, 105.0, 100.0, 1.05),
+    "IMPLANT": ("Dose index", "% target", 98.0, 102.0, 100.0, 0.36),
+    "CMP": ("Removal rate", "nm/min", 285.0, 315.0, 300.0, 3.2),
+    "CLEAN": ("Particle adders", "count", None, 5.0, 1.2, 0.55),
+    "METROLOGY": ("Gauge correlation", "R2", 0.90, None, 0.97, 0.012),
 }
 
 
@@ -58,8 +102,8 @@ def _seed_knowledge(connection) -> int:
     catalog_path = PROJECT_DIR / "knowledge" / "catalog.json"
     catalog_items = json.loads(catalog_path.read_text(encoding="utf-8"))
     catalog = {item["source"]: item for item in catalog_items}
-    markdown_paths = sorted((PROJECT_DIR / "knowledge").glob("*.md"))
-    markdown_sources = {path.name for path in markdown_paths}
+    markdown_paths = [PROJECT_DIR / "knowledge" / item["source"] for item in catalog_items]
+    markdown_sources = {path.name for path in (PROJECT_DIR / "knowledge").glob("*.md")}
     if markdown_sources != set(catalog):
         raise ValueError(f"知识目录与文档不一致: files={sorted(markdown_sources)}, catalog={sorted(catalog)}")
     connection.execute("DELETE FROM knowledge_documents")
@@ -209,11 +253,14 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
             lot_runs: list[tuple] = []
             for step_index, (step, equipment_options) in enumerate(STEPS.items()):
                 equipment = rng.choice(equipment_options)
-                run_dt = start_dt + timedelta(hours=(step_index + 1) * cycle_time / 5)
+                run_dt = start_dt + timedelta(hours=(step_index + 1) * cycle_time / (len(STEPS) + 1))
                 chamber = rng.choice(["A", "B"])
                 recipe = f"{step}-{node}N-R{rng.randint(1, 3)}"
                 excursion = None
                 defect_density = max(0.01, rng.lognormvariate(-2.6, 0.45))
+
+                measurement_name, measurement_unit, spec_lsl, spec_usl, target, sigma = MEASUREMENTS[step]
+                measurement_value = rng.gauss(target, sigma)
 
                 if step == "LITHO":
                     temp, pressure, duration = rng.gauss(22, 0.35), rng.gauss(760, 3), rng.gauss(74, 4)
@@ -224,6 +271,7 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
                 elif step == "CVD":
                     temp, pressure, duration = rng.gauss(405, 3.2), rng.gauss(2.2, 0.08), rng.gauss(184, 8)
                     thickness = rng.gauss(100, 1.45)
+                    measurement_value = thickness
                     uniformity = max(0.5, rng.gauss(1.85, 0.28))
                     if equipment == "CVD-02" and age_days < 70:
                         drift = (70 - age_days) / 70
@@ -233,7 +281,8 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
                         if thickness > 103.0 or uniformity > 2.55:
                             excursion = "CVD-THK-HI"
                             equipment_penalty += 0.018
-                else:
+                    measurement_value = thickness
+                elif step == "CMP":
                     temp, pressure, duration = rng.gauss(24, 0.6), rng.gauss(3.1, 0.12), rng.gauss(132, 8)
                     thickness, uniformity = None, None
                     if equipment == "CMP-03" and age_days < 95:
@@ -242,6 +291,35 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
                         if defect_density > 0.34:
                             excursion = "CMP-SCRATCH"
                             equipment_penalty += 0.024
+                elif step == "PVD":
+                    temp, pressure, duration = rng.gauss(190, 3.0), rng.gauss(0.006, 0.0008), rng.gauss(145, 7)
+                    thickness, uniformity = measurement_value, max(0.4, rng.gauss(1.5, 0.22))
+                    if equipment == "PVD-02" and age_days < 55:
+                        drift = (55 - age_days) / 55
+                        measurement_value -= 2.1 * drift
+                        thickness = measurement_value
+                        if measurement_value < 48.0:
+                            excursion = "PVD-THK-LOW"
+                            equipment_penalty += 0.016
+                elif step == "DIFFUSION":
+                    temp, pressure, duration = rng.gauss(925, 4.5), rng.gauss(760, 4), rng.gauss(3100, 120)
+                    thickness, uniformity = None, max(0.4, rng.gauss(1.7, 0.24))
+                elif step == "IMPLANT":
+                    temp, pressure, duration = rng.gauss(23, 0.5), rng.gauss(0.00002, 0.000004), rng.gauss(82, 5)
+                    thickness, uniformity = None, None
+                    if equipment == "IMPLANT-03" and age_days < 45:
+                        drift = (45 - age_days) / 45
+                        measurement_value += 2.15 * drift
+                        if measurement_value > 102.0:
+                            excursion = "IMP-DOSE-HI"
+                            equipment_penalty += 0.014
+                elif step == "CLEAN":
+                    temp, pressure, duration = rng.gauss(48, 1.2), rng.gauss(760, 3), rng.gauss(240, 12)
+                    thickness, uniformity = None, None
+                    measurement_value = max(0.0, measurement_value)
+                else:
+                    temp, pressure, duration = rng.gauss(22, 0.4), rng.gauss(760, 3), rng.gauss(54, 4)
+                    thickness, uniformity = None, None
 
                 pass_flag = int(excursion is None and defect_density < 0.48)
                 if run_dt <= as_of:
@@ -250,7 +328,8 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
                         round(temp, 3), round(pressure, 4), round(duration, 2),
                         round(thickness, 3) if thickness is not None else None,
                         round(uniformity, 3) if uniformity is not None else None,
-                        round(defect_density, 4), pass_flag, excursion,
+                        round(defect_density, 4), measurement_name, round(measurement_value, 4),
+                        measurement_unit, spec_lsl, spec_usl, pass_flag, excursion,
                     ))
                 defect_probability = 0.12 + (0.15 if excursion else 0)
                 if run_dt <= as_of and rng.random() < defect_probability:
@@ -299,8 +378,9 @@ def generate_database(path: Path | None = None, days: int = 548, seed: int = 202
             """INSERT INTO process_runs(
                 lot_id, process_step, equipment_id, chamber, recipe, run_time,
                 temperature_c, pressure_torr, duration_sec, thickness_nm,
-                uniformity_pct, defect_density, pass_flag, excursion_code
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                uniformity_pct, defect_density, measurement_name, measurement_value,
+                measurement_unit, spec_lsl, spec_usl, pass_flag, excursion_code
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             runs,
         )
         connection.executemany(

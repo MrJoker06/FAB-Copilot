@@ -154,5 +154,70 @@
     "result": "平均周期时间下降 11.6 小时，异常漏检率没有上升，量测机排队长度下降 32%。",
     "summary": "周期上升不一定来自设备产能。异常处置和复测策略可能制造隐性排队，应按风险而非单一规则决定复测范围。",
     "tags": ["Cycle time", "Hold", "remeasurement", "WIP"]
+  },
+  {
+    "case_id": "CASE-PVD-001",
+    "title": "PVD-02 膜厚渐进偏低",
+    "process_step": "PVD",
+    "equipment_id": "PVD-02",
+    "occurred_date": "2026-01-18",
+    "severity": "High",
+    "problem": "PVD-02 的金属膜厚在六周内由 50.1 nm 缓慢下降至 47.7 nm，跨三个产品出现；基压和氩气流量稳定，同族设备无相同趋势。",
+    "solution": "按靶材累计片数、沉积速率和功率补偿分层，发现换靶后的补偿表未随侵蚀轮廓更新。重新标定功率补偿曲线，更换接近寿命上限的靶材并完成 seasoning。",
+    "result": "三片监控片膜厚为 49.9、50.2、50.0 nm；随后 24 批平均膜厚 50.1 nm，Cpk 恢复至 1.81。",
+    "summary": "PVD 膜厚跨产品渐进下降且真空、气流稳定时，应把靶材寿命与功率补偿作为优先假设，但仍需用参考片排除量测漂移。",
+    "tags": ["Thickness", "target erosion", "power compensation", "PVD"]
+  },
+  {
+    "case_id": "CASE-DIFF-001",
+    "title": "DIFFUSION-02 片阻轴向梯度异常",
+    "process_step": "DIFFUSION",
+    "equipment_id": "DIFFUSION-02",
+    "occurred_date": "2025-12-09",
+    "severity": "High",
+    "problem": "DIFFUSION-02 连续四管出现舟尾片阻偏高，舟头正常，异常位置随装载位置而非产品移动。",
+    "solution": "使用独立热电偶和见证片复核各温区，确认尾区控制热电偶读值比实际温度高 4.6 摄氏度。更换热电偶并重新完成三温区校准。",
+    "result": "两管见证片和后续 18 管量产的轴向片阻差均低于 2.1%，未再触发片阻均匀性规则。",
+    "summary": "沿舟位固定的片阻梯度更支持温区或气流假设；应保留位置映射，避免只比较整管平均值。",
+    "tags": ["Sheet Resistance", "temperature zone", "thermocouple", "Diffusion"]
+  },
+  {
+    "case_id": "CASE-IMP-001",
+    "title": "IMPLANT-03 剂量监控持续偏高",
+    "process_step": "IMPLANT",
+    "equipment_id": "IMPLANT-03",
+    "occurred_date": "2026-02-14",
+    "severity": "Critical",
+    "problem": "IMPLANT-03 的归一化剂量指数连续十天上升，在多个产品与两个能量条件下接近 102%，束流设定和端站真空未见异常。",
+    "solution": "比较设备剂量积分、独立监控片片阻和 Faraday cup 响应，发现 cup 表面沉积造成收集效率偏差。完成清洁、更换绝缘件并重新校准剂量链。",
+    "result": "独立监控片与设备剂量差由 2.3% 降至 0.4%，随后 30 批剂量指数保持在 99.4%–100.7%。",
+    "summary": "注入剂量异常不能只看设备设定值；必须用独立监控片验证剂量积分链，历史案例仅用于排列检查顺序。",
+    "tags": ["Dose Shift", "Faraday cup", "beam current", "Implant"]
+  },
+  {
+    "case_id": "CASE-CLEAN-001",
+    "title": "CLEAN-02 清洗后颗粒增量上升",
+    "process_step": "CLEAN",
+    "equipment_id": "CLEAN-02",
+    "occurred_date": "2025-11-22",
+    "severity": "High",
+    "problem": "CLEAN-02 清洗后新增颗粒由每片 1–2 颗升至 8–12 颗，异常跨产品但仅集中在腔体 B，药液浓度和超纯水电阻率合格。",
+    "solution": "通过空白片前后测与腔体分流确认来源，拆检发现过滤器旁路密封圈压伤。更换密封圈和过滤器，冲洗管路并执行三片空白片验证。",
+    "result": "三片空白片颗粒增量分别为 1、0、1；恢复后 25 批平均增量 1.3，金属污染采样合格。",
+    "summary": "单腔跨产品颗粒上升更支持设备接液部件或搬运来源；应通过空白片和分腔对照缩小范围。",
+    "tags": ["Particle", "filter bypass", "seal", "Clean"]
+  },
+  {
+    "case_id": "CASE-MET-002",
+    "title": "METROLOGY-03 设备间相关性下降",
+    "process_step": "METROLOGY",
+    "equipment_id": "METROLOGY-03",
+    "occurred_date": "2026-01-06",
+    "severity": "Medium",
+    "problem": "METROLOGY-03 与基准机的膜厚相关系数由 0.97 降至 0.88，重复性仍合格，多个制程的均值同时出现小幅偏移。",
+    "solution": "复核软件、光源和参考片历史，发现日常校准参考片已超过认证使用次数且表面发生缓慢氧化。更换认证参考片并重建相关性模型。",
+    "result": "设备间 R2 恢复至 0.96，盲样偏差低于 0.3 nm；参考片增加使用次数和有效期双重管控。",
+    "summary": "重复性合格不代表准确度合格。跨制程同步偏移时，应优先验证参考标准和设备间相关性。",
+    "tags": ["Correlation", "reference wafer", "calibration", "Metrology"]
   }
 ]

@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from app.audit import sanitize
 from app.database import db_session
 from app.main import app
+from app.processes import MANUFACTURING_STEPS
 from app.rag import search_knowledge
 from app.reports import process_capability, report_bundle, safe_select
 from app.seed import seed_reference_data
@@ -35,6 +36,21 @@ class FabInsightTests(unittest.TestCase):
         peers = [row for row in capability if row["equipment_id"] != "CVD-02"]
         self.assertLess(cvd_02["cpk"], min(row["cpk"] for row in peers))
 
+    def test_all_manufacturing_steps_have_equipment_and_capability(self):
+        with db_session() as connection:
+            rows = connection.execute(
+                "SELECT process_step, COUNT(DISTINCT equipment_id) AS equipment_count "
+                "FROM process_runs GROUP BY process_step"
+            ).fetchall()
+        equipment_counts = {row["process_step"]: row["equipment_count"] for row in rows}
+        self.assertEqual(set(equipment_counts), set(MANUFACTURING_STEPS))
+        self.assertTrue(all(count >= 3 for count in equipment_counts.values()))
+        for step in MANUFACTURING_STEPS:
+            with self.subTest(step=step):
+                capability = process_capability(process_step=step)
+                self.assertEqual(len(capability), equipment_counts[step])
+                self.assertTrue(all(row["metric_name"] and row["metric_unit"] for row in capability))
+
     def test_history_contains_no_future_process_records(self):
         with db_session() as connection:
             max_run = connection.execute("SELECT MAX(date(run_time)) FROM process_runs").fetchone()[0]
@@ -48,6 +64,13 @@ class FabInsightTests(unittest.TestCase):
         self.assertEqual({item["source_type"] for item in results}, {"knowledge", "case"})
         self.assertTrue(all(item["reference_id"] for item in results))
         self.assertTrue(all(item["retrieval"]["selection_reason"] for item in results))
+
+    def test_rag_infers_chinese_process_and_defect_aliases(self):
+        results = search_knowledge("刻蚀设备 CD 偏移的潜在原因", 6)
+        self.assertTrue(results)
+        self.assertEqual({item["source_type"] for item in results}, {"knowledge", "case"})
+        self.assertTrue(all(item["retrieval"]["filters"]["process_step"] == "ETCH" for item in results))
+        self.assertTrue(all(item["retrieval"]["filters"]["defect_type"] == "CD Shift" for item in results))
 
     def test_rag_gold_dataset(self):
         dataset_path = Path(__file__).resolve().parent.parent / "evaluations" / "rag_gold.json"
@@ -103,8 +126,8 @@ class FabInsightTests(unittest.TestCase):
             response = client.get("/api/health")
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["status"], "ok")
-            self.assertEqual(response.json()["reference_data"]["knowledge_chunks"], 48)
-            self.assertEqual(response.json()["reference_data"]["historical_cases"], 12)
+            self.assertEqual(response.json()["reference_data"]["knowledge_chunks"], 68)
+            self.assertEqual(response.json()["reference_data"]["historical_cases"], 17)
 
     def test_monitor_endpoint_is_sanitized(self):
         with TestClient(app) as client:
