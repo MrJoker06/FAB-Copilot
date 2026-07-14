@@ -51,6 +51,7 @@ async def lifespan(_: FastAPI):
         required_tables = {
             "sensor_readings", "equipment_state_intervals", "wafer_maps",
             "agent_runs", "agent_tool_events", "message_sources",
+            "defect_types", "defect_type_aliases",
         }
         needs_migration = (
             not required_tables.issubset(tables)

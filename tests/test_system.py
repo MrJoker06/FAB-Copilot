@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
@@ -9,7 +10,12 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.audit import sanitize
-from app.database import db_session, replace_defect_type_aliases
+from app.database import (
+    db_session,
+    get_active_defect_aliases,
+    initialize,
+    replace_defect_type_aliases,
+)
 from app.main import app
 from app.processes import MANUFACTURING_STEPS
 from app.rag import _infer_filters, search_knowledge
@@ -113,8 +119,13 @@ class FabInsightTests(unittest.TestCase):
         self.assertTrue(all(item["retrieval"]["filters"]["defect_type"] == "CD Shift" for item in results))
 
     def test_rag_uses_database_managed_defect_aliases(self):
-        replace_defect_type_aliases("Pattern Collapse", ("pattern collapse", "图形倒塌"))
-        filters = _infer_filters("光刻后出现图形倒塌", None, None, None)
+        with tempfile.TemporaryDirectory() as directory:
+            database_path = Path(directory) / "aliases.db"
+            initialize(database_path)
+            replace_defect_type_aliases("Pattern Collapse", ("pattern collapse", "图形倒塌"), database_path)
+            aliases = get_active_defect_aliases(database_path)
+        with patch("app.rag.get_active_defect_aliases", return_value=aliases):
+            filters = _infer_filters("光刻后出现图形倒塌", None, None, None)
         self.assertEqual(filters["defect_type"], "Pattern Collapse")
 
     def test_rag_gold_dataset(self):
