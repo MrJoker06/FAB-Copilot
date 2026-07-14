@@ -63,6 +63,8 @@ cd /d D:\modern_agents\agents\fab-insight-agent
 run.bat
 ```
 
+`run.bat` 是 Windows 入口，会通过 `wsl.exe` 调用 `run.sh`，实际运行时仍使用 WSL 中的 `fab-insight-agent` Conda 环境；Windows 端不需要另外安装 Python 或项目依赖。
+
 浏览器访问 <http://127.0.0.1:8765>，接口文档位于 <http://127.0.0.1:8765/docs>。
 
 ## 模型切换
