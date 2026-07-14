@@ -49,8 +49,12 @@ AGENT_LOG_CONTENT=metadata
 
 ```bash
 cd /mnt/d/modern_agents/agents/fab-insight-agent
+conda create -n fab-insight-agent python=3.11 pip -y
+conda run -n fab-insight-agent python -m pip install -r requirements.txt
 ./run.sh
 ```
+
+`run.sh` 默认始终通过 Conda 环境 `fab-insight-agent` 启动，不向 `base` 安装项目依赖。需要使用其他环境名时设置 `FAB_CONDA_ENV`。
 
 在 Windows 中运行：
 
@@ -86,10 +90,10 @@ POST /api/settings/model
 
 API Key 只保存在当前服务进程的内存中，响应仅返回掩码，服务重启后重新读取 `.env`。只切换模型时可以省略 `api_key`。服务端使用模型白名单校验，当前样例不接受其他模型名称。
 
-如环境缺少依赖：
+如独立环境缺少依赖：
 
 ```bash
-python3 -m pip install -r requirements.txt
+conda run -n fab-insight-agent python -m pip install -r requirements.txt
 ```
 
 ## 常用命令
@@ -97,13 +101,13 @@ python3 -m pip install -r requirements.txt
 重新生成相同分布的历史数据：
 
 ```bash
-python3 -m app.seed --force
+conda run -n fab-insight-agent python -m app.seed --force
 ```
 
 运行测试：
 
 ```bash
-python3 -m unittest discover -s tests -v
+conda run -n fab-insight-agent python -m unittest discover -s tests -v
 ```
 
 ## 架构
