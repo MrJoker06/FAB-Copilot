@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
+from typing import Iterable, Iterator
 
 from .config import get_settings
 
@@ -120,6 +120,21 @@ CREATE TABLE IF NOT EXISTS defect_records (
     defect_type TEXT NOT NULL,
     count INTEGER NOT NULL,
     disposition TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS defect_types (
+    defect_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    canonical_name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+    is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS defect_type_aliases (
+    alias_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    defect_type_id INTEGER NOT NULL REFERENCES defect_types(defect_type_id) ON DELETE CASCADE,
+    alias TEXT NOT NULL COLLATE NOCASE UNIQUE,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS knowledge_chunks (
@@ -241,6 +256,7 @@ CREATE INDEX IF NOT EXISTS idx_runs_equipment ON process_runs(equipment_id, run_
 CREATE INDEX IF NOT EXISTS idx_runs_lot_step ON process_runs(lot_id, process_step, run_time DESC);
 CREATE INDEX IF NOT EXISTS idx_runs_step_time ON process_runs(process_step, run_time);
 CREATE INDEX IF NOT EXISTS idx_defects_time ON defect_records(detected_time);
+CREATE INDEX IF NOT EXISTS idx_defect_aliases_type ON defect_type_aliases(defect_type_id);
 CREATE INDEX IF NOT EXISTS idx_events_time ON equipment_events(event_time);
 CREATE INDEX IF NOT EXISTS idx_sensor_equipment_time ON sensor_readings(equipment_id, sample_time);
 CREATE INDEX IF NOT EXISTS idx_sensor_signal_time ON sensor_readings(signal_name, sample_time);
@@ -287,6 +303,44 @@ CHAT_SESSION_COLUMNS = {
 }
 
 
+# Bootstrap data for a fresh database. Runtime matching reads the database tables,
+# so operators can add or change types without changing application code.
+DEFAULT_DEFECT_TYPE_ALIASES = {
+    "Scratch": ("scratch", "划伤"),
+    "Thickness": ("thickness", "膜厚"),
+    "Non-uniformity": ("non-uniformity", "uniformity", "均匀性", "不均匀"),
+    "Particle": ("particle", "颗粒"),
+    "Overlay": ("overlay", "套刻"),
+    "Focus": ("focus", "焦距"),
+    "CD Shift": ("cd shift", "cd偏移"),
+    "Residue": ("residue", "残留"),
+    "Dishing": ("dishing", "蝶形凹陷"),
+    "Yield": ("yield", "良率"),
+    "Cycle Time": ("cycle time", "周期时间"),
+    "Peeling": ("peeling", "剥落"),
+    "Sheet Resistance": ("sheet resistance", "片阻"),
+    "Dose Shift": ("dose shift", "剂量偏移"),
+    "Watermark": ("watermark", "水印"),
+    "Metal Contamination": ("metal contamination", "金属污染"),
+    "Measurement Drift": ("measurement drift", "量测漂移", "测量漂移"),
+}
+
+
+def _seed_default_defect_types(connection: sqlite3.Connection) -> None:
+    """Populate legacy defaults only when this is a newly created catalog."""
+    if connection.execute("SELECT 1 FROM defect_types LIMIT 1").fetchone() is not None:
+        return
+    for canonical_name, aliases in DEFAULT_DEFECT_TYPE_ALIASES.items():
+        connection.execute("INSERT INTO defect_types(canonical_name) VALUES (?)", (canonical_name,))
+        defect_type_id = connection.execute(
+            "SELECT defect_type_id FROM defect_types WHERE canonical_name = ?", (canonical_name,)
+        ).fetchone()[0]
+        connection.executemany(
+            "INSERT INTO defect_type_aliases(defect_type_id, alias) VALUES (?, ?)",
+            ((defect_type_id, alias) for alias in aliases),
+        )
+
+
 def connect(path: Path | None = None) -> sqlite3.Connection:
     db_path = path or get_settings().database_path
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -312,6 +366,7 @@ def initialize(path: Path | None = None) -> None:
         for name, definition in CHAT_SESSION_COLUMNS.items():
             if name not in session_columns:
                 connection.execute(f"ALTER TABLE chat_sessions ADD COLUMN {name} {definition}")
+        _seed_default_defect_types(connection)
         connection.execute("CREATE INDEX IF NOT EXISTS idx_cases_governance ON historical_cases(case_status, process_step, defect_type)")
         connection.commit()
     finally:
@@ -329,3 +384,52 @@ def db_session(path: Path | None = None) -> Iterator[sqlite3.Connection]:
 
 def rows_to_dicts(rows: list[sqlite3.Row]) -> list[dict]:
     return [dict(row) for row in rows]
+
+
+def get_active_defect_aliases(path: Path | None = None) -> dict[str, tuple[str, ...]]:
+    """Return active canonical defect names and their database-managed aliases."""
+    with db_session(path) as connection:
+        rows = connection.execute(
+            """SELECT t.canonical_name, a.alias
+               FROM defect_types t
+               LEFT JOIN defect_type_aliases a ON a.defect_type_id = t.defect_type_id
+               WHERE t.is_active = 1
+               ORDER BY t.canonical_name, a.alias"""
+        ).fetchall()
+    aliases: dict[str, list[str]] = {}
+    for row in rows:
+        canonical_name = row["canonical_name"]
+        aliases.setdefault(canonical_name, [canonical_name])
+        if row["alias"] is not None:
+            aliases[canonical_name].append(row["alias"])
+    return {name: tuple(dict.fromkeys(values)) for name, values in aliases.items()}
+
+
+def replace_defect_type_aliases(
+    canonical_name: str, aliases: Iterable[str], path: Path | None = None
+) -> None:
+    """Create or update one active defect type and replace its aliases."""
+    name = canonical_name.strip()
+    if not name:
+        raise ValueError("缺陷类型标准名称不能为空")
+    cleaned_aliases = tuple(dict.fromkeys(alias.strip() for alias in aliases if alias.strip()))
+    connection = connect(path)
+    try:
+        connection.execute(
+            """INSERT INTO defect_types(canonical_name, is_active, updated_at)
+               VALUES (?, 1, CURRENT_TIMESTAMP)
+               ON CONFLICT(canonical_name) DO UPDATE SET
+                   is_active = 1, updated_at = CURRENT_TIMESTAMP""",
+            (name,),
+        )
+        defect_type_id = connection.execute(
+            "SELECT defect_type_id FROM defect_types WHERE canonical_name = ?", (name,)
+        ).fetchone()[0]
+        connection.execute("DELETE FROM defect_type_aliases WHERE defect_type_id = ?", (defect_type_id,))
+        connection.executemany(
+            "INSERT INTO defect_type_aliases(defect_type_id, alias) VALUES (?, ?)",
+            ((defect_type_id, alias) for alias in cleaned_aliases),
+        )
+        connection.commit()
+    finally:
+        connection.close()

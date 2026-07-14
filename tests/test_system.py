@@ -9,10 +9,10 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.audit import sanitize
-from app.database import db_session
+from app.database import db_session, replace_defect_type_aliases
 from app.main import app
 from app.processes import MANUFACTURING_STEPS
-from app.rag import search_knowledge
+from app.rag import _infer_filters, search_knowledge
 from app.reports import process_capability, recent_excursions, report_bundle, safe_select, timestamp_bounds
 from app.seed import seed_reference_data
 from app.sessions import append_message
@@ -111,6 +111,11 @@ class FabInsightTests(unittest.TestCase):
         self.assertEqual({item["source_type"] for item in results}, {"knowledge", "case"})
         self.assertTrue(all(item["retrieval"]["filters"]["process_step"] == "ETCH" for item in results))
         self.assertTrue(all(item["retrieval"]["filters"]["defect_type"] == "CD Shift" for item in results))
+
+    def test_rag_uses_database_managed_defect_aliases(self):
+        replace_defect_type_aliases("Pattern Collapse", ("pattern collapse", "图形倒塌"))
+        filters = _infer_filters("光刻后出现图形倒塌", None, None, None)
+        self.assertEqual(filters["defect_type"], "Pattern Collapse")
 
     def test_rag_gold_dataset(self):
         dataset_path = Path(__file__).resolve().parent.parent / "evaluations" / "rag_gold.json"

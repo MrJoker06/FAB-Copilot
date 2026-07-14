@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from datetime import date
 
-from .database import db_session, rows_to_dicts
+from .database import db_session, get_active_defect_aliases, rows_to_dicts
 from .processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS, PROCESS_ALIASES
 
 
@@ -26,25 +26,6 @@ def _search_terms(text: str) -> list[str]:
 
 
 PROCESS_STEPS = ANALYSIS_SCOPES
-DEFECT_ALIASES = {
-    "Scratch": ("scratch", "划伤"),
-    "Thickness": ("thickness", "膜厚"),
-    "Non-uniformity": ("non-uniformity", "uniformity", "均匀性", "不均匀"),
-    "Particle": ("particle", "颗粒"),
-    "Overlay": ("overlay", "套刻"),
-    "Focus": ("focus", "焦距"),
-    "CD Shift": ("cd shift", "cd偏移", "cd shift"),
-    "Residue": ("residue", "残留"),
-    "Dishing": ("dishing", "蝶形凹陷"),
-    "Yield": ("yield", "良率"),
-    "Cycle Time": ("cycle time", "周期时间"),
-    "Peeling": ("peeling", "剥落"),
-    "Sheet Resistance": ("sheet resistance", "片阻"),
-    "Dose Shift": ("dose shift", "剂量偏移"),
-    "Watermark": ("watermark", "水印"),
-    "Metal Contamination": ("metal contamination", "金属污染"),
-    "Measurement Drift": ("measurement drift", "量测漂移", "测量漂移"),
-}
 
 
 def _infer_filters(query: str, process_step: str | None, equipment_id: str | None, defect_type: str | None) -> dict:
@@ -64,7 +45,8 @@ def _infer_filters(query: str, process_step: str | None, equipment_id: str | Non
         )
     lower = query.lower().replace(" ", "")
     inferred_defect = defect_type or next(
-        (name for name, aliases in DEFECT_ALIASES.items() if any(alias.lower().replace(" ", "") in lower for alias in aliases)),
+        (name for name, aliases in get_active_defect_aliases().items()
+         if any(alias.lower().replace(" ", "") in lower for alias in aliases)),
         None,
     )
     return {"process_step": inferred_step, "equipment_id": inferred_equipment, "defect_type": inferred_defect}
