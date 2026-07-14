@@ -567,7 +567,7 @@ function renderAssistantInto(el, content, extra = {}) {
   const renderedContent = renderMarkdown(content, sourceReferences);
   const copyButton = '<button type="button" class="copy-answer" title="复制回答" aria-label="复制回答"><span aria-hidden="true">⧉</span><span>复制</span></button>';
   el.className = 'message assistant';
-  el.innerHTML = `<div class="message-meta"><div class="message-label">FAB COPILOT</div>${copyButton}</div>${renderToolTrace(extra.tool_trace, extra.run_id)}<div class="message-content markdown-content">${renderedContent}</div>`;
+  el.innerHTML = `<div class="message-meta"><div class="message-label">FAB COPILOT</div></div>${renderToolTrace(extra.tool_trace, extra.run_id)}<div class="message-content markdown-content">${renderedContent}</div><div class="message-actions">${copyButton}</div>`;
   const copyAnswer = el.querySelector('.copy-answer');
   copyAnswer.addEventListener('click', async () => {
     try {

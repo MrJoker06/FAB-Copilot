@@ -173,6 +173,7 @@ tbody tr:hover { background: #f8fbfa; }
 .message-label { color: var(--teal); font-size: 8px; font-weight: 800; }
 .message.user .message-label { color: #667775; text-align: right; }
 .message.user .message-meta { justify-content: flex-end; }
+.message-actions { display: flex; justify-content: flex-end; margin-top: 7px; }
 .copy-answer { min-width: 52px; height: 26px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 7px; border: 1px solid #cfdbd8; border-radius: 3px; color: #536b65; background: #fff; font-size: 9px; line-height: 1; }
 .copy-answer span:first-child { font-size: 13px; }
 .copy-answer:hover { color: var(--teal-dark); background: #e8efed; }.copy-answer.copied { color: #177257; }.copy-answer.copy-error { color: var(--coral); }
