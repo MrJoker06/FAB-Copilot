@@ -118,6 +118,24 @@ def restore_session(session_id: str) -> dict:
     return {"session_id": session_id, "archived_at": None, "updated_at": timestamp}
 
 
+def delete_archived_session(session_id: str) -> dict:
+    with db_session() as connection:
+        session = connection.execute(
+            "SELECT archived_at FROM chat_sessions WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        if session is None:
+            raise ValueError("会话不存在")
+        if session["archived_at"] is None:
+            raise ValueError("只能永久删除已归档会话")
+        connection.execute(
+            "DELETE FROM agent.chat_sessions WHERE session_id = ?",
+            (session_id,),
+        )
+        connection.commit()
+    return {"session_id": session_id, "deleted": True}
+
+
 def session_history(session_id: str, limit: int = 8) -> list[dict]:
     with db_session() as connection:
         exists = connection.execute("SELECT 1 FROM chat_sessions WHERE session_id = ?", (session_id,)).fetchone()
