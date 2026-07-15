@@ -30,6 +30,7 @@ from app.database import (
     get_active_defect_aliases,
     initialize,
     replace_defect_type_aliases,
+    sqlite_journal_mode,
 )
 from app.main import app
 from app.processes import MANUFACTURING_STEPS
@@ -124,6 +125,13 @@ class FabInsightTests(unittest.TestCase):
         with db_session() as connection:
             attached = {row[1] for row in connection.execute("PRAGMA database_list")}
         self.assertTrue({"main", "equipment", "quality", "knowledge", "agent"}.issubset(attached))
+
+    def test_sqlite_journal_mode_is_safe_for_wsl_mounted_databases(self):
+        with patch.dict(os.environ, {"FAB_SQLITE_JOURNAL_MODE": "auto"}):
+            self.assertEqual(sqlite_journal_mode(Path("/mnt/d/fab.db")), "DELETE")
+            self.assertEqual(sqlite_journal_mode(Path("/tmp/fab.db")), "WAL")
+        with patch.dict(os.environ, {"FAB_SQLITE_JOURNAL_MODE": "TRUNCATE"}):
+            self.assertEqual(sqlite_journal_mode(Path("/mnt/d/fab.db")), "TRUNCATE")
 
     def test_recent_excursions_supports_process_filter(self):
         rows = recent_excursions(process_step="CMP", limit=20)

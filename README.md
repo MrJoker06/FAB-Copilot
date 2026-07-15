@@ -44,6 +44,7 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseekv4-flash
 FAB_DATABASE_PATH=data/fab_history.db
 FAB_DATABASE_DIR=data/departments
+FAB_SQLITE_JOURNAL_MODE=auto
 AGENT_LOG_PATH=logs/agent_events.jsonl
 AGENT_RUN_LOG_DIR=logs/agent
 AGENT_LOG_MAX_BYTES=5242880
@@ -149,6 +150,8 @@ Agent 不直接访问数据库连接，而是通过 `app/agent.py` 中声明的�
 | AI运营 | `ai_operations.db` | 会话、消息、Agent运行、工具事件、回答来源 |
 
 应用连接会挂载五库并提供只读兼容视图，因此报表与受限SQL仍可使用原有表名。跨部门关系通过启动治理检查验证；各部门库内部继续使用外键和唯一约束。旧单库 `data/fab_history.db` 仅作为迁移源保留，不再承担运行写入。
+
+`FAB_SQLITE_JOURNAL_MODE=auto` 会在 WSL 的 `/mnt/*` Windows 挂载盘上使用 `DELETE` journal，避免 DrvFs 不支持 WAL 共享内存锁而产生 `disk I/O error`；Linux 本地文件系统继续使用 `WAL`。也可以显式设置为 `DELETE` 或 `WAL`。
 
 常用治理命令：
 

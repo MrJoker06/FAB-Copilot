@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -16,7 +17,6 @@ from .department_schemas import (
 
 
 SCHEMA = """
-PRAGMA journal_mode=WAL;
 PRAGMA foreign_keys=ON;
 
 CREATE TABLE IF NOT EXISTS lots (
@@ -392,9 +392,19 @@ def _connect_single(db_path: Path) -> sqlite3.Connection:
     return connection
 
 
+def sqlite_journal_mode(path: Path) -> str:
+    configured = os.getenv("FAB_SQLITE_JOURNAL_MODE", "auto").strip().upper()
+    if configured in {"DELETE", "WAL", "TRUNCATE", "PERSIST"}:
+        return configured
+    if configured != "AUTO":
+        raise ValueError("FAB_SQLITE_JOURNAL_MODE 必须是 auto、DELETE、WAL、TRUNCATE 或 PERSIST")
+    return "DELETE" if path.absolute().as_posix().startswith("/mnt/") else "WAL"
+
+
 def _initialize_legacy(path: Path) -> None:
     connection = _connect_single(path)
     try:
+        connection.execute(f"PRAGMA journal_mode={sqlite_journal_mode(path)}")
         connection.executescript(SCHEMA)
         existing_columns = {row[1] for row in connection.execute("PRAGMA table_info(historical_cases)")}
         for name, definition in CASE_GOVERNANCE_COLUMNS.items():
@@ -429,7 +439,7 @@ def _initialize_departments() -> None:
     for department, path in paths.items():
         connection = _connect_single(path)
         try:
-            connection.execute("PRAGMA journal_mode=WAL")
+            connection.execute(f"PRAGMA journal_mode={sqlite_journal_mode(path)}")
             connection.executescript(DEPARTMENT_SCHEMAS[department])
             if department == "agent":
                 message_columns = {row[1] for row in connection.execute("PRAGMA table_info(chat_messages)")}
