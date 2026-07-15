@@ -33,6 +33,7 @@ from .sessions import (
     list_sessions,
     record_agent_result,
     rename_session,
+    restore_session,
     session_history,
 )
 
@@ -260,6 +261,14 @@ def update_session(session_id: str, request: SessionUpdateRequest) -> dict:
 def delete_session(session_id: str) -> dict:
     try:
         return archive_session(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/api/sessions/{session_id}/restore")
+def restore_archived_session(session_id: str) -> dict:
+    try:
+        return restore_session(session_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

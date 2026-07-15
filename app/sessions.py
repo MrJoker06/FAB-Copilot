@@ -105,6 +105,19 @@ def archive_session(session_id: str) -> dict:
     return {"session_id": session_id, "archived_at": timestamp}
 
 
+def restore_session(session_id: str) -> dict:
+    timestamp = _now()
+    with db_session() as connection:
+        cursor = connection.execute(
+            "UPDATE agent.chat_sessions SET archived_at = NULL, updated_at = ? WHERE session_id = ?",
+            (timestamp, session_id),
+        )
+        if cursor.rowcount == 0:
+            raise ValueError("会话不存在")
+        connection.commit()
+    return {"session_id": session_id, "archived_at": None, "updated_at": timestamp}
+
+
 def session_history(session_id: str, limit: int = 8) -> list[dict]:
     with db_session() as connection:
         exists = connection.execute("SELECT 1 FROM chat_sessions WHERE session_id = ?", (session_id,)).fetchone()

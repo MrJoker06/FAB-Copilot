@@ -272,6 +272,15 @@ class FabInsightTests(unittest.TestCase):
             self.assertEqual(archived.status_code, 200)
             active_ids = {item["session_id"] for item in client.get("/api/sessions").json()}
             self.assertNotIn(session["session_id"], active_ids)
+            archived_sessions = client.get("/api/sessions?include_archived=true").json()
+            archived_item = next(item for item in archived_sessions if item["session_id"] == session["session_id"])
+            self.assertIsNotNone(archived_item["archived_at"])
+            restored = client.post(f"/api/sessions/{session['session_id']}/restore")
+            self.assertEqual(restored.status_code, 200)
+            self.assertIsNone(restored.json()["archived_at"])
+            active_ids = {item["session_id"] for item in client.get("/api/sessions").json()}
+            self.assertIn(session["session_id"], active_ids)
+            client.delete(f"/api/sessions/{session['session_id']}")
 
     def test_streaming_chat_emits_progress_before_result_and_persists(self):
         async def fake_agent(question, history, progress=None):

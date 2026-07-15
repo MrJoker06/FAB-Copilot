@@ -1,4 +1,4 @@
-const state = { dashboard: null, history: [], sessionId: null, sessions: [], streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
+const state = { dashboard: null, history: [], sessionId: null, sessions: [], sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
 const $ = (selector) => document.querySelector(selector);
 const processLabels = { LITHO: '光刻', ETCH: '刻蚀', CVD: '化学气相沉积', PVD: '物理气相沉积', DIFFUSION: '扩散/炉管', IMPLANT: '离子注入', CMP: '化学机械研磨', CLEAN: '湿法清洗', METROLOGY: '量测' };
 const toolLabels = { get_fab_overview: '查询工厂总览', get_yield_trend: '查询良率趋势', get_equipment_health: '查询设备健康', get_equipment_productivity: '查询设备生产状态', get_process_capability: '查询制程能力', get_defect_pareto: '查询缺陷 Pareto', get_recent_excursions: '查询近期异常', get_sensor_summary: '查询传感器摘要', search_knowledge: '检索知识与案例', query_manufacturing_data: '执行制造数据查询' };
@@ -432,6 +432,115 @@ async function openSession(sessionId) {
   await showSessionHistory(false);
 }
 
+function filteredSessionLibrary() {
+  if (state.sessionLibraryFilter === 'archived') return state.sessionLibrary.filter(item => item.archived_at);
+  if (state.sessionLibraryFilter === 'active') return state.sessionLibrary.filter(item => !item.archived_at);
+  return state.sessionLibrary;
+}
+
+function renderSessionLibrary() {
+  const sessions = filteredSessionLibrary();
+  const groups = new Map();
+  for (const session of sessions) {
+    const group = sessionGroup(session.updated_at);
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push(session);
+  }
+  const archivedCount = state.sessionLibrary.filter(item => item.archived_at).length;
+  $('#sessionLibraryCount').textContent = `${sessions.length} 个结果 · ${archivedCount} 个已归档`;
+  $('#sessionLibraryList').innerHTML = [...groups.entries()].map(([group, items]) => `
+    <section class="session-library-group"><h3>${group}</h3>${items.map(session => {
+      const active = session.session_id === state.selectedLibrarySessionId ? ' active' : '';
+      const timestamp = new Date(session.updated_at).toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false});
+      const archived = Boolean(session.archived_at);
+      return `<article class="session-library-item${active}" data-library-session-id="${escapeHtml(session.session_id)}"><button class="session-library-open" type="button"><strong>${escapeHtml(session.title)}</strong><span>${timestamp} · ${session.message_count} 条消息${session.model ? ` · ${escapeHtml(session.model)}` : ''}</span><small>${escapeHtml(session.last_message_preview || '空会话')}</small></button><span class="session-state${archived ? ' archived' : ''}">${archived ? '已归档' : '活跃'}</span></article>`;
+    }).join('')}</section>`).join('') || '<p class="empty session-empty">没有匹配的历史会话</p>';
+}
+
+function renderSessionLibraryPreview(session) {
+  state.selectedLibrarySessionId = session.session_id;
+  renderSessionLibrary();
+  $('#sessionLibraryReference').textContent = `CONVERSATION · ${session.session_id.slice(0, 8)}`;
+  $('#sessionLibraryTitle').textContent = session.title;
+  const created = new Date(session.created_at).toLocaleString('zh-CN', {hour12:false});
+  const updated = new Date(session.updated_at).toLocaleString('zh-CN', {hour12:false});
+  $('#sessionLibraryMeta').innerHTML = `<span>${session.archived_at ? '已归档' : '活跃会话'}</span><span>${session.messages.length} 条消息</span>${session.model ? `<span>${escapeHtml(session.model)}</span>` : ''}<span>创建 ${created}</span><span>更新 ${updated}</span>`;
+  $('#sessionLibraryActions').hidden = false;
+  $('#archiveLibrarySession').textContent = session.archived_at ? '恢复会话' : '归档';
+  $('#continueLibrarySession').textContent = session.archived_at ? '恢复并继续' : '在助手中继续';
+  $('#sessionLibraryMessages').innerHTML = session.messages.map(item => {
+    const assistant = item.role === 'assistant';
+    const sourceReferences = new Map();
+    for (const source of (item.metadata?.sources || [])) {
+      if (source.reference_id) sourceReferences.set(source.reference_id, source);
+      if (source.chunk_id) sourceReferences.set(String(source.chunk_id), source);
+    }
+    const content = assistant ? renderMarkdown(item.content, sourceReferences) : escapeHtml(item.content).replace(/\n/g, '<br>');
+    const timestamp = new Date(item.created_at).toLocaleString('zh-CN', {hour12:false});
+    const sources = assistant && item.metadata?.sources?.length
+      ? `<div class="source-list"><strong>知识来源</strong>${item.metadata.sources.map(source => sourceLink(source, `[来源 ${source.reference_id || `KB-${source.chunk_id}`}] ${source.source || ''} · ${source.section || ''}`)).join('')}</div>`
+      : '';
+    return `<section class="session-transcript-item ${assistant ? 'assistant' : 'user'}"><div class="session-transcript-heading"><strong>${assistant ? 'FAB COPILOT' : '使用者'}</strong><time>${timestamp}</time></div><div class="session-transcript-content markdown-content">${content}${sources}</div></section>`;
+  }).join('') || '<p class="empty">该会话尚无消息。</p>';
+}
+
+async function openSessionLibraryPreview(sessionId) {
+  const requestId = ++state.sessionLibraryPreviewRequestId;
+  const session = await api(`/api/sessions/${encodeURIComponent(sessionId)}`);
+  if (requestId !== state.sessionLibraryPreviewRequestId) return;
+  renderSessionLibraryPreview(session);
+}
+
+async function loadSessionLibrary(query = $('#sessionLibrarySearch').value) {
+  const requestId = ++state.sessionLibraryRequestId;
+  const sessions = await api(`/api/sessions?q=${encodeURIComponent(query)}&limit=200&include_archived=true`);
+  if (requestId !== state.sessionLibraryRequestId) return;
+  state.sessionLibrary = sessions;
+  const visible = filteredSessionLibrary();
+  const selected = visible.find(item => item.session_id === state.selectedLibrarySessionId) || visible[0];
+  if (selected) await openSessionLibraryPreview(selected.session_id);
+  else {
+    state.selectedLibrarySessionId = null;
+    renderSessionLibrary();
+    $('#sessionLibraryReference').textContent = 'CONVERSATION';
+    $('#sessionLibraryTitle').textContent = '选择一个历史会话';
+    $('#sessionLibraryMeta').innerHTML = '';
+    $('#sessionLibraryActions').hidden = true;
+    $('#sessionLibraryMessages').innerHTML = '<p class="empty">当前筛选条件下没有会话。</p>';
+  }
+}
+
+async function renameSelectedLibrarySession() {
+  const session = state.sessionLibrary.find(item => item.session_id === state.selectedLibrarySessionId);
+  if (!session) return;
+  const title = window.prompt('会话标题', session.title);
+  if (!title?.trim()) return;
+  await api(`/api/sessions/${encodeURIComponent(session.session_id)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:title.trim()})});
+  await loadSessionLibrary();
+}
+
+async function toggleSelectedLibrarySessionArchive() {
+  const session = state.sessionLibrary.find(item => item.session_id === state.selectedLibrarySessionId);
+  if (!session) return;
+  if (session.archived_at) {
+    await api(`/api/sessions/${encodeURIComponent(session.session_id)}/restore`, {method:'POST'});
+  } else {
+    if (!window.confirm(`归档会话“${session.title}”？`)) return;
+    await api(`/api/sessions/${encodeURIComponent(session.session_id)}`, {method:'DELETE'});
+    if (session.session_id === state.sessionId) await createConversation();
+  }
+  await loadSessionLibrary();
+}
+
+async function continueSelectedLibrarySession() {
+  const session = state.sessionLibrary.find(item => item.session_id === state.selectedLibrarySessionId);
+  if (!session || state.streaming) return;
+  if (session.archived_at) await api(`/api/sessions/${encodeURIComponent(session.session_id)}/restore`, {method:'POST'});
+  await openSession(session.session_id);
+  setAgentOpen(true);
+  await loadSessionLibrary();
+}
+
 function createLiveAnalysis() {
   const el = document.createElement('div'); el.className = 'message assistant live-analysis';
   el.innerHTML = '<div class="message-meta"><div class="message-label">FAB COPILOT · 分析中</div><span class="live-indicator">运行中</span></div><details class="live-path" open><summary><span class="live-path-title">正在建立分析路径</span><small class="live-path-count">准备中</small></summary><div class="live-path-body"><ol></ol><div class="trace-footer"><span>工具调用会在执行时实时更新</span><span class="live-run-id"></span></div></div></details><div class="message-content markdown-content streaming-answer" hidden></div>';
@@ -623,7 +732,10 @@ async function sendChat(message) {
     answer.innerHTML = `<p class="stream-error">分析请求失败：${escapeHtml(error.message)}</p>`;
     live.el.querySelector('.live-indicator').textContent = '失败';
   }
-  finally { state.streaming = false; $('#sendButton').disabled = false; $('#chatInput').focus(); }
+  finally {
+    state.streaming = false; $('#sendButton').disabled = false; $('#chatInput').focus();
+    if ($('#sessionsView').classList.contains('active')) loadSessionLibrary().catch(() => {});
+  }
 }
 
 function showView(name) {
@@ -634,6 +746,7 @@ function showView(name) {
   if (name === 'capability') loadCapability();
   else if (name === 'knowledge') loadKnowledgeIndex();
   else if (name === 'cases') loadCaseIndex();
+  else if (name === 'sessions') loadSessionLibrary();
   else if (name === 'monitor') loadMonitor();
   else requestAnimationFrame(() => state.dashboard && drawYieldChart(state.dashboard.yield_trend));
 }
@@ -670,6 +783,8 @@ async function init() {
   await loadDashboard();
   await restoreConversation();
   setAgentOpen(true, false);
+  const requestedView = new URLSearchParams(window.location.search).get('view');
+  if (['dashboard', 'capability', 'knowledge', 'cases', 'sessions', 'monitor'].includes(requestedView)) showView(requestedView);
   $('#dateForm').addEventListener('submit', e => { e.preventDefault(); state.capabilityCache.clear(); loadDashboard(); if ($('#capabilityView').classList.contains('active')) loadCapability(); });
   document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
   $('#focusAgent').addEventListener('click', toggleAgentPanel);
@@ -677,6 +792,12 @@ async function init() {
   $('#collapseAgent').addEventListener('click', () => setAgentOpen(false));
   $('#sessionHistoryButton').addEventListener('click', () => { if (!state.streaming) showSessionHistory($('#sessionHistoryView').hidden); });
   $('#closeSessionHistory').addEventListener('click', () => showSessionHistory(false));
+  $('#openSessionLibrary').addEventListener('click', async () => {
+    await showSessionHistory(false);
+    showView('sessions');
+    if (window.innerWidth <= 700) setAgentOpen(false, false);
+    $('#sessionsView').scrollIntoView({behavior:'smooth', block:'start'});
+  });
   let sessionSearchTimer = null;
   $('#sessionHistorySearch').addEventListener('input', event => {
     window.clearTimeout(sessionSearchTimer);
@@ -709,6 +830,38 @@ async function init() {
   $('#caseFilter').addEventListener('input', renderCaseList);
   $('#caseStepFilter').addEventListener('change', renderCaseList);
   $('#caseList').addEventListener('click', event => { const target=event.target.closest('[data-case-id]'); if (target) openHistoricalCase(target.dataset.caseId); });
+  let sessionLibrarySearchTimer = null;
+  $('#sessionLibrarySearch').addEventListener('input', event => {
+    window.clearTimeout(sessionLibrarySearchTimer);
+    sessionLibrarySearchTimer = window.setTimeout(() => loadSessionLibrary(event.target.value), 180);
+  });
+  $('#sessionLibraryFilter').addEventListener('click', async event => {
+    const button = event.target.closest('[data-session-filter]');
+    if (!button) return;
+    state.sessionLibraryFilter = button.dataset.sessionFilter;
+    document.querySelectorAll('[data-session-filter]').forEach(item => item.classList.toggle('active', item === button));
+    await loadSessionLibrary();
+  });
+  $('#sessionLibraryList').addEventListener('click', event => {
+    const item = event.target.closest('[data-library-session-id]');
+    if (item) openSessionLibraryPreview(item.dataset.librarySessionId);
+  });
+  $('#sessionLibraryMessages').addEventListener('click', event => {
+    const knowledgeTarget = event.target.closest('[data-knowledge-chunk]');
+    const caseTarget = event.target.closest('[data-case-id]');
+    if (knowledgeTarget) openKnowledgeChunk(Number(knowledgeTarget.dataset.knowledgeChunk));
+    else if (caseTarget) openHistoricalCase(caseTarget.dataset.caseId);
+  });
+  $('#renameLibrarySession').addEventListener('click', renameSelectedLibrarySession);
+  $('#archiveLibrarySession').addEventListener('click', toggleSelectedLibrarySessionArchive);
+  $('#continueLibrarySession').addEventListener('click', continueSelectedLibrarySession);
+  $('#newSessionFromLibrary').addEventListener('click', async () => {
+    if (state.streaming) return;
+    const session = await createConversation('已创建新会话。');
+    state.selectedLibrarySessionId = session.session_id;
+    setAgentOpen(true);
+    await loadSessionLibrary();
+  });
   $('#chatMessages').addEventListener('click', event => {
     const knowledgeTarget=event.target.closest('[data-knowledge-chunk]');
     const caseTarget=event.target.closest('[data-case-id]');
