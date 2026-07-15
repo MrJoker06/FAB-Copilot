@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="半导体制造报表与数据分析 Agent">
   <title>Fab Insight</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20260715-5">
+  <link rel="stylesheet" href="/static/styles.css?v=20260715-6">
 </head>
 <body>
   <header class="topbar">
@@ -175,7 +175,7 @@
 
     <aside class="agent-panel" aria-label="Fab Copilot">
       <div id="agentResizeHandle" class="agent-resize-handle" role="separator" tabindex="0" aria-label="调整 Fab Copilot 宽度" aria-orientation="vertical" aria-valuemin="300" aria-valuemax="620" aria-valuenow="380" title="拖动调整宽度，双击恢复默认"></div>
-      <div class="agent-heading"><div class="agent-icon">◇</div><div class="agent-heading-copy"><strong>Fab Copilot</strong><small id="agentMode">数据分析助手</small></div><button id="sessionHistoryButton" class="icon-btn" title="历史会话" aria-label="历史会话">↶</button><button id="clearChat" class="icon-btn" title="新建会话" aria-label="新建会话">＋</button><button id="collapseAgent" class="icon-btn" title="收起分析助手" aria-label="收起分析助手">›</button></div>
+      <div class="agent-heading"><div class="agent-icon">◇</div><div class="agent-heading-copy"><strong>Fab Copilot</strong><small id="agentMode">数据分析助手</small></div><button id="sessionHistoryButton" class="session-history-button" title="打开历史会话" aria-label="打开历史会话" aria-expanded="false"><span aria-hidden="true">◷</span><span>历史会话</span></button><button id="clearChat" class="icon-btn" title="新建会话" aria-label="新建会话">＋</button><button id="collapseAgent" class="icon-btn" title="收起分析助手" aria-label="收起分析助手">›</button></div>
       <div id="chatMessages" class="chat-messages" aria-live="polite">
         <div class="message assistant"><div class="message-label">FAB COPILOT</div><div class="message-content">我可以查询制造报表、定位设备异常，并结合厂内 SOP 给出分析建议。</div></div>
         <div class="suggestions">
@@ -192,6 +192,19 @@
   </div>
 
   <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+  <dialog id="sessionRenameDialog" class="settings-dialog session-rename-dialog">
+    <form id="sessionRenameForm">
+      <div class="dialog-heading"><div><p class="eyebrow">RENAME CONVERSATION</p><h2>重命名会话</h2></div><button id="closeSessionRenameDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="dialog-body">
+        <label class="field-label" for="sessionRenameInput">会话标题</label>
+        <input id="sessionRenameInput" class="dialog-text-input" type="text" maxlength="80" autocomplete="off" aria-describedby="sessionRenameCount sessionRenameMessage" required>
+        <div class="field-meta"><span id="sessionRenameCount">0 / 80</span></div>
+        <div id="sessionRenameMessage" class="settings-message error" role="alert" hidden></div>
+      </div>
+      <div class="dialog-actions"><button id="cancelSessionRename" type="button" class="secondary-btn">取消</button><button id="confirmSessionRename" type="submit" class="primary-btn">保存</button></div>
+    </form>
+  </dialog>
 
   <dialog id="sessionDeleteDialog" class="settings-dialog session-delete-dialog">
     <form id="sessionDeleteForm">
@@ -215,6 +228,6 @@
       <div class="dialog-actions"><button id="cancelModelSettings" type="button" class="secondary-btn">取消</button><button id="saveModelSettings" type="submit" class="primary-btn">应用设置</button></div>
     </form>
   </dialog>
-  <script src="/static/app.js?v=20260715-5" defer></script>
+  <script src="/static/app.js?v=20260715-6" defer></script>
 </body>
 </html>

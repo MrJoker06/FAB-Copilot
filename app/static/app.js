@@ -1,4 +1,4 @@
-const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingDeleteSessionId: null, toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
+const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionId: null, toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
 const $ = (selector) => document.querySelector(selector);
 const AGENT_WIDTH_KEY = 'fabInsightAgentWidth';
 const AGENT_MIN_WIDTH = 300;
@@ -509,14 +509,50 @@ async function loadSessionLibrary(query = $('#sessionLibrarySearch').value) {
   }
 }
 
-async function renameSelectedLibrarySession() {
-  const session = state.sessionLibrary.find(item => item.session_id === state.selectedLibrarySessionId);
+function updateSessionRenameCount() {
+  $('#sessionRenameCount').textContent = `${$('#sessionRenameInput').value.length} / 80`;
+}
+
+function openSessionRenameDialog(sessionId = state.selectedLibrarySessionId) {
+  const session = state.sessionLibrary.find(item => item.session_id === sessionId);
   if (!session) return;
-  const title = window.prompt('会话标题', session.title);
-  if (!title?.trim()) return;
-  await api(`/api/sessions/${encodeURIComponent(session.session_id)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:title.trim()})});
-  await loadSessionLibrary();
-  showToast('会话已重命名');
+  state.pendingRenameSessionId = session.session_id;
+  $('#sessionRenameInput').value = session.title;
+  $('#sessionRenameMessage').hidden = true;
+  updateSessionRenameCount();
+  $('#sessionRenameDialog').showModal();
+  requestAnimationFrame(() => $('#sessionRenameInput').select());
+}
+
+async function renameSelectedLibrarySession() {
+  if ($('#confirmSessionRename').disabled) return;
+  const sessionId = state.pendingRenameSessionId;
+  const session = state.sessionLibrary.find(item => item.session_id === sessionId);
+  const title = $('#sessionRenameInput').value.trim();
+  if (!session) return;
+  if (!title) {
+    $('#sessionRenameMessage').textContent = '会话标题不能为空。';
+    $('#sessionRenameMessage').hidden = false;
+    $('#sessionRenameInput').focus();
+    return;
+  }
+  if (title === session.title) {
+    $('#sessionRenameDialog').close();
+    return;
+  }
+  $('#confirmSessionRename').disabled = true;
+  $('#sessionRenameMessage').hidden = true;
+  try {
+    await api(`/api/sessions/${encodeURIComponent(session.session_id)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title})});
+    $('#sessionRenameDialog').close();
+    await loadSessionLibrary();
+    showToast('会话已重命名');
+  } catch (error) {
+    $('#sessionRenameMessage').textContent = `保存失败：${error.message}`;
+    $('#sessionRenameMessage').hidden = false;
+  } finally {
+    $('#confirmSessionRename').disabled = false;
+  }
 }
 
 function resetConversationDraft(message = '已准备新会话。') {
@@ -596,7 +632,7 @@ async function permanentlyDeleteSelectedSession() {
 async function runSessionLibraryAction(sessionId, action) {
   state.selectedLibrarySessionId = sessionId;
   try {
-    if (action === 'rename') await renameSelectedLibrarySession();
+    if (action === 'rename') openSessionRenameDialog(sessionId);
     else if (action === 'archive') await archiveLibrarySession(sessionId);
     else if (action === 'restore') await restoreLibrarySession(sessionId);
     else if (action === 'delete') openSessionDeleteDialog(sessionId);
@@ -837,7 +873,11 @@ function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(v => v.classList.remove('active'));
   $(`#${name}View`).classList.add('active'); document.querySelector(`[data-view="${name}"]`)?.classList.add('active');
-  $('#sessionHistoryButton').classList.toggle('active', name === 'sessions');
+  const historyActive = name === 'sessions';
+  $('#sessionHistoryButton').classList.toggle('active', historyActive);
+  $('#sessionHistoryButton').setAttribute('aria-expanded', String(historyActive));
+  $('#sessionHistoryButton').setAttribute('aria-label', historyActive ? '关闭历史会话' : '打开历史会话');
+  $('#sessionHistoryButton').title = historyActive ? '关闭历史会话' : '打开历史会话';
   if (!document.querySelector('.app-shell').classList.contains('agent-collapsed')) $('#focusAgent').classList.add('active');
   if (name === 'capability') loadCapability();
   else if (name === 'knowledge') loadKnowledgeIndex();
@@ -1016,10 +1056,15 @@ async function init() {
     if (knowledgeTarget) openKnowledgeChunk(Number(knowledgeTarget.dataset.knowledgeChunk));
     else if (caseTarget) openHistoricalCase(caseTarget.dataset.caseId);
   });
-  $('#renameLibrarySession').addEventListener('click', renameSelectedLibrarySession);
+  $('#renameLibrarySession').addEventListener('click', () => openSessionRenameDialog());
   $('#archiveLibrarySession').addEventListener('click', toggleSelectedLibrarySessionArchive);
   $('#deleteLibrarySession').addEventListener('click', () => openSessionDeleteDialog(state.selectedLibrarySessionId));
   $('#continueLibrarySession').addEventListener('click', continueSelectedLibrarySession);
+  $('#sessionRenameForm').addEventListener('submit', event => { event.preventDefault(); renameSelectedLibrarySession(); });
+  $('#sessionRenameInput').addEventListener('input', () => { updateSessionRenameCount(); $('#sessionRenameMessage').hidden = true; });
+  $('#closeSessionRenameDialog').addEventListener('click', () => $('#sessionRenameDialog').close());
+  $('#cancelSessionRename').addEventListener('click', () => $('#sessionRenameDialog').close());
+  $('#sessionRenameDialog').addEventListener('close', () => { state.pendingRenameSessionId = null; $('#sessionRenameMessage').hidden = true; });
   $('#sessionDeleteForm').addEventListener('submit', event => { event.preventDefault(); permanentlyDeleteSelectedSession().catch(error => showToast(`删除失败：${error.message}`, {tone:'error'})); });
   $('#closeSessionDeleteDialog').addEventListener('click', () => $('#sessionDeleteDialog').close());
   $('#cancelSessionDelete').addEventListener('click', () => $('#sessionDeleteDialog').close());
