@@ -1,4 +1,4 @@
-const state = { dashboard: null, history: [], sessionId: null, sessions: [], sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
+const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
 const $ = (selector) => document.querySelector(selector);
 const processLabels = { LITHO: '光刻', ETCH: '刻蚀', CVD: '化学气相沉积', PVD: '物理气相沉积', DIFFUSION: '扩散/炉管', IMPLANT: '离子注入', CMP: '化学机械研磨', CLEAN: '湿法清洗', METROLOGY: '量测' };
 const toolLabels = { get_fab_overview: '查询工厂总览', get_yield_trend: '查询良率趋势', get_equipment_health: '查询设备健康', get_equipment_productivity: '查询设备生产状态', get_process_capability: '查询制程能力', get_defect_pareto: '查询缺陷 Pareto', get_recent_excursions: '查询近期异常', get_sensor_summary: '查询传感器摘要', search_knowledge: '检索知识与案例', query_manufacturing_data: '执行制造数据查询' };
@@ -389,47 +389,12 @@ function sessionGroup(timestamp) {
   return '更早';
 }
 
-function renderSessionHistory() {
-  const groups = new Map();
-  for (const session of state.sessions) {
-    const group = sessionGroup(session.updated_at);
-    if (!groups.has(group)) groups.set(group, []);
-    groups.get(group).push(session);
-  }
-  $('#sessionHistoryCount').textContent = `${state.sessions.length} 个会话`;
-  $('#sessionHistoryList').innerHTML = [...groups.entries()].map(([group, sessions]) => `
-    <section class="session-group"><h3>${group}</h3>${sessions.map(session => {
-      const active = session.session_id === state.sessionId ? ' active' : '';
-      const time = new Date(session.updated_at).toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false});
-      return `<article class="session-item${active}" data-session-id="${escapeHtml(session.session_id)}"><button class="session-open" type="button"><strong>${escapeHtml(session.title)}</strong><span>${time} · ${session.message_count} 条${session.model ? ` · ${escapeHtml(session.model)}` : ''}</span><small>${escapeHtml(session.last_message_preview || '空会话')}</small></button><div class="session-item-actions"><button type="button" data-session-action="rename">重命名</button><button type="button" data-session-action="archive">归档</button></div></article>`;
-    }).join('')}</section>`).join('') || '<p class="empty session-empty">没有匹配的历史会话</p>';
-}
-
-async function loadSessionHistory(query = '') {
-  state.sessions = await api(`/api/sessions?q=${encodeURIComponent(query)}&limit=200`);
-  renderSessionHistory();
-}
-
-async function showSessionHistory(show = true) {
-  $('#sessionHistoryView').hidden = !show;
-  $('#chatMessages').hidden = show;
-  $('#chatForm').hidden = show;
-  $('#sessionHistoryButton').classList.toggle('active', show);
-  if (show) {
-    await loadSessionHistory($('#sessionHistorySearch').value);
-    $('#sessionHistorySearch').focus();
-  } else {
-    $('#chatInput').focus();
-  }
-}
-
 async function openSession(sessionId) {
   const session = await api(`/api/sessions/${encodeURIComponent(sessionId)}`);
   state.sessionId = session.session_id;
   localStorage.setItem('fabInsightSessionId', state.sessionId);
   renderConversation(session.messages);
   $('#agentMode').textContent = session.messages.length ? `已恢复 · ${session.messages.length} 条消息` : '数据分析助手';
-  await showSessionHistory(false);
 }
 
 function filteredSessionLibrary() {
@@ -537,8 +502,19 @@ async function continueSelectedLibrarySession() {
   if (!session || state.streaming) return;
   if (session.archived_at) await api(`/api/sessions/${encodeURIComponent(session.session_id)}/restore`, {method:'POST'});
   await openSession(session.session_id);
+  showView(state.previousView || 'dashboard');
   setAgentOpen(true);
-  await loadSessionLibrary();
+}
+
+function openSessionLibraryWorkspace() {
+  if (state.streaming) return;
+  showView('sessions');
+  if (window.innerWidth <= 700) setAgentOpen(false, false);
+  $('#sessionsView').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function closeSessionLibraryWorkspace() {
+  showView(state.previousView || 'dashboard');
 }
 
 function createLiveAnalysis() {
@@ -739,9 +715,12 @@ async function sendChat(message) {
 }
 
 function showView(name) {
+  if (name !== 'sessions') state.previousView = name;
+  state.activeView = name;
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(v => v.classList.remove('active'));
   $(`#${name}View`).classList.add('active'); document.querySelector(`[data-view="${name}"]`)?.classList.add('active');
+  $('#sessionHistoryButton').classList.toggle('active', name === 'sessions');
   if (!document.querySelector('.app-shell').classList.contains('agent-collapsed')) $('#focusAgent').classList.add('active');
   if (name === 'capability') loadCapability();
   else if (name === 'knowledge') loadKnowledgeIndex();
@@ -790,38 +769,8 @@ async function init() {
   $('#focusAgent').addEventListener('click', toggleAgentPanel);
   $('#mobileAgentToggle').addEventListener('click', toggleAgentPanel);
   $('#collapseAgent').addEventListener('click', () => setAgentOpen(false));
-  $('#sessionHistoryButton').addEventListener('click', () => { if (!state.streaming) showSessionHistory($('#sessionHistoryView').hidden); });
-  $('#closeSessionHistory').addEventListener('click', () => showSessionHistory(false));
-  $('#openSessionLibrary').addEventListener('click', async () => {
-    await showSessionHistory(false);
-    showView('sessions');
-    if (window.innerWidth <= 700) setAgentOpen(false, false);
-    $('#sessionsView').scrollIntoView({behavior:'smooth', block:'start'});
-  });
-  let sessionSearchTimer = null;
-  $('#sessionHistorySearch').addEventListener('input', event => {
-    window.clearTimeout(sessionSearchTimer);
-    sessionSearchTimer = window.setTimeout(() => loadSessionHistory(event.target.value), 180);
-  });
-  $('#sessionHistoryList').addEventListener('click', async event => {
-    const item = event.target.closest('[data-session-id]');
-    if (!item || state.streaming) return;
-    const sessionId = item.dataset.sessionId;
-    const action = event.target.closest('[data-session-action]')?.dataset.sessionAction;
-    if (!action) { await openSession(sessionId); return; }
-    const session = state.sessions.find(value => value.session_id === sessionId);
-    if (action === 'rename') {
-      const title = window.prompt('会话标题', session?.title || '');
-      if (title?.trim()) {
-        await api(`/api/sessions/${encodeURIComponent(sessionId)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:title.trim()})});
-        await loadSessionHistory($('#sessionHistorySearch').value);
-      }
-    } else if (action === 'archive' && window.confirm(`归档会话“${session?.title || '未命名会话'}”？`)) {
-      await api(`/api/sessions/${encodeURIComponent(sessionId)}`, {method:'DELETE'});
-      if (sessionId === state.sessionId) await createConversation();
-      await loadSessionHistory($('#sessionHistorySearch').value);
-    }
-  });
+  $('#sessionHistoryButton').addEventListener('click', () => state.activeView === 'sessions' ? closeSessionLibraryWorkspace() : openSessionLibraryWorkspace());
+  $('#closeSessionLibrary').addEventListener('click', closeSessionLibraryWorkspace);
   $('#stepSelector').addEventListener('click', e => { if (!e.target.dataset.step) return; document.querySelectorAll('#stepSelector button').forEach(b=>b.classList.remove('active')); e.target.classList.add('active'); loadCapability(e.target.dataset.step); });
   $('#refreshMonitor').addEventListener('click', loadMonitor);
   $('#monitorHours').addEventListener('change', loadMonitor);
@@ -871,7 +820,7 @@ async function init() {
     else if (suggestion) sendChat(suggestion.textContent);
   });
   $('#chatForm').addEventListener('submit', e => { e.preventDefault(); sendChat($('#chatInput').value); });
-  $('#clearChat').addEventListener('click', async () => { if (!state.streaming) { await createConversation('已创建新会话。'); await showSessionHistory(false); } });
+  $('#clearChat').addEventListener('click', async () => { if (!state.streaming) await createConversation('已创建新会话。'); });
   $('#modelSettingsButton').addEventListener('click', openModelSettings);
   $('#modelSettingsForm').addEventListener('submit', saveModelSettings);
   $('#closeModelDialog').addEventListener('click', () => $('#modelDialog').close());
