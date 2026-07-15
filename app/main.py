@@ -2,20 +2,23 @@ from __future__ import annotations
 
 import asyncio
 import json
+import traceback
 import uuid
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, SecretStr
 
 from .agent import run_agent
-from .audit import emit, monitoring_summary, read_events
-from .config import PROJECT_DIR, get_settings, public_model_config, update_model_config
+from .audit import CONTENT_MODE, GIT_COMMIT, current_request_id, emit, monitoring_summary, read_events
+from .config import APP_VERSION, PROJECT_DIR, get_settings, public_model_config, update_model_config
 from .database import db_session, department_paths, ensure_department_databases
 from .processes import MANUFACTURING_STEPS, PROCESS_STEP_PATTERN
+from .observability import RequestAuditMiddleware
 from .rag import (
     get_historical_case,
     get_knowledge_document,
@@ -28,6 +31,8 @@ from .seed import generate_database, seed_reference_data
 from .sessions import (
     append_message,
     archive_session,
+    cached_agent_result,
+    client_message_content,
     create_session,
     delete_session_permanently,
     get_session,
@@ -67,7 +72,61 @@ app = FastAPI(
     description="虚拟半导体制造报表、RAG 与数据分析 Agent",
     lifespan=lifespan,
 )
+app.add_middleware(RequestAuditMiddleware)
 app.mount("/static", StaticFiles(directory=PROJECT_DIR / "app" / "static"), name="static")
+
+
+def error_payload(error_code: str, detail: str, retryable: bool = False, **extra) -> dict:
+    return {
+        "error_code": error_code,
+        "detail": detail,
+        "request_id": current_request_id(),
+        "retryable": retryable,
+        **extra,
+    }
+
+
+def http_problem(status_code: int, error_code: str, detail: str, retryable: bool = False) -> HTTPException:
+    return HTTPException(status_code=status_code, detail={
+        "error_code": error_code,
+        "message": detail,
+        "retryable": retryable,
+    })
+
+
+@app.exception_handler(HTTPException)
+async def handle_http_error(_: Request, exc: HTTPException) -> JSONResponse:
+    if isinstance(exc.detail, dict):
+        detail = str(exc.detail.get("message") or "请求失败")
+        error_code = str(exc.detail.get("error_code") or "HTTP_ERROR")
+        retryable = bool(exc.detail.get("retryable", exc.status_code >= 500))
+    else:
+        detail = str(exc.detail)
+        error_code = "NOT_FOUND" if exc.status_code == 404 else "HTTP_ERROR"
+        retryable = exc.status_code >= 500
+    return JSONResponse(status_code=exc.status_code, content=error_payload(error_code, detail, retryable), headers=exc.headers)
+
+
+@app.exception_handler(RequestValidationError)
+async def handle_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
+    fields = [".".join(str(part) for part in item.get("loc", [])[1:]) for item in exc.errors()]
+    return JSONResponse(
+        status_code=422,
+        content=error_payload("VALIDATION_ERROR", "请求参数不符合要求", False, fields=[field for field in fields if field]),
+    )
+
+
+@app.exception_handler(Exception)
+async def handle_unexpected_error(_: Request, exc: Exception) -> JSONResponse:
+    request_id = current_request_id() or f"error-{uuid.uuid4()}"
+    emit(
+        "api_exception",
+        request_id,
+        status="error",
+        error_type=type(exc).__name__,
+        **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
+    )
+    return JSONResponse(status_code=500, content=error_payload("INTERNAL_ERROR", "服务器内部错误", True))
 
 
 class ChatMessage(BaseModel):
@@ -79,6 +138,7 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=2, max_length=4000)
     history: list[ChatMessage] = Field(default_factory=list, max_length=20)
     session_id: str | None = None
+    client_message_id: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
 
 
 class ModelConfigRequest(BaseModel):
@@ -122,8 +182,14 @@ def health() -> dict:
         },
         "model": settings.deepseek_model,
         "agent_configured": bool(settings.deepseek_api_key),
+        "build": {"version": APP_VERSION, "git_commit": GIT_COMMIT},
         "reference_data": {"knowledge_chunks": knowledge_chunks, "historical_cases": historical_cases},
     }
+
+
+@app.get("/api/version")
+def version() -> dict:
+    return {"version": APP_VERSION, "git_commit": GIT_COMMIT}
 
 
 @app.get("/api/settings/model")
@@ -210,30 +276,24 @@ def rag_search(
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest) -> dict:
-    try:
-        session = create_session(request.message[:50]) if not request.session_id else get_session(request.session_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    session_id = session["session_id"]
-    history = session_history(session_id)
-    append_message(session_id, "user", request.message)
+    session_id, history, cached = _prepare_chat(request)
+    if cached:
+        cached["session_id"] = session_id
+        cached["request_id"] = current_request_id()
+        return cached
     try:
         result = await run_agent(request.message, history or [item.model_dump() for item in request.history])
         result["session_id"] = session_id
+        result["request_id"] = current_request_id()
+        result["client_message_id"] = request.client_message_id
         message = append_message(session_id, "assistant", result["answer"], result)
         record_agent_result(session_id, message["message_id"], result)
         return result
     except httpx.HTTPStatusError as exc:
-        detail = f"DeepSeek API 返回 {exc.response.status_code}"
-        try:
-            api_error = exc.response.json().get("error", {}).get("message")
-            if api_error:
-                detail += f": {api_error}"
-        except Exception:
-            pass
-        raise HTTPException(status_code=502, detail=detail) from exc
+        detail, retryable = _model_status_error(exc)
+        raise http_problem(502, "MODEL_UPSTREAM_ERROR", detail, retryable) from exc
     except httpx.RequestError as exc:
-        raise HTTPException(status_code=502, detail=f"无法连接 DeepSeek API: {exc}") from exc
+        raise http_problem(502, "MODEL_NETWORK_ERROR", f"无法连接 DeepSeek API: {exc}", True) from exc
 
 
 @app.post("/api/sessions")
@@ -294,17 +354,53 @@ def _stream_line(event_type: str, **payload) -> bytes:
     return (json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str) + "\n").encode("utf-8")
 
 
-@app.post("/api/chat/stream")
-async def chat_stream(request: ChatRequest) -> StreamingResponse:
+def _prepare_chat(request: ChatRequest) -> tuple[str, list[dict], dict | None]:
     try:
         session = create_session(request.message[:50]) if not request.session_id else get_session(request.session_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise http_problem(404, "SESSION_NOT_FOUND", str(exc), False) from exc
     session_id = session["session_id"]
+    existing_content = client_message_content(session_id, request.client_message_id)
+    if existing_content is not None and existing_content != request.message:
+        raise http_problem(409, "IDEMPOTENCY_CONFLICT", "同一客户端消息编号不能用于不同内容", False)
+    cached = cached_agent_result(session_id, request.client_message_id)
+    if cached:
+        return session_id, [], cached
     history = session_history(session_id)
-    append_message(session_id, "user", request.message)
+    user_message = append_message(
+        session_id,
+        "user",
+        request.message,
+        client_message_id=request.client_message_id,
+    )
+    if user_message.get("duplicate") and history and history[-1].get("role") == "user" and history[-1].get("content") == request.message:
+        history = history[:-1]
+    return session_id, history, None
+
+
+def _model_status_error(exc: httpx.HTTPStatusError) -> tuple[str, bool]:
+    status_code = exc.response.status_code
+    detail = f"DeepSeek API 返回 {status_code}"
+    try:
+        api_error = exc.response.json().get("error", {}).get("message")
+        if api_error:
+            detail += f": {str(api_error)[:300]}"
+    except Exception:
+        pass
+    return detail, status_code == 429 or status_code >= 500
+
+
+@app.post("/api/chat/stream")
+async def chat_stream(request: ChatRequest) -> StreamingResponse:
+    session_id, history, cached = _prepare_chat(request)
 
     async def event_stream():
+        yield _stream_line("session", session_id=session_id)
+        if cached:
+            cached["session_id"] = session_id
+            cached["request_id"] = current_request_id()
+            yield _stream_line("result", result=cached)
+            return
         queue: asyncio.Queue[dict] = asyncio.Queue()
 
         async def progress(event: dict) -> None:
@@ -312,7 +408,6 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             await asyncio.sleep(0)
 
         task = asyncio.create_task(run_agent(request.message, history, progress))
-        yield _stream_line("session", session_id=session_id)
         try:
             while not task.done() or not queue.empty():
                 try:
@@ -322,6 +417,8 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                 yield _stream_line("progress", **event)
             result = await task
             result["session_id"] = session_id
+            result["request_id"] = current_request_id()
+            result["client_message_id"] = request.client_message_id
             message = append_message(session_id, "assistant", result["answer"], result)
             record_agent_result(session_id, message["message_id"], result)
             yield _stream_line("result", result=result)
@@ -329,18 +426,26 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             task.cancel()
             raise
         except httpx.HTTPStatusError as exc:
-            detail = f"DeepSeek API 返回 {exc.response.status_code}"
-            try:
-                api_error = exc.response.json().get("error", {}).get("message")
-                if api_error:
-                    detail += f": {api_error}"
-            except Exception:
-                pass
-            yield _stream_line("error", detail=detail)
+            detail, retryable = _model_status_error(exc)
+            problem = error_payload("MODEL_UPSTREAM_ERROR", detail, retryable)
+            emit("api_stream_error", current_request_id() or session_id, status="error", error_type="MODEL_UPSTREAM_ERROR", session_id=session_id, retryable=retryable)
+            yield _stream_line("error", detail=detail, error=problem)
         except httpx.RequestError as exc:
-            yield _stream_line("error", detail=f"无法连接 DeepSeek API: {exc}")
+            detail = f"无法连接 DeepSeek API: {exc}"
+            emit("api_stream_error", current_request_id() or session_id, status="error", error_type="MODEL_NETWORK_ERROR", session_id=session_id, retryable=True)
+            yield _stream_line("error", detail=detail, error=error_payload("MODEL_NETWORK_ERROR", detail, True))
         except Exception as exc:
-            yield _stream_line("error", detail=f"分析失败: {exc}")
+            detail = f"分析失败: {exc}"
+            emit(
+                "api_stream_error",
+                current_request_id() or session_id,
+                status="error",
+                error_type=type(exc).__name__,
+                session_id=session_id,
+                retryable=False,
+                **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
+            )
+            yield _stream_line("error", detail=detail, error=error_payload("ANALYSIS_ERROR", detail, False))
         finally:
             if not task.done():
                 task.cancel()

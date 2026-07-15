@@ -149,7 +149,48 @@ def session_history(session_id: str, limit: int = 8) -> list[dict]:
     return [dict(row) for row in rows]
 
 
-def append_message(session_id: str, role: str, content: str, metadata: dict | None = None) -> dict:
+def cached_agent_result(session_id: str, client_message_id: str | None) -> dict | None:
+    if not client_message_id:
+        return None
+    with db_session() as connection:
+        row = connection.execute(
+            """SELECT content, metadata_json FROM chat_messages
+               WHERE session_id = ? AND role = 'assistant'
+                 AND json_extract(metadata_json, '$.client_message_id') = ?
+               ORDER BY message_id DESC LIMIT 1""",
+            (session_id, client_message_id),
+        ).fetchone()
+    if row is None:
+        return None
+    try:
+        result = json.loads(row["metadata_json"] or "{}")
+    except json.JSONDecodeError:
+        result = {}
+    result["answer"] = row["content"]
+    result["client_message_id"] = client_message_id
+    result["cached"] = True
+    return result
+
+
+def client_message_content(session_id: str, client_message_id: str | None) -> str | None:
+    if not client_message_id:
+        return None
+    with db_session() as connection:
+        row = connection.execute(
+            """SELECT content FROM chat_messages
+               WHERE session_id = ? AND role = 'user' AND client_message_id = ?""",
+            (session_id, client_message_id),
+        ).fetchone()
+    return None if row is None else str(row["content"])
+
+
+def append_message(
+    session_id: str,
+    role: str,
+    content: str,
+    metadata: dict | None = None,
+    client_message_id: str | None = None,
+) -> dict:
     if role not in {"user", "assistant"}:
         raise ValueError("不支持的消息角色")
     timestamp = _now()
@@ -160,10 +201,37 @@ def append_message(session_id: str, role: str, content: str, metadata: dict | No
         ).fetchone()
         if session is None:
             raise ValueError("会话不存在")
+        if role == "user" and client_message_id:
+            existing = connection.execute(
+                """SELECT message_id, role, content, metadata_json, created_at
+                   FROM chat_messages WHERE session_id = ? AND role = 'user' AND client_message_id = ?""",
+                (session_id, client_message_id),
+            ).fetchone()
+            if existing is not None:
+                try:
+                    existing_metadata = json.loads(existing["metadata_json"] or "{}")
+                except json.JSONDecodeError:
+                    existing_metadata = {}
+                return {
+                    "message_id": existing["message_id"],
+                    "role": existing["role"],
+                    "content": existing["content"],
+                    "metadata": existing_metadata,
+                    "created_at": existing["created_at"],
+                    "client_message_id": client_message_id,
+                    "duplicate": True,
+                }
         cursor = connection.execute(
-            """INSERT INTO agent.chat_messages(session_id, role, content, metadata_json, created_at)
-               VALUES (?, ?, ?, ?, ?)""",
-            (session_id, role, content, json.dumps(metadata or {}, ensure_ascii=False, default=str), timestamp),
+            """INSERT INTO agent.chat_messages(session_id, role, content, metadata_json, client_message_id, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                session_id,
+                role,
+                content,
+                json.dumps(metadata or {}, ensure_ascii=False, default=str),
+                client_message_id if role == "user" else None,
+                timestamp,
+            ),
         )
         title = session["title"]
         if role == "user" and title == "新会话":
@@ -179,7 +247,15 @@ def append_message(session_id: str, role: str, content: str, metadata: dict | No
             (title, timestamp, preview, model, model, session_id),
         )
         connection.commit()
-    return {"message_id": cursor.lastrowid, "role": role, "content": content, "metadata": metadata or {}, "created_at": timestamp}
+    return {
+        "message_id": cursor.lastrowid,
+        "role": role,
+        "content": content,
+        "metadata": metadata or {},
+        "created_at": timestamp,
+        "client_message_id": client_message_id if role == "user" else None,
+        "duplicate": False,
+    }
 
 
 def record_agent_result(session_id: str, assistant_message_id: int, result: dict) -> None:

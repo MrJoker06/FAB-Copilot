@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
+import random
 import time
 import traceback
 import uuid
@@ -124,7 +126,9 @@ async def _stream_completion(
     headers: dict,
     request_payload: dict,
     progress: ProgressCallback | None,
+    stream_state: dict[str, bool] | None = None,
 ) -> tuple[dict, dict, str | None]:
+    stream_state = stream_state if stream_state is not None else {}
     payload = {**request_payload, "stream": True, "stream_options": {"include_usage": True}}
     content_parts: list[str] = []
     pending_answer_parts: list[str] = []
@@ -158,12 +162,14 @@ async def _stream_completion(
             if content:
                 content_parts.append(content)
                 if answer_started:
+                    stream_state["answer_emitted"] = True
                     await _notify(progress, {"event": "answer_delta", "delta": content})
                 elif not has_tool_calls:
                     pending_answer_parts.append(content)
                     pending_answer_length += len(content)
                     if pending_answer_length >= 64:
                         answer_started = True
+                        stream_state["answer_emitted"] = True
                         for part in pending_answer_parts:
                             await _notify(progress, {"event": "answer_delta", "delta": part})
                         pending_answer_parts.clear()
@@ -183,9 +189,30 @@ async def _stream_completion(
     if tool_parts:
         assistant["tool_calls"] = [tool_parts[index] for index in sorted(tool_parts)]
     elif not answer_started:
+        if pending_answer_parts:
+            stream_state["answer_emitted"] = True
         for part in pending_answer_parts:
             await _notify(progress, {"event": "answer_delta", "delta": part})
     return assistant, usage, response_id
+
+
+def _retryable_model_error(exc: Exception) -> bool:
+    if isinstance(exc, httpx.HTTPStatusError):
+        status_code = exc.response.status_code
+        return status_code == 429 or status_code >= 500
+    return isinstance(exc, httpx.RequestError)
+
+
+def _model_retry_delay(base_seconds: float, retry_number: int, exc: Exception) -> float:
+    if isinstance(exc, httpx.HTTPStatusError):
+        retry_after = exc.response.headers.get("retry-after")
+        try:
+            if retry_after is not None:
+                return max(0.05, min(float(retry_after), 8.0))
+        except ValueError:
+            pass
+    base = min(base_seconds * (2 ** max(0, retry_number - 1)), 8.0)
+    return base + random.uniform(0, base * 0.2)
 
 
 async def _run_agent_impl(
@@ -221,7 +248,6 @@ async def _run_agent_impl(
 
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
         for iteration in range(6):
-            model_started = time.perf_counter()
             await _notify(progress, {
                 "event": "stage",
                 "stage": "planning",
@@ -235,50 +261,83 @@ async def _run_agent_impl(
                 "tool_choice": "auto",
                 "temperature": 0.15,
             }
-            emit(
-                "model_call_started",
-                run_id,
-                iteration=iteration + 1,
-                model=settings.deepseek_model,
-                message_count=len(messages),
-                **({"request": request_payload} if CONTENT_MODE == "full" else {}),
-            )
-            try:
-                assistant, usage, response_id = await _stream_completion(
-                    client,
-                    endpoint,
-                    {"Authorization": f"Bearer {settings.deepseek_api_key}", "Content-Type": "application/json"},
-                    request_payload,
-                    progress,
+            for attempt in range(1, settings.model_max_retries + 2):
+                model_started = time.perf_counter()
+                emit(
+                    "model_call_started",
+                    run_id,
+                    iteration=iteration + 1,
+                    attempt=attempt,
+                    model=settings.deepseek_model,
+                    message_count=len(messages),
+                    **({"request": request_payload} if CONTENT_MODE == "full" else {}),
                 )
-            except Exception as exc:
+                stream_state = {"answer_emitted": False}
+                try:
+                    assistant, usage, response_id = await _stream_completion(
+                        client,
+                        endpoint,
+                        {"Authorization": f"Bearer {settings.deepseek_api_key}", "Content-Type": "application/json"},
+                        request_payload,
+                        progress,
+                        stream_state,
+                    )
+                except Exception as exc:
+                    retryable = _retryable_model_error(exc) and not stream_state["answer_emitted"]
+                    will_retry = retryable and attempt <= settings.model_max_retries
+                    emit(
+                        "model_call_finished",
+                        run_id,
+                        status="error",
+                        iteration=iteration + 1,
+                        attempt=attempt,
+                        model=settings.deepseek_model,
+                        duration_ms=round((time.perf_counter() - model_started) * 1000, 1),
+                        error_type=type(exc).__name__,
+                        retryable=retryable,
+                        will_retry=will_retry,
+                        answer_emitted=stream_state["answer_emitted"],
+                        **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
+                    )
+                    if not will_retry:
+                        raise
+                    delay_seconds = _model_retry_delay(settings.model_retry_base_seconds, attempt, exc)
+                    emit(
+                        "model_call_retry_scheduled",
+                        run_id,
+                        iteration=iteration + 1,
+                        attempt=attempt,
+                        next_attempt=attempt + 1,
+                        delay_ms=round(delay_seconds * 1000, 1),
+                        error_type=type(exc).__name__,
+                    )
+                    await _notify(progress, {
+                        "event": "stage",
+                        "stage": "retrying",
+                        "iteration": iteration + 1,
+                        "attempt": attempt + 1,
+                        "message": f"模型服务暂时不可用，正在进行第 {attempt + 1} 次请求",
+                    })
+                    await asyncio.sleep(delay_seconds)
+                    continue
                 emit(
                     "model_call_finished",
                     run_id,
-                    status="error",
+                    status="success",
                     iteration=iteration + 1,
+                    attempt=attempt,
                     model=settings.deepseek_model,
                     duration_ms=round((time.perf_counter() - model_started) * 1000, 1),
-                    error_type=type(exc).__name__,
-                    **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
+                    input_tokens=usage.get("prompt_tokens", 0),
+                    output_tokens=usage.get("completion_tokens", 0),
+                    total_tokens=usage.get("total_tokens", 0),
+                    finish_reason="tool_calls" if assistant.get("tool_calls") else "stop",
+                    response_id=response_id,
+                    **({"response": assistant} if CONTENT_MODE == "full" else {}),
                 )
-                raise
+                break
             for key in total_usage:
                 total_usage[key] += int(usage.get(key, 0) or 0)
-            emit(
-                "model_call_finished",
-                run_id,
-                status="success",
-                iteration=iteration + 1,
-                model=settings.deepseek_model,
-                duration_ms=round((time.perf_counter() - model_started) * 1000, 1),
-                input_tokens=usage.get("prompt_tokens", 0),
-                output_tokens=usage.get("completion_tokens", 0),
-                total_tokens=usage.get("total_tokens", 0),
-                finish_reason="tool_calls" if assistant.get("tool_calls") else "stop",
-                response_id=response_id,
-                **({"response": assistant} if CONTENT_MODE == "full" else {}),
-            )
             messages.append(assistant)
             tool_calls = assistant.get("tool_calls") or []
             if not tool_calls:

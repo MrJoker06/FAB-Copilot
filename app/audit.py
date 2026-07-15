@@ -8,6 +8,7 @@ import os
 import subprocess
 import threading
 from collections import Counter
+from contextvars import ContextVar, Token
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -26,7 +27,8 @@ RUN_LOG_DIR.mkdir(parents=True, exist_ok=True)
 CONTENT_MODE = os.getenv("AGENT_LOG_CONTENT", "metadata").strip().lower()
 if CONTENT_MODE not in {"metadata", "redacted", "full"}:
     CONTENT_MODE = "metadata"
-SCHEMA_VERSION = "1.1"
+SCHEMA_VERSION = "1.2"
+_request_id: ContextVar[str | None] = ContextVar("fab_insight_request_id", default=None)
 
 
 def _git_commit() -> str:
@@ -73,6 +75,18 @@ def content_fingerprint(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
+def current_request_id() -> str | None:
+    return _request_id.get()
+
+
+def set_request_id(request_id: str) -> Token:
+    return _request_id.set(request_id)
+
+
+def reset_request_id(token: Token) -> None:
+    _request_id.reset(token)
+
+
 def sanitize(value: Any) -> Any:
     """Remove credentials even when full-content test logging is enabled."""
     if isinstance(value, dict):
@@ -88,6 +102,7 @@ def sanitize(value: Any) -> Any:
 
 
 def emit(event: str, run_id: str, **fields: Any) -> None:
+    request_id = current_request_id()
     record = sanitize({
         "timestamp": utc_now(),
         "schema_version": SCHEMA_VERSION,
@@ -95,6 +110,7 @@ def emit(event: str, run_id: str, **fields: Any) -> None:
         "content_mode": CONTENT_MODE,
         "event": event,
         "run_id": run_id,
+        **({"request_id": request_id} if request_id else {}),
         **fields,
     })
     line = json.dumps(record, ensure_ascii=False, separators=(",", ":"), default=str)

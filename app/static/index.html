@@ -4,8 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="半导体制造报表与数据分析 Agent">
+  <meta name="app-version" content="20260716-1">
   <title>Fab Insight</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20260715-6">
+  <link rel="stylesheet" href="/static/styles.css?v=20260716-1">
 </head>
 <body>
   <header class="topbar">
@@ -19,6 +20,8 @@
       <button id="modelSettingsButton" class="model-settings-button" title="模型设置"><span aria-hidden="true">⚙</span><span id="activeModelLabel">模型设置</span></button>
     </div>
   </header>
+
+  <div id="versionBanner" class="version-banner" role="status" hidden><span>Fab Insight 已更新</span><button id="reloadApp" type="button">刷新页面</button><button id="dismissVersionBanner" type="button" aria-label="稍后处理">×</button></div>
 
   <div class="app-shell">
     <aside class="sidebar" aria-label="主导航">
@@ -228,6 +231,6 @@
       <div class="dialog-actions"><button id="cancelModelSettings" type="button" class="secondary-btn">取消</button><button id="saveModelSettings" type="submit" class="primary-btn">应用设置</button></div>
     </form>
   </dialog>
-  <script src="/static/app.js?v=20260715-6" defer></script>
+  <script src="/static/app.js?v=20260716-1" defer></script>
 </body>
 </html>

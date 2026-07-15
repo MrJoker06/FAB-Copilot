@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import atexit
+import asyncio
 import json
 import os
 import shutil
@@ -8,7 +9,10 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+
+import httpx
 
 
 TEST_DATABASE_DIR = Path(tempfile.mkdtemp(prefix="fab-insight-tests-"))
@@ -18,7 +22,8 @@ atexit.register(shutil.rmtree, TEST_DATABASE_DIR, True)
 
 from fastapi.testclient import TestClient
 
-from app.audit import sanitize
+from app.audit import read_events, sanitize
+from app import agent as agent_module
 from app.database import (
     db_session,
     department_paths,
@@ -207,6 +212,33 @@ class FabInsightTests(unittest.TestCase):
             self.assertEqual(response.json()["status"], "ok")
             self.assertEqual(response.json()["reference_data"]["knowledge_chunks"], 68)
             self.assertEqual(response.json()["reference_data"]["historical_cases"], 17)
+            self.assertTrue(response.json()["build"]["version"])
+
+    def test_api_errors_include_correlation_id_and_retry_metadata(self):
+        request_id = "req-test-correlation-001"
+        with TestClient(app) as client:
+            response = client.get("/api/sessions/missing-session", headers={"X-Request-ID": request_id})
+            self.assertEqual(response.status_code, 404)
+            self.assertEqual(response.headers["x-request-id"], request_id)
+            self.assertEqual(response.json()["request_id"], request_id)
+            self.assertEqual(response.json()["error_code"], "NOT_FOUND")
+            self.assertFalse(response.json()["retryable"])
+
+            invalid = client.post("/api/chat/stream", json={"message": "x"})
+            self.assertEqual(invalid.status_code, 422)
+            self.assertEqual(invalid.json()["error_code"], "VALIDATION_ERROR")
+            self.assertTrue(invalid.json()["request_id"])
+
+    def test_unexpected_500_is_structured_without_exposing_traceback(self):
+        request_id = "req-internal-error-001"
+        with patch("app.main.report_bundle", side_effect=RuntimeError("database secret detail")), TestClient(app, raise_server_exceptions=False) as client:
+            response = client.get("/api/reports/dashboard", headers={"X-Request-ID": request_id})
+            self.assertEqual(response.status_code, 500)
+            self.assertEqual(response.headers["x-request-id"], request_id)
+            self.assertEqual(response.json()["error_code"], "INTERNAL_ERROR")
+            self.assertEqual(response.json()["request_id"], request_id)
+            self.assertTrue(response.json()["retryable"])
+            self.assertNotIn("database secret detail", response.text)
 
     def test_monitor_endpoint_is_sanitized(self):
         with TestClient(app) as client:
@@ -324,6 +356,141 @@ class FabInsightTests(unittest.TestCase):
             self.assertEqual([item["role"] for item in restored["messages"]], ["user", "assistant"])
             self.assertEqual(restored["messages"][1]["metadata"]["run_id"], "run-test")
             client.delete(f"/api/sessions/{created['session_id']}")
+
+    def test_stream_retry_with_same_client_message_id_is_idempotent(self):
+        calls = 0
+
+        async def fake_agent(question, history, progress=None):
+            nonlocal calls
+            calls += 1
+            await progress({"event": "run_started", "run_id": "run-idempotent", "message": "分析任务已创建"})
+            await progress({"event": "answer_delta", "delta": "完成"})
+            return {
+                "answer": "完成",
+                "tool_trace": [],
+                "sources": [],
+                "mode": "test",
+                "model": "test-model",
+                "run_id": "run-idempotent",
+            }
+
+        payload_id = "msg-idempotent-0001"
+        with patch("app.main.run_agent", new=fake_agent), TestClient(app) as client:
+            session_id = client.post("/api/sessions").json()["session_id"]
+            payload = {"message": "分析 CMP", "session_id": session_id, "client_message_id": payload_id}
+            first = client.post("/api/chat/stream", json=payload)
+            second = client.post("/api/chat/stream", json=payload)
+            self.assertEqual(first.status_code, 200)
+            self.assertEqual(second.status_code, 200)
+            second_events = [json.loads(line) for line in second.text.splitlines() if line]
+            self.assertTrue(second_events[-1]["result"]["cached"])
+            self.assertEqual(calls, 1)
+            conflict = client.post("/api/chat/stream", json={**payload, "message": "分析 ETCH"})
+            self.assertEqual(conflict.status_code, 409)
+            self.assertEqual(conflict.json()["error_code"], "IDEMPOTENCY_CONFLICT")
+            restored = client.get(f"/api/sessions/{session_id}").json()
+            self.assertEqual([item["role"] for item in restored["messages"]], ["user", "assistant"])
+            client.delete(f"/api/sessions/{session_id}/permanent")
+
+    def test_model_retries_transient_500_before_first_answer_token(self):
+        attempts = 0
+        progress_events = []
+        request = httpx.Request("POST", "https://example.test/chat/completions")
+        transient_error = httpx.HTTPStatusError(
+            "temporary failure",
+            request=request,
+            response=httpx.Response(500, request=request),
+        )
+
+        async def fake_stream(*args):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise transient_error
+            return ({"role": "assistant", "content": "OK"}, {"total_tokens": 3}, "response-test")
+
+        async def progress(event):
+            progress_events.append(event)
+
+        settings = SimpleNamespace(
+            deepseek_api_key="test-key",
+            deepseek_base_url="https://example.test",
+            deepseek_model="test-model",
+            api_timeout_seconds=5,
+            model_max_retries=2,
+            model_retry_base_seconds=0.05,
+        )
+        with (
+            patch("app.agent.get_settings", return_value=settings),
+            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent.asyncio.sleep", new=AsyncMock()),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl("回复 OK", [], "run-retry-test", progress))
+        self.assertEqual(result["answer"], "OK")
+        self.assertEqual(attempts, 2)
+        self.assertTrue(any(item.get("stage") == "retrying" for item in progress_events))
+
+    def test_model_does_not_retry_after_answer_output_starts(self):
+        attempts = 0
+        request = httpx.Request("POST", "https://example.test/chat/completions")
+        stream_error = httpx.HTTPStatusError(
+            "stream interrupted",
+            request=request,
+            response=httpx.Response(500, request=request),
+        )
+
+        async def failing_stream(*args):
+            nonlocal attempts
+            attempts += 1
+            args[-1]["answer_emitted"] = True
+            raise stream_error
+
+        settings = SimpleNamespace(
+            deepseek_api_key="test-key",
+            deepseek_base_url="https://example.test",
+            deepseek_model="test-model",
+            api_timeout_seconds=5,
+            model_max_retries=2,
+            model_retry_base_seconds=0.05,
+        )
+        with (
+            patch("app.agent.get_settings", return_value=settings),
+            patch("app.agent._stream_completion", new=failing_stream),
+            patch("app.agent.asyncio.sleep", new=AsyncMock()),
+        ):
+            with self.assertRaises(httpx.HTTPStatusError):
+                asyncio.run(agent_module._run_agent_impl("回复 OK", [], "run-no-retry-test"))
+        self.assertEqual(attempts, 1)
+
+    def test_stream_error_is_structured_and_audited(self):
+        request_id = "req-stream-error-001"
+        upstream_request = httpx.Request("POST", "https://example.test/chat/completions")
+
+        async def failing_agent(*args, **kwargs):
+            raise httpx.HTTPStatusError(
+                "upstream unavailable",
+                request=upstream_request,
+                response=httpx.Response(503, request=upstream_request),
+            )
+
+        with patch("app.main.run_agent", new=failing_agent), TestClient(app) as client:
+            session_id = client.post("/api/sessions").json()["session_id"]
+            response = client.post(
+                "/api/chat/stream",
+                json={"message": "分析 CMP", "session_id": session_id, "client_message_id": "msg-stream-error-001"},
+                headers={"X-Request-ID": request_id},
+            )
+            events = [json.loads(line) for line in response.text.splitlines() if line]
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(events[-1]["type"], "error")
+            self.assertEqual(events[-1]["error"]["error_code"], "MODEL_UPSTREAM_ERROR")
+            self.assertEqual(events[-1]["error"]["request_id"], request_id)
+            self.assertTrue(events[-1]["error"]["retryable"])
+            self.assertTrue(any(
+                event.get("event") == "api_stream_error" and event.get("request_id") == request_id
+                for event in read_events(200)
+            ))
+            client.delete(f"/api/sessions/{session_id}/permanent")
 
 
 if __name__ == "__main__":

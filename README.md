@@ -10,11 +10,13 @@
 - 覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗和量测，各站点按自身关键量测与规格计算 Cpk
 - 九类制程各有一个可复现异常场景，隐藏根因真值不向 Agent 开放
 - DeepSeek Agent 多轮工具调用，支持固定报表和受限只读 SQL
+- DeepSeek 瞬时网络错误、429 和 5xx 在首 Token 前自动退避重试；消息使用客户端幂等 ID 防止重复落库
 - 工具执行期间实时展开路径；收到最终答案首批 Token 后立即折叠，Markdown 答案流式输出并支持一键复制
 - 桌面端可拖动 Fab Copilot 左边缘调整面板宽度，双击恢复默认，宽度偏好保存在当前浏览器
 - 会话、消息、运行、工具和来源结构化保存到 AI 运营库；独立“历史会话”工作区可搜索、预览、继续、重命名、归档和恢复会话，右侧助手保留快速入口
 - 归档会话会立即移出活跃列表并支持提示条撤销；活跃或归档会话均可永久删除，删除需要明确确认且不可恢复
 - Agent 可观测性：运行成功率、延迟、Token、工具使用和错误类型
+- 全 API 请求使用 `request_id` 串联 HTTP、会话、Agent、模型和工具日志，错误响应提供稳定错误码和可重试标记
 - 68 个知识章节与 17 个固定格式历史案例
 - SQLite FTS5 trigram 双来源 RAG，支持中文检索与引用跳转
 - DeepSeek 不可用时自动提供本地规则分析
@@ -47,6 +49,8 @@ AGENT_RUN_LOG_DIR=logs/agent
 AGENT_LOG_MAX_BYTES=5242880
 AGENT_LOG_BACKUP_COUNT=5
 AGENT_LOG_CONTENT=metadata
+MODEL_MAX_RETRIES=2
+MODEL_RETRY_BASE_MS=500
 ```
 
 在 WSL 中运行：
@@ -223,10 +227,15 @@ GET /api/monitor/summary?hours=24
 GET /api/monitor/events?limit=100
 ```
 
-汇总日志默认写入 `logs/agent_events.jsonl`，达到 5 MB 后轮转并保留 5 份；每次运行的完整事件同时写入 `logs/agent/YYYY-MM-DD/<run_id>.jsonl`。每次 Agent 运行使用同一个 `run_id` 关联以下事件：
+汇总日志默认写入 `logs/agent_events.jsonl`，达到 5 MB 后轮转并保留 5 份；每次请求或运行的完整事件同时写入 `logs/agent/YYYY-MM-DD/<request_id|run_id>.jsonl`。API 响应通过 `X-Request-ID` 返回请求编号，`request_id` 会继续写入该请求触发的 Agent、模型和工具事件。
 
+主要事件：
+
+- `api_request_started` / `api_request_finished`：接口、状态码、耗时和请求编号
+- `api_exception`：未预期服务端异常及测试模式下的完整堆栈
 - `agent_run_started`：问题长度、问题指纹和历史消息数
 - `model_call_finished`：模型、延迟、Token 和状态
+- `model_call_retry_scheduled`：重试原因、次数和退避时间
 - `tool_call_finished`：工具名、延迟、返回行数和状态
 - `agent_run_finished`：总耗时、模式、工具数、来源数和最终状态
 

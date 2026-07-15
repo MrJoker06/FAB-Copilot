@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA_METADATA = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -255,6 +255,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
     content TEXT NOT NULL,
     metadata_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(metadata_json)),
+    client_message_id TEXT,
     created_at TEXT NOT NULL
 );
 

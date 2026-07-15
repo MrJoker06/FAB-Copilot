@@ -1,14 +1,36 @@
 const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionId: null, toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
 const $ = (selector) => document.querySelector(selector);
 const AGENT_WIDTH_KEY = 'fabInsightAgentWidth';
+const CHAT_DRAFT_KEY = 'fabInsightChatDraft';
 const AGENT_MIN_WIDTH = 300;
 const AGENT_MAX_WIDTH = 620;
+const APP_VERSION = document.querySelector('meta[name="app-version"]')?.content || 'unknown';
 const processLabels = { LITHO: '光刻', ETCH: '刻蚀', CVD: '化学气相沉积', PVD: '物理气相沉积', DIFFUSION: '扩散/炉管', IMPLANT: '离子注入', CMP: '化学机械研磨', CLEAN: '湿法清洗', METROLOGY: '量测' };
 const toolLabels = { get_fab_overview: '查询工厂总览', get_yield_trend: '查询良率趋势', get_equipment_health: '查询设备健康', get_equipment_productivity: '查询设备生产状态', get_process_capability: '查询制程能力', get_defect_pareto: '查询缺陷 Pareto', get_recent_excursions: '查询近期异常', get_sensor_summary: '查询传感器摘要', search_knowledge: '检索知识与案例', query_manufacturing_data: '执行制造数据查询' };
 
 function isoDate(date) { return date.toISOString().slice(0, 10); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 function formatNumber(value) { const number = Number(value); return Number.isFinite(number) ? number.toLocaleString('zh-CN') : String(value ?? '—'); }
+
+class FabApiError extends Error {
+  constructor(message, {code = 'REQUEST_ERROR', requestId = '', retryable = false, status = 0} = {}) {
+    super(message);
+    this.name = 'FabApiError';
+    this.code = code;
+    this.requestId = requestId;
+    this.retryable = retryable;
+    this.status = status;
+  }
+}
+
+function apiError(payload = {}, response = null) {
+  return new FabApiError(payload.detail || `请求失败 (${response?.status || '网络错误'})`, {
+    code: payload.error_code || 'REQUEST_ERROR',
+    requestId: payload.request_id || response?.headers?.get('x-request-id') || '',
+    retryable: Boolean(payload.retryable),
+    status: response?.status || 0,
+  });
+}
 
 function setInitialDates() {
   const end = new Date();
@@ -19,10 +41,28 @@ function setInitialDates() {
 }
 
 async function api(url, options) {
-  const response = await fetch(url, options);
+  let response;
+  try { response = await fetch(url, options); }
+  catch (error) { throw new FabApiError('无法连接 Fab Insight 服务', {code:'NETWORK_ERROR', retryable:true}); }
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.detail || `请求失败 (${response.status})`);
+  if (!response.ok) throw apiError(payload, response);
   return payload;
+}
+
+function handleBuildVersion(build) {
+  if (!build?.version || build.version === APP_VERSION) return;
+  if (sessionStorage.getItem('fabInsightDismissedVersion') === build.version) return;
+  $('#versionBanner').dataset.version = build.version;
+  $('#versionBanner').hidden = false;
+}
+
+async function checkAppVersion() {
+  try { handleBuildVersion(await api('/api/version')); }
+  catch { /* Keep version checks silent; normal API requests expose connectivity failures. */ }
+}
+
+function newClientMessageId() {
+  return globalThis.crypto?.randomUUID?.() || `msg-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
 function dismissToast() {
@@ -741,13 +781,18 @@ function updateLiveAnalysis(live, event) {
   renderLiveAnalysis(live);
 }
 
-async function streamAgent(message, onProgress) {
-  const response = await fetch('/api/chat/stream', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message, session_id:state.sessionId})});
+async function streamAgent(message, clientMessageId, onProgress) {
+  let response;
+  try {
+    response = await fetch('/api/chat/stream', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message, session_id:state.sessionId, client_message_id:clientMessageId})});
+  } catch {
+    throw new FabApiError('无法连接 Fab Insight 服务', {code:'NETWORK_ERROR', retryable:true});
+  }
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.detail || `请求失败 (${response.status})`);
+    throw apiError(payload, response);
   }
-  if (!response.body) throw new Error('浏览器不支持流式响应');
+  if (!response.body) throw new FabApiError('浏览器不支持流式响应', {code:'STREAM_UNSUPPORTED'});
   const reader = response.body.getReader(), decoder = new TextDecoder();
   let buffer = '', finalResult = null;
   while (true) {
@@ -761,11 +806,11 @@ async function streamAgent(message, onProgress) {
         state.sessionId = event.session_id; localStorage.setItem('fabInsightSessionId', state.sessionId);
       } else if (event.type === 'progress') onProgress(event);
       else if (event.type === 'result') finalResult = event.result;
-      else if (event.type === 'error') throw new Error(event.detail || '分析失败');
+      else if (event.type === 'error') throw apiError(event.error || {detail:event.detail || '分析失败'}, response);
     }
     if (done) break;
   }
-  if (!finalResult) throw new Error('分析结束但未收到结果');
+  if (!finalResult) throw new FabApiError('分析结束但未收到结果', {code:'STREAM_INCOMPLETE', requestId:response.headers.get('x-request-id') || '', retryable:true});
   return finalResult;
 }
 
@@ -842,24 +887,45 @@ function addMessage(role, content, extra = {}) {
   return el;
 }
 
-async function sendChat(message) {
+function renderAgentRequestError(live, error, retry) {
+  const labels = {
+    MODEL_UPSTREAM_ERROR: '模型服务暂时不可用',
+    MODEL_NETWORK_ERROR: '模型服务连接失败',
+    NETWORK_ERROR: 'Fab Insight 服务连接失败',
+    SESSION_NOT_FOUND: '当前会话已经失效',
+  };
+  const title = labels[error.code] || '分析请求未完成';
+  const technical = [error.code, error.requestId ? `请求 ${error.requestId}` : ''].filter(Boolean).join(' · ');
+  const answer = live.el.querySelector('.streaming-answer');
+  answer.hidden = false;
+  answer.innerHTML = `<div class="request-error"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(error.message)}</span><div class="request-error-actions">${error.retryable ? '<button type="button" class="retry-request">重试</button>' : ''}<details><summary>错误详情</summary><code>${escapeHtml(technical || '无请求编号')}</code></details></div></div>`;
+  answer.querySelector('.retry-request')?.addEventListener('click', retry);
+  live.el.querySelector('.live-indicator').textContent = '失败';
+}
+
+async function sendChat(message, {clientMessageId = newClientMessageId(), isRetry = false} = {}) {
   const text = message.trim(); if (!text || state.streaming) return;
   if (!state.sessionId) await createConversation();
   $('.suggestions')?.remove();
-  addMessage('user', text); state.history.push({role:'user', content:text});
-  $('#chatInput').value = ''; $('#sendButton').disabled = true; state.streaming = true;
+  if (!isRetry) {
+    addMessage('user', text); state.history.push({role:'user', content:text});
+    $('#chatInput').value = '';
+    localStorage.removeItem(CHAT_DRAFT_KEY);
+  }
+  $('#sendButton').disabled = true; state.streaming = true;
   const live = createLiveAnalysis();
   try {
-    const result = await streamAgent(text, event => updateLiveAnalysis(live, event));
+    const result = await streamAgent(text, clientMessageId, event => updateLiveAnalysis(live, event));
     if (live.renderTimer) { window.clearTimeout(live.renderTimer); live.renderTimer = null; }
     renderAssistantInto(live.el, result.answer, result);
     state.history.push({role:'assistant', content:result.answer});
     $('#agentMode').textContent = result.mode === 'deepseek' ? `${state.modelConfig?.model || 'DeepSeek'} · 工具分析` : '本地规则分析';
   } catch (error) {
     updateLiveAnalysis(live, {event:'run_failed', message:error.message});
-    const answer = live.el.querySelector('.streaming-answer'); answer.hidden = false;
-    answer.innerHTML = `<p class="stream-error">分析请求失败：${escapeHtml(error.message)}</p>`;
-    live.el.querySelector('.live-indicator').textContent = '失败';
+    renderAgentRequestError(live, error, () => {
+      live.el.remove();
+      sendChat(text, {clientMessageId, isRetry:true});
+    });
   }
   finally {
     state.streaming = false; $('#sendButton').disabled = false; $('#chatInput').focus();
@@ -1003,9 +1069,11 @@ async function init() {
   setInitialDates();
   initializeAgentResize();
   restoreAgentPanelWidth();
+  $('#chatInput').value = localStorage.getItem(CHAT_DRAFT_KEY) || '';
   try {
     const [health, modelConfig] = await Promise.all([api('/api/health'), loadModelConfig()]);
     $('#systemStatus').textContent = `${formatNumber(health.database.lots)} 批次 · ${modelConfig.api_key_configured ? modelConfig.model : '离线模式'}`;
+    handleBuildVersion(health.build);
   } catch { $('#systemStatus').textContent='数据源不可用'; }
   await loadDashboard();
   await restoreConversation();
@@ -1091,6 +1159,18 @@ async function init() {
     else if (suggestion) sendChat(suggestion.textContent);
   });
   $('#chatForm').addEventListener('submit', e => { e.preventDefault(); sendChat($('#chatInput').value); });
+  $('#chatInput').addEventListener('input', event => {
+    const draft = event.target.value;
+    if (draft) localStorage.setItem(CHAT_DRAFT_KEY, draft);
+    else localStorage.removeItem(CHAT_DRAFT_KEY);
+  });
+  $('#reloadApp').addEventListener('click', () => window.location.reload());
+  $('#dismissVersionBanner').addEventListener('click', () => {
+    sessionStorage.setItem('fabInsightDismissedVersion', $('#versionBanner').dataset.version || 'unknown');
+    $('#versionBanner').hidden = true;
+  });
+  window.addEventListener('focus', checkAppVersion);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkAppVersion(); });
   $('#clearChat').addEventListener('click', async () => { if (!state.streaming) await createConversation('已创建新会话。'); });
   $('#modelSettingsButton').addEventListener('click', openModelSettings);
   $('#modelSettingsForm').addEventListener('submit', saveModelSettings);

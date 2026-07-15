@@ -216,6 +216,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
     content TEXT NOT NULL,
     metadata_json TEXT NOT NULL DEFAULT '{}',
+    client_message_id TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -307,6 +308,10 @@ CHAT_SESSION_COLUMNS = {
     "model": "TEXT NOT NULL DEFAULT ''",
     "archived_at": "TEXT",
     "last_message_preview": "TEXT NOT NULL DEFAULT ''",
+}
+
+CHAT_MESSAGE_COLUMNS = {
+    "client_message_id": "TEXT",
 }
 
 
@@ -403,6 +408,15 @@ def _initialize_legacy(path: Path) -> None:
         for name, definition in CHAT_SESSION_COLUMNS.items():
             if name not in session_columns:
                 connection.execute(f"ALTER TABLE chat_sessions ADD COLUMN {name} {definition}")
+        message_columns = {row[1] for row in connection.execute("PRAGMA table_info(chat_messages)")}
+        for name, definition in CHAT_MESSAGE_COLUMNS.items():
+            if name not in message_columns:
+                connection.execute(f"ALTER TABLE chat_messages ADD COLUMN {name} {definition}")
+        connection.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_messages_client_id "
+            "ON chat_messages(session_id, client_message_id) "
+            "WHERE role = 'user' AND client_message_id IS NOT NULL"
+        )
         _seed_default_defect_types(connection)
         connection.execute("CREATE INDEX IF NOT EXISTS idx_cases_governance ON historical_cases(case_status, process_step, defect_type)")
         connection.commit()
@@ -417,6 +431,16 @@ def _initialize_departments() -> None:
         try:
             connection.execute("PRAGMA journal_mode=WAL")
             connection.executescript(DEPARTMENT_SCHEMAS[department])
+            if department == "agent":
+                message_columns = {row[1] for row in connection.execute("PRAGMA table_info(chat_messages)")}
+                for name, definition in CHAT_MESSAGE_COLUMNS.items():
+                    if name not in message_columns:
+                        connection.execute(f"ALTER TABLE chat_messages ADD COLUMN {name} {definition}")
+                connection.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_messages_client_id "
+                    "ON chat_messages(session_id, client_message_id) "
+                    "WHERE role = 'user' AND client_message_id IS NOT NULL"
+                )
             connection.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version, description) VALUES (?, ?)",
                 (SCHEMA_VERSION, f"department schema: {department}"),

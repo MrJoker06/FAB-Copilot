@@ -8,6 +8,7 @@ from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 WORKSPACE_DIR = PROJECT_DIR.parent.parent
+APP_VERSION = "20260716-1"
 
 
 def _load_env(path: Path) -> None:
@@ -51,6 +52,8 @@ class Settings:
     deepseek_base_url: str
     deepseek_model: str
     api_timeout_seconds: float
+    model_max_retries: int
+    model_retry_base_seconds: float
 
 
 def get_settings() -> Settings:
@@ -81,6 +84,8 @@ def get_settings() -> Settings:
         deepseek_base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").rstrip("/"),
         deepseek_model=model,
         api_timeout_seconds=float(os.getenv("API_TIMEOUT_MS", "60000")) / 1000,
+        model_max_retries=max(0, min(int(os.getenv("MODEL_MAX_RETRIES", "2")), 4)),
+        model_retry_base_seconds=max(0.05, min(float(os.getenv("MODEL_RETRY_BASE_MS", "500")) / 1000, 5.0)),
     )
 
 
