@@ -1,4 +1,4 @@
-const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionId: null, toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
+const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, selectedSessionIds: new Set(), sessionBatchMode: false, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionIds: [], toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
 const $ = (selector) => document.querySelector(selector);
 const AGENT_WIDTH_KEY = 'fabInsightAgentWidth';
 const CHAT_DRAFT_KEY = 'fabInsightChatDraft';
@@ -467,6 +467,33 @@ function filteredSessionLibrary() {
   return state.sessionLibrary;
 }
 
+function updateSessionBatchToolbar() {
+  const visible = filteredSessionLibrary();
+  const selectedVisible = visible.filter(item => state.selectedSessionIds.has(item.session_id));
+  const selectAll = $('#sessionBatchSelectAll');
+  selectAll.checked = visible.length > 0 && selectedVisible.length === visible.length;
+  selectAll.indeterminate = selectedVisible.length > 0 && selectedVisible.length < visible.length;
+  selectAll.disabled = visible.length === 0;
+  $('#sessionBatchCount').textContent = `已选 ${state.selectedSessionIds.size} 个会话`;
+  $('#deleteSelectedSessions').disabled = state.selectedSessionIds.size === 0;
+}
+
+function setSessionBatchMode(active) {
+  state.sessionBatchMode = Boolean(active);
+  if (!state.sessionBatchMode) state.selectedSessionIds.clear();
+  $('#sessionsView').classList.toggle('batch-mode', state.sessionBatchMode);
+  $('#sessionBatchToolbar').hidden = !state.sessionBatchMode;
+  $('#sessionBatchManage').textContent = state.sessionBatchMode ? '结束批量管理' : '批量管理';
+  $('#sessionBatchManage').setAttribute('aria-pressed', String(state.sessionBatchMode));
+  renderSessionLibrary();
+}
+
+function clearSessionBatchSelection() {
+  if (!state.selectedSessionIds.size) return;
+  state.selectedSessionIds.clear();
+  renderSessionLibrary();
+}
+
 function renderSessionLibrary() {
   const sessions = filteredSessionLibrary();
   const groups = new Map();
@@ -477,21 +504,24 @@ function renderSessionLibrary() {
   }
   const archivedCount = state.sessionLibrary.filter(item => item.archived_at).length;
   $('#sessionLibraryCount').textContent = `${sessions.length} 个结果 · ${archivedCount} 个已归档`;
+  $('#sessionBatchManage').disabled = sessions.length === 0 && !state.sessionBatchMode;
   $('#sessionLibraryNotice').textContent = state.sessionLibraryFilter === 'archived'
     ? '已归档会话仍保存在 AI 运营库中；恢复后会重新出现在活跃会话中。'
     : state.sessionLibraryFilter === 'all'
-      ? '这里同时显示活跃与归档会话；归档可以恢复，永久删除无法撤销。'
-      : '归档只会将会话移出活跃列表；永久删除会移除全部消息和分析记录。';
+      ? '这里同时显示活跃与归档会话；归档可以恢复，删除无法撤销。'
+      : '归档只会将会话移出活跃列表；删除会移除全部消息和分析记录。';
   $('#sessionLibraryList').innerHTML = [...groups.entries()].map(([group, items]) => `
     <section class="session-library-group"><h3>${group}</h3>${items.map(session => {
       const active = session.session_id === state.selectedLibrarySessionId ? ' active' : '';
+      const selected = state.selectedSessionIds.has(session.session_id) ? ' batch-selected' : '';
       const timestamp = new Date(session.updated_at).toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false});
       const archived = Boolean(session.archived_at);
       const actions = archived
-        ? '<button type="button" data-library-action="restore">恢复会话</button><button type="button" class="danger-action" data-library-action="delete">永久删除</button>'
-        : '<button type="button" data-library-action="rename">重命名</button><button type="button" data-library-action="archive">归档</button><button type="button" class="danger-action" data-library-action="delete">永久删除</button>';
-      return `<article class="session-library-item${active}" data-library-session-id="${escapeHtml(session.session_id)}"><button class="session-library-open" type="button"><strong>${escapeHtml(session.title)}</strong><span>${timestamp} · ${session.message_count} 条消息${session.model ? ` · ${escapeHtml(session.model)}` : ''}</span><small>${escapeHtml(session.last_message_preview || '空会话')}</small></button><span class="session-state${archived ? ' archived' : ''}">${archived ? '已归档' : '活跃'}</span><details class="session-item-menu"><summary title="会话操作" aria-label="会话操作">⋯</summary><div>${actions}</div></details></article>`;
+        ? '<button type="button" data-library-action="restore">恢复会话</button><button type="button" class="danger-action" data-library-action="delete">删除</button>'
+        : '<button type="button" data-library-action="rename">重命名</button><button type="button" data-library-action="archive">归档</button><button type="button" class="danger-action" data-library-action="delete">删除</button>';
+      return `<article class="session-library-item${active}${selected}" data-library-session-id="${escapeHtml(session.session_id)}"><input class="session-select-checkbox" type="checkbox" aria-label="选择 ${escapeHtml(session.title)}" ${selected ? 'checked' : ''}><button class="session-library-open" type="button"><strong>${escapeHtml(session.title)}</strong><span>${timestamp} · ${session.message_count} 条消息${session.model ? ` · ${escapeHtml(session.model)}` : ''}</span><small>${escapeHtml(session.last_message_preview || '空会话')}</small></button><span class="session-state${archived ? ' archived' : ''}">${archived ? '已归档' : '活跃'}</span><details class="session-item-menu"><summary title="会话操作" aria-label="会话操作">⋯</summary><div>${actions}</div></details></article>`;
     }).join('')}</section>`).join('') || '<p class="empty session-empty">没有匹配的历史会话</p>';
+  updateSessionBatchToolbar();
 }
 
 function renderSessionLibraryPreview(session) {
@@ -535,6 +565,8 @@ async function loadSessionLibrary(query = $('#sessionLibrarySearch').value) {
   if (requestId !== state.sessionLibraryRequestId) return;
   state.sessionLibrary = sessions;
   const visible = filteredSessionLibrary();
+  const visibleIds = new Set(visible.map(item => item.session_id));
+  state.selectedSessionIds = new Set([...state.selectedSessionIds].filter(sessionId => visibleIds.has(sessionId)));
   const selected = visible.find(item => item.session_id === state.selectedLibrarySessionId) || visible[0];
   if (selected) await openSessionLibraryPreview(selected.session_id);
   else {
@@ -642,27 +674,42 @@ async function restoreLibrarySession(sessionId) {
   await refresh;
 }
 
-function openSessionDeleteDialog(sessionId) {
-  const session = state.sessionLibrary.find(item => item.session_id === sessionId);
-  if (!session) return;
-  state.pendingDeleteSessionId = session.session_id;
-  $('#sessionDeleteMessage').textContent = `“${session.title}”将从本系统中永久删除。`;
+function openSessionDeleteDialog(sessionIds) {
+  const requestedIds = Array.isArray(sessionIds) ? sessionIds : [sessionIds];
+  const requested = new Set(requestedIds.filter(Boolean));
+  const sessions = state.sessionLibrary.filter(item => requested.has(item.session_id));
+  if (!sessions.length) return;
+  state.pendingDeleteSessionIds = sessions.map(item => item.session_id);
+  if (sessions.length === 1) {
+    $('#sessionDeleteMessage').textContent = `“${sessions[0].title}”将从本系统中删除。`;
+  } else {
+    const archivedCount = sessions.filter(item => item.archived_at).length;
+    const activeCount = sessions.length - archivedCount;
+    $('#sessionDeleteMessage').textContent = `将删除 ${sessions.length} 个会话，其中 ${activeCount} 个活跃会话、${archivedCount} 个已归档会话。`;
+  }
   $('#sessionDeleteDialog').showModal();
 }
 
 async function permanentlyDeleteSelectedSession() {
-  const sessionId = state.pendingDeleteSessionId;
-  const session = state.sessionLibrary.find(item => item.session_id === sessionId);
-  if (!sessionId || !session) return;
+  const sessionIds = [...state.pendingDeleteSessionIds];
+  const sessionIdSet = new Set(sessionIds);
+  const sessions = state.sessionLibrary.filter(item => sessionIdSet.has(item.session_id));
+  if (!sessionIds.length || !sessions.length) return;
   $('#confirmSessionDelete').disabled = true;
   try {
-    await api(`/api/sessions/${encodeURIComponent(sessionId)}/permanent`, {method:'DELETE'});
-    if (session.session_id === state.sessionId) resetConversationDraft('当前会话已删除');
-    state.pendingDeleteSessionId = null;
+    if (sessionIds.length === 1) {
+      await api(`/api/sessions/${encodeURIComponent(sessionIds[0])}/permanent`, {method:'DELETE'});
+    } else {
+      await api('/api/sessions/bulk-delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({session_ids:sessionIds})});
+    }
+    if (sessionIdSet.has(state.sessionId)) resetConversationDraft('当前会话已删除');
+    state.pendingDeleteSessionIds = [];
     state.selectedLibrarySessionId = null;
+    state.selectedSessionIds.clear();
     $('#sessionDeleteDialog').close();
+    setSessionBatchMode(false);
     const refresh = loadSessionLibrary();
-    showToast(`已永久删除“${session.title}”`);
+    showToast(sessions.length === 1 ? `已删除“${sessions[0].title}”` : `已删除 ${sessions.length} 个会话`);
     await refresh;
   } finally {
     $('#confirmSessionDelete').disabled = false;
@@ -1098,26 +1145,45 @@ async function init() {
   let sessionLibrarySearchTimer = null;
   $('#sessionLibrarySearch').addEventListener('input', event => {
     window.clearTimeout(sessionLibrarySearchTimer);
+    clearSessionBatchSelection();
     sessionLibrarySearchTimer = window.setTimeout(() => loadSessionLibrary(event.target.value), 180);
   });
   $('#sessionLibraryFilter').addEventListener('click', async event => {
     const button = event.target.closest('[data-session-filter]');
     if (!button) return;
     state.sessionLibraryFilter = button.dataset.sessionFilter;
+    state.selectedSessionIds.clear();
     document.querySelectorAll('[data-session-filter]').forEach(item => item.classList.toggle('active', item === button));
     await loadSessionLibrary();
   });
   $('#sessionLibraryList').addEventListener('click', event => {
     const item = event.target.closest('[data-library-session-id]');
     if (!item) return;
+    const sessionId = item.dataset.librarySessionId;
     const action = event.target.closest('[data-library-action]')?.dataset.libraryAction;
     if (action) {
       item.querySelector('.session-item-menu').open = false;
-      runSessionLibraryAction(item.dataset.librarySessionId, action);
+      runSessionLibraryAction(sessionId, action);
+    } else if (state.sessionBatchMode && !event.target.closest('summary')) {
+      const checkbox = event.target.closest('.session-select-checkbox');
+      const selected = checkbox ? checkbox.checked : !state.selectedSessionIds.has(sessionId);
+      if (selected) state.selectedSessionIds.add(sessionId);
+      else state.selectedSessionIds.delete(sessionId);
+      renderSessionLibrary();
     } else if (!event.target.closest('summary')) {
-      openSessionLibraryPreview(item.dataset.librarySessionId);
+      openSessionLibraryPreview(sessionId);
     }
   });
+  $('#sessionBatchManage').addEventListener('click', () => setSessionBatchMode(!state.sessionBatchMode));
+  $('#cancelSessionBatch').addEventListener('click', () => setSessionBatchMode(false));
+  $('#sessionBatchSelectAll').addEventListener('change', event => {
+    for (const session of filteredSessionLibrary()) {
+      if (event.target.checked) state.selectedSessionIds.add(session.session_id);
+      else state.selectedSessionIds.delete(session.session_id);
+    }
+    renderSessionLibrary();
+  });
+  $('#deleteSelectedSessions').addEventListener('click', () => openSessionDeleteDialog([...state.selectedSessionIds]));
   $('#sessionLibraryMessages').addEventListener('click', event => {
     const knowledgeTarget = event.target.closest('[data-knowledge-chunk]');
     const caseTarget = event.target.closest('[data-case-id]');
@@ -1136,9 +1202,10 @@ async function init() {
   $('#sessionDeleteForm').addEventListener('submit', event => { event.preventDefault(); permanentlyDeleteSelectedSession().catch(error => showToast(`删除失败：${error.message}`, {tone:'error'})); });
   $('#closeSessionDeleteDialog').addEventListener('click', () => $('#sessionDeleteDialog').close());
   $('#cancelSessionDelete').addEventListener('click', () => $('#sessionDeleteDialog').close());
-  $('#sessionDeleteDialog').addEventListener('close', () => { state.pendingDeleteSessionId = null; });
+  $('#sessionDeleteDialog').addEventListener('close', () => { state.pendingDeleteSessionIds = []; });
   $('#newSessionFromLibrary').addEventListener('click', async () => {
     if (state.streaming) return;
+    setSessionBatchMode(false);
     const session = await createConversation('已创建新会话。');
     state.selectedLibrarySessionId = session.session_id;
     setAgentOpen(true);

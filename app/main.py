@@ -35,6 +35,7 @@ from .sessions import (
     client_message_content,
     create_session,
     delete_session_permanently,
+    delete_sessions_permanently,
     get_session,
     list_sessions,
     record_agent_result,
@@ -148,6 +149,10 @@ class ModelConfigRequest(BaseModel):
 
 class SessionUpdateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=80)
+
+
+class BulkSessionDeleteRequest(BaseModel):
+    session_ids: list[str] = Field(min_length=1, max_length=200)
 
 
 @app.get("/", include_in_schema=False)
@@ -340,6 +345,11 @@ def permanently_delete_session(session_id: str) -> dict:
         return delete_session_permanently(session_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/api/sessions/bulk-delete")
+def bulk_delete_sessions(request: BulkSessionDeleteRequest) -> dict:
+    return delete_sessions_permanently(request.session_ids)
 
 
 @app.get("/api/sessions/{session_id}")

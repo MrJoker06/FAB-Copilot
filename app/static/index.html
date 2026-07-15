@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="半导体制造报表与数据分析 Agent">
-  <meta name="app-version" content="20260716-1">
+  <meta name="app-version" content="20260716-2">
   <title>Fab Insight</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20260716-1">
+  <link rel="stylesheet" href="/static/styles.css?v=20260716-2">
 </head>
 <body>
   <header class="topbar">
@@ -129,10 +129,16 @@
               <button type="button" data-session-filter="archived">已归档</button>
               <button type="button" data-session-filter="all">全部</button>
             </div>
+            <button id="sessionBatchManage" type="button" class="secondary-btn" aria-pressed="false">批量管理</button>
             <button id="newSessionFromLibrary" type="button" class="primary-btn">＋ 新建会话</button>
           </div>
         </div>
         <div id="sessionLibraryNotice" class="session-library-notice" role="status"></div>
+        <div id="sessionBatchToolbar" class="session-batch-toolbar" hidden>
+          <label class="session-batch-select-all"><input id="sessionBatchSelectAll" type="checkbox"><span>全选当前结果</span></label>
+          <span id="sessionBatchCount" class="session-batch-count">已选 0 个会话</span>
+          <div class="session-batch-actions"><button id="cancelSessionBatch" type="button" class="secondary-btn">取消</button><button id="deleteSelectedSessions" type="button" class="danger-btn" disabled>删除</button></div>
+        </div>
         <div class="session-library-layout">
           <aside class="panel session-library-index">
             <div class="panel-heading"><div><h2>会话记录</h2><p id="sessionLibraryCount">正在加载</p></div></div>
@@ -144,7 +150,7 @@
               <div id="sessionLibraryActions" class="session-library-actions" hidden>
                 <button id="renameLibrarySession" type="button" class="secondary-btn">重命名</button>
                 <button id="archiveLibrarySession" type="button" class="secondary-btn">归档</button>
-                <button id="deleteLibrarySession" type="button" class="danger-btn" hidden>永久删除</button>
+                <button id="deleteLibrarySession" type="button" class="danger-btn" hidden>删除</button>
                 <button id="continueLibrarySession" type="button" class="primary-btn">在助手中继续</button>
               </div>
             </div>
@@ -211,9 +217,9 @@
 
   <dialog id="sessionDeleteDialog" class="settings-dialog session-delete-dialog">
     <form id="sessionDeleteForm">
-      <div class="dialog-heading"><div><p class="eyebrow">DELETE CONVERSATION</p><h2>永久删除会话？</h2></div><button id="closeSessionDeleteDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
-      <div class="dialog-body"><p id="sessionDeleteMessage" class="delete-warning"></p><p class="delete-consequence">该会话的消息、Agent 运行记录、工具调用和来源记录都会立即删除，且无法恢复。</p></div>
-      <div class="dialog-actions"><button id="cancelSessionDelete" type="button" class="secondary-btn">取消</button><button id="confirmSessionDelete" type="submit" class="danger-btn">永久删除</button></div>
+      <div class="dialog-heading"><div><p class="eyebrow">DELETE CONVERSATION</p><h2>删除会话？</h2></div><button id="closeSessionDeleteDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="dialog-body"><p id="sessionDeleteMessage" class="delete-warning"></p><p class="delete-consequence">选中会话的消息、Agent 运行记录、工具调用和来源记录都会立即删除，且无法恢复。</p></div>
+      <div class="dialog-actions"><button id="cancelSessionDelete" type="button" class="secondary-btn">取消</button><button id="confirmSessionDelete" type="submit" class="danger-btn">删除</button></div>
     </form>
   </dialog>
 
@@ -231,6 +237,6 @@
       <div class="dialog-actions"><button id="cancelModelSettings" type="button" class="secondary-btn">取消</button><button id="saveModelSettings" type="submit" class="primary-btn">应用设置</button></div>
     </form>
   </dialog>
-  <script src="/static/app.js?v=20260716-1" defer></script>
+  <script src="/static/app.js?v=20260716-2" defer></script>
 </body>
 </html>

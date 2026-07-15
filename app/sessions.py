@@ -119,19 +119,44 @@ def restore_session(session_id: str) -> dict:
 
 
 def delete_session_permanently(session_id: str) -> dict:
+    result = delete_sessions_permanently([session_id])
+    if not result["deleted_session_ids"]:
+        raise ValueError("会话不存在")
+    return {"session_id": session_id, "deleted": True}
+
+
+def delete_sessions_permanently(session_ids: list[str]) -> dict:
+    unique_ids = list(dict.fromkeys(session_ids))
+    if not unique_ids:
+        return {"deleted_session_ids": [], "deleted_count": 0, "missing_session_ids": []}
+    placeholders = ", ".join("?" for _ in unique_ids)
     with db_session() as connection:
-        session = connection.execute(
-            "SELECT 1 FROM chat_sessions WHERE session_id = ?",
-            (session_id,),
-        ).fetchone()
-        if session is None:
-            raise ValueError("会话不存在")
+        existing_ids = {
+            row[0]
+            for row in connection.execute(
+                f"SELECT session_id FROM chat_sessions WHERE session_id IN ({placeholders})",
+                unique_ids,
+            ).fetchall()
+        }
+        deleted_ids = [session_id for session_id in unique_ids if session_id in existing_ids]
+        missing_ids = [session_id for session_id in unique_ids if session_id not in existing_ids]
+        if not deleted_ids:
+            return {
+                "deleted_session_ids": [],
+                "deleted_count": 0,
+                "missing_session_ids": missing_ids,
+            }
+        delete_placeholders = ", ".join("?" for _ in deleted_ids)
         connection.execute(
-            "DELETE FROM agent.chat_sessions WHERE session_id = ?",
-            (session_id,),
+            f"DELETE FROM agent.chat_sessions WHERE session_id IN ({delete_placeholders})",
+            deleted_ids,
         )
         connection.commit()
-    return {"session_id": session_id, "deleted": True}
+    return {
+        "deleted_session_ids": deleted_ids,
+        "deleted_count": len(deleted_ids),
+        "missing_session_ids": missing_ids,
+    }
 
 
 def session_history(session_id: str, limit: int = 8) -> list[dict]:

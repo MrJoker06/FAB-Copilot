@@ -37,7 +37,7 @@ from app.processes import MANUFACTURING_STEPS
 from app.rag import _infer_filters, search_knowledge
 from app.reports import process_capability, recent_excursions, report_bundle, safe_select, timestamp_bounds
 from app.seed import seed_reference_data
-from app.sessions import append_message
+from app.sessions import append_message, record_agent_result
 
 
 class FabInsightTests(unittest.TestCase):
@@ -330,6 +330,54 @@ class FabInsightTests(unittest.TestCase):
             self.assertEqual(deleted.status_code, 200)
             self.assertTrue(deleted.json()["deleted"])
             self.assertEqual(client.get(f"/api/sessions/{archived_for_delete['session_id']}").status_code, 404)
+
+    def test_sessions_can_be_deleted_in_bulk_with_agent_records(self):
+        with TestClient(app) as client:
+            active = client.post("/api/sessions").json()
+            archived = client.post("/api/sessions").json()
+            untouched = client.post("/api/sessions").json()
+            assistant = append_message(active["session_id"], "assistant", "批量删除级联测试")
+            record_agent_result(
+                active["session_id"],
+                assistant["message_id"],
+                {
+                    "run_id": "run-bulk-delete-test",
+                    "model": "test-model",
+                    "mode": "test",
+                    "tool_trace": [{"tool": "get_fab_overview", "status": "ok", "rows": 1}],
+                },
+            )
+            client.delete(f"/api/sessions/{archived['session_id']}")
+
+            missing_id = "missing-session"
+            response = client.post(
+                "/api/sessions/bulk-delete",
+                json={"session_ids": [active["session_id"], archived["session_id"], active["session_id"], missing_id]},
+            )
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertEqual(payload["deleted_count"], 2)
+            self.assertEqual(payload["deleted_session_ids"], [active["session_id"], archived["session_id"]])
+            self.assertEqual(payload["missing_session_ids"], [missing_id])
+            self.assertEqual(client.get(f"/api/sessions/{active['session_id']}").status_code, 404)
+            self.assertEqual(client.get(f"/api/sessions/{archived['session_id']}").status_code, 404)
+            self.assertEqual(client.get(f"/api/sessions/{untouched['session_id']}").status_code, 200)
+            with db_session() as connection:
+                message_count = connection.execute(
+                    "SELECT COUNT(*) FROM chat_messages WHERE session_id IN (?, ?)",
+                    (active["session_id"], archived["session_id"]),
+                ).fetchone()[0]
+                run_count = connection.execute(
+                    "SELECT COUNT(*) FROM agent_runs WHERE session_id IN (?, ?)",
+                    (active["session_id"], archived["session_id"]),
+                ).fetchone()[0]
+                tool_count = connection.execute(
+                    "SELECT COUNT(*) FROM agent_tool_events WHERE run_id = ?",
+                    ("run-bulk-delete-test",),
+                ).fetchone()[0]
+            self.assertEqual((message_count, run_count, tool_count), (0, 0, 0))
+            self.assertEqual(client.post("/api/sessions/bulk-delete", json={"session_ids": []}).status_code, 422)
+            client.delete(f"/api/sessions/{untouched['session_id']}/permanent")
 
     def test_streaming_chat_emits_progress_before_result_and_persists(self):
         async def fake_agent(question, history, progress=None):
