@@ -29,7 +29,7 @@ from .sessions import (
     append_message,
     archive_session,
     create_session,
-    delete_archived_session,
+    delete_session_permanently,
     get_session,
     list_sessions,
     record_agent_result,
@@ -277,10 +277,9 @@ def restore_archived_session(session_id: str) -> dict:
 @app.delete("/api/sessions/{session_id}/permanent")
 def permanently_delete_session(session_id: str) -> dict:
     try:
-        return delete_archived_session(session_id)
+        return delete_session_permanently(session_id)
     except ValueError as exc:
-        status_code = 404 if str(exc) == "会话不存在" else 409
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.get("/api/sessions/{session_id}")

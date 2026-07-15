@@ -437,8 +437,8 @@ function renderSessionLibrary() {
   $('#sessionLibraryNotice').textContent = state.sessionLibraryFilter === 'archived'
     ? '已归档会话仍保存在 AI 运营库中；恢复后会重新出现在活跃会话中。'
     : state.sessionLibraryFilter === 'all'
-      ? '这里同时显示活跃与归档会话；只有已归档会话可以永久删除。'
-      : '归档只会将会话移出活跃列表，不会删除其中的消息和分析记录。';
+      ? '这里同时显示活跃与归档会话；归档可以恢复，永久删除无法撤销。'
+      : '归档只会将会话移出活跃列表；永久删除会移除全部消息和分析记录。';
   $('#sessionLibraryList').innerHTML = [...groups.entries()].map(([group, items]) => `
     <section class="session-library-group"><h3>${group}</h3>${items.map(session => {
       const active = session.session_id === state.selectedLibrarySessionId ? ' active' : '';
@@ -446,7 +446,7 @@ function renderSessionLibrary() {
       const archived = Boolean(session.archived_at);
       const actions = archived
         ? '<button type="button" data-library-action="restore">恢复会话</button><button type="button" class="danger-action" data-library-action="delete">永久删除</button>'
-        : '<button type="button" data-library-action="rename">重命名</button><button type="button" data-library-action="archive">归档</button>';
+        : '<button type="button" data-library-action="rename">重命名</button><button type="button" data-library-action="archive">归档</button><button type="button" class="danger-action" data-library-action="delete">永久删除</button>';
       return `<article class="session-library-item${active}" data-library-session-id="${escapeHtml(session.session_id)}"><button class="session-library-open" type="button"><strong>${escapeHtml(session.title)}</strong><span>${timestamp} · ${session.message_count} 条消息${session.model ? ` · ${escapeHtml(session.model)}` : ''}</span><small>${escapeHtml(session.last_message_preview || '空会话')}</small></button><span class="session-state${archived ? ' archived' : ''}">${archived ? '已归档' : '活跃'}</span><details class="session-item-menu"><summary title="会话操作" aria-label="会话操作">⋯</summary><div>${actions}</div></details></article>`;
     }).join('')}</section>`).join('') || '<p class="empty session-empty">没有匹配的历史会话</p>';
 }
@@ -461,7 +461,7 @@ function renderSessionLibraryPreview(session) {
   $('#sessionLibraryMeta').innerHTML = `<span>${session.archived_at ? '已归档' : '活跃会话'}</span><span>${session.messages.length} 条消息</span>${session.model ? `<span>${escapeHtml(session.model)}</span>` : ''}<span>创建 ${created}</span><span>更新 ${updated}</span>`;
   $('#sessionLibraryActions').hidden = false;
   $('#archiveLibrarySession').textContent = session.archived_at ? '恢复会话' : '归档';
-  $('#deleteLibrarySession').hidden = !session.archived_at;
+  $('#deleteLibrarySession').hidden = false;
   $('#continueLibrarySession').textContent = session.archived_at ? '恢复并继续' : '在助手中继续';
   $('#sessionLibraryMessages').innerHTML = session.messages.map(item => {
     const assistant = item.role === 'assistant';
@@ -565,7 +565,7 @@ async function restoreLibrarySession(sessionId) {
 
 function openSessionDeleteDialog(sessionId) {
   const session = state.sessionLibrary.find(item => item.session_id === sessionId);
-  if (!session?.archived_at) return;
+  if (!session) return;
   state.pendingDeleteSessionId = session.session_id;
   $('#sessionDeleteMessage').textContent = `“${session.title}”将从本系统中永久删除。`;
   $('#sessionDeleteDialog').showModal();
@@ -578,6 +578,7 @@ async function permanentlyDeleteSelectedSession() {
   $('#confirmSessionDelete').disabled = true;
   try {
     await api(`/api/sessions/${encodeURIComponent(sessionId)}/permanent`, {method:'DELETE'});
+    if (session.session_id === state.sessionId) resetConversationDraft('当前会话已删除');
     state.pendingDeleteSessionId = null;
     state.selectedLibrarySessionId = null;
     $('#sessionDeleteDialog').close();
