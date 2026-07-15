@@ -1,17 +1,27 @@
 from __future__ import annotations
 
+import atexit
 import json
+import os
+import shutil
 import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
+
+TEST_DATABASE_DIR = Path(tempfile.mkdtemp(prefix="fab-insight-tests-"))
+os.environ["FAB_KNOWLEDGE_DATABASE_PATH"] = str(TEST_DATABASE_DIR / "process_knowledge.db")
+os.environ["FAB_AGENT_DATABASE_PATH"] = str(TEST_DATABASE_DIR / "ai_operations.db")
+atexit.register(shutil.rmtree, TEST_DATABASE_DIR, True)
+
 from fastapi.testclient import TestClient
 
 from app.audit import sanitize
 from app.database import (
     db_session,
+    department_paths,
     get_active_defect_aliases,
     initialize,
     replace_defect_type_aliases,
@@ -96,8 +106,19 @@ class FabInsightTests(unittest.TestCase):
         with db_session() as connection:
             max_run = connection.execute("SELECT MAX(date(run_time)) FROM process_runs").fetchone()[0]
             max_defect = connection.execute("SELECT MAX(date(detected_time)) FROM defect_records").fetchone()[0]
+            max_wafer_map = connection.execute("SELECT MAX(date(detected_time)) FROM wafer_maps").fetchone()[0]
         self.assertLessEqual(max_run, date.today().isoformat())
         self.assertLessEqual(max_defect, date.today().isoformat())
+        self.assertLessEqual(max_wafer_map, date.today().isoformat())
+
+    def test_department_databases_are_physically_separated(self):
+        paths = department_paths()
+        self.assertEqual(set(paths), {"main", "equipment", "quality", "knowledge", "agent"})
+        self.assertEqual(len(set(paths.values())), 5)
+        self.assertTrue(all(path.exists() for path in paths.values()))
+        with db_session() as connection:
+            attached = {row[1] for row in connection.execute("PRAGMA database_list")}
+        self.assertTrue({"main", "equipment", "quality", "knowledge", "agent"}.issubset(attached))
 
     def test_recent_excursions_supports_process_filter(self):
         rows = recent_excursions(process_step="CMP", limit=20)

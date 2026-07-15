@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, SecretStr
 from .agent import run_agent
 from .audit import emit, monitoring_summary, read_events
 from .config import PROJECT_DIR, get_settings, public_model_config, update_model_config
-from .database import db_session, initialize
+from .database import db_session, department_paths, ensure_department_databases
 from .processes import MANUFACTURING_STEPS, PROCESS_STEP_PATTERN
 from .rag import (
     get_historical_case,
@@ -39,42 +39,23 @@ from .sessions import (
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    settings = get_settings()
-    if not settings.database_path.exists():
-        generate_database(settings.database_path)
-    else:
-        with db_session(settings.database_path) as connection:
-            tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-            indexes = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'index'")}
-            session_columns = {row[1] for row in connection.execute("PRAGMA table_info(chat_sessions)")}
-            run_columns = {row[1] for row in connection.execute("PRAGMA table_info(process_runs)")}
-        required_tables = {
-            "sensor_readings", "equipment_state_intervals", "wafer_maps",
-            "agent_runs", "agent_tool_events", "message_sources",
-            "defect_types", "defect_type_aliases",
+    ensure_department_databases()
+    with db_session() as connection:
+        populated_steps = {
+            row[0]
+            for row in connection.execute(
+                "SELECT DISTINCT process_step FROM process_runs WHERE measurement_value IS NOT NULL"
+            )
         }
-        needs_migration = (
-            not required_tables.issubset(tables)
-            or not {"model", "archived_at", "last_message_preview"}.issubset(session_columns)
-            or not {"operation_seq", "layer_name", "scenario_id"}.issubset(run_columns)
-            or "idx_runs_step_time" not in indexes
+        has_sensor_data = bool(
+            connection.execute("SELECT EXISTS(SELECT 1 FROM sensor_readings LIMIT 1)").fetchone()[0]
         )
-        if needs_migration:
-            initialize(settings.database_path)
-        with db_session(settings.database_path) as connection:
-            populated_steps = {
-                row[0]
-                for row in connection.execute(
-                    "SELECT DISTINCT process_step FROM process_runs WHERE measurement_value IS NOT NULL"
-                )
-            }
-            has_sensor_data = bool(connection.execute("SELECT EXISTS(SELECT 1 FROM sensor_readings LIMIT 1)").fetchone()[0])
-            max_operation = connection.execute("SELECT MAX(operation_seq) FROM process_runs").fetchone()[0] or 0
-            knowledge_count = connection.execute("SELECT COUNT(*) FROM knowledge_chunks").fetchone()[0]
-        if not set(MANUFACTURING_STEPS).issubset(populated_steps) or not has_sensor_data or max_operation < 18:
-            generate_database(settings.database_path)
-        elif knowledge_count == 0:
-            seed_reference_data(settings.database_path)
+        max_operation = connection.execute("SELECT MAX(operation_seq) FROM process_runs").fetchone()[0] or 0
+        knowledge_count = connection.execute("SELECT COUNT(*) FROM knowledge_chunks").fetchone()[0]
+    if not set(MANUFACTURING_STEPS).issubset(populated_steps) or not has_sensor_data or max_operation < 18:
+        generate_database()
+    elif knowledge_count == 0:
+        seed_reference_data()
     yield
 
 
@@ -118,6 +99,7 @@ async def index():
 @app.get("/api/health")
 def health() -> dict:
     settings = get_settings()
+    department_names = {"main": "manufacturing"}
     with db_session() as connection:
         lots = connection.execute("SELECT COUNT(*) FROM lots").fetchone()[0]
         date_range = connection.execute("SELECT MIN(date(start_time)), MAX(date(COALESCE(complete_time, start_time))) FROM lots").fetchone()
@@ -129,6 +111,13 @@ def health() -> dict:
     return {
         "status": "ok",
         "database": {"lots": lots, "process_runs": process_runs, "sensor_readings": sensor_readings, "wafer_maps": wafer_maps, "start": date_range[0], "end": date_range[1]},
+        "database_departments": {
+            department_names.get(name, name): {
+                "path": str(path),
+                "size_bytes": path.stat().st_size if path.exists() else 0,
+            }
+            for name, path in department_paths().items()
+        },
         "model": settings.deepseek_model,
         "agent_configured": bool(settings.deepseek_api_key),
         "reference_data": {"knowledge_chunks": knowledge_chunks, "historical_cases": historical_cases},

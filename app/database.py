@@ -2,10 +2,17 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Iterator
 
 from .config import get_settings
+from .department_schemas import (
+    DEPARTMENT_SCHEMAS,
+    MIGRATION_ORDER,
+    SCHEMA_VERSION,
+    TABLE_DEPARTMENTS,
+)
 
 
 SCHEMA = """
@@ -323,35 +330,65 @@ DEFAULT_DEFECT_TYPE_ALIASES = {
     "Watermark": ("watermark", "水印"),
     "Metal Contamination": ("metal contamination", "金属污染"),
     "Measurement Drift": ("measurement drift", "量测漂移", "测量漂移"),
+    "Micro-trench": ("micro-trench", "微沟槽"),
+    "Erosion": ("erosion", "侵蚀"),
+    "Slip": ("slip", "滑移"),
+    "Oxide Non-uniformity": ("oxide non-uniformity", "氧化层不均匀"),
+    "Channeling": ("channeling", "沟道效应"),
+    "False Defect": ("false defect", "误报缺陷"),
+    "Correlation": ("correlation", "相关性"),
+    "Repeat Alarm": ("repeat alarm", "重复报警"),
 }
 
 
-def _seed_default_defect_types(connection: sqlite3.Connection) -> None:
-    """Populate legacy defaults only when this is a newly created catalog."""
-    if connection.execute("SELECT 1 FROM defect_types LIMIT 1").fetchone() is not None:
-        return
+def _seed_default_defect_types(connection: sqlite3.Connection, schema: str = "") -> None:
+    """Ensure the governed defect catalog contains every built-in type."""
+    prefix = f"{schema}." if schema else ""
     for canonical_name, aliases in DEFAULT_DEFECT_TYPE_ALIASES.items():
-        connection.execute("INSERT INTO defect_types(canonical_name) VALUES (?)", (canonical_name,))
+        connection.execute(
+            f"INSERT OR IGNORE INTO {prefix}defect_types(canonical_name) VALUES (?)",
+            (canonical_name,),
+        )
         defect_type_id = connection.execute(
-            "SELECT defect_type_id FROM defect_types WHERE canonical_name = ?", (canonical_name,)
+            f"SELECT defect_type_id FROM {prefix}defect_types WHERE canonical_name = ?",
+            (canonical_name,),
         ).fetchone()[0]
         connection.executemany(
-            "INSERT INTO defect_type_aliases(defect_type_id, alias) VALUES (?, ?)",
+            f"INSERT OR IGNORE INTO {prefix}defect_type_aliases(defect_type_id, alias) VALUES (?, ?)",
             ((defect_type_id, alias) for alias in aliases),
         )
 
 
-def connect(path: Path | None = None) -> sqlite3.Connection:
-    db_path = path or get_settings().database_path
+def department_paths() -> dict[str, Path]:
+    settings = get_settings()
+    return {
+        "main": settings.manufacturing_database_path,
+        "equipment": settings.equipment_database_path,
+        "quality": settings.quality_database_path,
+        "knowledge": settings.knowledge_database_path,
+        "agent": settings.agent_database_path,
+    }
+
+
+def writable_table(name: str, path: Path | None = None) -> str:
+    """Return a physical table name for writes; reads use compatibility views."""
+    if path is not None:
+        return name
+    department = TABLE_DEPARTMENTS[name]
+    return name if department == "main" else f"{department}.{name}"
+
+
+def _connect_single(db_path: Path) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(db_path, timeout=20)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys=ON")
+    connection.execute("PRAGMA busy_timeout=20000")
     return connection
 
 
-def initialize(path: Path | None = None) -> None:
-    connection = connect(path)
+def _initialize_legacy(path: Path) -> None:
+    connection = _connect_single(path)
     try:
         connection.executescript(SCHEMA)
         existing_columns = {row[1] for row in connection.execute("PRAGMA table_info(historical_cases)")}
@@ -371,6 +408,200 @@ def initialize(path: Path | None = None) -> None:
         connection.commit()
     finally:
         connection.close()
+
+
+def _initialize_departments() -> None:
+    paths = department_paths()
+    for department, path in paths.items():
+        connection = _connect_single(path)
+        try:
+            connection.execute("PRAGMA journal_mode=WAL")
+            connection.executescript(DEPARTMENT_SCHEMAS[department])
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_migrations(version, description) VALUES (?, ?)",
+                (SCHEMA_VERSION, f"department schema: {department}"),
+            )
+            if department == "quality":
+                _seed_default_defect_types(connection)
+            connection.commit()
+        finally:
+            connection.close()
+
+
+def connect(path: Path | None = None) -> sqlite3.Connection:
+    if path is not None:
+        return _connect_single(path)
+    paths = department_paths()
+    if any(not item.exists() for item in paths.values()):
+        _initialize_departments()
+    connection = _connect_single(paths["main"])
+    for department in ("equipment", "quality", "knowledge", "agent"):
+        connection.execute(f"ATTACH DATABASE ? AS {department}", (str(paths[department]),))
+    for table, department in TABLE_DEPARTMENTS.items():
+        if department == "main":
+            continue
+        connection.execute(
+            f'CREATE TEMP VIEW "{table}" AS SELECT * FROM "{department}"."{table}"'
+        )
+    return connection
+
+
+def initialize(path: Path | None = None) -> None:
+    if path is not None:
+        _initialize_legacy(path)
+    else:
+        _initialize_departments()
+
+
+def migrate_legacy_database(source: Path | None = None, force: bool = False) -> dict[str, int]:
+    """Copy the legacy monolith into department-owned databases without modifying it."""
+    source_path = source or get_settings().database_path
+    if not source_path.exists():
+        return {}
+    initialize()
+    aliases = {
+        "main": "manufacturing",
+        "equipment": "equipment",
+        "quality": "quality",
+        "knowledge": "knowledge",
+        "agent": "agent",
+    }
+    connection = _connect_single(source_path)
+    try:
+        source_tables = {
+            row[0]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        }
+        if "lots" not in source_tables:
+            return {}
+        for department, target_path in department_paths().items():
+            connection.execute(
+                f"ATTACH DATABASE ? AS {aliases[department]}",
+                (str(target_path),),
+            )
+        existing_lots = connection.execute(
+            "SELECT COUNT(*) FROM manufacturing.lots"
+        ).fetchone()[0]
+        if existing_lots and not force:
+            return {}
+        connection.execute("PRAGMA foreign_keys=OFF")
+        for table in reversed(MIGRATION_ORDER):
+            target_alias = aliases[TABLE_DEPARTMENTS[table]]
+            connection.execute(f'DELETE FROM "{target_alias}"."{table}"')
+        counts: dict[str, int] = {}
+        for table in MIGRATION_ORDER:
+            if table not in source_tables:
+                counts[table] = 0
+                continue
+            target_alias = aliases[TABLE_DEPARTMENTS[table]]
+            source_columns = {
+                row[1] for row in connection.execute(f"PRAGMA main.table_info('{table}')")
+            }
+            target_columns = [
+                row[1]
+                for row in connection.execute(
+                    f"PRAGMA {target_alias}.table_info('{table}')"
+                )
+                if row[1] in source_columns
+            ]
+            columns = ", ".join(f'"{column}"' for column in target_columns)
+            connection.execute(
+                f'INSERT INTO "{target_alias}"."{table}" ({columns}) '
+                f'SELECT {columns} FROM main."{table}"'
+            )
+            counts[table] = connection.execute(
+                f'SELECT COUNT(*) FROM "{target_alias}"."{table}"'
+            ).fetchone()[0]
+
+        connection.execute(
+            """UPDATE quality.wafer_maps
+               SET detected_time = COALESCE(
+                   (SELECT MAX(r.run_time) FROM manufacturing.process_runs r
+                    WHERE r.lot_id = quality.wafer_maps.lot_id
+                      AND datetime(r.run_time) <= CURRENT_TIMESTAMP),
+                   (SELECT l.start_time FROM manufacturing.lots l
+                    WHERE l.lot_id = quality.wafer_maps.lot_id),
+                   detected_time
+               )
+               WHERE datetime(detected_time) > CURRENT_TIMESTAMP"""
+        )
+        connection.execute(
+            """INSERT OR IGNORE INTO quality.defect_types(canonical_name)
+               SELECT DISTINCT defect_type FROM quality.defect_records
+               WHERE TRIM(defect_type) <> ''"""
+        )
+        connection.execute(
+            """INSERT OR IGNORE INTO quality.defect_types(canonical_name)
+               SELECT DISTINCT defect_type FROM knowledge.historical_cases
+               WHERE TRIM(defect_type) <> ''"""
+        )
+        _seed_default_defect_types(connection, "quality")
+        connection.execute(
+            "INSERT INTO knowledge.knowledge_trigram_fts(knowledge_trigram_fts) VALUES ('rebuild')"
+        )
+        connection.execute(
+            "INSERT INTO knowledge.case_trigram_fts(case_trigram_fts) VALUES ('rebuild')"
+        )
+        connection.commit()
+        return counts
+    finally:
+        connection.close()
+
+
+def ensure_department_databases() -> dict[str, int]:
+    initialize()
+    with db_session() as connection:
+        has_manufacturing_data = bool(
+            connection.execute("SELECT EXISTS(SELECT 1 FROM lots LIMIT 1)").fetchone()[0]
+        )
+        companion_counts = {
+            "equipment": connection.execute("SELECT COUNT(*) FROM sensor_readings").fetchone()[0],
+            "quality": connection.execute("SELECT COUNT(*) FROM wafer_maps").fetchone()[0],
+        }
+    if not has_manufacturing_data:
+        return migrate_legacy_database()
+    missing = [department for department, count in companion_counts.items() if count == 0]
+    if missing:
+        names = ", ".join(missing)
+        raise RuntimeError(
+            f"Department database set is incomplete: {names}. "
+            "Restore the matching backup set before starting the application."
+        )
+    return {}
+
+
+def validate_department_databases() -> dict[str, int | str]:
+    """Run lightweight cross-department contract checks used by startup and tests."""
+    with db_session() as connection:
+        checks: dict[str, int | str] = {
+            "quick_check": connection.execute("PRAGMA quick_check").fetchone()[0],
+            "sensor_orphans": connection.execute(
+                "SELECT COUNT(*) FROM sensor_readings s LEFT JOIN lots l USING(lot_id) WHERE l.lot_id IS NULL"
+            ).fetchone()[0],
+            "defect_orphans": connection.execute(
+                "SELECT COUNT(*) FROM defect_records d LEFT JOIN lots l USING(lot_id) WHERE l.lot_id IS NULL"
+            ).fetchone()[0],
+            "wafer_map_orphans": connection.execute(
+                "SELECT COUNT(*) FROM wafer_maps w LEFT JOIN lots l USING(lot_id) WHERE l.lot_id IS NULL"
+            ).fetchone()[0],
+            "future_wafer_maps": connection.execute(
+                "SELECT COUNT(*) FROM wafer_maps WHERE datetime(detected_time) > CURRENT_TIMESTAMP"
+            ).fetchone()[0],
+            "uncatalogued_defects": connection.execute(
+                """SELECT COUNT(DISTINCT d.defect_type) FROM defect_records d
+                   LEFT JOIN defect_types t ON t.canonical_name = d.defect_type
+                   WHERE t.defect_type_id IS NULL"""
+            ).fetchone()[0],
+            "knowledge_fts_delta": connection.execute(
+                "SELECT ABS((SELECT COUNT(*) FROM knowledge_chunks) - "
+                "(SELECT COUNT(*) FROM knowledge.knowledge_trigram_fts))"
+            ).fetchone()[0],
+            "case_fts_delta": connection.execute(
+                "SELECT ABS((SELECT COUNT(*) FROM historical_cases) - "
+                "(SELECT COUNT(*) FROM knowledge.case_trigram_fts))"
+            ).fetchone()[0],
+        }
+    return checks
 
 
 @contextmanager
@@ -414,20 +645,24 @@ def replace_defect_type_aliases(
         raise ValueError("缺陷类型标准名称不能为空")
     cleaned_aliases = tuple(dict.fromkeys(alias.strip() for alias in aliases if alias.strip()))
     connection = connect(path)
+    defect_types = writable_table("defect_types", path)
+    defect_aliases = writable_table("defect_type_aliases", path)
     try:
         connection.execute(
-            """INSERT INTO defect_types(canonical_name, is_active, updated_at)
+            f"""INSERT INTO {defect_types}(canonical_name, is_active, updated_at)
                VALUES (?, 1, CURRENT_TIMESTAMP)
                ON CONFLICT(canonical_name) DO UPDATE SET
                    is_active = 1, updated_at = CURRENT_TIMESTAMP""",
             (name,),
         )
         defect_type_id = connection.execute(
-            "SELECT defect_type_id FROM defect_types WHERE canonical_name = ?", (name,)
+            f"SELECT defect_type_id FROM {defect_types} WHERE canonical_name = ?", (name,)
         ).fetchone()[0]
-        connection.execute("DELETE FROM defect_type_aliases WHERE defect_type_id = ?", (defect_type_id,))
+        connection.execute(
+            f"DELETE FROM {defect_aliases} WHERE defect_type_id = ?", (defect_type_id,)
+        )
         connection.executemany(
-            "INSERT INTO defect_type_aliases(defect_type_id, alias) VALUES (?, ?)",
+            f"INSERT INTO {defect_aliases}(defect_type_id, alias) VALUES (?, ?)",
             ((defect_type_id, alias) for alias in cleaned_aliases),
         )
         connection.commit()

@@ -4,6 +4,9 @@ __pycache__/
 .venv/
 data/*.db
 data/*.db-*
+data/**/*.db
+data/**/*.db-*
+backups/databases/
 logs/*.jsonl*
 logs/agent/
 .env

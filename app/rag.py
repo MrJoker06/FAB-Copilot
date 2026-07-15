@@ -169,7 +169,7 @@ def search_knowledge(
                           d.owner, d.authority, d.process_steps, d.equipment_families, d.tags,
                           snippet(knowledge_trigram_fts, 2, '[', ']', '…', 24) AS excerpt,
                           round(bm25(knowledge_trigram_fts), 4) AS score
-                   FROM knowledge_trigram_fts
+                   FROM knowledge.knowledge_trigram_fts
                    JOIN knowledge_chunks k ON k.chunk_id = knowledge_trigram_fts.rowid
                    JOIN knowledge_documents d ON d.source = k.source AND d.status = 'Active'
                    WHERE knowledge_trigram_fts MATCH ?
@@ -189,8 +189,8 @@ def search_knowledge(
                           c.equipment_family, c.defect_type, c.symptoms, c.root_cause,
                           c.root_cause_confidence, c.validation_method, c.recurrence_status,
                           c.approved_by, c.case_status
-                   FROM case_trigram_fts
-                   JOIN historical_cases c ON c.rowid = case_trigram_fts.rowid
+                   FROM knowledge.case_trigram_fts
+                   JOIN knowledge.historical_cases c ON c.rowid = case_trigram_fts.rowid
                    WHERE case_trigram_fts MATCH ?
                    ORDER BY bm25(case_trigram_fts)
                    LIMIT ?""",

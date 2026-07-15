@@ -7,8 +7,8 @@ import random
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
-from .config import PROJECT_DIR, get_settings
-from .database import db_session, initialize
+from .config import PROJECT_DIR
+from .database import db_session, department_paths, ensure_department_databases, initialize, writable_table
 from .processes import MANUFACTURING_STEPS
 
 
@@ -136,7 +136,7 @@ def _clip(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
-def _seed_knowledge(connection) -> int:
+def _seed_knowledge(connection, database_path: Path | None = None) -> int:
     catalog_path = PROJECT_DIR / "knowledge" / "catalog.json"
     catalog_items = json.loads(catalog_path.read_text(encoding="utf-8"))
     catalog = {item["source"]: item for item in catalog_items}
@@ -144,12 +144,16 @@ def _seed_knowledge(connection) -> int:
     markdown_sources = {path.name for path in (PROJECT_DIR / "knowledge").glob("*.md")}
     if markdown_sources != set(catalog):
         raise ValueError(f"知识目录与文档不一致: files={sorted(markdown_sources)}, catalog={sorted(catalog)}")
-    connection.execute("DELETE FROM knowledge_documents")
-    connection.execute("DELETE FROM knowledge_chunks")
-    connection.execute("DELETE FROM sqlite_sequence WHERE name = 'knowledge_chunks'")
+    documents_table = writable_table("knowledge_documents", database_path)
+    chunks_table = writable_table("knowledge_chunks", database_path)
+    fts_table = "knowledge_trigram_fts" if database_path is not None else "knowledge.knowledge_trigram_fts"
+    sequence_table = "sqlite_sequence" if database_path is not None else "knowledge.sqlite_sequence"
+    connection.execute(f"DELETE FROM {chunks_table}")
+    connection.execute(f"DELETE FROM {documents_table}")
+    connection.execute(f"DELETE FROM {sequence_table} WHERE name = 'knowledge_chunks'")
     for item in catalog_items:
         connection.execute(
-            """INSERT INTO knowledge_documents(
+            f"""INSERT INTO {documents_table}(
                    source, title, doc_type, version, status, effective_date, owner,
                    authority, process_steps, equipment_families, tags
                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -172,7 +176,7 @@ def _seed_knowledge(connection) -> int:
             if not content:
                 return
             connection.execute(
-                "INSERT INTO knowledge_chunks(title, source, section, content) VALUES (?, ?, ?, ?)",
+                f"INSERT INTO {chunks_table}(title, source, section, content) VALUES (?, ?, ?, ?)",
                 (title, path.name, section, content),
             )
             count += 1
@@ -185,13 +189,13 @@ def _seed_knowledge(connection) -> int:
             elif not line.startswith("# "):
                 buffer.append(line)
         flush()
-    connection.execute("INSERT INTO knowledge_trigram_fts(knowledge_trigram_fts) VALUES ('rebuild')")
+    connection.execute(f"INSERT INTO {fts_table}(knowledge_trigram_fts) VALUES ('rebuild')")
     return count
 
 
-def _seed_cases(connection) -> int:
-    path = PROJECT_DIR / "cases" / "historical_cases.json"
-    cases = json.loads(path.read_text(encoding="utf-8"))
+def _seed_cases(connection, database_path: Path | None = None) -> int:
+    case_path = PROJECT_DIR / "cases" / "historical_cases.json"
+    cases = json.loads(case_path.read_text(encoding="utf-8"))
     governance_path = PROJECT_DIR / "cases" / "catalog.json"
     governance_items = json.loads(governance_path.read_text(encoding="utf-8"))
     governance = {item["case_id"]: item for item in governance_items}
@@ -207,7 +211,9 @@ def _seed_cases(connection) -> int:
     case_ids = {item["case_id"] for item in cases}
     if case_ids != set(governance):
         raise ValueError("案例正文与治理目录的 case_id 不一致")
-    connection.execute("DELETE FROM historical_cases")
+    cases_table = writable_table("historical_cases", database_path)
+    fts_table = "case_trigram_fts" if database_path is not None else "knowledge.case_trigram_fts"
+    connection.execute(f"DELETE FROM {cases_table}")
     for item in cases:
         missing = required.difference(item)
         if missing:
@@ -219,7 +225,7 @@ def _seed_cases(connection) -> int:
         original_tags = item["tags"] if isinstance(item["tags"], list) else [str(item["tags"])]
         tags = ", ".join(dict.fromkeys(original_tags + governance_item["symptoms"]))
         connection.execute(
-            """INSERT INTO historical_cases(
+            f"""INSERT INTO {cases_table}(
                    case_id, title, process_step, equipment_id, occurred_date, severity,
                    problem, solution, result, summary, tags, equipment_family, defect_type,
                    symptoms, root_cause, root_cause_confidence, validation_method,
@@ -235,23 +241,22 @@ def _seed_cases(connection) -> int:
                 governance_item["approved_by"], governance_item["case_status"],
             ),
         )
-    connection.execute("INSERT INTO case_trigram_fts(case_trigram_fts) VALUES ('rebuild')")
+    connection.execute(f"INSERT INTO {fts_table}(case_trigram_fts) VALUES ('rebuild')")
     return len(cases)
 
 
 def seed_reference_data(path: Path | None = None) -> dict:
-    db_path = path or get_settings().database_path
-    initialize(db_path)
-    with db_session(db_path) as connection:
-        knowledge_count = _seed_knowledge(connection)
-        case_count = _seed_cases(connection)
+    initialize(path)
+    with db_session(path) as connection:
+        knowledge_count = _seed_knowledge(connection, path)
+        case_count = _seed_cases(connection, path)
         connection.commit()
     return {"knowledge_chunks": knowledge_count, "historical_cases": case_count}
 
 
 def generate_database(path: Path | None = None, days: int = 730, seed: int = 20260712) -> dict:
-    db_path = path or get_settings().database_path
-    initialize(db_path)
+    initialize(path)
+    db_path = path or department_paths()["main"]
     rng = random.Random(seed)
     end_day = date.today()
     as_of = datetime.combine(end_day, time(23, 59, 59))
@@ -421,8 +426,9 @@ def generate_database(path: Path | None = None, days: int = 730, seed: int = 202
                     }[map_step]
                 tested_dies = rng.randint(520, 760)
                 failed_dies = rng.randint(0, 4) if pattern == "None" else rng.randint(8, 95)
+                detected_time = min(last_run_dt, as_of)
                 wafer_maps.append((
-                    lot_id, rng.randint(1, wafer_count), last_run_dt.isoformat(timespec="seconds"),
+                    lot_id, rng.randint(1, wafer_count), detected_time.isoformat(timespec="seconds"),
                     map_step, last_equipment, pattern, tested_dies, failed_dies, rng.randint(1, 2_000_000_000),
                 ))
 
@@ -466,18 +472,25 @@ def generate_database(path: Path | None = None, days: int = 730, seed: int = 202
                 event_dt = datetime.combine(current_day, time(rng.randint(0, 23), rng.randint(0, 59)))
                 events.append((equipment, event_dt.isoformat(timespec="seconds"), event_type, round(duration, 1), severity, reason))
 
-    with db_session(db_path) as connection:
-        connection.execute("DELETE FROM sensor_readings")
-        connection.execute("DELETE FROM wafer_maps")
-        connection.execute("DELETE FROM equipment_state_intervals")
-        connection.execute("DELETE FROM simulation_scenarios")
-        connection.execute("DELETE FROM defect_records")
-        connection.execute("DELETE FROM process_runs")
-        connection.execute("DELETE FROM equipment_events")
-        connection.execute("DELETE FROM lots")
-        connection.executemany("INSERT INTO lots VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", lots)
+    with db_session(path) as connection:
+        tables = {name: writable_table(name, path) for name in (
+            "lots", "process_runs", "sensor_readings", "equipment_state_intervals",
+            "equipment_events", "defect_records", "wafer_maps", "simulation_scenarios",
+        )}
+        connection.execute(f"DELETE FROM {tables['sensor_readings']}")
+        connection.execute(f"DELETE FROM {tables['wafer_maps']}")
+        connection.execute(f"DELETE FROM {tables['equipment_state_intervals']}")
+        connection.execute(f"DELETE FROM {tables['simulation_scenarios']}")
+        connection.execute(f"DELETE FROM {tables['defect_records']}")
+        connection.execute(f"DELETE FROM {tables['process_runs']}")
+        connection.execute(f"DELETE FROM {tables['equipment_events']}")
+        connection.execute(f"DELETE FROM {tables['lots']}")
         connection.executemany(
-            """INSERT INTO process_runs(
+            f"INSERT INTO {tables['lots']} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            lots,
+        )
+        connection.executemany(
+            f"""INSERT INTO {tables['process_runs']}(
                 lot_id, process_step, equipment_id, chamber, recipe, run_time,
                 temperature_c, pressure_torr, duration_sec, thickness_nm,
                 uniformity_pct, defect_density, measurement_name, measurement_value,
@@ -487,21 +500,21 @@ def generate_database(path: Path | None = None, days: int = 730, seed: int = 202
             runs,
         )
         connection.executemany(
-            "INSERT INTO equipment_events(equipment_id, event_time, event_type, duration_minutes, severity, reason) VALUES (?, ?, ?, ?, ?, ?)",
+            f"INSERT INTO {tables['equipment_events']}(equipment_id, event_time, event_type, duration_minutes, severity, reason) VALUES (?, ?, ?, ?, ?, ?)",
             events,
         )
         connection.executemany(
-            "INSERT INTO defect_records(lot_id, detected_time, process_step, defect_type, count, disposition) VALUES (?, ?, ?, ?, ?, ?)",
+            f"INSERT INTO {tables['defect_records']}(lot_id, detected_time, process_step, defect_type, count, disposition) VALUES (?, ?, ?, ?, ?, ?)",
             defects,
         )
         connection.executemany(
-            """INSERT INTO equipment_state_intervals(
+            f"""INSERT INTO {tables['equipment_state_intervals']}(
                    equipment_id, chamber, start_time, duration_minutes, semi_e10_state, reason
                ) VALUES (?, ?, ?, ?, ?, ?)""",
             equipment_states,
         )
         connection.executemany(
-            """INSERT INTO wafer_maps(
+            f"""INSERT INTO {tables['wafer_maps']}(
                    lot_id, wafer_no, detected_time, process_step, equipment_id,
                    pattern_class, tested_dies, failed_dies, map_seed
                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -516,7 +529,7 @@ def generate_database(path: Path | None = None, days: int = 730, seed: int = 202
                 root_cause, signals, "SECOM-shape + SEMI-E10 + WM-811K-patterns + NIST-SPC", 0,
             ))
         connection.executemany(
-            """INSERT INTO simulation_scenarios(
+            f"""INSERT INTO {tables['simulation_scenarios']}(
                    scenario_id, process_step, equipment_id, scenario_type, start_date,
                    end_date, root_cause, observable_signals, source_profile, visible_to_agent
                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -555,7 +568,7 @@ def generate_database(path: Path | None = None, days: int = 730, seed: int = 202
                 ))
                 if len(sensor_batch) >= 25000:
                     connection.executemany(
-                        """INSERT INTO sensor_readings(
+                        f"""INSERT INTO {tables['sensor_readings']}(
                                lot_id, operation_seq, process_step, equipment_id, chamber,
                                sample_time, signal_name, signal_value, signal_unit, is_missing, is_outlier
                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -565,15 +578,15 @@ def generate_database(path: Path | None = None, days: int = 730, seed: int = 202
                     sensor_batch.clear()
         if sensor_batch:
             connection.executemany(
-                """INSERT INTO sensor_readings(
+                f"""INSERT INTO {tables['sensor_readings']}(
                        lot_id, operation_seq, process_step, equipment_id, chamber,
                        sample_time, signal_name, signal_value, signal_unit, is_missing, is_outlier
                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 sensor_batch,
             )
             sensor_count += len(sensor_batch)
-        knowledge_count = _seed_knowledge(connection)
-        case_count = _seed_cases(connection)
+        knowledge_count = _seed_knowledge(connection, path)
+        case_count = _seed_cases(connection, path)
         connection.commit()
 
     return {
@@ -597,8 +610,11 @@ if __name__ == "__main__":
     parser.add_argument("--days", type=int, default=730)
     parser.add_argument("--force", action="store_true", help="Regenerate even when the database exists")
     args = parser.parse_args()
-    target = get_settings().database_path
-    if target.exists() and not args.force:
-        print(f"Database already exists: {target}. Use --force to regenerate.")
+    ensure_department_databases()
+    with db_session() as connection:
+        has_data = bool(connection.execute("SELECT EXISTS(SELECT 1 FROM lots LIMIT 1)").fetchone()[0])
+    if has_data and not args.force:
+        paths = ", ".join(str(path) for path in department_paths().values())
+        print(f"Department databases already exist: {paths}. Use --force to regenerate.")
     else:
-        print(generate_database(target, days=args.days))
+        print(generate_database(days=args.days))

@@ -35,6 +35,7 @@ def timestamp_bounds(start: str | None, end: str | None) -> tuple[str, str]:
 
 def fab_overview(start: str | None = None, end: str | None = None) -> dict:
     start, end = normalize_range(start, end)
+    _, end_exclusive = timestamp_bounds(start, end)
     with db_session() as connection:
         row = connection.execute(
             """SELECT COUNT(*) AS lots,
@@ -45,13 +46,14 @@ def fab_overview(start: str | None = None, end: str | None = None) -> dict:
                       ROUND(AVG(hold_hours), 1) AS avg_hold_hours,
                       SUM(CASE WHEN status = 'Hold' THEN 1 ELSE 0 END) AS held_lots
                FROM lots
-               WHERE date(COALESCE(complete_time, start_time)) BETWEEN ? AND ?""",
-            (start, end),
+               WHERE COALESCE(complete_time, start_time) >= ?
+                     AND COALESCE(complete_time, start_time) < ?""",
+            (start, end_exclusive),
         ).fetchone()
         excursion = connection.execute(
             """SELECT COUNT(*) AS excursions FROM process_runs
-               WHERE date(run_time) BETWEEN ? AND ? AND excursion_code IS NOT NULL""",
-            (start, end),
+               WHERE run_time >= ? AND run_time < ? AND excursion_code IS NOT NULL""",
+            (start, end_exclusive),
         ).fetchone()
     result = dict(row)
     result["excursions"] = excursion["excursions"]
@@ -61,7 +63,7 @@ def fab_overview(start: str | None = None, end: str | None = None) -> dict:
 
 
 def yield_trend(start: str | None = None, end: str | None = None, product: str | None = None) -> list[dict]:
-    start, end = normalize_range(start, end)
+    start, end = timestamp_bounds(start, end)
     product_clause = "AND product = ?" if product else ""
     params: list[Any] = [start, end]
     if product:
@@ -74,7 +76,7 @@ def yield_trend(start: str | None = None, end: str | None = None, product: str |
                        ROUND(100.0 * SUM(good_wafers) / SUM(wafer_count), 2) AS yield_pct,
                        ROUND(AVG(cycle_time_hours), 1) AS cycle_hours
                 FROM lots
-                WHERE date(complete_time) BETWEEN ? AND ? {product_clause}
+                WHERE complete_time >= ? AND complete_time < ? {product_clause}
                 GROUP BY period ORDER BY period""",
             params,
         ).fetchall()
@@ -82,7 +84,7 @@ def yield_trend(start: str | None = None, end: str | None = None, product: str |
 
 
 def equipment_health(start: str | None = None, end: str | None = None) -> list[dict]:
-    start, end = normalize_range(start, end)
+    start, end = timestamp_bounds(start, end)
     with db_session() as connection:
         rows = connection.execute(
             """WITH run_stats AS (
@@ -90,11 +92,11 @@ def equipment_health(start: str | None = None, end: str | None = None) -> list[d
                           SUM(CASE WHEN excursion_code IS NOT NULL THEN 1 ELSE 0 END) AS excursions,
                           ROUND(AVG(defect_density), 3) AS avg_defect_density,
                           ROUND(100.0 * AVG(pass_flag), 2) AS pass_pct
-                   FROM process_runs WHERE date(run_time) BETWEEN ? AND ? GROUP BY equipment_id
+                   FROM process_runs WHERE run_time >= ? AND run_time < ? GROUP BY equipment_id
                ), event_stats AS (
                    SELECT equipment_id, COUNT(*) AS events,
                           ROUND(SUM(duration_minutes), 1) AS downtime_minutes
-                   FROM equipment_events WHERE date(event_time) BETWEEN ? AND ? GROUP BY equipment_id
+                   FROM equipment_events WHERE event_time >= ? AND event_time < ? GROUP BY equipment_id
                )
                SELECT r.equipment_id, r.runs, r.excursions, r.avg_defect_density, r.pass_pct,
                       COALESCE(e.events, 0) AS events, COALESCE(e.downtime_minutes, 0) AS downtime_minutes,
@@ -111,7 +113,7 @@ def equipment_health(start: str | None = None, end: str | None = None) -> list[d
 
 
 def equipment_productivity(start: str | None = None, end: str | None = None) -> list[dict]:
-    start, end = normalize_range(start, end)
+    start, end = timestamp_bounds(start, end)
     with db_session() as connection:
         rows = connection.execute(
             """SELECT equipment_id,
@@ -122,7 +124,7 @@ def equipment_productivity(start: str | None = None, end: str | None = None) -> 
                       ROUND(SUM(CASE WHEN semi_e10_state = 'Unscheduled Downtime' THEN duration_minutes ELSE 0 END), 1) AS unscheduled_down_minutes,
                       ROUND(SUM(CASE WHEN semi_e10_state = 'Scheduled Downtime' THEN duration_minutes ELSE 0 END), 1) AS scheduled_down_minutes
                FROM equipment_state_intervals
-               WHERE date(start_time) BETWEEN ? AND ?
+               WHERE start_time >= ? AND start_time < ?
                GROUP BY equipment_id
                ORDER BY productive_pct, unscheduled_down_minutes DESC""",
             (start, end),
@@ -137,8 +139,8 @@ def sensor_summary(
     equipment_id: str | None = None,
     signal_name: str | None = None,
 ) -> list[dict]:
-    start, end = normalize_range(start, end)
-    clauses = ["date(sample_time) BETWEEN ? AND ?"]
+    start, end = timestamp_bounds(start, end)
+    clauses = ["sample_time >= ? AND sample_time < ?"]
     params: list[Any] = [start, end]
     for column, value in (("process_step", process_step), ("equipment_id", equipment_id), ("signal_name", signal_name)):
         if value:
@@ -202,7 +204,7 @@ def process_capability(start: str | None = None, end: str | None = None, process
 
 
 def defect_pareto(start: str | None = None, end: str | None = None, limit: int = 10) -> list[dict]:
-    start, end = normalize_range(start, end)
+    start, end = timestamp_bounds(start, end)
     with db_session() as connection:
         rows = connection.execute(
             """SELECT defect_type,
@@ -210,7 +212,7 @@ def defect_pareto(start: str | None = None, end: str | None = None, limit: int =
                       SUM(count) AS defect_count,
                       COUNT(DISTINCT lot_id) AS affected_lots,
                       ROUND(100.0 * SUM(count) / SUM(SUM(count)) OVER (), 2) AS share_pct
-               FROM defect_records WHERE date(detected_time) BETWEEN ? AND ?
+               FROM defect_records WHERE detected_time >= ? AND detected_time < ?
                GROUP BY defect_type ORDER BY defect_count DESC LIMIT ?""",
             (start, end, max(1, min(limit, 25))),
         ).fetchall()
@@ -223,7 +225,7 @@ def recent_excursions(
     limit: int = 20,
     process_step: str | None = None,
 ) -> list[dict]:
-    start, end = normalize_range(start, end)
+    start, end = timestamp_bounds(start, end)
     process_clause = "AND process_step = ?" if process_step else ""
     params: list[Any] = [start, end]
     if process_step:
@@ -236,7 +238,7 @@ def recent_excursions(
                       measurement_name, measurement_value, measurement_unit,
                       spec_lsl, spec_usl
                FROM process_runs
-               WHERE date(run_time) BETWEEN ? AND ? AND excursion_code IS NOT NULL
+               WHERE run_time >= ? AND run_time < ? AND excursion_code IS NOT NULL
                      {process_clause}
                ORDER BY run_time DESC LIMIT ?""",
             params,

@@ -16,7 +16,7 @@ def create_session(title: str = "新会话") -> dict:
     timestamp = _now()
     with db_session() as connection:
         connection.execute(
-            "INSERT INTO chat_sessions(session_id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
+            "INSERT INTO agent.chat_sessions(session_id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
             (session_id, title[:80] or "新会话", timestamp, timestamp),
         )
         connection.commit()
@@ -83,7 +83,7 @@ def rename_session(session_id: str, title: str) -> dict:
     timestamp = _now()
     with db_session() as connection:
         cursor = connection.execute(
-            "UPDATE chat_sessions SET title = ?, updated_at = ? WHERE session_id = ?",
+            "UPDATE agent.chat_sessions SET title = ?, updated_at = ? WHERE session_id = ?",
             (cleaned, timestamp, session_id),
         )
         if cursor.rowcount == 0:
@@ -96,7 +96,7 @@ def archive_session(session_id: str) -> dict:
     timestamp = _now()
     with db_session() as connection:
         cursor = connection.execute(
-            "UPDATE chat_sessions SET archived_at = ?, updated_at = ? WHERE session_id = ?",
+            "UPDATE agent.chat_sessions SET archived_at = ?, updated_at = ? WHERE session_id = ?",
             (timestamp, timestamp, session_id),
         )
         if cursor.rowcount == 0:
@@ -132,7 +132,7 @@ def append_message(session_id: str, role: str, content: str, metadata: dict | No
         if session is None:
             raise ValueError("会话不存在")
         cursor = connection.execute(
-            """INSERT INTO chat_messages(session_id, role, content, metadata_json, created_at)
+            """INSERT INTO agent.chat_messages(session_id, role, content, metadata_json, created_at)
                VALUES (?, ?, ?, ?, ?)""",
             (session_id, role, content, json.dumps(metadata or {}, ensure_ascii=False, default=str), timestamp),
         )
@@ -142,7 +142,7 @@ def append_message(session_id: str, role: str, content: str, metadata: dict | No
         model = str((metadata or {}).get("model") or "") if role == "assistant" else ""
         preview = " ".join(content.strip().split())[:140]
         connection.execute(
-            """UPDATE chat_sessions
+            """UPDATE agent.chat_sessions
                SET title = ?, updated_at = ?, last_message_preview = ?,
                    model = CASE WHEN ? = '' THEN model ELSE ? END,
                    archived_at = NULL
@@ -162,7 +162,7 @@ def record_agent_result(session_id: str, assistant_message_id: int, result: dict
     usage = result.get("usage") or {}
     with db_session() as connection:
         connection.execute(
-            """INSERT OR REPLACE INTO agent_runs(
+            """INSERT OR REPLACE INTO agent.agent_runs(
                    run_id, session_id, assistant_message_id, model, mode, status,
                    started_at, completed_at, first_token_ms, duration_ms,
                    input_tokens, output_tokens, error_message
@@ -175,10 +175,10 @@ def record_agent_result(session_id: str, assistant_message_id: int, result: dict
                 result.get("error_message"),
             ),
         )
-        connection.execute("DELETE FROM agent_tool_events WHERE run_id = ?", (run_id,))
+        connection.execute("DELETE FROM agent.agent_tool_events WHERE run_id = ?", (run_id,))
         for sequence_no, item in enumerate(result.get("tool_trace") or [], start=1):
             connection.execute(
-                """INSERT INTO agent_tool_events(
+                """INSERT INTO agent.agent_tool_events(
                        run_id, sequence_no, tool_name, arguments_json, status,
                        row_count, duration_ms, error_message
                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -189,11 +189,11 @@ def record_agent_result(session_id: str, assistant_message_id: int, result: dict
                     item.get("duration_ms"), item.get("error"),
                 ),
             )
-        connection.execute("DELETE FROM message_sources WHERE message_id = ?", (assistant_message_id,))
+        connection.execute("DELETE FROM agent.message_sources WHERE message_id = ?", (assistant_message_id,))
         for source in result.get("sources") or []:
             locator = str(source.get("case_id") or source.get("chunk_id") or source.get("source") or "")
             connection.execute(
-                """INSERT INTO message_sources(
+                """INSERT INTO agent.message_sources(
                        message_id, reference_id, source_type, source_locator, title, section
                    ) VALUES (?, ?, ?, ?, ?, ?)""",
                 (

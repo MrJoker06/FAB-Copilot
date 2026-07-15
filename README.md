@@ -38,6 +38,8 @@
 DEEPSEEK_API_KEY=your-key
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseekv4-flash
+FAB_DATABASE_PATH=data/fab_history.db
+FAB_DATABASE_DIR=data/departments
 AGENT_LOG_PATH=logs/agent_events.jsonl
 AGENT_RUN_LOG_DIR=logs/agent
 AGENT_LOG_MAX_BYTES=5242880
@@ -121,12 +123,44 @@ conda run -n fab-insight-agent python -m unittest discover -s tests -v
       /       \
 报表查询工具   DeepSeek Agent loop
       \       /       |
-       SQLite     联合 RAG / 受限 SQL
-       制造历史     /             \
-               FTS5 知识库    FTS5 案例库
+  部门数据库联邦   联合 RAG / 受限 SQL
+      |              /             \
+制造/设备/质量库   FTS5 知识库    FTS5 案例库
 ```
 
 Agent 不直接访问数据库连接，而是通过 `app/agent.py` 中声明的工具工作。任意 SQL 仅允许单条 `SELECT`，限制在四张制造数据表并最多返回 100 行；数据库写入、DDL、PRAGMA 和系统表访问均被拒绝。
+
+## 部门数据库治理
+
+运行时使用五个物理隔离的 SQLite 数据库，默认位于 `data/departments/`：
+
+| 部门所有者 | 数据库 | 负责数据 |
+|---|---|---|
+| 制造运营 | `manufacturing_operations.db` | 批次、工序履历、模拟场景 |
+| 设备工程 | `equipment_engineering.db` | FDC传感器、SEMI E10状态、设备事件 |
+| 良率质量 | `yield_quality.db` | 缺陷、晶圆图、缺陷标准目录与别名 |
+| 工艺知识管理 | `process_knowledge.db` | 知识文档、章节、历史案例、FTS5索引 |
+| AI运营 | `ai_operations.db` | 会话、消息、Agent运行、工具事件、回答来源 |
+
+应用连接会挂载五库并提供只读兼容视图，因此报表与受限SQL仍可使用原有表名。跨部门关系通过启动治理检查验证；各部门库内部继续使用外键和唯一约束。旧单库 `data/fab_history.db` 仅作为迁移源保留，不再承担运行写入。
+
+常用治理命令：
+
+```bash
+# 从旧单库迁移；目标库已有数据时不会覆盖
+conda run -n fab-insight-agent python -m scripts.manage_databases migrate
+
+# 检查完整性、行数、跨部门孤儿、未来数据、目录和FTS同步
+conda run -n fab-insight-agent python -m scripts.manage_databases check
+
+# 在线备份五个部门库并生成manifest.json
+conda run -n fab-insight-agent python -m scripts.manage_databases backup
+
+# 回收WAL文件
+conda run -n fab-insight-agent python -m scripts.manage_databases checkpoint
+```
+
+数据库Schema版本记录在每个部门库的 `schema_migrations` 表中。测试使用临时知识库和AI运营库，不再向演示会话写入测试数据。
 
 ## 知识库与历史案例库
 

@@ -42,6 +42,11 @@ _runtime_model = _configured_alias if _configured_alias in ALLOWED_MODELS else A
 @dataclass(frozen=True)
 class Settings:
     database_path: Path
+    manufacturing_database_path: Path
+    equipment_database_path: Path
+    quality_database_path: Path
+    knowledge_database_path: Path
+    agent_database_path: Path
     deepseek_api_key: str
     deepseek_base_url: str
     deepseek_model: str
@@ -53,11 +58,25 @@ def get_settings() -> Settings:
     database_path = Path(database_value)
     if not database_path.is_absolute():
         database_path = PROJECT_DIR / database_path
+    database_dir_value = os.getenv("FAB_DATABASE_DIR", "data/departments")
+    database_dir = Path(database_dir_value)
+    if not database_dir.is_absolute():
+        database_dir = PROJECT_DIR / database_dir
+
+    def department_path(variable: str, filename: str) -> Path:
+        value = os.getenv(variable)
+        path = Path(value) if value else database_dir / filename
+        return path if path.is_absolute() else PROJECT_DIR / path
     with _runtime_lock:
         api_key = _runtime_api_key if _runtime_api_key is not None else os.getenv("DEEPSEEK_API_KEY", "")
         model = MODEL_API_NAMES[_runtime_model]
     return Settings(
         database_path=database_path,
+        manufacturing_database_path=department_path("FAB_MANUFACTURING_DATABASE_PATH", "manufacturing_operations.db"),
+        equipment_database_path=department_path("FAB_EQUIPMENT_DATABASE_PATH", "equipment_engineering.db"),
+        quality_database_path=department_path("FAB_QUALITY_DATABASE_PATH", "yield_quality.db"),
+        knowledge_database_path=department_path("FAB_KNOWLEDGE_DATABASE_PATH", "process_knowledge.db"),
+        agent_database_path=department_path("FAB_AGENT_DATABASE_PATH", "ai_operations.db"),
         deepseek_api_key=api_key,
         deepseek_base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").rstrip("/"),
         deepseek_model=model,
