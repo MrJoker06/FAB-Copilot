@@ -1,5 +1,8 @@
 const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingDeleteSessionId: null, toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
 const $ = (selector) => document.querySelector(selector);
+const AGENT_WIDTH_KEY = 'fabInsightAgentWidth';
+const AGENT_MIN_WIDTH = 300;
+const AGENT_MAX_WIDTH = 620;
 const processLabels = { LITHO: '光刻', ETCH: '刻蚀', CVD: '化学气相沉积', PVD: '物理气相沉积', DIFFUSION: '扩散/炉管', IMPLANT: '离子注入', CMP: '化学机械研磨', CLEAN: '湿法清洗', METROLOGY: '量测' };
 const toolLabels = { get_fab_overview: '查询工厂总览', get_yield_trend: '查询良率趋势', get_equipment_health: '查询设备健康', get_equipment_productivity: '查询设备生产状态', get_process_capability: '查询制程能力', get_defect_pareto: '查询缺陷 Pareto', get_recent_excursions: '查询近期异常', get_sensor_summary: '查询传感器摘要', search_knowledge: '检索知识与案例', query_manufacturing_data: '执行制造数据查询' };
 
@@ -867,8 +870,99 @@ function toggleAgentPanel() {
   setAgentOpen(isCollapsed);
 }
 
+function getAgentWidthBounds() {
+  const sidebarWidth = $('.sidebar').getBoundingClientRect().width;
+  const minimumMainWidth = window.innerWidth <= 1280 ? 600 : 660;
+  return {
+    min: AGENT_MIN_WIDTH,
+    max: Math.max(AGENT_MIN_WIDTH, Math.min(AGENT_MAX_WIDTH, window.innerWidth - sidebarWidth - minimumMainWidth)),
+  };
+}
+
+function updateAgentResizeAria(width) {
+  const handle = $('#agentResizeHandle');
+  const bounds = getAgentWidthBounds();
+  handle.setAttribute('aria-valuemin', String(bounds.min));
+  handle.setAttribute('aria-valuemax', String(Math.round(bounds.max)));
+  handle.setAttribute('aria-valuenow', String(Math.round(width)));
+}
+
+function setAgentPanelWidth(width, persist = true) {
+  if (window.innerWidth <= 980 || !Number.isFinite(width)) return;
+  const bounds = getAgentWidthBounds();
+  const clampedWidth = Math.round(Math.min(bounds.max, Math.max(bounds.min, width)));
+  document.querySelector('.app-shell').style.setProperty('--agent-width', `${clampedWidth}px`);
+  updateAgentResizeAria(clampedWidth);
+  if (persist) localStorage.setItem(AGENT_WIDTH_KEY, String(clampedWidth));
+  requestAnimationFrame(() => state.dashboard && drawYieldChart(state.dashboard.yield_trend));
+}
+
+function restoreAgentPanelWidth() {
+  if (window.innerWidth <= 980) return;
+  const savedWidth = Number(localStorage.getItem(AGENT_WIDTH_KEY));
+  if (Number.isFinite(savedWidth) && savedWidth > 0) setAgentPanelWidth(savedWidth, false);
+  else updateAgentResizeAria(document.querySelector('.agent-panel').getBoundingClientRect().width);
+}
+
+function resetAgentPanelWidth() {
+  const shell = document.querySelector('.app-shell');
+  shell.style.removeProperty('--agent-width');
+  localStorage.removeItem(AGENT_WIDTH_KEY);
+  requestAnimationFrame(() => {
+    updateAgentResizeAria(document.querySelector('.agent-panel').getBoundingClientRect().width);
+    state.dashboard && drawYieldChart(state.dashboard.yield_trend);
+  });
+}
+
+function initializeAgentResize() {
+  const handle = $('#agentResizeHandle');
+  let drag = null;
+
+  const finishDrag = event => {
+    if (!drag || (event.pointerId !== undefined && event.pointerId !== drag.pointerId)) return;
+    const width = document.querySelector('.agent-panel').getBoundingClientRect().width;
+    localStorage.setItem(AGENT_WIDTH_KEY, String(Math.round(width)));
+    if (handle.hasPointerCapture?.(drag.pointerId)) handle.releasePointerCapture(drag.pointerId);
+    drag = null;
+    handle.classList.remove('dragging');
+    document.body.classList.remove('agent-resizing');
+  };
+
+  handle.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || window.innerWidth <= 980) return;
+    drag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: document.querySelector('.agent-panel').getBoundingClientRect().width,
+    };
+    handle.setPointerCapture(event.pointerId);
+    handle.classList.add('dragging');
+    document.body.classList.add('agent-resizing');
+    event.preventDefault();
+  });
+  handle.addEventListener('pointermove', event => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    setAgentPanelWidth(drag.startWidth + drag.startX - event.clientX, false);
+  });
+  handle.addEventListener('pointerup', finishDrag);
+  handle.addEventListener('pointercancel', finishDrag);
+  handle.addEventListener('dblclick', resetAgentPanelWidth);
+  handle.addEventListener('keydown', event => {
+    if (window.innerWidth <= 980 || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    const width = document.querySelector('.agent-panel').getBoundingClientRect().width;
+    const bounds = getAgentWidthBounds();
+    const nextWidth = event.key === 'Home' ? bounds.min
+      : event.key === 'End' ? bounds.max
+        : width + (event.key === 'ArrowLeft' ? 20 : -20);
+    setAgentPanelWidth(nextWidth);
+    event.preventDefault();
+  });
+}
+
 async function init() {
   setInitialDates();
+  initializeAgentResize();
+  restoreAgentPanelWidth();
   try {
     const [health, modelConfig] = await Promise.all([api('/api/health'), loadModelConfig()]);
     $('#systemStatus').textContent = `${formatNumber(health.database.lots)} 批次 · ${modelConfig.api_key_configured ? modelConfig.model : '离线模式'}`;
@@ -960,7 +1054,10 @@ async function init() {
   $('#toggleApiKey').addEventListener('click', () => { const input=$('#apiKeyInput'); input.type=input.type === 'password' ? 'text' : 'password'; });
   $('#yieldChart').addEventListener('mousemove', e => { const rect=e.currentTarget.getBoundingClientRect(), mx=e.clientX-rect.left; const point=state.chartPoints.reduce((a,b)=>Math.abs(b.x-mx)<Math.abs(a.x-mx)?b:a,state.chartPoints[0]); const tip=$('#chartTooltip'); if (!point || Math.abs(point.x-mx)>18) {tip.hidden=true;return;} tip.hidden=false; tip.style.left=`${point.x}px`; tip.style.top=`${point.y}px`; tip.textContent=`${point.row.week_start} · ${point.row.yield_pct}% · ${point.row.lots}批`; });
   $('#yieldChart').addEventListener('mouseleave', () => $('#chartTooltip').hidden=true);
-  window.addEventListener('resize', () => state.dashboard && drawYieldChart(state.dashboard.yield_trend));
+  window.addEventListener('resize', () => {
+    restoreAgentPanelWidth();
+    state.dashboard && drawYieldChart(state.dashboard.yield_trend);
+  });
   state.monitorTimer = window.setInterval(() => $('#monitorView').classList.contains('active') && loadMonitor(), 30000);
 }
 
