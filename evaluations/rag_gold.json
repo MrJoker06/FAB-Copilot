@@ -15,5 +15,12 @@
   {"id":"clean-particle","query":"CLEAN-02 清洗后颗粒增加 过滤器旁路密封","filters":{"process_step":"CLEAN","equipment_id":"CLEAN-02","defect_type":"Particle"},"expected_any":["KB-62","CASE-CLEAN-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
   {"id":"metrology-correlation","query":"METROLOGY-03 相关性下降 参考片老化校准漂移","filters":{"process_step":"METROLOGY","equipment_id":"METROLOGY-03","defect_type":"Measurement Drift"},"expected_any":["KB-66","CASE-MET-002"],"required_source_types":["knowledge","case"],"forbidden":[]},
   {"id":"negative-quantum-code","query":"量子纠错表面码逻辑量子比特","filters":{},"expect_empty":true,"required_source_types":[],"forbidden":[]},
-  {"id":"negative-mars-sample","query":"火星土壤样本返回任务推进剂预算","filters":{},"expect_empty":true,"required_source_types":[],"forbidden":[]}
+  {"id":"negative-mars-sample","query":"火星土壤样本返回任务推进剂预算","filters":{},"expect_empty":true,"required_source_types":[],"forbidden":[]},
+  {"id":"short-yield-query","query":"良率","filters":{},"expected_any":["CASE-YIELD-001"],"required_source_types":["case"],"forbidden":[]},
+  {"id":"english-cmp-query","query":"chemical mechanical polishing scratch conditioner","filters":{},"expected_any":["CASE-CMP-001","KB-2","KB-3","KB-4"],"required_source_types":["knowledge","case"],"forbidden":[]},
+  {"id":"equipment-health-acronyms","query":"设备健康 MTBF MTTR","filters":{},"expected_any":["KB-17","KB-18","KB-19","KB-20"],"required_source_types":["knowledge"],"forbidden":[]},
+  {"id":"mixed-language-litho","query":"光刻叠对偏差 reticle","filters":{},"expected_any":["KB-25","KB-27","CASE-LITHO-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
+  {"id":"inferred-etch-alias","query":"刻蚀设备 CD 偏移的潜在原因","filters":{},"expected_any":["KB-21","KB-24","CASE-ETCH-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
+  {"id":"negative-tax-policy","query":"税务发票增值税抵扣政策","filters":{},"expect_empty":true,"required_source_types":[],"forbidden":[]},
+  {"id":"negative-poetry","query":"唐代诗歌格律与押韵","filters":{},"expect_empty":true,"required_source_types":[],"forbidden":[]}
 ]

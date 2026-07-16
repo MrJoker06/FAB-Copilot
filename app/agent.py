@@ -62,12 +62,14 @@ simulation_scenarios 为评测真值表，Agent 无权访问，不得尝试查�
 
 
 CITATION_PATTERN = re.compile(r"\[来源\s+([A-Za-z0-9-]+)\]")
+CITATION_LIKE_PATTERN = re.compile(r"\[来源[^\]\r\n]{0,200}\]")
 
 
 def _sanitize_answer_citations(answer: str, sources: dict[str, dict]) -> tuple[str, dict]:
     """Remove fabricated source IDs and ensure retrieved answers expose a valid citation."""
     valid_references = set(sources)
     removed: list[str] = []
+    malformed: list[str] = []
 
     def replace(match: re.Match[str]) -> str:
         reference_id = match.group(1)
@@ -76,7 +78,16 @@ def _sanitize_answer_citations(answer: str, sources: dict[str, dict]) -> tuple[s
         removed.append(reference_id)
         return ""
 
-    cleaned = CITATION_PATTERN.sub(replace, answer).strip()
+    cleaned = CITATION_PATTERN.sub(replace, answer)
+
+    def remove_malformed(match: re.Match[str]) -> str:
+        value = match.group(0)
+        if CITATION_PATTERN.fullmatch(value):
+            return value
+        malformed.append(value)
+        return ""
+
+    cleaned = CITATION_LIKE_PATTERN.sub(remove_malformed, cleaned).strip()
     cited = list(dict.fromkeys(CITATION_PATTERN.findall(cleaned)))
     appended = False
     if valid_references and not cited:
@@ -91,6 +102,7 @@ def _sanitize_answer_citations(answer: str, sources: dict[str, dict]) -> tuple[s
     return cleaned, {
         "valid_citations": cited,
         "invalid_citations_removed": list(dict.fromkeys(removed)),
+        "malformed_citations_removed": list(dict.fromkeys(malformed)),
         "fallback_appended": appended,
     }
 

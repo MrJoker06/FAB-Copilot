@@ -36,7 +36,15 @@ from app.database import (
 )
 from app.main import app
 from app.processes import MANUFACTURING_STEPS
-from app.rag import _fts_query, _infer_filters, _metadata_rerank, search_knowledge
+from app.rag import (
+    _case_sql_filters,
+    _fts_query,
+    _infer_filters,
+    _knowledge_sql_filters,
+    _metadata_rerank,
+    _tokenize_query,
+    search_knowledge,
+)
 from app.reports import process_capability, recent_excursions, report_bundle, safe_select, timestamp_bounds
 from app.seed import seed_reference_data
 from app.sessions import append_message, record_agent_result
@@ -194,6 +202,105 @@ class FabInsightTests(unittest.TestCase):
         self.assertNotIn("KB-404", no_source)
         self.assertEqual(validation["invalid_citations_removed"], ["KB-404"])
         self.assertFalse(validation["fallback_appended"])
+
+        malformed, validation = agent_module._sanitize_answer_citations(
+            "畸形引用 [来源 ../../KB-2] 和 [来源 KB-2 extra]。",
+            sources,
+        )
+        self.assertNotIn("[来源 ../../KB-2]", malformed)
+        self.assertNotIn("[来源 KB-2 extra]", malformed)
+        self.assertIn("[来源 KB-2]", malformed)
+        self.assertEqual(
+            validation["malformed_citations_removed"],
+            ["[来源 ../../KB-2]", "[来源 KB-2 extra]"],
+        )
+
+    def test_rag_tokenization_deduplicates_and_builds_chinese_trigrams(self):
+        tokens = _tokenize_query("光刻技术原理 光刻技术原理 CMP CMP")
+        self.assertEqual(len(tokens), len(set(tokens)))
+        self.assertLessEqual(len(tokens), 20)
+        self.assertTrue({"光刻技", "刻技术", "技术原", "术原理", "CMP"}.issubset(tokens))
+
+    def test_rag_filter_inference_respects_explicit_defect_and_equipment(self):
+        filters = _infer_filters("CMP-03 划伤", None, None, "Overlay")
+        self.assertEqual(filters["process_step"], "CMP")
+        self.assertEqual(filters["equipment_id"], "CMP-03")
+        self.assertEqual(filters["defect_type"], "Overlay")
+
+        explicit = _infer_filters("文本中出现 CMP-03 Scratch", "ETCH", "etch-02", "Particle")
+        self.assertEqual(
+            explicit,
+            {"process_step": "ETCH", "equipment_id": "ETCH-02", "defect_type": "Particle"},
+        )
+
+    def test_rag_sql_filters_are_parameterized_and_governed(self):
+        filters = {"process_step": "CMP", "equipment_id": "CMP-03", "defect_type": "Scratch"}
+        knowledge_clauses, knowledge_params = _knowledge_sql_filters(filters)
+        case_clauses, case_params = _case_sql_filters(filters)
+        self.assertTrue(knowledge_clauses)
+        self.assertEqual(knowledge_params, ["CMP"])
+        self.assertIn("case_status = 'Validated'", case_clauses[0])
+        self.assertEqual(case_params, ["CMP", "CMP", "Scratch"])
+        self.assertTrue(all("CMP" not in clause and "Scratch" not in clause for clause in case_clauses))
+
+    def test_rag_deduplicates_references_and_suppresses_low_confidence_when_possible(self):
+        candidates = [
+            {
+                "reference_id": "KB-1",
+                "source_type": "knowledge",
+                "process_steps": "ALL",
+                "authority": 5,
+                "title": "正式知识",
+                "section": "概述",
+                "tags": "",
+            },
+            {
+                "reference_id": "KB-1",
+                "source_type": "knowledge",
+                "process_steps": "ALL",
+                "authority": 5,
+                "title": "重复知识",
+                "section": "概述",
+                "tags": "",
+            },
+            {
+                "reference_id": "CASE-LOW-1",
+                "source_type": "case",
+                "case_status": "Validated",
+                "process_step": "CMP",
+                "equipment_family": "CMP",
+                "root_cause_confidence": 0.1,
+                "occurred_date": "2020-01-01",
+            },
+        ]
+        results = _metadata_rerank(
+            candidates,
+            {"process_step": None, "equipment_id": None, "defect_type": None},
+            5,
+            None,
+        )
+        self.assertEqual([item["reference_id"] for item in results], ["KB-1"])
+
+        low_only = _metadata_rerank(
+            candidates[-1:],
+            {"process_step": None, "equipment_id": None, "defect_type": None},
+            5,
+            ["case"],
+        )
+        self.assertEqual([item["reference_id"] for item in low_only], ["CASE-LOW-1"])
+        self.assertEqual(low_only[0]["retrieval"]["confidence"], "low")
+
+    def test_rag_returns_empty_for_query_without_searchable_terms_or_mismatched_defect(self):
+        self.assertEqual(search_knowledge("!!", 6), [])
+        mismatch = search_knowledge(
+            "CMP-03 Pad Conditioner 划伤",
+            6,
+            process_step="CMP",
+            equipment_id="CMP-03",
+            defect_type="Overlay",
+            source_types=["case"],
+        )
+        self.assertEqual(mismatch, [])
 
     def test_rag_source_quota_preserves_three_source_evidence(self):
         candidates = []

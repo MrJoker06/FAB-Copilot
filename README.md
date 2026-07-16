@@ -242,7 +242,7 @@ GET /api/rag/search?q=CMP-03划伤&process_step=CMP&equipment_id=CMP-03&defect_t
 
 ### RAG 回归评测
 
-黄金评测集位于 `evaluations/rag_gold.json`，当前包含 15 个典型问题和 2 个域外负例。运行：
+黄金评测集位于 `evaluations/rag_gold.json`，当前包含 20 个典型问题和 4 个域外负例，覆盖中文、英文、中英混合、短查询、别名推断和无答案拒答。运行：
 
 ```bash
 python3 scripts/evaluate_rag.py
