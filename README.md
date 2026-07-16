@@ -173,6 +173,8 @@ conda run -n fab-insight-agent python -m scripts.manage_databases checkpoint
 
 ## 知识库与历史案例库
 
+个人知识库、权限隔离、上传处理，以及从 SQLite/FTS5、PostgreSQL/pgvector 到独立向量与全文检索集群的分级 RAG 方案，见 [个人知识库与分级 RAG 架构设计](docs/knowledge-base-rag-architecture.md)。该方案已明确个人知识不共享，OCR 为待做能力，尚未进入实现阶段。
+
 左侧“知识库”包含 17 份制造文档、68 个稳定引用章节，覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗、量测、SPC、Hold、Recipe 变更、根因分析、良率和数据治理。
 
 左侧“案例库”包含 17 个结构化案例。案例源文件为 `cases/historical_cases.json`，每条记录必须包含：
