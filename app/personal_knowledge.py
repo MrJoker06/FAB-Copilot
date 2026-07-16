@@ -880,7 +880,9 @@ def search_personal_knowledge(
         if fts_query:
             rows = connection.execute(
                 f"""SELECT f.chunk_id, f.document_id, f.title, f.section_path,
-                           c.page_number, snippet(personal_knowledge_fts, 2, '[', ']', '…', 32) AS excerpt,
+                           d.filename, d.process_steps_json, d.equipment_ids_json, d.tags_json,
+                           d.effective_date, c.page_number,
+                           snippet(personal_knowledge_fts, 2, '[', ']', '…', 32) AS excerpt,
                            round(bm25(personal_knowledge_fts), 4) AS score
                     FROM knowledge.personal_knowledge_fts f
                     JOIN personal_knowledge_chunks c ON c.chunk_id = f.chunk_id
@@ -899,7 +901,8 @@ def search_personal_knowledge(
             fallback_params.append(bounded)
             rows = connection.execute(
                 f"""SELECT c.chunk_id, c.document_id, d.title, c.section_path,
-                           c.page_number, c.content AS excerpt, -1.0 AS score
+                           d.filename, d.process_steps_json, d.equipment_ids_json, d.tags_json,
+                           d.effective_date, c.page_number, c.content AS excerpt, -1.0 AS score
                     FROM personal_knowledge_chunks c
                     JOIN personal_knowledge_documents d ON d.document_id = c.document_id
                     WHERE {' AND '.join(fallback_clauses)}
@@ -909,9 +912,14 @@ def search_personal_knowledge(
     results = []
     for rank, row in enumerate(rows, start=1):
         item = dict(row)
+        item["process_steps"] = _json_list(item.pop("process_steps_json", "[]"))
+        item["equipment_ids"] = _json_list(item.pop("equipment_ids_json", "[]"))
+        item["tags"] = _json_list(item.pop("tags_json", "[]"))
         item.update({
             "reference_id": f"PERSONAL-{item['chunk_id']}",
             "source_type": "personal",
+            "source": "个人知识库",
+            "section": item["section_path"],
             "retrieval": {
                 "lexical_rank": rank,
                 "final_score": item.pop("score"),

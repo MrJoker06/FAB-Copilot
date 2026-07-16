@@ -70,9 +70,11 @@ class FabInsightTests(unittest.TestCase):
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("/static/app.js?v=20260716-5", page)
+        self.assertIn("/static/app.js?v=20260716-6", page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")
         self.assertIn("scrollbar-gutter: stable", styles)
+        script = (Path(__file__).parents[1] / "app" / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("data-personal-chunk", script)
 
     def test_seeded_cvd_drift_is_detectable(self):
         capability = process_capability(process_step="CVD")
@@ -324,6 +326,47 @@ class FabInsightTests(unittest.TestCase):
                     "SELECT COUNT(*) FROM personal_knowledge_fts WHERE document_id = ?", (document_id,)
                 ).fetchone()[0]
             self.assertEqual(indexed_chunks, 0)
+
+    def test_agent_search_combines_private_knowledge_with_cross_language_recall(self):
+        content = (
+            "# Introduction to Photolithography\n\n"
+            "Photolithography transfers a reticle pattern into photoresist by optical exposure.\n\n"
+            "## Process basics\n\n"
+            "The basic sequence covers coat, soft bake, align, expose, develop, inspect, and pattern transfer."
+        ).encode("utf-8")
+        metadata = json.dumps({
+            "title": "Introduction to Photolithography",
+            "process_steps": ["LITHO"],
+            "tags": ["training", "fundamentals"],
+        })
+        with TestClient(app) as client:
+            uploaded = client.post(
+                "/api/knowledge/personal/documents",
+                headers={"Idempotency-Key": "agent-personal-rag-test-001"},
+                files={"file": ("intro-photolithography.md", content, "text/markdown")},
+                data={"metadata": metadata},
+            )
+            self.assertEqual(uploaded.status_code, 202, uploaded.text)
+            document_id = uploaded.json()["document_id"]
+            try:
+                results = agent_module.search_agent_knowledge(
+                    "请介绍光刻技术原理",
+                    limit=6,
+                    source_types=["personal"],
+                )
+                self.assertTrue(results)
+                self.assertTrue(all(item["source_type"] == "personal" for item in results))
+                self.assertEqual(results[0]["document_id"], document_id)
+                self.assertEqual(results[0]["source"], "个人知识库")
+                self.assertEqual(results[0]["process_steps"], ["LITHO"])
+                self.assertTrue(results[0]["reference_id"].startswith("PERSONAL-"))
+                self.assertNotIn(
+                    "personal",
+                    {item["source_type"] for item in search_knowledge("请介绍光刻技术原理", limit=6)},
+                )
+            finally:
+                deleted = client.delete(f"/api/knowledge/personal/documents/{document_id}")
+                self.assertEqual(deleted.status_code, 202, deleted.text)
 
     def test_personal_knowledge_upload_validation_and_token(self):
         with TestClient(app) as client:

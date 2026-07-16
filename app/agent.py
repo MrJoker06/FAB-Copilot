@@ -15,7 +15,7 @@ import httpx
 from .audit import CONTENT_MODE, content_fingerprint, emit
 from .config import get_settings
 from .processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS
-from .rag import search_knowledge
+from .rag import search_agent_knowledge
 from .reports import (
     defect_pareto,
     equipment_health,
@@ -35,7 +35,7 @@ SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的�
 
 规则：
 1. 涉及数字、趋势、设备、批次时必须先调用数据工具，不得猜测。
-2. 涉及 SOP、规范、处置建议、工艺解释或历史经验时调用 search_knowledge。该工具会联合检索正式知识与历史案例，引用时必须使用返回的 reference_id，格式为 [来源 KB-数字] 或 [来源 CASE-编号]。
+2. 涉及 SOP、规范、处置建议、工艺解释或历史经验时调用 search_knowledge。该工具会联合检索当前用户个人知识、正式知识与历史案例，引用时必须使用返回的 reference_id，格式为 [来源 PERSONAL-编号]、[来源 KB-数字] 或 [来源 CASE-编号]。
 3. 先给结论，再给证据；区分事实、推断和建议。不要宣称相关性就是因果性。
 4. 报告百分比时说明时间范围和样本量。若数据不足，明确说明。
 5. 不执行写库操作。高风险建议（停机、报废、配方变更）必须要求工程师复核。
@@ -76,7 +76,7 @@ TOOLS = [
     {"type": "function", "function": {"name": "get_defect_pareto", "description": "查询缺陷类型Pareto和受影响批次数", "parameters": _schema({**DATE_PROPERTIES, "limit": {"type": "integer", "minimum": 1, "maximum": 25}})}},
     {"type": "function", "function": {"name": "get_recent_excursions", "description": "查询最近的制程异常批次及量测值，可按站点过滤", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "limit": {"type": "integer", "minimum": 1, "maximum": 100}})}},
     {"type": "function", "function": {"name": "get_sensor_summary", "description": "按站点、设备或信号查询传感器均值、范围、缺失和异常标记", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "equipment_id": {"type": "string"}, "signal_name": {"type": "string"}})}},
-    {"type": "function", "function": {"name": "search_knowledge", "description": "联合检索厂内SOP、控制计划、分析方法与已验证历史案例。可按元数据过滤，返回可解释评分和reference_id", "parameters": _schema({"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}, "process_step": {"type": "string", "enum": list(ANALYSIS_SCOPES)}, "equipment_id": {"type": "string"}, "defect_type": {"type": "string"}, "source_types": {"type": "array", "items": {"type": "string", "enum": ["knowledge", "case"]}}}, ["query"])}},
+    {"type": "function", "function": {"name": "search_knowledge", "description": "联合检索当前用户个人知识、厂内SOP、控制计划、分析方法与已验证历史案例。支持中英文制程术语召回，可按元数据过滤，返回可解释评分和reference_id", "parameters": _schema({"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}, "process_step": {"type": "string", "enum": list(ANALYSIS_SCOPES)}, "equipment_id": {"type": "string"}, "defect_type": {"type": "string"}, "source_types": {"type": "array", "items": {"type": "string", "enum": ["personal", "knowledge", "case"]}}}, ["query"])}},
     {"type": "function", "function": {"name": "query_manufacturing_data", "description": "在固定报表不足时执行只读SQLite SELECT。只能访问白名单表，最多返回100行", "parameters": _schema({"sql": {"type": "string", "description": "单条SELECT语句，SQLite语法"}}, ["sql"])}},
 ]
 
@@ -90,7 +90,7 @@ TOOL_HANDLERS: dict[str, Callable[..., Any]] = {
     "get_defect_pareto": defect_pareto,
     "get_recent_excursions": recent_excursions,
     "get_sensor_summary": sensor_summary,
-    "search_knowledge": search_knowledge,
+    "search_knowledge": search_agent_knowledge,
     "query_manufacturing_data": safe_select,
 }
 

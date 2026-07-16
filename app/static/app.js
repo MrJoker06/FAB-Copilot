@@ -89,6 +89,7 @@ function showToast(message, {actionLabel = '', onAction = null, tone = 'default'
 
 function sourceLink(source, label) {
   if (source.source_type === 'case' || source.case_id) return `<button class="citation-link" data-case-id="${escapeHtml(source.case_id)}">${escapeHtml(label)}</button>`;
+  if (source.source_type === 'personal') return `<button class="citation-link" data-personal-chunk="${escapeHtml(source.chunk_id)}">${escapeHtml(label)}</button>`;
   return `<button class="citation-link" data-knowledge-chunk="${Number(source.chunk_id)}">${escapeHtml(label)}</button>`;
 }
 
@@ -268,6 +269,14 @@ async function openPersonalKnowledgeDocument(documentId, {scroll = true} = {}) {
     }
     throw error;
   }
+}
+
+async function openPersonalKnowledgeChunk(chunkId) {
+  showView('knowledge');
+  const chunk = await api(`/api/knowledge/personal/chunks/${encodeURIComponent(chunkId)}`);
+  if (state.knowledgeMode !== 'personal') await setKnowledgeMode('personal');
+  await openPersonalKnowledgeDocument(chunk.document_id, {scroll:false});
+  window.setTimeout(() => document.getElementById(`personal-knowledge-chunk-${chunkId}`)?.scrollIntoView({behavior:'smooth', block:'start'}), 80);
 }
 
 async function setKnowledgeMode(mode) {
@@ -1170,7 +1179,11 @@ function renderAssistantInto(el, content, extra = {}) {
   if (extra.sources?.length) {
     const sourceHtml = extra.sources.map(source => {
       const referenceId = source.reference_id || `KB-${source.chunk_id}`;
-      const attribute = source.source_type === 'case' ? `data-case-id="${escapeHtml(source.case_id)}"` : `data-knowledge-chunk="${source.chunk_id}"`;
+      const attribute = source.source_type === 'case'
+        ? `data-case-id="${escapeHtml(source.case_id)}"`
+        : source.source_type === 'personal'
+          ? `data-personal-chunk="${escapeHtml(source.chunk_id)}"`
+          : `data-knowledge-chunk="${Number(source.chunk_id)}"`;
       const retrieval = source.retrieval || {};
       const scoreTitle = retrieval.final_score != null ? `${retrieval.confidence} · score ${retrieval.final_score} · ${(retrieval.selection_reason || []).join(' · ')}` : '';
       return `<button type="button" class="source-link" ${attribute} title="${escapeHtml(scoreTitle)}">[来源 ${escapeHtml(referenceId)}] ${escapeHtml(source.source)} · ${escapeHtml(source.section)}</button>`;
@@ -1480,8 +1493,10 @@ async function init() {
   $('#deleteSelectedSessions').addEventListener('click', () => openSessionDeleteDialog([...state.selectedSessionIds]));
   $('#sessionLibraryMessages').addEventListener('click', event => {
     const knowledgeTarget = event.target.closest('[data-knowledge-chunk]');
+    const personalTarget = event.target.closest('[data-personal-chunk]');
     const caseTarget = event.target.closest('[data-case-id]');
     if (knowledgeTarget) openKnowledgeChunk(Number(knowledgeTarget.dataset.knowledgeChunk));
+    else if (personalTarget) openPersonalKnowledgeChunk(personalTarget.dataset.personalChunk).catch(error => showToast(`个人来源加载失败：${error.message}`, {tone:'error'}));
     else if (caseTarget) openHistoricalCase(caseTarget.dataset.caseId);
   });
   $('#renameLibrarySession').addEventListener('click', () => openSessionRenameDialog());
@@ -1513,9 +1528,11 @@ async function init() {
   });
   $('#chatMessages').addEventListener('click', event => {
     const knowledgeTarget=event.target.closest('[data-knowledge-chunk]');
+    const personalTarget=event.target.closest('[data-personal-chunk]');
     const caseTarget=event.target.closest('[data-case-id]');
     const suggestion = event.target.closest('.suggestions button');
     if (knowledgeTarget) openKnowledgeChunk(Number(knowledgeTarget.dataset.knowledgeChunk));
+    else if (personalTarget) openPersonalKnowledgeChunk(personalTarget.dataset.personalChunk).catch(error => showToast(`个人来源加载失败：${error.message}`, {tone:'error'}));
     else if (caseTarget) openHistoricalCase(caseTarget.dataset.caseId);
     else if (suggestion) sendChat(suggestion.textContent);
   });

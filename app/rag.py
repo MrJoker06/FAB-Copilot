@@ -3,7 +3,9 @@ from __future__ import annotations
 import re
 from datetime import date
 
+from .config import get_settings
 from .database import db_session, get_active_defect_aliases, rows_to_dicts
+from .personal_knowledge import search_personal_knowledge
 from .processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS, PROCESS_ALIASES
 
 
@@ -26,6 +28,18 @@ def _search_terms(text: str) -> list[str]:
 
 
 PROCESS_STEPS = ANALYSIS_SCOPES
+
+PROCESS_SEARCH_EXPANSIONS = {
+    "LITHO": "photolithography lithography introduction intro overview purpose principle fundamentals basics process photoresist exposure reticle mask",
+    "ETCH": "etch etching plasma dry etch wet etch reactive ion RIE",
+    "CVD": "chemical vapor deposition CVD film thickness deposition",
+    "PVD": "physical vapor deposition PVD sputter sputtering metal deposition",
+    "DIFFUSION": "diffusion furnace oxidation anneal thermal process",
+    "IMPLANT": "ion implantation implant dopant dose energy",
+    "CMP": "chemical mechanical polishing planarization slurry pad conditioner",
+    "CLEAN": "wet clean cleaning rinse scrubber chemical bath",
+    "METROLOGY": "metrology measurement inspection CD SEM overlay thickness",
+}
 
 
 def _infer_filters(query: str, process_step: str | None, equipment_id: str | None, defect_type: str | None) -> dict:
@@ -53,9 +67,9 @@ def _infer_filters(query: str, process_step: str | None, equipment_id: str | Non
 
 
 def _metadata_rerank(candidates: list[dict], filters: dict, limit: int, source_types: list[str] | None) -> list[dict]:
-    allowed_sources = set(source_types or ("knowledge", "case"))
+    allowed_sources = set(source_types or ("personal", "knowledge", "case"))
     ranked: list[dict] = []
-    source_ranks = {"knowledge": 0, "case": 0}
+    source_ranks = {"personal": 0, "knowledge": 0, "case": 0}
     for candidate in candidates:
         source_type = candidate["source_type"]
         if source_type not in allowed_sources:
@@ -82,7 +96,7 @@ def _metadata_rerank(candidates: list[dict], filters: dict, limit: int, source_t
             if defect_type and defect_type.lower() in searchable:
                 score += 1.6
                 reasons.append(f"defect={defect_type}")
-        else:
+        elif source_type == "case":
             if candidate.get("case_status") != "Validated":
                 continue
             candidate_step = candidate.get("process_step")
@@ -115,6 +129,23 @@ def _metadata_rerank(candidates: list[dict], filters: dict, limit: int, source_t
                 score += recency
             except (KeyError, ValueError):
                 pass
+        else:
+            candidate_steps = set(candidate.get("process_steps") or [])
+            if process_step and candidate_steps and process_step not in candidate_steps:
+                continue
+            score += 1.8
+            reasons.append("current user private knowledge")
+            if process_step and process_step in candidate_steps:
+                score += 1.5
+                reasons.append(f"process={process_step}")
+            candidate_equipment = set(candidate.get("equipment_ids") or [])
+            if equipment_id and equipment_id in candidate_equipment:
+                score += 2.2
+                reasons.append("exact equipment")
+            searchable = f"{candidate.get('title', '')} {' '.join(candidate.get('tags') or [])}".lower()
+            if defect_type and defect_type.lower() in searchable:
+                score += 1.4
+                reasons.append(f"defect={defect_type}")
 
         candidate["retrieval"] = {
             "lexical_rank": lexical_rank,
@@ -128,10 +159,12 @@ def _metadata_rerank(candidates: list[dict], filters: dict, limit: int, source_t
     ranked.sort(key=lambda item: item["retrieval"]["final_score"], reverse=True)
     selected: list[dict] = []
     if limit >= 2:
-        for source_type in ("knowledge", "case"):
+        for source_type in ("personal", "knowledge", "case"):
             first = next((item for item in ranked if item["source_type"] == source_type), None)
             if first is not None and first["retrieval"]["confidence"] != "low":
                 selected.append(first)
+            if len(selected) >= limit:
+                break
     for item in ranked:
         if item not in selected:
             selected.append(item)
@@ -148,8 +181,10 @@ def search_knowledge(
     equipment_id: str | None = None,
     defect_type: str | None = None,
     source_types: list[str] | None = None,
+    include_personal: bool = False,
+    owner_user_id: str | None = None,
 ) -> list[dict]:
-    """Search both governed knowledge and historical cases with auditable references."""
+    """Search governed sources and optionally the current user's private knowledge."""
     filters = _infer_filters(query, process_step, equipment_id, defect_type)
     enrichment = " ".join(str(value) for value in filters.values() if value)
     retrieval_query = f"{query} {enrichment}".strip()
@@ -224,7 +259,33 @@ def search_knowledge(
             ).fetchall()
     combined = rows_to_dicts(knowledge_rows) + rows_to_dicts(case_rows)
     combined.sort(key=lambda item: item.get("score", 0))
+    if include_personal and (not source_types or "personal" in source_types):
+        personal_owner = owner_user_id or get_settings().personal_knowledge_user_id
+        process_expansion = PROCESS_SEARCH_EXPANSIONS.get(filters.get("process_step"), "")
+        personal_query = f"{retrieval_query} {process_expansion}".strip()
+        combined.extend(search_personal_knowledge(personal_owner, personal_query, candidate_limit))
     return _metadata_rerank(combined, filters, bounded_limit, source_types)
+
+
+def search_agent_knowledge(
+    query: str,
+    limit: int = 5,
+    process_step: str | None = None,
+    equipment_id: str | None = None,
+    defect_type: str | None = None,
+    source_types: list[str] | None = None,
+) -> list[dict]:
+    settings = get_settings()
+    return search_knowledge(
+        query,
+        limit,
+        process_step,
+        equipment_id,
+        defect_type,
+        source_types,
+        include_personal=True,
+        owner_user_id=settings.personal_knowledge_user_id,
+    )
 
 
 def list_knowledge_documents() -> list[dict]:
