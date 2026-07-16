@@ -16,18 +16,28 @@ def evaluate() -> dict:
     dataset = json.loads((PROJECT_DIR / "evaluations" / "rag_gold.json").read_text(encoding="utf-8"))
     details = []
     reciprocal_ranks = []
+    negative_results = []
     for item in dataset:
         results = search_knowledge(item["query"], limit=6, **item.get("filters", {}))
         references = [result["reference_id"] for result in results]
         source_types = {result["source_type"] for result in results}
-        ranks = [references.index(reference) + 1 for reference in item["expected_any"] if reference in references]
-        hit = bool(ranks)
-        reciprocal_ranks.append(1 / min(ranks) if ranks else 0)
+        expect_empty = bool(item.get("expect_empty"))
+        ranks = [
+            references.index(reference) + 1
+            for reference in item.get("expected_any", [])
+            if reference in references
+        ]
+        hit = not references if expect_empty else bool(ranks)
+        if expect_empty:
+            negative_results.append(hit)
+        else:
+            reciprocal_ranks.append(1 / min(ranks) if ranks else 0)
         source_coverage = set(item.get("required_source_types", [])).issubset(source_types)
         forbidden_hits = [reference for reference in item.get("forbidden", []) if reference in references]
         details.append({
             "id": item["id"],
             "hit": hit,
+            "expect_empty": expect_empty,
             "source_coverage": source_coverage,
             "forbidden_hits": forbidden_hits,
             "references": references,
@@ -37,7 +47,8 @@ def evaluate() -> dict:
         "queries": total,
         "hit_rate": round(sum(item["hit"] for item in details) / total, 4),
         "source_coverage_rate": round(sum(item["source_coverage"] for item in details) / total, 4),
-        "mrr": round(sum(reciprocal_ranks) / total, 4),
+        "mrr": round(sum(reciprocal_ranks) / len(reciprocal_ranks), 4) if reciprocal_ranks else 0.0,
+        "negative_accuracy": round(sum(negative_results) / len(negative_results), 4) if negative_results else None,
         "forbidden_hits": sum(len(item["forbidden_hits"]) for item in details),
         "passed": all(item["hit"] and item["source_coverage"] and not item["forbidden_hits"] for item in details),
         "details": details,

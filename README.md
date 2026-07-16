@@ -224,16 +224,17 @@ problem, solution, result, summary, tags
 检索流程：
 
 ```text
-中文 trigram 候选召回（每来源 Top 30）
-  -> 查询实体推断（站点 / 设备 / 缺陷）
-  -> Active / Validated 状态过滤
+查询实体推断（站点 / 设备 / 缺陷）
+  -> Active / Validated / 所有者和确定性元数据前置过滤
+  -> 中文 trigram 候选召回（每来源 Top 30）
   -> 站点、设备、缺陷、权威和案例置信度加权
   -> 低置信度案例抑制
-  -> 知识与案例来源多样化
+  -> 去重、来源配额与多样化
+  -> 加载完整 chunk 作为生成上下文
   -> 最终 Top 1-10
 ```
 
-每个结果包含 `retrieval.lexical_rank`、`final_score`、`confidence`、`selection_reason` 和实际过滤条件。可通过只读调试接口检查：
+每个结果包含 `retrieval.lexical_rank`、`final_score`、`confidence`、`score_version`、`selection_reason` 和实际过滤条件。检索到的正文被标记为不可信数据，Agent 在向前端发送回答前会移除不在本轮候选集中的伪造引用。可通过只读调试接口检查：
 
 ```text
 GET /api/rag/search?q=CMP-03划伤&process_step=CMP&equipment_id=CMP-03&defect_type=Scratch
@@ -241,13 +242,13 @@ GET /api/rag/search?q=CMP-03划伤&process_step=CMP&equipment_id=CMP-03&defect_t
 
 ### RAG 回归评测
 
-黄金评测集位于 `evaluations/rag_gold.json`，当前覆盖10类典型问题。运行：
+黄金评测集位于 `evaluations/rag_gold.json`，当前包含 15 个典型问题和 2 个域外负例。运行：
 
 ```bash
 python3 scripts/evaluate_rag.py
 ```
 
-评估输出包括命中率、来源覆盖率、MRR 和错误案例命中数。新增知识、案例或修改排序算法后，应先通过该评测再合并代码。当前基线要求全部问题命中、所需来源类型完整且错误案例命中为0。
+评估输出包括命中率、来源覆盖率、MRR、负例准确率和错误案例命中数。新增知识、案例或修改排序算法后，应先通过该评测再合并代码。当前基线要求全部问题命中、域外负例不召回、所需来源类型完整且错误案例命中为0。
 
 ## Agent 日志与监控
 

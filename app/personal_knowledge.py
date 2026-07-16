@@ -881,7 +881,7 @@ def search_personal_knowledge(
             rows = connection.execute(
                 f"""SELECT f.chunk_id, f.document_id, f.title, f.section_path,
                            d.filename, d.process_steps_json, d.equipment_ids_json, d.tags_json,
-                           d.effective_date, c.page_number,
+                           d.effective_date, c.page_number, c.content,
                            snippet(personal_knowledge_fts, 2, '[', ']', '…', 32) AS excerpt,
                            round(bm25(personal_knowledge_fts), 4) AS score
                     FROM knowledge.personal_knowledge_fts f
@@ -902,7 +902,8 @@ def search_personal_knowledge(
             rows = connection.execute(
                 f"""SELECT c.chunk_id, c.document_id, d.title, c.section_path,
                            d.filename, d.process_steps_json, d.equipment_ids_json, d.tags_json,
-                           d.effective_date, c.page_number, c.content AS excerpt, -1.0 AS score
+                           d.effective_date, c.page_number, c.content,
+                           c.content AS excerpt, -1.0 AS score
                     FROM personal_knowledge_chunks c
                     JOIN personal_knowledge_documents d ON d.document_id = c.document_id
                     WHERE {' AND '.join(fallback_clauses)}

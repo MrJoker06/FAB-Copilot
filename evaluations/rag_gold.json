@@ -13,5 +13,7 @@
   {"id":"diffusion-sheet-resistance","query":"扩散炉舟尾片阻偏高 温区热电偶偏差","filters":{"process_step":"DIFFUSION","equipment_id":"DIFFUSION-02","defect_type":"Sheet Resistance"},"expected_any":["KB-54","CASE-DIFF-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
   {"id":"implant-dose","query":"IMPLANT-03 剂量偏高 Faraday cup 污染","filters":{"process_step":"IMPLANT","equipment_id":"IMPLANT-03","defect_type":"Dose Shift"},"expected_any":["KB-58","CASE-IMP-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
   {"id":"clean-particle","query":"CLEAN-02 清洗后颗粒增加 过滤器旁路密封","filters":{"process_step":"CLEAN","equipment_id":"CLEAN-02","defect_type":"Particle"},"expected_any":["KB-62","CASE-CLEAN-001"],"required_source_types":["knowledge","case"],"forbidden":[]},
-  {"id":"metrology-correlation","query":"METROLOGY-03 相关性下降 参考片老化校准漂移","filters":{"process_step":"METROLOGY","equipment_id":"METROLOGY-03","defect_type":"Measurement Drift"},"expected_any":["KB-66","CASE-MET-002"],"required_source_types":["knowledge","case"],"forbidden":[]}
+  {"id":"metrology-correlation","query":"METROLOGY-03 相关性下降 参考片老化校准漂移","filters":{"process_step":"METROLOGY","equipment_id":"METROLOGY-03","defect_type":"Measurement Drift"},"expected_any":["KB-66","CASE-MET-002"],"required_source_types":["knowledge","case"],"forbidden":[]},
+  {"id":"negative-quantum-code","query":"量子纠错表面码逻辑量子比特","filters":{},"expect_empty":true,"required_source_types":[],"forbidden":[]},
+  {"id":"negative-mars-sample","query":"火星土壤样本返回任务推进剂预算","filters":{},"expect_empty":true,"required_source_types":[],"forbidden":[]}
 ]

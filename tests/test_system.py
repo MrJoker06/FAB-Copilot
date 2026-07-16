@@ -166,6 +166,26 @@ class FabInsightTests(unittest.TestCase):
         self.assertEqual({item["source_type"] for item in results}, {"knowledge", "case"})
         self.assertTrue(all(item["reference_id"] for item in results))
         self.assertTrue(all(item["retrieval"]["selection_reason"] for item in results))
+        self.assertTrue(all(item["retrieval"]["score_version"] == "rrf-metadata-v2" for item in results))
+        knowledge_results = [item for item in results if item["source_type"] == "knowledge"]
+        self.assertTrue(all(item["content"] for item in knowledge_results))
+        self.assertTrue(any(len(item["content"]) > len(item["excerpt"]) for item in knowledge_results))
+
+    def test_agent_removes_fabricated_citations_and_marks_retrieved_content_untrusted(self):
+        sources = {"KB-2": {"reference_id": "KB-2"}}
+        cleaned, validation = agent_module._sanitize_answer_citations(
+            "结论 [来源 KB-2]，伪造内容 [来源 KB-999]。",
+            sources,
+        )
+        self.assertIn("[来源 KB-2]", cleaned)
+        self.assertNotIn("KB-999", cleaned)
+        self.assertEqual(validation["invalid_citations_removed"], ["KB-999"])
+        self.assertIn("不可信数据", agent_module.SYSTEM_PROMPT)
+
+        uncited, validation = agent_module._sanitize_answer_citations("有检索证据但未引用。", sources)
+        self.assertIn("候选来源", uncited)
+        self.assertIn("[来源 KB-2]", uncited)
+        self.assertTrue(validation["fallback_appended"])
 
     def test_rag_infers_chinese_process_and_defect_aliases(self):
         results = search_knowledge("刻蚀设备 CD 偏移的潜在原因", 6)
@@ -192,7 +212,10 @@ class FabInsightTests(unittest.TestCase):
                 results = search_knowledge(item["query"], limit=6, **item.get("filters", {}))
                 references = {result["reference_id"] for result in results}
                 source_types = {result["source_type"] for result in results}
-                self.assertTrue(references.intersection(item["expected_any"]))
+                if item.get("expect_empty"):
+                    self.assertFalse(references)
+                else:
+                    self.assertTrue(references.intersection(item["expected_any"]))
                 self.assertTrue(set(item.get("required_source_types", [])).issubset(source_types))
                 self.assertFalse(references.intersection(item.get("forbidden", [])))
 
@@ -271,6 +294,7 @@ class FabInsightTests(unittest.TestCase):
             self.assertEqual(search.status_code, 200, search.text)
             self.assertGreater(search.json()["count"], 0)
             self.assertTrue(all(item["source_type"] == "personal" for item in search.json()["results"]))
+            self.assertTrue(all(item["content"] for item in search.json()["results"]))
 
             chunk = client.get(f"/api/knowledge/personal/chunks/{chunk_id}")
             self.assertEqual(chunk.status_code, 200)
@@ -750,6 +774,56 @@ class FabInsightTests(unittest.TestCase):
         self.assertEqual(result["answer"], "OK")
         self.assertEqual(attempts, 2)
         self.assertTrue(any(item.get("stage") == "retrying" for item in progress_events))
+
+    def test_retrieved_answer_is_buffered_before_citation_sanitization(self):
+        responses = [
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{
+                    "id": "call-search-1",
+                    "type": "function",
+                    "function": {"name": "search_knowledge", "arguments": '{"query":"CMP"}'},
+                }],
+            },
+            {"role": "assistant", "content": "结论 [来源 KB-999]"},
+        ]
+        buffer_flags = []
+        progress_events = []
+
+        async def fake_stream(*args):
+            buffer_flags.append(bool(args[-1].get("buffer_answer")))
+            return responses.pop(0), {"total_tokens": 3}, "response-citation-test"
+
+        async def progress(event):
+            progress_events.append(event)
+
+        settings = SimpleNamespace(
+            deepseek_api_key="test-key",
+            deepseek_base_url="https://example.test",
+            deepseek_model="test-model",
+            api_timeout_seconds=5,
+            model_max_retries=0,
+            model_retry_base_seconds=0.05,
+        )
+        source = {
+            "reference_id": "KB-2",
+            "source_type": "knowledge",
+            "title": "CMP 异常响应",
+            "source": "CMP_control_plan.md",
+            "section": "原因分析",
+        }
+        with (
+            patch("app.agent.get_settings", return_value=settings),
+            patch("app.agent._stream_completion", new=fake_stream),
+            patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": lambda **_: [source]}),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl("分析 CMP", [], "run-citation-test", progress))
+        self.assertEqual(buffer_flags, [False, True])
+        self.assertNotIn("KB-999", result["answer"])
+        self.assertIn("[来源 KB-2]", result["answer"])
+        answer_events = [item for item in progress_events if item.get("event") == "answer_delta"]
+        self.assertEqual("".join(item["delta"] for item in answer_events), result["answer"])
 
     def test_model_does_not_retry_after_answer_output_starts(self):
         attempts = 0

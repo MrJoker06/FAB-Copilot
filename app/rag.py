@@ -70,14 +70,19 @@ def _metadata_rerank(candidates: list[dict], filters: dict, limit: int, source_t
     allowed_sources = set(source_types or ("personal", "knowledge", "case"))
     ranked: list[dict] = []
     source_ranks = {"personal": 0, "knowledge": 0, "case": 0}
+    seen_references: set[str] = set()
     for candidate in candidates:
         source_type = candidate["source_type"]
         if source_type not in allowed_sources:
             continue
+        reference_id = str(candidate.get("reference_id") or "")
+        if not reference_id or reference_id in seen_references:
+            continue
+        seen_references.add(reference_id)
         source_ranks[source_type] += 1
         lexical_rank = source_ranks[source_type]
         score = 100.0 / (60 + lexical_rank)
-        reasons = [f"{source_type} lexical rank {lexical_rank}"]
+        reasons = [f"{source_type} reciprocal rank {lexical_rank}"]
         process_step = filters.get("process_step")
         equipment_id = filters.get("equipment_id")
         defect_type = filters.get("defect_type")
@@ -150,28 +155,82 @@ def _metadata_rerank(candidates: list[dict], filters: dict, limit: int, source_t
         candidate["retrieval"] = {
             "lexical_rank": lexical_rank,
             "final_score": round(score, 4),
-            "confidence": "high" if score >= 4.5 else ("medium" if score >= 2.0 else "low"),
+            "confidence": "high" if score >= 3.5 else ("medium" if score >= 2.0 else "low"),
             "selection_reason": reasons,
             "filters": filters,
+            "score_version": "rrf-metadata-v2",
         }
         ranked.append(candidate)
 
     ranked.sort(key=lambda item: item["retrieval"]["final_score"], reverse=True)
+    eligible = [item for item in ranked if item["retrieval"]["confidence"] != "low"]
+    if not eligible:
+        eligible = ranked
     selected: list[dict] = []
+    selected_references: set[str] = set()
+    selected_by_source = {"personal": 0, "knowledge": 0, "case": 0}
+
+    def add(item: dict) -> None:
+        reference_id = item["reference_id"]
+        if reference_id in selected_references:
+            return
+        selected.append(item)
+        selected_references.add(reference_id)
+        selected_by_source[item["source_type"]] += 1
+
     if limit >= 2:
-        for source_type in ("personal", "knowledge", "case"):
-            first = next((item for item in ranked if item["source_type"] == source_type), None)
-            if first is not None and first["retrieval"]["confidence"] != "low":
-                selected.append(first)
+        # Keep governed factory knowledge in the context, then preserve private and
+        # historical evidence when each source has a sufficiently strong match.
+        for source_type in ("knowledge", "personal", "case"):
+            first = next((item for item in eligible if item["source_type"] == source_type), None)
+            if first is not None:
+                add(first)
             if len(selected) >= limit:
                 break
-    for item in ranked:
-        if item not in selected:
-            selected.append(item)
+
+    source_count = max(1, len({item["source_type"] for item in eligible}))
+    max_per_source = limit if source_count == 1 else max(1, (limit * 3 + 4) // 5)
+    for item in eligible:
+        if selected_by_source[item["source_type"]] >= max_per_source:
+            continue
+        add(item)
+        if len(selected) >= limit:
+            break
+
+    # A quota should improve diversity, not leave usable context slots empty.
+    for item in eligible:
+        add(item)
         if len(selected) >= limit:
             break
     selected.sort(key=lambda item: item["retrieval"]["final_score"], reverse=True)
     return selected[:limit]
+
+
+def _knowledge_sql_filters(filters: dict, alias: str = "d") -> tuple[list[str], list[object]]:
+    clauses: list[str] = []
+    params: list[object] = []
+    process_step = filters.get("process_step")
+    if process_step:
+        clauses.append(
+            f"(instr(',' || replace({alias}.process_steps, ' ', '') || ',', ',' || ? || ',') > 0 "
+            f"OR instr(',' || replace({alias}.process_steps, ' ', '') || ',', ',ALL,') > 0)"
+        )
+        params.append(process_step)
+    return clauses, params
+
+
+def _case_sql_filters(filters: dict, alias: str = "c") -> tuple[list[str], list[object]]:
+    clauses = [f"{alias}.case_status = 'Validated'"]
+    params: list[object] = []
+    process_step = filters.get("process_step")
+    if process_step:
+        clauses.append(f"({alias}.process_step = ? OR {alias}.equipment_family IN (?, 'ALL'))")
+        params.extend((process_step, process_step))
+    defect_type = filters.get("defect_type")
+    if defect_type:
+        clauses.append(f"lower({alias}.defect_type) = lower(?)")
+        params.append(defect_type)
+    return clauses, params
 
 
 def search_knowledge(
@@ -194,25 +253,35 @@ def search_knowledge(
         return []
     bounded_limit = max(1, min(limit, 10))
     candidate_limit = max(30, bounded_limit * 5)
+    allowed_sources = set(source_types or ("personal", "knowledge", "case"))
+    knowledge_filter_clauses, knowledge_filter_params = _knowledge_sql_filters(filters)
+    case_filter_clauses, case_filter_params = _case_sql_filters(filters)
+    knowledge_rows = []
+    case_rows = []
     with db_session() as connection:
         if fts_query:
-            knowledge_rows = connection.execute(
+            if "knowledge" in allowed_sources:
+                knowledge_where = " AND ".join(["knowledge_trigram_fts MATCH ?", *knowledge_filter_clauses])
+                knowledge_rows = connection.execute(
                 """SELECT 'knowledge' AS source_type,
                           'KB-' || k.chunk_id AS reference_id,
                           k.chunk_id, k.title, k.source, k.section,
                           d.doc_type, d.version, d.status, d.effective_date,
                           d.owner, d.authority, d.process_steps, d.equipment_families, d.tags,
                           snippet(knowledge_trigram_fts, 2, '[', ']', '…', 24) AS excerpt,
+                          k.content AS content,
                           round(bm25(knowledge_trigram_fts), 4) AS score
                    FROM knowledge.knowledge_trigram_fts
                    JOIN knowledge_chunks k ON k.chunk_id = knowledge_trigram_fts.rowid
                    JOIN knowledge_documents d ON d.source = k.source AND d.status = 'Active'
-                   WHERE knowledge_trigram_fts MATCH ?
+                   WHERE """ + knowledge_where + """
                    ORDER BY bm25(knowledge_trigram_fts)
                    LIMIT ?""",
-                (fts_query, candidate_limit),
-            ).fetchall()
-            case_rows = connection.execute(
+                    [fts_query, *knowledge_filter_params, candidate_limit],
+                ).fetchall()
+            if "case" in allowed_sources:
+                case_where = " AND ".join(["case_trigram_fts MATCH ?", *case_filter_clauses])
+                case_rows = connection.execute(
                 """SELECT 'case' AS source_type,
                           c.case_id AS reference_id,
                           c.case_id, c.title, '历史案例库' AS source,
@@ -226,25 +295,33 @@ def search_knowledge(
                           c.approved_by, c.case_status
                    FROM knowledge.case_trigram_fts
                    JOIN knowledge.historical_cases c ON c.rowid = case_trigram_fts.rowid
-                   WHERE case_trigram_fts MATCH ?
+                   WHERE """ + case_where + """
                    ORDER BY bm25(case_trigram_fts)
                    LIMIT ?""",
-                (fts_query, candidate_limit),
-            ).fetchall()
+                    [fts_query, *case_filter_params, candidate_limit],
+                ).fetchall()
         else:
             pattern = f"%{terms[0]}%"
-            knowledge_rows = connection.execute(
+            if "knowledge" in allowed_sources:
+                knowledge_where = " AND ".join(
+                    ["d.status = 'Active'", *knowledge_filter_clauses, "(k.title LIKE ? OR k.section LIKE ? OR k.content LIKE ?)"]
+                )
+                knowledge_rows = connection.execute(
                 """SELECT 'knowledge' AS source_type, 'KB-' || k.chunk_id AS reference_id,
                           k.chunk_id, k.title, k.source, k.section,
                           d.doc_type, d.version, d.status, d.effective_date, d.owner,
                           d.authority, d.process_steps, d.equipment_families, d.tags,
-                          k.content AS excerpt, -1.0 AS score
+                          k.content AS excerpt, k.content AS content, -1.0 AS score
                    FROM knowledge_chunks k JOIN knowledge_documents d ON d.source = k.source
-                   WHERE d.status = 'Active' AND (k.title LIKE ? OR k.section LIKE ? OR k.content LIKE ?)
+                   WHERE """ + knowledge_where + """
                    LIMIT ?""",
-                (pattern, pattern, pattern, candidate_limit),
-            ).fetchall()
-            case_rows = connection.execute(
+                    [*knowledge_filter_params, pattern, pattern, pattern, candidate_limit],
+                ).fetchall()
+            if "case" in allowed_sources:
+                case_where = " AND ".join(
+                    [*case_filter_clauses, "(c.title LIKE ? OR c.problem LIKE ? OR c.solution LIKE ? OR c.summary LIKE ? OR c.tags LIKE ?)"]
+                )
+                case_rows = connection.execute(
                 """SELECT 'case' AS source_type, case_id AS reference_id,
                           case_id, title, '历史案例库' AS source, title AS section,
                           problem AS excerpt, -1.0 AS score, process_step, equipment_id,
@@ -252,14 +329,14 @@ def search_knowledge(
                           equipment_family, defect_type, symptoms, root_cause,
                           root_cause_confidence, validation_method, recurrence_status,
                           approved_by, case_status
-                   FROM historical_cases
-                   WHERE title LIKE ? OR problem LIKE ? OR solution LIKE ? OR summary LIKE ? OR tags LIKE ?
+                   FROM historical_cases c
+                   WHERE """ + case_where + """
                    LIMIT ?""",
-                (pattern, pattern, pattern, pattern, pattern, candidate_limit),
-            ).fetchall()
+                    [*case_filter_params, pattern, pattern, pattern, pattern, pattern, candidate_limit],
+                ).fetchall()
     combined = rows_to_dicts(knowledge_rows) + rows_to_dicts(case_rows)
     combined.sort(key=lambda item: item.get("score", 0))
-    if include_personal and (not source_types or "personal" in source_types):
+    if include_personal and "personal" in allowed_sources:
         personal_owner = owner_user_id or get_settings().personal_knowledge_user_id
         process_expansion = PROCESS_SEARCH_EXPANSIONS.get(filters.get("process_step"), "")
         personal_query = f"{retrieval_query} {process_expansion}".strip()
