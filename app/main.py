@@ -2,22 +2,42 @@ from __future__ import annotations
 
 import asyncio
 import json
+import secrets
 import traceback
 import uuid
 from contextlib import asynccontextmanager
+from typing import Annotated
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, SecretStr
+from starlette.concurrency import run_in_threadpool
 
 from .agent import run_agent
 from .audit import CONTENT_MODE, GIT_COMMIT, current_request_id, emit, monitoring_summary, read_events
 from .config import APP_VERSION, PROJECT_DIR, get_settings, public_model_config, update_model_config
 from .database import db_session, department_paths, ensure_department_databases
 from .processes import MANUFACTURING_STEPS, PROCESS_STEP_PATTERN
+from .personal_knowledge import (
+    PersonalDocumentPatch,
+    PersonalKnowledgeError,
+    begin_delete_personal_document,
+    create_personal_upload,
+    get_personal_chunk,
+    get_personal_document,
+    get_personal_job,
+    list_personal_documents,
+    pending_personal_jobs,
+    personal_document_file,
+    process_personal_document,
+    process_personal_document_deletion,
+    retry_personal_document,
+    search_personal_knowledge,
+    update_personal_document,
+)
 from .observability import RequestAuditMiddleware
 from .rag import (
     get_historical_case,
@@ -64,6 +84,9 @@ async def lifespan(_: FastAPI):
         generate_database()
     elif knowledge_count == 0:
         seed_reference_data()
+    for document_id, owner_user_id, job_id, status in pending_personal_jobs():
+        worker = process_personal_document_deletion if status == "deleting" else process_personal_document
+        await asyncio.to_thread(worker, document_id, owner_user_id, job_id)
     yield
 
 
@@ -153,6 +176,36 @@ class SessionUpdateRequest(BaseModel):
 
 class BulkSessionDeleteRequest(BaseModel):
     session_ids: list[str] = Field(min_length=1, max_length=200)
+
+
+class PersonalSearchPreviewRequest(BaseModel):
+    query: str = Field(min_length=2, max_length=500)
+    limit: int = Field(default=10, ge=1, le=20)
+    document_ids: list[str] = Field(default_factory=list, max_length=100)
+
+
+def current_personal_user(
+    authorization: Annotated[str | None, Header()] = None,
+) -> str:
+    settings = get_settings()
+    configured_token = settings.personal_knowledge_api_token
+    if configured_token:
+        scheme, _, provided_token = (authorization or "").partition(" ")
+        if scheme.lower() != "bearer" or not secrets.compare_digest(provided_token, configured_token):
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    "error_code": "AUTHENTICATION_REQUIRED",
+                    "message": "个人知识库访问令牌无效",
+                    "retryable": False,
+                },
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    return settings.personal_knowledge_user_id
+
+
+def personal_problem(exc: PersonalKnowledgeError) -> HTTPException:
+    return http_problem(exc.status_code, exc.error_code, exc.detail, exc.retryable)
 
 
 @app.get("/", include_in_schema=False)
@@ -251,6 +304,161 @@ def knowledge_document(chunk_id: int) -> dict:
         return get_knowledge_document(chunk_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/api/knowledge/personal/documents", status_code=202)
+async def upload_personal_knowledge_document(
+    background_tasks: BackgroundTasks,
+    file: Annotated[UploadFile, File()],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=8, max_length=128)],
+    owner_user_id: Annotated[str, Depends(current_personal_user)],
+    metadata: Annotated[str | None, Form()] = None,
+) -> dict:
+    settings = get_settings()
+    try:
+        data = await file.read(settings.personal_knowledge_max_upload_bytes + 1)
+        result = await run_in_threadpool(
+            create_personal_upload,
+            owner_user_id,
+            file.filename,
+            data,
+            metadata,
+            idempotency_key,
+        )
+    except PersonalKnowledgeError as exc:
+        raise personal_problem(exc) from exc
+    finally:
+        await file.close()
+    if result.pop("_start_processing", False):
+        background_tasks.add_task(
+            process_personal_document,
+            result["document_id"],
+            owner_user_id,
+            result["job_id"],
+        )
+    return result
+
+
+@app.get("/api/knowledge/jobs/{job_id}")
+def personal_knowledge_job(
+    job_id: str,
+    owner_user_id: Annotated[str, Depends(current_personal_user)],
+) -> dict:
+    try:
+        return get_personal_job(job_id, owner_user_id)
+    except PersonalKnowledgeError as exc:
+        raise personal_problem(exc) from exc
+
+
+@app.get("/api/knowledge/personal/documents")
+def personal_knowledge_documents(
+    owner_user_id: Annotated[str, Depends(current_personal_user)],
+    q: str = Query("", max_length=100),
+    status: str | None = Query(None, pattern=r"^(uploaded|parsing|chunking|indexing|ready|failed|deleting)$"),
+    limit: int = Query(20, ge=1, le=100),
+    cursor: str | None = Query(None, max_length=500),
+) -> dict:
+    try:
+        return list_personal_documents(owner_user_id, q, status, limit, cursor)
+    except PersonalKnowledgeError as exc:
+        raise personal_problem(exc) from exc
+
+
+@app.get("/api/knowledge/personal/documents/{document_id}")
+def personal_knowledge_document(
+    document_id: str,
+    owner_user_id: Annotated[str, Depends(current_personal_user)],
+) -> dict:
+    try:
+        return get_personal_document(document_id, owner_user_id)
+    except PersonalKnowledgeError as exc:
+        raise personal_problem(exc) from exc
+
+
+@app.get("/api/knowledge/personal/documents/{document_id}/content")
+def personal_knowledge_document_content(
+    document_id: str,
+    owner_user_id: Annotated[str, Depends(current_personal_user)],
+) -> dict:
+    try:
+        return get_personal_document(document_id, owner_user_id, include_chunks=True)
+    except PersonalKnowledgeError as exc:
+        raise personal_problem(exc) from exc
+
+
+@app.get("/api/knowledge/personal/documents/{document_id}/file")
+def download_personal_knowledge_document(
+    document_id: str,
+    owner_user_id: Annotated[str, Depends(current_personal_user)],
+):
+    try:
+        path, filename, mime_type = personal_document_file(document_id, owner_user_id)
+    except PersonalKnowledgeError as exc:
+        raise personal_problem(exc) from exc
+    return FileResponse(path, media_type=mime_type, filename=filename)
+
+
+@app.patch("/api/knowledge/personal/documents/{document_id}")
+def patch_personal_knowledge_document(
+    document_id: str,
+    request: PersonalDocumentPatch,
+    owner_user_id: Annotated[str, Depends(current_personal_user)],
+) -> dict:
+    try:
+        return update_personal_document(document_id, owner_user_id, request)
+    except PersonalKnowledgeError as exc:
+        raise personal_problem(exc) from exc
+
+
+@app.post("/api/knowledge/personal/documents/{document_id}/retry", status_code=202)
+def retry_personal_knowledge_document(
+    document_id: str,
+    background_tasks: BackgroundTasks,
+    owner_user_id: Annotated[str, Depends(current_personal_user)],
+) -> dict:
+    try:
+        result = retry_personal_document(document_id, owner_user_id)
+    except PersonalKnowledgeError as exc:
+        raise personal_problem(exc) from exc
+    background_tasks.add_task(process_personal_document, document_id, owner_user_id, result["job_id"])
+    return result
+
+
+@app.delete("/api/knowledge/personal/documents/{document_id}", status_code=202)
+def delete_personal_knowledge_document(
+    document_id: str,
+    background_tasks: BackgroundTasks,
+    owner_user_id: Annotated[str, Depends(current_personal_user)],
+) -> dict:
+    try:
+        result = begin_delete_personal_document(document_id, owner_user_id)
+    except PersonalKnowledgeError as exc:
+        raise personal_problem(exc) from exc
+    background_tasks.add_task(process_personal_document_deletion, document_id, owner_user_id, result["job_id"])
+    return result
+
+
+@app.post("/api/knowledge/personal/search-preview")
+def personal_knowledge_search_preview(
+    request: PersonalSearchPreviewRequest,
+    owner_user_id: Annotated[str, Depends(current_personal_user)],
+) -> dict:
+    try:
+        results = search_personal_knowledge(owner_user_id, request.query, request.limit, request.document_ids)
+    except PersonalKnowledgeError as exc:
+        raise personal_problem(exc) from exc
+    return {"query": request.query, "count": len(results), "results": results}
+
+
+@app.get("/api/knowledge/personal/chunks/{chunk_id}")
+def personal_knowledge_chunk(
+    chunk_id: str,
+    owner_user_id: Annotated[str, Depends(current_personal_user)],
+) -> dict:
+    try:
+        return get_personal_chunk(chunk_id, owner_user_id)
+    except PersonalKnowledgeError as exc:
+        raise personal_problem(exc) from exc
 
 
 @app.get("/api/cases")

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import atexit
 import asyncio
+import io
 import json
 import os
 import shutil
@@ -18,6 +19,7 @@ import httpx
 TEST_DATABASE_DIR = Path(tempfile.mkdtemp(prefix="fab-insight-tests-"))
 os.environ["FAB_KNOWLEDGE_DATABASE_PATH"] = str(TEST_DATABASE_DIR / "process_knowledge.db")
 os.environ["FAB_AGENT_DATABASE_PATH"] = str(TEST_DATABASE_DIR / "ai_operations.db")
+os.environ["FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH"] = str(TEST_DATABASE_DIR / "personal_knowledge")
 atexit.register(shutil.rmtree, TEST_DATABASE_DIR, True)
 
 from fastapi.testclient import TestClient
@@ -188,6 +190,208 @@ class FabInsightTests(unittest.TestCase):
             self.assertEqual(document.json()["document"]["status"], "Active")
             self.assertTrue(document.json()["document"]["version"])
             self.assertGreaterEqual(document.json()["document"]["authority"], 1)
+
+    def test_personal_knowledge_upload_search_privacy_and_delete(self):
+        content = (
+            "# CMP-03 Pad 更换记录\n\n"
+            "2026-07-01 完成 Pad 更换。更换后确认主轴电流稳定，抛光压力恢复正常。\n\n"
+            "## 验证结果\n\n"
+            "连续三个批次膜厚均匀性满足要求，Scratch 缺陷未再次出现。"
+        ).encode("utf-8")
+        headers = {"Idempotency-Key": "personal-upload-test-001"}
+        metadata = json.dumps({
+            "title": "CMP-03 Pad 更换记录",
+            "process_steps": ["CMP"],
+            "equipment_ids": ["CMP-03"],
+            "effective_date": "2026-07-01",
+            "tags": ["pad", "maintenance"],
+        }, ensure_ascii=False)
+
+        with TestClient(app) as client:
+            uploaded = client.post(
+                "/api/knowledge/personal/documents",
+                headers=headers,
+                files={"file": ("cmp-pad.md", content, "text/markdown")},
+                data={"metadata": metadata},
+            )
+            self.assertEqual(uploaded.status_code, 202, uploaded.text)
+            document_id = uploaded.json()["document_id"]
+            job_id = uploaded.json()["job_id"]
+
+            job = client.get(f"/api/knowledge/jobs/{job_id}")
+            self.assertEqual(job.status_code, 200)
+            self.assertEqual(job.json()["status"], "ready")
+            self.assertEqual(job.json()["progress"], 100)
+
+            listed = client.get("/api/knowledge/personal/documents?status=ready&q=CMP")
+            self.assertEqual(listed.status_code, 200)
+            self.assertIn(document_id, {item["document_id"] for item in listed.json()["items"]})
+
+            detail = client.get(f"/api/knowledge/personal/documents/{document_id}")
+            self.assertEqual(detail.status_code, 200)
+            self.assertEqual(detail.json()["process_steps"], ["CMP"])
+            self.assertGreater(detail.json()["chunk_count"], 0)
+            self.assertNotIn("owner_user_id", detail.json())
+            self.assertNotIn("storage_key", detail.json())
+
+            document_content = client.get(f"/api/knowledge/personal/documents/{document_id}/content")
+            self.assertEqual(document_content.status_code, 200)
+            self.assertTrue(document_content.json()["chunks"])
+            chunk_id = document_content.json()["chunks"][0]["chunk_id"]
+            with db_session() as connection:
+                indexed_chunks = connection.execute(
+                    "SELECT COUNT(*) FROM personal_knowledge_fts WHERE document_id = ?", (document_id,)
+                ).fetchone()[0]
+            self.assertEqual(indexed_chunks, detail.json()["chunk_count"])
+
+            search = client.post(
+                "/api/knowledge/personal/search-preview",
+                json={"query": "CMP-03 Pad 更换后 Scratch 验证", "document_ids": [document_id]},
+            )
+            self.assertEqual(search.status_code, 200, search.text)
+            self.assertGreater(search.json()["count"], 0)
+            self.assertTrue(all(item["source_type"] == "personal" for item in search.json()["results"]))
+
+            chunk = client.get(f"/api/knowledge/personal/chunks/{chunk_id}")
+            self.assertEqual(chunk.status_code, 200)
+            self.assertEqual(chunk.json()["document_id"], document_id)
+
+            updated = client.patch(
+                f"/api/knowledge/personal/documents/{document_id}",
+                json={"title": "CMP-03 Pad 更换与验证记录", "tags": ["pad", "verified"]},
+            )
+            self.assertEqual(updated.status_code, 200, updated.text)
+            self.assertEqual(updated.json()["title"], "CMP-03 Pad 更换与验证记录")
+
+            downloaded = client.get(f"/api/knowledge/personal/documents/{document_id}/file")
+            self.assertEqual(downloaded.status_code, 200)
+            self.assertEqual(downloaded.content, content)
+
+            replay = client.post(
+                "/api/knowledge/personal/documents",
+                headers=headers,
+                files={"file": ("cmp-pad.md", content, "text/markdown")},
+                data={"metadata": metadata},
+            )
+            self.assertEqual(replay.status_code, 202)
+            self.assertEqual(replay.json()["document_id"], document_id)
+            self.assertEqual(replay.json()["job_id"], job_id)
+
+            duplicate = client.post(
+                "/api/knowledge/personal/documents",
+                headers={"Idempotency-Key": "personal-upload-test-002"},
+                files={"file": ("duplicate.md", content, "text/markdown")},
+            )
+            self.assertEqual(duplicate.status_code, 409)
+            self.assertEqual(duplicate.json()["error_code"], "DUPLICATE_DOCUMENT")
+
+            with patch.dict(os.environ, {"FAB_PERSONAL_KNOWLEDGE_USER_ID": "different-user"}):
+                self.assertEqual(client.get(f"/api/knowledge/personal/documents/{document_id}").status_code, 404)
+                self.assertEqual(client.get(f"/api/knowledge/personal/chunks/{chunk_id}").status_code, 404)
+                self.assertEqual(client.get(f"/api/knowledge/jobs/{job_id}").status_code, 404)
+                private_search = client.post(
+                    "/api/knowledge/personal/search-preview",
+                    json={"query": "CMP Pad", "document_ids": [document_id]},
+                )
+                self.assertEqual(private_search.status_code, 404)
+
+            deleting = client.delete(f"/api/knowledge/personal/documents/{document_id}")
+            self.assertEqual(deleting.status_code, 202, deleting.text)
+            delete_job_id = deleting.json()["job_id"]
+            self.assertEqual(client.get(f"/api/knowledge/jobs/{delete_job_id}").json()["status"], "deleted")
+            self.assertEqual(client.get(f"/api/knowledge/personal/documents/{document_id}").status_code, 404)
+            self.assertEqual(client.get(f"/api/knowledge/personal/chunks/{chunk_id}").status_code, 404)
+            with db_session() as connection:
+                indexed_chunks = connection.execute(
+                    "SELECT COUNT(*) FROM personal_knowledge_fts WHERE document_id = ?", (document_id,)
+                ).fetchone()[0]
+            self.assertEqual(indexed_chunks, 0)
+
+    def test_personal_knowledge_upload_validation_and_token(self):
+        with TestClient(app) as client:
+            missing_key = client.post(
+                "/api/knowledge/personal/documents",
+                files={"file": ("note.txt", b"valid text content", "text/plain")},
+            )
+            self.assertEqual(missing_key.status_code, 422)
+
+            unsupported = client.post(
+                "/api/knowledge/personal/documents",
+                headers={"Idempotency-Key": "unsupported-file-test"},
+                files={"file": ("payload.exe", b"not executable", "application/octet-stream")},
+            )
+            self.assertEqual(unsupported.status_code, 415)
+            self.assertEqual(unsupported.json()["error_code"], "UNSUPPORTED_FILE_TYPE")
+
+            with patch.dict(os.environ, {"FAB_PERSONAL_KNOWLEDGE_API_TOKEN": "private-test-token"}):
+                unauthenticated = client.get("/api/knowledge/personal/documents")
+                self.assertEqual(unauthenticated.status_code, 401)
+                authenticated = client.get(
+                    "/api/knowledge/personal/documents",
+                    headers={"Authorization": "Bearer private-test-token"},
+                )
+                self.assertEqual(authenticated.status_code, 200)
+
+    def test_personal_knowledge_scanned_pdf_requires_ocr(self):
+        from pypdf import PdfWriter
+
+        output = io.BytesIO()
+        writer = PdfWriter()
+        writer.add_blank_page(width=300, height=300)
+        writer.write(output)
+        with TestClient(app) as client:
+            uploaded = client.post(
+                "/api/knowledge/personal/documents",
+                headers={"Idempotency-Key": "ocr-required-test"},
+                files={"file": ("scanned.pdf", output.getvalue(), "application/pdf")},
+            )
+            self.assertEqual(uploaded.status_code, 202, uploaded.text)
+            job = client.get(f"/api/knowledge/jobs/{uploaded.json()['job_id']}")
+            self.assertEqual(job.status_code, 200)
+            self.assertEqual(job.json()["status"], "failed")
+            self.assertEqual(job.json()["error"]["error_code"], "OCR_REQUIRED")
+            deleted = client.delete(f"/api/knowledge/personal/documents/{uploaded.json()['document_id']}")
+            self.assertEqual(deleted.status_code, 202)
+
+    def test_personal_knowledge_office_and_csv_parsers(self):
+        from docx import Document
+        from openpyxl import Workbook
+
+        docx_buffer = io.BytesIO()
+        docx_document = Document()
+        docx_document.add_heading("ETCH-01 维护记录", level=1)
+        docx_document.add_paragraph("腔体清洗完成，Particle 复测符合要求。")
+        docx_document.save(docx_buffer)
+
+        xlsx_buffer = io.BytesIO()
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "CVD-02 检查"
+        sheet.append(["项目", "结果"])
+        sheet.append(["膜厚均匀性", "通过"])
+        workbook.save(xlsx_buffer)
+        workbook.close()
+
+        samples = (
+            ("etch-maintenance.docx", docx_buffer.getvalue(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "腔体清洗"),
+            ("cvd-check.xlsx", xlsx_buffer.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "膜厚均匀性"),
+            ("cmp-check.csv", "项目,结果\nPad检查,通过\n".encode("utf-8"), "text/csv", "Pad检查"),
+        )
+        with TestClient(app) as client:
+            for index, (filename, content, mime_type, expected) in enumerate(samples):
+                with self.subTest(filename=filename):
+                    uploaded = client.post(
+                        "/api/knowledge/personal/documents",
+                        headers={"Idempotency-Key": f"parser-format-test-{index}"},
+                        files={"file": (filename, content, mime_type)},
+                    )
+                    self.assertEqual(uploaded.status_code, 202, uploaded.text)
+                    document_id = uploaded.json()["document_id"]
+                    job = client.get(f"/api/knowledge/jobs/{uploaded.json()['job_id']}")
+                    self.assertEqual(job.json()["status"], "ready", job.text)
+                    parsed = client.get(f"/api/knowledge/personal/documents/{document_id}/content")
+                    self.assertIn(expected, " ".join(chunk["content"] for chunk in parsed.json()["chunks"]))
+                    self.assertEqual(client.delete(f"/api/knowledge/personal/documents/{document_id}").status_code, 202)
 
     def test_historical_case_has_fixed_format(self):
         with TestClient(app) as client:

@@ -6,6 +6,7 @@ data/*.db
 data/*.db-*
 data/**/*.db
 data/**/*.db-*
+data/personal_knowledge/
 backups/databases/
 logs/*.jsonl*
 logs/agent/

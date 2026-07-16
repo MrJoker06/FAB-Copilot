@@ -19,6 +19,7 @@
 - 全 API 请求使用 `request_id` 串联 HTTP、会话、Agent、模型和工具日志，错误响应提供稳定错误码和可重试标记
 - 68 个知识章节与 17 个固定格式历史案例
 - SQLite FTS5 trigram 双来源 RAG，支持中文检索与引用跳转
+- 个人知识库 API 支持私有文件上传、异步解析、分块索引、检索预览、下载、重试和完整删除；OCR 暂未实现
 - DeepSeek 不可用时自动提供本地规则分析
 
 > 所有数据和知识文档均为演示用途，不代表真实工厂或量产规范。公开数据只用于校准数据形态和统计特征，具体配方、规格与根因均为可复现合成内容。
@@ -52,6 +53,10 @@ AGENT_LOG_BACKUP_COUNT=5
 AGENT_LOG_CONTENT=metadata
 MODEL_MAX_RETRIES=2
 MODEL_RETRY_BASE_MS=500
+FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH=data/personal_knowledge
+FAB_PERSONAL_KNOWLEDGE_USER_ID=local-user
+FAB_PERSONAL_KNOWLEDGE_API_TOKEN=
+FAB_PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES=52428800
 ```
 
 在 WSL 中运行：
@@ -173,7 +178,25 @@ conda run -n fab-insight-agent python -m scripts.manage_databases checkpoint
 
 ## 知识库与历史案例库
 
-个人知识库、权限隔离、上传处理，以及从 SQLite/FTS5、PostgreSQL/pgvector 到独立向量与全文检索集群的分级 RAG 方案，见 [个人知识库与分级 RAG 架构设计](docs/knowledge-base-rag-architecture.md)。该方案已明确个人知识不共享，OCR 为待做能力，尚未进入实现阶段。
+个人知识库、权限隔离、上传处理，以及从 SQLite/FTS5、PostgreSQL/pgvector 到独立向量与全文检索集群的分级 RAG 方案，见 [个人知识库与分级 RAG 架构设计](docs/knowledge-base-rag-architecture.md)。第一期上传与检索接口已经实现；个人知识不共享，OCR 仍为待做能力。
+
+当前样例尚未接入正式登录系统，个人知识所有者由服务端 `FAB_PERSONAL_KNOWLEDGE_USER_ID` 决定，客户端不能传入或修改所有者。配置 `FAB_PERSONAL_KNOWLEDGE_API_TOKEN` 后，个人知识接口必须携带对应 Bearer Token；留空时仅适合本机单用户开发。
+
+第一期上传接口：
+
+```text
+POST   /api/knowledge/personal/documents
+GET    /api/knowledge/jobs/{job_id}
+GET    /api/knowledge/personal/documents
+GET    /api/knowledge/personal/documents/{document_id}
+GET    /api/knowledge/personal/documents/{document_id}/content
+GET    /api/knowledge/personal/documents/{document_id}/file
+PATCH  /api/knowledge/personal/documents/{document_id}
+DELETE /api/knowledge/personal/documents/{document_id}
+POST   /api/knowledge/personal/documents/{document_id}/retry
+POST   /api/knowledge/personal/search-preview
+GET    /api/knowledge/personal/chunks/{chunk_id}
+```
 
 左侧“知识库”包含 17 份制造文档、68 个稳定引用章节，覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗、量测、SPC、Hold、Recipe 变更、根因分析、良率和数据治理。
 

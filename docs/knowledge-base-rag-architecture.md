@@ -1,6 +1,6 @@
 # 个人知识库与分级 RAG 架构设计
 
-状态：方案讨论稿，尚未实施  
+状态：第一期上传 API 已按 L0 本地架构实现；三端分离与 L1 PostgreSQL/pgvector 迁移待实施
 适用项目：Fab Insight Agent  
 最后更新：2026-07-16
 
@@ -18,7 +18,7 @@
 
 ## 2. 当前基线与目标
 
-当前项目使用 SQLite FTS5 trigram 检索正式知识和历史案例，再依据制程、设备、缺陷、权威等级和案例置信度重排。该实现适合只读演示数据，但不适合多用户上传、后台解析、并发索引和权限隔离。
+当前项目使用 SQLite FTS5 trigram 检索正式知识和历史案例，再依据制程、设备、缺陷、权威等级和案例置信度重排。个人知识上传 API 已使用独立文档、任务、文本块和 FTS 表实现本地闭环，并通过服务端固定用户或可选 Bearer Token 隔离。它是进入三端分离前的 L0 兼容实现，不替代 L1 的 PostgreSQL、pgvector 和正式登录体系。
 
 目标形态：
 
@@ -324,6 +324,8 @@ FAB 文档包含编号步骤、参数表、告警代码和规格限制，不能�
 ```http
 Authorization: Bearer <access_token>
 ```
+
+L0 本地实现尚未接入正式登录系统：配置 `FAB_PERSONAL_KNOWLEDGE_API_TOKEN` 时按上述 Bearer Token 强制鉴权；未配置时使用服务端固定的 `FAB_PERSONAL_KNOWLEDGE_USER_ID=local-user`，只允许本机单用户开发。进入 L1 前必须替换为正式登录身份，API 路径和数据模型不变。
 
 后端从访问令牌取得 `user_id`。以下任何请求都不接受 `owner_user_id`、`visibility`、`department_id` 或共享对象。新建文档的所有者永远是当前登录用户。
 

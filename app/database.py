@@ -634,6 +634,10 @@ def validate_department_databases() -> dict[str, int | str]:
                 "SELECT ABS((SELECT COUNT(*) FROM historical_cases) - "
                 "(SELECT COUNT(*) FROM knowledge.case_trigram_fts))"
             ).fetchone()[0],
+            "personal_knowledge_fts_delta": connection.execute(
+                "SELECT ABS((SELECT COUNT(*) FROM personal_knowledge_chunks) - "
+                "(SELECT COUNT(*) FROM knowledge.personal_knowledge_fts))"
+            ).fetchone()[0],
         }
     return checks
 

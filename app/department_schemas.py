@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA_METADATA = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -235,6 +235,71 @@ CREATE VIRTUAL TABLE IF NOT EXISTS case_trigram_fts USING fts5(
 CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_source ON knowledge_chunks(source, chunk_id);
 CREATE INDEX IF NOT EXISTS idx_cases_step_date ON historical_cases(process_step, occurred_date);
 CREATE INDEX IF NOT EXISTS idx_cases_governance ON historical_cases(case_status, process_step, defect_type);
+
+CREATE TABLE IF NOT EXISTS personal_knowledge_documents (
+    document_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    title TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL CHECK(size_bytes >= 0),
+    checksum_sha256 TEXT NOT NULL,
+    process_steps_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(process_steps_json)),
+    equipment_ids_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(equipment_ids_json)),
+    effective_date TEXT,
+    tags_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(tags_json)),
+    status TEXT NOT NULL CHECK(status IN ('uploaded', 'parsing', 'chunking', 'indexing', 'ready', 'failed', 'deleting')),
+    storage_key TEXT NOT NULL,
+    parser_version TEXT NOT NULL,
+    error_code TEXT,
+    error_message TEXT,
+    idempotency_key TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(owner_user_id, checksum_sha256),
+    UNIQUE(owner_user_id, idempotency_key)
+);
+
+CREATE TABLE IF NOT EXISTS personal_knowledge_chunks (
+    chunk_rowid INTEGER PRIMARY KEY AUTOINCREMENT,
+    chunk_id TEXT NOT NULL UNIQUE,
+    document_id TEXT NOT NULL REFERENCES personal_knowledge_documents(document_id) ON DELETE CASCADE,
+    owner_user_id TEXT NOT NULL,
+    page_number INTEGER,
+    section_path TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    token_count INTEGER NOT NULL CHECK(token_count >= 0),
+    created_at TEXT NOT NULL,
+    UNIQUE(document_id, chunk_index)
+);
+
+CREATE TABLE IF NOT EXISTS personal_knowledge_jobs (
+    job_id TEXT PRIMARY KEY,
+    document_id TEXT NOT NULL,
+    owner_user_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    stage TEXT NOT NULL,
+    progress INTEGER NOT NULL CHECK(progress BETWEEN 0 AND 100),
+    attempt INTEGER NOT NULL DEFAULT 1 CHECK(attempt > 0),
+    error_code TEXT,
+    error_message TEXT,
+    retryable INTEGER NOT NULL DEFAULT 0 CHECK(retryable IN (0, 1)),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS personal_knowledge_fts USING fts5(
+    title, section_path, content,
+    owner_user_id UNINDEXED, document_id UNINDEXED, chunk_id UNINDEXED,
+    tokenize='trigram'
+);
+
+CREATE INDEX IF NOT EXISTS idx_personal_documents_owner_updated ON personal_knowledge_documents(owner_user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_personal_documents_owner_status ON personal_knowledge_documents(owner_user_id, status);
+CREATE INDEX IF NOT EXISTS idx_personal_chunks_document ON personal_knowledge_chunks(document_id, chunk_index);
+CREATE INDEX IF NOT EXISTS idx_personal_chunks_owner ON personal_knowledge_chunks(owner_user_id, document_id);
+CREATE INDEX IF NOT EXISTS idx_personal_jobs_owner_updated ON personal_knowledge_jobs(owner_user_id, updated_at DESC);
 """
 
 
@@ -330,6 +395,9 @@ TABLE_DEPARTMENTS = {
     "knowledge_documents": "knowledge",
     "knowledge_chunks": "knowledge",
     "historical_cases": "knowledge",
+    "personal_knowledge_documents": "knowledge",
+    "personal_knowledge_chunks": "knowledge",
+    "personal_knowledge_jobs": "knowledge",
     "chat_sessions": "agent",
     "chat_messages": "agent",
     "agent_runs": "agent",

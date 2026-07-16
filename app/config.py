@@ -8,7 +8,7 @@ from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 WORKSPACE_DIR = PROJECT_DIR.parent.parent
-APP_VERSION = "20260716-2"
+APP_VERSION = "20260716-3"
 
 
 def _load_env(path: Path) -> None:
@@ -54,6 +54,10 @@ class Settings:
     api_timeout_seconds: float
     model_max_retries: int
     model_retry_base_seconds: float
+    personal_knowledge_storage_path: Path
+    personal_knowledge_user_id: str
+    personal_knowledge_api_token: str
+    personal_knowledge_max_upload_bytes: int
 
 
 def get_settings() -> Settings:
@@ -73,6 +77,9 @@ def get_settings() -> Settings:
     with _runtime_lock:
         api_key = _runtime_api_key if _runtime_api_key is not None else os.getenv("DEEPSEEK_API_KEY", "")
         model = MODEL_API_NAMES[_runtime_model]
+    personal_storage = Path(os.getenv("FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH", "data/personal_knowledge"))
+    if not personal_storage.is_absolute():
+        personal_storage = PROJECT_DIR / personal_storage
     return Settings(
         database_path=database_path,
         manufacturing_database_path=department_path("FAB_MANUFACTURING_DATABASE_PATH", "manufacturing_operations.db"),
@@ -86,6 +93,13 @@ def get_settings() -> Settings:
         api_timeout_seconds=float(os.getenv("API_TIMEOUT_MS", "60000")) / 1000,
         model_max_retries=max(0, min(int(os.getenv("MODEL_MAX_RETRIES", "2")), 4)),
         model_retry_base_seconds=max(0.05, min(float(os.getenv("MODEL_RETRY_BASE_MS", "500")) / 1000, 5.0)),
+        personal_knowledge_storage_path=personal_storage,
+        personal_knowledge_user_id=os.getenv("FAB_PERSONAL_KNOWLEDGE_USER_ID", "local-user").strip() or "local-user",
+        personal_knowledge_api_token=os.getenv("FAB_PERSONAL_KNOWLEDGE_API_TOKEN", "").strip(),
+        personal_knowledge_max_upload_bytes=max(
+            1024,
+            min(int(os.getenv("FAB_PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES", str(50 * 1024 * 1024))), 500 * 1024 * 1024),
+        ),
     )
 
 

@@ -49,6 +49,7 @@ class RequestAuditMiddleware:
         method = scope.get("method", "GET")
         path = scope.get("path", "")
         query = unquote(scope.get("query_string", b"").decode("latin-1"))
+        capture_body = CONTENT_MODE == "full" and "multipart/form-data" not in headers.get("content-type", "")
         started = time.perf_counter()
         body_parts: list[bytes] = []
         status_code = 500
@@ -67,7 +68,7 @@ class RequestAuditMiddleware:
 
         async def audited_receive():
             message = await receive()
-            if message.get("type") == "http.request" and len(b"".join(body_parts)) < MAX_AUDIT_BODY_BYTES:
+            if capture_body and message.get("type") == "http.request" and len(b"".join(body_parts)) < MAX_AUDIT_BODY_BYTES:
                 remaining = MAX_AUDIT_BODY_BYTES - sum(len(part) for part in body_parts)
                 body_parts.append(message.get("body", b"")[:remaining])
             return message
