@@ -15,12 +15,20 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ConfigProvider
       theme={{
-        algorithm: theme.darkAlgorithm,
+        algorithm: theme.defaultAlgorithm,
         token: {
-          colorPrimary: '#36d6b7',
-          colorInfo: '#62a8ff',
-          colorBgBase: '#07131f',
-          borderRadius: 12,
+          colorPrimary: '#087f70',
+          colorInfo: '#087f70',
+          colorSuccess: '#2f7d4d',
+          colorWarning: '#b87917',
+          colorError: '#c95445',
+          colorText: '#17211f',
+          colorTextSecondary: '#697572',
+          colorBorder: '#dce3e1',
+          colorBgBase: '#ffffff',
+          colorBgLayout: '#f4f6f7',
+          borderRadius: 5,
+          fontSize: 12,
           fontFamily: "Inter, 'Segoe UI', 'Microsoft YaHei', sans-serif",
         },
       }}

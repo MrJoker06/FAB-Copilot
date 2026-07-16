@@ -18,10 +18,11 @@ export default function CopilotPanel({ onClose }: Props) {
   return (
     <aside className="copilot-panel">
       <div className="copilot-heading">
-        <div><Typography.Text type="secondary">ANALYSIS AGENT</Typography.Text><h2>Fab Copilot</h2></div>
+        <span className="copilot-icon">◇</span>
+        <div className="copilot-title"><strong>Fab Copilot</strong><small>制造数据分析助手</small></div>
         <Button type="text" onClick={onClose} aria-label="关闭 Copilot">×</Button>
       </div>
-      <Space wrap><Tag color="cyan">MCP</Tag><Tag color="blue">RAG</Tag><Tag>只读</Tag></Space>
+      <Space className="copilot-badges" wrap><Tag color="cyan">MCP</Tag><Tag color="blue">RAG</Tag><Tag>只读</Tag></Space>
       <div className="copilot-messages">
         {chat.isError && <Alert type="error" showIcon title="分析失败" description={chat.error.message} />}
         {answer ? <div className="assistant-answer"><Typography.Paragraph>{answer}</Typography.Paragraph></div> : <Empty description="输入制造问题，Agent 将优先调用类型化 MCP 工具。" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
