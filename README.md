@@ -2,6 +2,38 @@
 
 一个可运行的虚拟半导体制造报表系统，包含 24 个月历史数据、制造 KPI、制程能力分析、设备异常检测、知识库 RAG，以及通过 DeepSeek 工具调用驱动的数据分析 Agent。
 
+## V2 模块化架构（当前分支）
+
+当前正在从单体 `app/` 渐进迁移到可独立部署的 V2。旧实现仍保留用于回归和迁移对照；新增能力统一进入以下边界：
+
+```text
+web/ React + TypeScript
+        |
+services/api/  /api/v1、身份、知识/案例/会话、Agent 编排
+        |
+   MCP Streamable HTTP + service token
+        |
+services/data-mcp/  类型化制造工具、SQL AST Guard、只读数据库
+
+packages/fab-contracts <- packages/fab-core <- packages/fab-agent
+```
+
+API 容器只挂载 `data/v2/api` 和个人文件，Data MCP 只挂载 `data/v2/mcp`；API 不持有制造数据库文件。开发身份由固定实现提供，但接口已经独立，后续接 OIDC 不需要修改业务服务。通用 SQL 仅保留为 SQLite 分析副本上的受控兜底：单条只读查询、表白名单、AST 校验、100 行上限和执行超时，不能访问隐藏根因表。
+
+V2 在 WSL 中启动：
+
+```bash
+uv sync --all-packages --all-groups
+cd web && npm ci && npm run build && cd ..
+python -m scripts.migrate_v2 --dry-run
+python -m scripts.migrate_v2
+./run-v2.sh
+```
+
+也可在已启用 WSL 集成的 Docker Desktop 中运行 `docker compose up --build`。只有 API 的 `8765` 端口对宿主机开放，MCP 保持 Compose 内网服务。V2 接口统一位于 `/api/v1`，OpenAPI 文档仍位于 `/docs`。
+
+本地完整检查使用 `./scripts/check_v2.sh`；GitHub Actions 同步执行 Python 格式、静态检查、依赖边界、测试和覆盖率，以及前端 lint、测试、构建与容器构建。
+
 ## 已实现能力
 
 - 约 9,500 个制造批次、170,000 条分层工序、100 万条传感器记录、28 台设备及对应状态、事件和缺陷记录
@@ -309,6 +341,16 @@ logs/           Agent JSONL 审计日志（不提交）
 
 README 中所有未完成事项统一在本节维护；完成后勾选并在对应提交中更新说明，不在其他章节建立独立 TODO 清单。
 
+V2 迁移基础设施进度：
+
+- [x] 建立 uv workspace、共享 contracts/core/agent 包、独立 API 与 Data MCP 服务。
+- [x] 建立 `/api/v1`、request ID、开发身份接口、API 到 MCP 的 service token 和身份上下文传递。
+- [x] 将固定制造报表和受控 SQL 移入 MCP；API 不再直接查询制造、设备或质量数据库。
+- [x] 建立并行校验数据迁移、原数据保留、manifest 与目标存在时拒绝覆盖机制。
+- [x] 建立 React/TypeScript/Ant Design 指挥台、真实知识/案例/会话/监控页面和 MCP 驱动 Copilot。
+- [x] 建立 Docker Compose 文件系统隔离、GitHub Actions 与本地统一质量检查。
+- [ ] 完成旧个人知识上传、混合 RAG 和 DeepSeek 模型工具循环向 V2 的迁移后，删除 `app/` 兼容实现。
+
 生产目标是保留当前 Agent 和前端，将 `app/reports.py` 的查询函数替换为 ASP.NET Core API 或 MCP 工具，并分离结构化制造数据、非结构化知识和 Agent 分析规则：
 
 ```text
@@ -330,7 +372,7 @@ Oracle / MES / EAP / SPC / FDC / YMS
 - [ ] 在 FAB 内网部署独立的 `Fab Data MCP Server`，由服务端持有 Oracle 连接池和凭证，Agent 与浏览器均不得直接连接 Oracle。
 - [ ] 为 MCP Server 建立最小权限 Oracle 应用账号和角色，只授权经过治理的 View、Materialized View 或 Package，不直接开放基础生产表。
 - [ ] 将用户、部门、产品、设备和厂区权限传递给 MCP，在 Oracle View/VPD/RLS 与 MCP 工具层同时执行行列级过滤。
-- [ ] 为工具调用记录用户、工具名、参数摘要、数据时间范围、返回行数、耗时和错误码；日志不得记录 Oracle 凭证、敏感配方或未脱敏正文。
+- [x] 在 V2 SQLite MCP 中记录用户、工具名、参数摘要、返回行数、耗时和错误码；生产 Oracle 仍需接集中审计且不得记录凭证和敏感正文。
 - [ ] 增加危险操作人工确认；当前阶段继续保持所有 Agent 数据工具只读。
 
 ### P1：Oracle MCP 与受控查询
@@ -338,9 +380,9 @@ Oracle / MES / EAP / SPC / FDC / YMS
 - [ ] 将 `reports.py` 中的固定报表函数迁移为领域化 MCP 工具，例如 `get_lot_history`、`get_equipment_events`、`get_spc_violations`、`get_yield_trend` 和 `get_wafer_defect_summary`。
 - [ ] MCP 工具只接受类型化业务参数；SQL 由服务端固定模板、存储过程或查询编译器生成，不提供通用 `execute_sql(sql)` 工具。
 - [ ] 用受控语义查询替换当前 `safe_select` Text-to-SQL：模型只输出指标、维度、过滤条件、聚合粒度和限制，服务端负责参数化 SQL、允许的 JOIN 路径和成本控制。
-- [ ] 仅在隔离的分析副本中保留受限 Text-to-SQL 作为兜底，并增加 SQL AST 校验、`EXPLAIN PLAN`、超时、最大扫描量、最大行数和只读事务保护。
+- [x] 在隔离的 SQLite 分析副本中实现受限 Text-to-SQL 兜底、SQL AST 校验、超时、最大行数和只读连接；Oracle 阶段仍需增加 `EXPLAIN PLAN` 与最大扫描量。
 - [ ] 建立查询限流、并发配额、熔断和缓存；优先查询只读报表库或同步副本，避免 Agent 查询影响 MES 等生产事务系统。
-- [ ] 保持 MCP 工具输入输出结构与当前 Agent 工具兼容，使 ASP.NET Core、MCP 或 CLI 适配不要求重写模型提示词和前端。
+- [x] 通过 `fab-contracts` 与 `DataGateway` 保持 MCP 工具输入输出边界稳定，使后端适配不要求重写前端。
 
 ### P1：RAG 与个人知识生产化
 

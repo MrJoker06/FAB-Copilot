@@ -1,0 +1,51 @@
+name: fab-insight-v2
+
+services:
+  data-mcp:
+    build: .
+    command: ["fab-data-mcp"]
+    environment:
+      FAB_MCP_HOST: 0.0.0.0
+      FAB_MCP_PORT: 8770
+      FAB_MCP_DATABASE_DIR: /app/data/v2/mcp
+      FAB_MCP_SERVICE_TOKEN: ${FAB_MCP_SERVICE_TOKEN:-dev-mcp-service-token}
+      FAB_MCP_QUERY_TIMEOUT_SECONDS: 2
+      FAB_MCP_MAX_QUERY_ROWS: 100
+    volumes:
+      - ./data/v2/mcp:/app/data/v2/mcp:ro
+      - ./logs:/app/logs:rw
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8770/health/ready')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build: .
+    command: ["fab-api"]
+    depends_on:
+      data-mcp:
+        condition: service_healthy
+    environment:
+      FAB_API_HOST: 0.0.0.0
+      FAB_API_PORT: 8765
+      FAB_API_MCP_URL: http://data-mcp:8770/mcp
+      FAB_API_MCP_HEALTH_URL: http://data-mcp:8770/health/ready
+      FAB_API_MCP_SERVICE_TOKEN: ${FAB_MCP_SERVICE_TOKEN:-dev-mcp-service-token}
+      FAB_API_APPLICATION_DATABASE_DIR: /app/data/v2/api
+      FAB_API_AUDIT_LOG_DIR: /app/logs
+      FAB_API_WEB_DIST: /app/web/dist
+      FAB_API_DEV_API_TOKEN: ${FAB_API_DEV_API_TOKEN:-}
+    volumes:
+      - ./data/v2/api:/app/data/v2/api:rw
+      - ./data/v2/blobs:/app/data/v2/blobs:rw
+      - ./logs:/app/logs:rw
+    ports:
+      - "8765:8765"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/api/v1/health/ready')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped

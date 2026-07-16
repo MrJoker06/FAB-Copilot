@@ -1,0 +1,45 @@
+name: quality
+
+on:
+  push:
+    branches: [main, "refactor/**", "feat/**"]
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.29"
+          enable-cache: true
+      - run: uv sync --frozen --all-packages --all-groups
+      - run: .venv/bin/ruff format --check packages services tests_v2 scripts/migrate_v2.py
+      - run: .venv/bin/ruff check packages services tests_v2 scripts/migrate_v2.py
+      - run: .venv/bin/mypy packages services scripts/migrate_v2.py
+      - run: .venv/bin/lint-imports
+      - run: .venv/bin/pytest --cov=fab_contracts --cov=fab_core --cov=fab_agent --cov=fab_api --cov=fab_data_mcp --cov-fail-under=70 tests_v2
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t fab-insight-v2:test .
