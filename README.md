@@ -304,3 +304,34 @@ logs/           Agent JSONL 审计日志（不提交）
 ## 接入真实 C# 系统
 
 保留当前 Agent 和前端，只需把 `app/reports.py` 的查询函数替换为 ASP.NET Core API、MCP 工具或 CLI 调用。工具输入输出结构可以保持不变，因此模型侧提示词和前端不必重写。生产接入时还应增加身份认证、行级数据权限、审计日志、查询成本限制和危险操作人工确认。
+
+### 生产 Oracle / MCP / Skill 接入 TODO
+
+目标架构是将结构化制造数据、非结构化知识和 Agent 分析规则分离：
+
+```text
+Oracle / MES / EAP / SPC / FDC / YMS
+                |
+        Fab Data MCP Server
+  身份映射、权限、参数校验、审计、限流
+                |
+       领域化 MCP Tools
+                |
+   Fab Agent + 分析流程 Skills
+                |
+       RAG（SOP、案例、个人知识）
+```
+
+- [ ] 在 FAB 内网部署独立的 `Fab Data MCP Server`，由服务端持有 Oracle 连接池和凭证，Agent 与浏览器均不得直接连接 Oracle。
+- [ ] 为 MCP Server 建立最小权限 Oracle 应用账号和角色，只授权经过治理的 View、Materialized View 或 Package，不直接开放基础生产表。
+- [ ] 将 `reports.py` 中的固定报表函数迁移为领域化 MCP 工具，例如 `get_lot_history`、`get_equipment_events`、`get_spc_violations`、`get_yield_trend` 和 `get_wafer_defect_summary`。
+- [ ] MCP 工具只接受类型化业务参数；SQL 由服务端固定模板、存储过程或查询编译器生成，不提供通用 `execute_sql(sql)` 工具。
+- [ ] 用受控语义查询替换当前 `safe_select` Text-to-SQL：模型只输出指标、维度、过滤条件、聚合粒度和限制，服务端负责参数化 SQL、允许的 JOIN 路径和成本控制。
+- [ ] 仅在隔离的分析副本中保留受限 Text-to-SQL 作为兜底，并增加 SQL AST 校验、`EXPLAIN PLAN`、超时、最大扫描量、最大行数和只读事务保护。
+- [ ] 接入 FAB SSO/OIDC，将最终用户、部门、产品、设备和厂区权限传递给 MCP；在 Oracle View/VPD/RLS 与 MCP 工具层同时执行行列级过滤。
+- [ ] 为每次工具调用记录用户、工具名、参数摘要、数据时间范围、返回行数、耗时和错误码；日志不得记录 Oracle 凭证、敏感配方或未脱敏正文。
+- [ ] 建立查询限流、并发配额、熔断和缓存；优先查询只读报表库或同步副本，避免 Agent 查询影响 MES 等生产事务系统。
+- [ ] 创建 `fab-analysis` Skill，规定良率、Cycle Time、OEE、Cpk、SPC 等指标口径，以及“固定报表 → 下钻数据 → RAG 知识 → 人工复核”的工具调用顺序。
+- [ ] Skill 只保存业务规则、工具选择和结果解释方式，不保存 Oracle 密码、连接串、任意 SQL 或可绕过权限的指令。
+- [ ] 保持两条数据路径：Oracle MCP Tools 负责实时结构化事实，RAG 负责 SOP、控制计划、历史案例和个人知识；历史案例只能用于提出和排序根因假设。
+- [ ] 建立上线验收：权限越权测试通过率 100%、写操作阻断率 100%、查询超时可回收、审计链路可追踪、MCP 故障不会影响生产数据库可用性。
