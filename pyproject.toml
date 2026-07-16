@@ -1,0 +1,79 @@
+[project]
+name = "fab-insight-workspace"
+version = "2.0.0"
+requires-python = ">=3.11,<3.12"
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = [
+  "packages/fab-contracts",
+  "packages/fab-core",
+  "packages/fab-agent",
+  "services/api",
+  "services/data-mcp",
+]
+
+[tool.uv.sources]
+fab-contracts = { workspace = true }
+fab-core = { workspace = true }
+fab-agent = { workspace = true }
+fab-api = { workspace = true }
+fab-data-mcp = { workspace = true }
+
+[dependency-groups]
+dev = [
+  "import-linter>=2.3,<3",
+  "mypy>=1.17,<2",
+  "pytest>=8.4,<9",
+  "pytest-asyncio>=1.1,<2",
+  "pytest-cov>=6.2,<7",
+  "ruff>=0.12,<1",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+extend-exclude = ["app", "tests/test_system.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["B008", "E501"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["fab_contracts", "fab_core", "fab_agent", "fab_api", "fab_data_mcp"]
+exclude = ["^app/", "^tests/test_system.py$"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+asyncio_mode = "auto"
+testpaths = ["tests_v2"]
+pythonpath = ["."]
+markers = [
+  "contract: cross-service API and MCP contract tests",
+  "integration: tests requiring temporary databases or ASGI applications",
+  "slow: large generated-data regression tests",
+]
+
+[tool.importlinter]
+root_packages = ["fab_contracts", "fab_core", "fab_agent", "fab_api", "fab_data_mcp"]
+
+[[tool.importlinter.contracts]]
+name = "Layered V2 package direction"
+type = "layers"
+layers = [
+  "fab_api",
+  "fab_agent",
+  "fab_data_mcp",
+  "fab_core",
+  "fab_contracts",
+]
+containers = []
+
+[[tool.importlinter.contracts]]
+name = "API and MCP services are independent"
+type = "independence"
+modules = ["fab_api", "fab_data_mcp"]

@@ -1,0 +1,14 @@
+[project]
+name = "fab-agent"
+version = "2.0.0"
+description = "Provider-independent agent orchestration for Fab Insight V2"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "fab-contracts",
+  "fab-core",
+  "httpx>=0.28,<1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

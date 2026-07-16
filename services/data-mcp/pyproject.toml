@@ -1,0 +1,20 @@
+[project]
+name = "fab-data-mcp"
+version = "2.0.0"
+description = "Read-only manufacturing data MCP service for Fab Insight V2"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "fab-contracts",
+  "fab-core",
+  "mcp>=1.27,<2",
+  "pydantic-settings>=2.10,<3",
+  "sqlglot>=27,<30",
+  "uvicorn[standard]>=0.35,<1",
+]
+
+[project.scripts]
+fab-data-mcp = "fab_data_mcp.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

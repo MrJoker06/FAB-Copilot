@@ -1,0 +1,23 @@
+[project]
+name = "fab-api"
+version = "2.0.0"
+description = "Fab Insight V2 API, Agent and knowledge application"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "fab-agent",
+  "fab-contracts",
+  "fab-core",
+  "fastapi>=0.124,<1",
+  "httpx>=0.28,<1",
+  "mcp>=1.27,<2",
+  "pydantic-settings>=2.10,<3",
+  "python-multipart>=0.0.20,<1",
+  "uvicorn[standard]>=0.35,<1",
+]
+
+[project.scripts]
+fab-api = "fab_api.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

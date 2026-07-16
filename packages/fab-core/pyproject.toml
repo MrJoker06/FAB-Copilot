@@ -1,0 +1,10 @@
+[project]
+name = "fab-core"
+version = "2.0.0"
+description = "Framework-free domain and application ports for Fab Insight V2"
+requires-python = ">=3.11,<3.12"
+dependencies = ["fab-contracts"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
