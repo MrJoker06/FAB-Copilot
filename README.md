@@ -19,7 +19,7 @@
 - 全 API 请求使用 `request_id` 串联 HTTP、会话、Agent、模型和工具日志，错误响应提供稳定错误码和可重试标记
 - 68 个知识章节与 17 个固定格式历史案例
 - SQLite FTS5 trigram 双来源 RAG，支持中文检索与引用跳转
-- 个人知识库支持私有文件上传、异步解析、分块索引、Agent 三路融合检索、来源跳转、下载、重试和完整删除；OCR 暂未实现
+- 个人知识库支持私有文件上传、异步解析、分块索引、Agent 三路融合检索、来源跳转、下载、重试和完整删除；未完成功能统一记录在 [TODO](#todo)
 - DeepSeek 不可用时自动提供本地规则分析
 
 > 所有数据和知识文档均为演示用途，不代表真实工厂或量产规范。公开数据只用于校准数据形态和统计特征，具体配方、规格与根因均为可复现合成内容。
@@ -178,7 +178,7 @@ conda run -n fab-insight-agent python -m scripts.manage_databases checkpoint
 
 ## 知识库与历史案例库
 
-个人知识库、权限隔离、上传处理，以及从 SQLite/FTS5、PostgreSQL/pgvector 到独立向量与全文检索集群的分级 RAG 方案，见 [个人知识库与分级 RAG 架构设计](docs/knowledge-base-rag-architecture.md)。第一期上传与检索接口及网页入口已经实现；在“知识库”页面可切换到“我的知识”，上传、查看处理进度、预览、下载、重试或删除个人文档。个人知识不共享，OCR 仍为待做能力。
+个人知识库、权限隔离、上传处理，以及从 SQLite/FTS5、PostgreSQL/pgvector 到独立向量与全文检索集群的分级 RAG 方案，见 [个人知识库与分级 RAG 架构设计](docs/knowledge-base-rag-architecture.md)。第一期上传与检索接口及网页入口已经实现；在“知识库”页面可切换到“我的知识”，上传、查看处理进度、预览、下载、重试或删除个人文档。个人知识不共享，OCR 和生产化能力统一记录在 [TODO](#todo)。
 
 当前样例尚未接入正式登录系统，个人知识所有者由服务端 `FAB_PERSONAL_KNOWLEDGE_USER_ID` 决定，客户端不能传入或修改所有者。配置 `FAB_PERSONAL_KNOWLEDGE_API_TOKEN` 后，个人知识接口必须携带对应 Bearer Token；留空时仅适合本机单用户开发。
 
@@ -301,13 +301,11 @@ tests/          关键链路测试
 logs/           Agent JSONL 审计日志（不提交）
 ```
 
-## 接入真实 C# 系统
+## TODO
 
-保留当前 Agent 和前端，只需把 `app/reports.py` 的查询函数替换为 ASP.NET Core API、MCP 工具或 CLI 调用。工具输入输出结构可以保持不变，因此模型侧提示词和前端不必重写。生产接入时还应增加身份认证、行级数据权限、审计日志、查询成本限制和危险操作人工确认。
+README 中所有未完成事项统一在本节维护；完成后勾选并在对应提交中更新说明，不在其他章节建立独立 TODO 清单。
 
-### 生产 Oracle / MCP / Skill 接入 TODO
-
-目标架构是将结构化制造数据、非结构化知识和 Agent 分析规则分离：
+生产目标是保留当前 Agent 和前端，将 `app/reports.py` 的查询函数替换为 ASP.NET Core API 或 MCP 工具，并分离结构化制造数据、非结构化知识和 Agent 分析规则：
 
 ```text
 Oracle / MES / EAP / SPC / FDC / YMS
@@ -322,16 +320,35 @@ Oracle / MES / EAP / SPC / FDC / YMS
        RAG（SOP、案例、个人知识）
 ```
 
+### P0：身份、安全与数据边界
+
+- [ ] 接入 FAB SSO/OIDC，使用登录上下文中的稳定 `user_id` 替换全局 `FAB_PERSONAL_KNOWLEDGE_USER_ID`，完成个人知识多用户隔离。
 - [ ] 在 FAB 内网部署独立的 `Fab Data MCP Server`，由服务端持有 Oracle 连接池和凭证，Agent 与浏览器均不得直接连接 Oracle。
 - [ ] 为 MCP Server 建立最小权限 Oracle 应用账号和角色，只授权经过治理的 View、Materialized View 或 Package，不直接开放基础生产表。
+- [ ] 将用户、部门、产品、设备和厂区权限传递给 MCP，在 Oracle View/VPD/RLS 与 MCP 工具层同时执行行列级过滤。
+- [ ] 为工具调用记录用户、工具名、参数摘要、数据时间范围、返回行数、耗时和错误码；日志不得记录 Oracle 凭证、敏感配方或未脱敏正文。
+- [ ] 增加危险操作人工确认；当前阶段继续保持所有 Agent 数据工具只读。
+
+### P1：Oracle MCP 与受控查询
+
 - [ ] 将 `reports.py` 中的固定报表函数迁移为领域化 MCP 工具，例如 `get_lot_history`、`get_equipment_events`、`get_spc_violations`、`get_yield_trend` 和 `get_wafer_defect_summary`。
 - [ ] MCP 工具只接受类型化业务参数；SQL 由服务端固定模板、存储过程或查询编译器生成，不提供通用 `execute_sql(sql)` 工具。
 - [ ] 用受控语义查询替换当前 `safe_select` Text-to-SQL：模型只输出指标、维度、过滤条件、聚合粒度和限制，服务端负责参数化 SQL、允许的 JOIN 路径和成本控制。
 - [ ] 仅在隔离的分析副本中保留受限 Text-to-SQL 作为兜底，并增加 SQL AST 校验、`EXPLAIN PLAN`、超时、最大扫描量、最大行数和只读事务保护。
-- [ ] 接入 FAB SSO/OIDC，将最终用户、部门、产品、设备和厂区权限传递给 MCP；在 Oracle View/VPD/RLS 与 MCP 工具层同时执行行列级过滤。
-- [ ] 为每次工具调用记录用户、工具名、参数摘要、数据时间范围、返回行数、耗时和错误码；日志不得记录 Oracle 凭证、敏感配方或未脱敏正文。
 - [ ] 建立查询限流、并发配额、熔断和缓存；优先查询只读报表库或同步副本，避免 Agent 查询影响 MES 等生产事务系统。
+- [ ] 保持 MCP 工具输入输出结构与当前 Agent 工具兼容，使 ASP.NET Core、MCP 或 CLI 适配不要求重写模型提示词和前端。
+
+### P1：RAG 与个人知识生产化
+
+- [ ] 从 SQLite L0 迁移到 PostgreSQL、pgvector 和对象存储，使用多语种 Embedding、关键词召回、RRF 与重排组成混合检索。
+- [ ] 将进程内 `BackgroundTasks` 替换为可认领、可重试、可观测的独立 Worker，并防止多实例重复处理同一文档。
+- [ ] 为扫描型 PDF 增加隔离 OCR Worker、资源限制和恶意文件防护；OCR 完成前继续稳定返回 `OCR_REQUIRED`。
+- [ ] 增加引用忠实度、无答案拒答、权限泄漏、删除残留、提示注入和真实用户查询评测，并为检索指标建立版本化基线。
+- [ ] 保持两条数据路径：Oracle MCP Tools 负责实时结构化事实，RAG 负责 SOP、控制计划、历史案例和个人知识；历史案例只能用于提出和排序根因假设。
+
+### P2：Skills、可观测性与上线验收
+
 - [ ] 创建 `fab-analysis` Skill，规定良率、Cycle Time、OEE、Cpk、SPC 等指标口径，以及“固定报表 → 下钻数据 → RAG 知识 → 人工复核”的工具调用顺序。
 - [ ] Skill 只保存业务规则、工具选择和结果解释方式，不保存 Oracle 密码、连接串、任意 SQL 或可绕过权限的指令。
-- [ ] 保持两条数据路径：Oracle MCP Tools 负责实时结构化事实，RAG 负责 SOP、控制计划、历史案例和个人知识；历史案例只能用于提出和排序根因假设。
-- [ ] 建立上线验收：权限越权测试通过率 100%、写操作阻断率 100%、查询超时可回收、审计链路可追踪、MCP 故障不会影响生产数据库可用性。
+- [ ] 将日志接入 OpenTelemetry 和集中存储，补充模型、MCP、Oracle、全文召回、向量召回和重排各阶段 P50/P95/P99。
+- [ ] 建立上线验收：权限越权测试通过率 100%、写操作阻断率 100%、删除残留率 0、查询超时可回收、审计链路可追踪、MCP 故障不会影响生产数据库可用性。
