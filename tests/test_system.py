@@ -36,7 +36,7 @@ from app.database import (
 )
 from app.main import app
 from app.processes import MANUFACTURING_STEPS
-from app.rag import _infer_filters, search_knowledge
+from app.rag import _fts_query, _infer_filters, _metadata_rerank, search_knowledge
 from app.reports import process_capability, recent_excursions, report_bundle, safe_select, timestamp_bounds
 from app.seed import seed_reference_data
 from app.sessions import append_message, record_agent_result
@@ -186,6 +186,151 @@ class FabInsightTests(unittest.TestCase):
         self.assertIn("候选来源", uncited)
         self.assertIn("[来源 KB-2]", uncited)
         self.assertTrue(validation["fallback_appended"])
+
+        no_source, validation = agent_module._sanitize_answer_citations(
+            "没有检索却声称存在依据 [来源 KB-404]。",
+            {},
+        )
+        self.assertNotIn("KB-404", no_source)
+        self.assertEqual(validation["invalid_citations_removed"], ["KB-404"])
+        self.assertFalse(validation["fallback_appended"])
+
+    def test_rag_source_quota_preserves_three_source_evidence(self):
+        candidates = []
+        for index in range(8):
+            candidates.append({
+                "reference_id": f"PERSONAL-{index}",
+                "source_type": "personal",
+                "process_steps": ["CMP"],
+                "equipment_ids": [],
+                "title": f"个人记录 {index}",
+                "tags": [],
+            })
+        for index in range(5):
+            candidates.append({
+                "reference_id": f"KB-{100 + index}",
+                "source_type": "knowledge",
+                "process_steps": "CMP",
+                "authority": 5,
+                "title": f"正式知识 {index}",
+                "section": "CMP",
+                "tags": "CMP",
+            })
+        for index in range(2):
+            candidates.append({
+                "reference_id": f"CASE-QUOTA-{index}",
+                "source_type": "case",
+                "case_status": "Validated",
+                "process_step": "CMP",
+                "equipment_family": "CMP",
+                "equipment_id": f"CMP-{index + 1:02d}",
+                "root_cause_confidence": 0.9,
+                "occurred_date": "2026-01-01",
+                "defect_type": "Scratch",
+            })
+        results = _metadata_rerank(
+            candidates,
+            {"process_step": "CMP", "equipment_id": None, "defect_type": None},
+            limit=6,
+            source_types=None,
+        )
+        counts = {
+            source_type: sum(item["source_type"] == source_type for item in results)
+            for source_type in ("personal", "knowledge", "case")
+        }
+        self.assertEqual(len(results), 6)
+        self.assertTrue(all(counts[source_type] >= 1 for source_type in counts))
+        self.assertLessEqual(counts["personal"], 4)
+
+    def test_rag_source_type_filter_never_mixes_namespaces(self):
+        query = "CMP 划伤 Pad Conditioner"
+        knowledge = search_knowledge(query, 6, source_types=["knowledge"])
+        cases = search_knowledge(query, 6, source_types=["case"])
+        self.assertTrue(knowledge)
+        self.assertTrue(cases)
+        self.assertEqual({item["source_type"] for item in knowledge}, {"knowledge"})
+        self.assertEqual({item["source_type"] for item in cases}, {"case"})
+
+    def test_rag_filters_draft_cases_before_candidate_limit(self):
+        draft_prefix = "CASE-DRAFT-FILTER-"
+        query = "CMP-03 跨产品持续划伤 Pad Conditioner 潜在原因"
+        fts_query = _fts_query(f"{query} CMP CMP-03 Scratch")
+        drafts = []
+        exact_text = "CMP-03 Scratch Pad Conditioner 跨产品持续划伤 潜在原因"
+        for index in range(60):
+            drafts.append({
+                "case_id": f"{draft_prefix}{index:03d}",
+                "title": exact_text,
+                "process_step": "CMP",
+                "equipment_id": "CMP-03",
+                "occurred_date": "2026-01-01",
+                "severity": "High",
+                "problem": exact_text,
+                "solution": exact_text,
+                "result": exact_text,
+                "summary": exact_text,
+                "tags": "CMP,Scratch,Pad,Conditioner",
+                "equipment_family": "CMP",
+                "defect_type": "Scratch",
+                "symptoms": exact_text,
+                "root_cause": "未验证草稿根因",
+                "root_cause_confidence": 0.1,
+                "validation_method": "None",
+                "recurrence_status": "Unknown",
+                "approved_by": "",
+                "case_status": "Draft",
+            })
+        try:
+            with db_session() as connection:
+                connection.executemany(
+                    """INSERT INTO knowledge.historical_cases(
+                           case_id, title, process_step, equipment_id, occurred_date, severity,
+                           problem, solution, result, summary, tags, equipment_family, defect_type,
+                           symptoms, root_cause, root_cause_confidence, validation_method,
+                           recurrence_status, approved_by, case_status
+                       ) VALUES (
+                           :case_id, :title, :process_step, :equipment_id, :occurred_date, :severity,
+                           :problem, :solution, :result, :summary, :tags, :equipment_family, :defect_type,
+                           :symptoms, :root_cause, :root_cause_confidence, :validation_method,
+                           :recurrence_status, :approved_by, :case_status
+                       )""",
+                    drafts,
+                )
+                connection.execute(
+                    "INSERT INTO knowledge.case_trigram_fts(case_trigram_fts) VALUES ('rebuild')"
+                )
+                raw_candidates = connection.execute(
+                    """SELECT c.case_id FROM knowledge.case_trigram_fts
+                       JOIN knowledge.historical_cases c ON c.rowid = case_trigram_fts.rowid
+                       WHERE case_trigram_fts MATCH ?
+                       ORDER BY bm25(case_trigram_fts) LIMIT 30""",
+                    (fts_query,),
+                ).fetchall()
+                connection.commit()
+            self.assertEqual(len(raw_candidates), 30)
+            self.assertTrue(all(row["case_id"].startswith(draft_prefix) for row in raw_candidates))
+
+            results = search_knowledge(
+                query,
+                limit=6,
+                process_step="CMP",
+                equipment_id="CMP-03",
+                defect_type="Scratch",
+                source_types=["case"],
+            )
+            references = {item["reference_id"] for item in results}
+            self.assertIn("CASE-CMP-001", references)
+            self.assertFalse(any(reference.startswith(draft_prefix) for reference in references))
+        finally:
+            with db_session() as connection:
+                connection.execute(
+                    "DELETE FROM knowledge.historical_cases WHERE case_id LIKE ?",
+                    (f"{draft_prefix}%",),
+                )
+                connection.execute(
+                    "INSERT INTO knowledge.case_trigram_fts(case_trigram_fts) VALUES ('rebuild')"
+                )
+                connection.commit()
 
     def test_rag_infers_chinese_process_and_defect_aliases(self):
         results = search_knowledge("刻蚀设备 CD 偏移的潜在原因", 6)
