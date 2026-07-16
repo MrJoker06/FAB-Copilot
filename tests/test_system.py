@@ -6,6 +6,7 @@ import io
 import json
 import os
 import shutil
+import sqlite3
 import tempfile
 import unittest
 from datetime import date
@@ -27,6 +28,8 @@ from fastapi.testclient import TestClient
 from app.audit import read_events, sanitize
 from app import agent as agent_module
 from app.database import (
+    adapt_dbapi_connection,
+    dbapi_session,
     db_session,
     department_paths,
     get_active_defect_aliases,
@@ -63,6 +66,87 @@ class FabInsightTests(unittest.TestCase):
         defect_types = [row["defect_type"] for row in dashboard["defects"]]
         self.assertEqual(len(defect_types), len(set(defect_types)))
         self.assertTrue(all("process_steps" in row for row in dashboard["defects"]))
+
+    def test_dbapi_adapter_supports_cursor_only_connections_and_named_rows(self):
+        class CursorOnlyConnection:
+            def __init__(self, raw):
+                self.raw = raw
+                self.commits = 0
+                self.rollbacks = 0
+                self.closed = False
+
+            def cursor(self):
+                return self.raw.cursor()
+
+            def commit(self):
+                self.commits += 1
+                self.raw.commit()
+
+            def rollback(self):
+                self.rollbacks += 1
+                self.raw.rollback()
+
+            def close(self):
+                self.closed = True
+                self.raw.close()
+
+        raw = sqlite3.connect(":memory:")
+        cursor = raw.cursor()
+        cursor.execute("CREATE TABLE defect_aliases(canonical_name TEXT, alias TEXT)")
+        connection = CursorOnlyConnection(raw)
+        adapted = adapt_dbapi_connection(connection)
+        self.assertIs(adapt_dbapi_connection(adapted), adapted)
+        adapted.executemany(
+            "INSERT INTO defect_aliases(canonical_name, alias) VALUES (?, ?)",
+            [("Scratch", "划伤"), ("Particle", "颗粒")],
+        )
+        adapted.commit()
+        rows = adapted.execute(
+            "SELECT canonical_name, alias FROM defect_aliases ORDER BY canonical_name"
+        ).fetchall()
+        self.assertEqual(rows[0][0], "Particle")
+        self.assertEqual(rows[0]["canonical_name"], "Particle")
+        self.assertEqual(rows[0]["CANONICAL_NAME"], "Particle")
+        self.assertEqual(dict(rows[1]), {"canonical_name": "Scratch", "alias": "划伤"})
+        self.assertEqual(
+            [row["alias"] for row in adapted.execute("SELECT alias FROM defect_aliases ORDER BY alias")],
+            ["划伤", "颗粒"],
+        )
+        self.assertEqual(connection.commits, 1)
+        adapted.close()
+        self.assertTrue(connection.closed)
+
+    def test_dbapi_session_rolls_back_errors_and_exposes_script_boundary(self):
+        class CursorOnlyConnection:
+            def __init__(self, raw):
+                self.raw = raw
+                self.rollbacks = 0
+                self.closed = False
+
+            def cursor(self):
+                return self.raw.cursor()
+
+            def commit(self):
+                self.raw.commit()
+
+            def rollback(self):
+                self.rollbacks += 1
+                self.raw.rollback()
+
+            def close(self):
+                self.closed = True
+                self.raw.close()
+
+        connection = CursorOnlyConnection(sqlite3.connect(":memory:"))
+        with self.assertRaisesRegex(RuntimeError, "force rollback"):
+            with dbapi_session(connection) as adapted:
+                adapted.execute("CREATE TABLE sample(value TEXT)")
+                adapted.execute("INSERT INTO sample(value) VALUES (?)", ("pending",))
+                with self.assertRaisesRegex(NotImplementedError, "not part of Python DB-API 2.0"):
+                    adapted.executescript("SELECT 1;")
+                raise RuntimeError("force rollback")
+        self.assertEqual(connection.rollbacks, 1)
+        self.assertTrue(connection.closed)
 
     def test_frontend_exposes_personal_knowledge_upload_workflow(self):
         with TestClient(app) as client:

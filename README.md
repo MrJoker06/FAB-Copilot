@@ -156,6 +156,10 @@ Agent 不直接访问数据库连接，而是通过 `app/agent.py` 中声明的�
 
 应用连接会挂载五库并提供只读兼容视图，因此报表与受限SQL仍可使用原有表名。跨部门关系通过启动治理检查验证；各部门库内部继续使用外键和唯一约束。旧单库 `data/fab_history.db` 仅作为迁移源保留，不再承担运行写入。
 
+业务查询统一通过 `DBAPIConnectionAdapter` 和 `DBAPICursorAdapter` 执行，不依赖 `sqlite3.Connection.execute()` 快捷方法。适配层按照 Python DB-API 2.0 使用 `connection.cursor().execute(...)`，兼容仅提供游标执行接口的驱动，并将常见元组结果转换为可同时使用 `row[0]`、`row["column"]` 和 `dict(row)` 的行对象。会话异常时统一尝试回滚，连接释放行为也由上下文管理器保证。
+
+该适配层解决的是 Python 驱动调用方式和结果行形态，不代表 SQL 方言已经可以直接切换到 Oracle、PostgreSQL 或 MySQL。当前初始化、联邦查询和全文检索仍使用 SQLite 的 `PRAGMA`、`ATTACH DATABASE`、FTS5、`?` 参数和 `LIMIT` 等能力；`executescript` 也被明确视为后端专用迁移能力。生产 Oracle 接入应继续通过下方统一 [TODO](#todo) 中的 MCP 工具、治理 View/Package 或受控查询编译器完成，而不是简单替换数据库驱动。
+
 `FAB_SQLITE_JOURNAL_MODE=auto` 会在 WSL 的 `/mnt/*` Windows 挂载盘上使用 `DELETE` journal，避免 DrvFs 不支持 WAL 共享内存锁而产生 `disk I/O error`；Linux 本地文件系统继续使用 `WAL`。也可以显式设置为 `DELETE` 或 `WAL`。
 
 常用治理命令：

@@ -5,7 +5,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Any, Iterable, Iterator
 
 from .config import get_settings
 from .department_schemas import (
@@ -383,6 +383,168 @@ def writable_table(name: str, path: Path | None = None) -> str:
     return name if department == "main" else f"{department}.{name}"
 
 
+_NO_PARAMETERS = object()
+
+
+class DBAPIRow:
+    """Tuple-compatible row with sqlite3.Row-style named access.
+
+    Most DB-API drivers return tuples, while the application expects both
+    ``row[0]`` and ``row["column"]``.  This adapter preserves both forms and
+    intentionally implements ``keys()`` so ``dict(row)`` remains portable.
+    """
+
+    __slots__ = ("_values", "_columns", "_column_indexes")
+
+    def __init__(self, values: Iterable[Any], columns: Iterable[str]):
+        self._values = tuple(values)
+        self._columns = tuple(str(column) for column in columns)
+        indexes: dict[str, int] = {}
+        for index, column in enumerate(self._columns):
+            indexes.setdefault(column, index)
+            indexes.setdefault(column.lower(), index)
+        self._column_indexes = indexes
+
+    def __getitem__(self, key: int | slice | str) -> Any:
+        if isinstance(key, str):
+            try:
+                index = self._column_indexes[key]
+            except KeyError:
+                try:
+                    index = self._column_indexes[key.lower()]
+                except KeyError as exc:
+                    raise IndexError(f"No item with that key: {key}") from exc
+            return self._values[index]
+        return self._values[key]
+
+    def __iter__(self):
+        return iter(self._values)
+
+    def __len__(self) -> int:
+        return len(self._values)
+
+    def keys(self) -> list[str]:
+        return list(self._columns)
+
+
+class DBAPICursorAdapter:
+    """Normalize tuple-returning DB-API cursors to sqlite3.Row-like rows."""
+
+    __slots__ = ("_cursor",)
+
+    def __init__(self, cursor: Any):
+        self._cursor = cursor
+
+    @property
+    def raw_cursor(self) -> Any:
+        return self._cursor
+
+    def _column_names(self) -> tuple[str, ...]:
+        description = getattr(self._cursor, "description", None) or ()
+        names = []
+        for item in description:
+            try:
+                name = item[0]
+            except (TypeError, KeyError, IndexError):
+                name = getattr(item, "name", "")
+            names.append(str(name))
+        return tuple(names)
+
+    def _adapt_row(self, row: Any) -> Any:
+        if row is None or hasattr(row, "keys"):
+            return row
+        columns = self._column_names()
+        if columns and isinstance(row, (tuple, list)):
+            return DBAPIRow(row, columns)
+        return row
+
+    def execute(self, operation: str, parameters: Any = _NO_PARAMETERS) -> "DBAPICursorAdapter":
+        if parameters is _NO_PARAMETERS:
+            self._cursor.execute(operation)
+        else:
+            self._cursor.execute(operation, parameters)
+        return self
+
+    def executemany(self, operation: str, seq_of_parameters: Iterable[Any]) -> "DBAPICursorAdapter":
+        self._cursor.executemany(operation, seq_of_parameters)
+        return self
+
+    def fetchone(self) -> Any:
+        return self._adapt_row(self._cursor.fetchone())
+
+    def fetchmany(self, size: int | None = None) -> list[Any]:
+        rows = self._cursor.fetchmany() if size is None else self._cursor.fetchmany(size)
+        return [self._adapt_row(row) for row in rows]
+
+    def fetchall(self) -> list[Any]:
+        return [self._adapt_row(row) for row in self._cursor.fetchall()]
+
+    def __iter__(self):
+        for row in self._cursor:
+            yield self._adapt_row(row)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._cursor, name)
+
+
+class DBAPIConnectionAdapter:
+    """Provide sqlite-style shortcuts on top of a standard DB-API connection.
+
+    PEP 249 only requires ``connection.cursor().execute(...)``.  SQLite also
+    exposes ``connection.execute(...)`` shortcuts, which are not guaranteed by
+    Oracle, PostgreSQL, MySQL, ODBC, or test doubles.  Business code receives
+    this adapter so it can keep one execution style without depending on those
+    non-standard connection methods.
+    """
+
+    __slots__ = ("_connection",)
+
+    def __init__(self, connection: Any):
+        self._connection = connection
+
+    @property
+    def raw_connection(self) -> Any:
+        return self._connection
+
+    def cursor(self, *args: Any, **kwargs: Any) -> DBAPICursorAdapter:
+        return DBAPICursorAdapter(self._connection.cursor(*args, **kwargs))
+
+    def execute(self, operation: str, parameters: Any = _NO_PARAMETERS) -> DBAPICursorAdapter:
+        return self.cursor().execute(operation, parameters)
+
+    def executemany(self, operation: str, seq_of_parameters: Iterable[Any]) -> DBAPICursorAdapter:
+        return self.cursor().executemany(operation, seq_of_parameters)
+
+    def executescript(self, script: str) -> Any:
+        method = getattr(self._connection, "executescript", None)
+        if not callable(method):
+            raise NotImplementedError(
+                "executescript is not part of Python DB-API 2.0; execute schema migrations "
+                "through a backend-specific migration adapter"
+            )
+        result = method(script)
+        return DBAPICursorAdapter(result) if result is not None else None
+
+    def commit(self) -> None:
+        self._connection.commit()
+
+    def rollback(self) -> None:
+        self._connection.rollback()
+
+    def close(self) -> None:
+        self._connection.close()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._connection, name)
+
+
+def adapt_dbapi_connection(connection: Any) -> DBAPIConnectionAdapter:
+    """Wrap any PEP 249 connection; idempotent for already adapted values."""
+    if isinstance(connection, DBAPIConnectionAdapter):
+        return connection
+    return DBAPIConnectionAdapter(connection)
+
+
 def _connect_single(db_path: Path) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(db_path, timeout=20)
@@ -643,15 +805,30 @@ def validate_department_databases() -> dict[str, int | str]:
 
 
 @contextmanager
-def db_session(path: Path | None = None) -> Iterator[sqlite3.Connection]:
-    connection = connect(path)
+def dbapi_session(connection: Any, close_on_exit: bool = True) -> Iterator[DBAPIConnectionAdapter]:
+    """Manage an arbitrary DB-API connection with rollback-on-error semantics."""
+    adapted = adapt_dbapi_connection(connection)
     try:
-        yield connection
+        yield adapted
+    except BaseException:
+        try:
+            adapted.rollback()
+        except Exception:
+            pass
+        raise
     finally:
-        connection.close()
+        if close_on_exit:
+            adapted.close()
 
 
-def rows_to_dicts(rows: list[sqlite3.Row]) -> list[dict]:
+@contextmanager
+def db_session(path: Path | None = None) -> Iterator[DBAPIConnectionAdapter]:
+    """Open the current SQLite federation through the portable DB-API facade."""
+    with dbapi_session(connect(path)) as connection:
+        yield connection
+
+
+def rows_to_dicts(rows: Iterable[Any]) -> list[dict]:
     return [dict(row) for row in rows]
 
 
@@ -682,10 +859,9 @@ def replace_defect_type_aliases(
     if not name:
         raise ValueError("缺陷类型标准名称不能为空")
     cleaned_aliases = tuple(dict.fromkeys(alias.strip() for alias in aliases if alias.strip()))
-    connection = connect(path)
     defect_types = writable_table("defect_types", path)
     defect_aliases = writable_table("defect_type_aliases", path)
-    try:
+    with db_session(path) as connection:
         connection.execute(
             f"""INSERT INTO {defect_types}(canonical_name, is_active, updated_at)
                VALUES (?, 1, CURRENT_TIMESTAMP)
@@ -704,5 +880,3 @@ def replace_defect_type_aliases(
             ((defect_type_id, alias) for alias in cleaned_aliases),
         )
         connection.commit()
-    finally:
-        connection.close()
