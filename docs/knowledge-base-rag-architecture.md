@@ -315,23 +315,279 @@ FAB 文档包含编号步骤、参数表、告警代码和规格限制，不能�
 3. 然后把全文召回迁到 OpenSearch。
 4. 最后才引入消息流、多区域和分布式控制面。
 
-## 10. API 边界草案
+## 10. 个人知识库 API 契约
 
-```text
-POST   /api/knowledge/uploads                  初始化上传
-PUT    /api/knowledge/uploads/{upload_id}      上传文件或完成分片上传
-GET    /api/knowledge/jobs/{job_id}            查询处理进度
-GET    /api/knowledge/documents                仅返回当前用户个人文档及有权工厂文档
-GET    /api/knowledge/documents/{document_id}  文档、版本和章节
-PATCH  /api/knowledge/documents/{document_id}  修改本人文档元数据
-DELETE /api/knowledge/documents/{document_id}  删除本人文档及派生索引
-POST   /api/knowledge/search-preview           查看实际召回和排序原因
-GET    /api/knowledge/chunks/{chunk_id}         引用跳转，重新鉴权
+所有公开接口位于 Backend API。浏览器不能直接调用 Data Service，也不能直接访问 PostgreSQL、向量库或文件目录。
+
+所有接口都要求登录：
+
+```http
+Authorization: Bearer <access_token>
 ```
 
-上传和检索接口不接收 `owner_user_id`。后端从登录令牌生成访问主体，并把签名后的内部身份传给数据服务。
+后端从访问令牌取得 `user_id`。以下任何请求都不接受 `owner_user_id`、`visibility`、`department_id` 或共享对象。新建文档的所有者永远是当前登录用户。
 
-大文件在生产环境使用短时效预签名地址直传对象存储，但完成上传、创建文档和启动解析仍必须调用后端。
+### 10.1 第一期：直接上传接口
+
+第一期采用 `multipart/form-data`，适合不超过 50 MiB 的 PDF、DOCX、Markdown、TXT、CSV 和 XLSX。
+
+```http
+POST /api/knowledge/personal/documents
+Authorization: Bearer <access_token>
+Idempotency-Key: <UUID>
+Content-Type: multipart/form-data
+```
+
+表单字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `file` | binary | 是 | 原始文件 |
+| `metadata` | JSON string | 否 | 用户可编辑元数据，不包含所有者和可见范围 |
+
+`metadata` 示例：
+
+```json
+{
+  "title": "CMP-03 Pad 更换记录",
+  "process_steps": ["CMP"],
+  "equipment_ids": ["CMP-03"],
+  "effective_date": "2026-07-01",
+  "tags": ["pad", "maintenance"]
+}
+```
+
+调用示例：
+
+```bash
+curl -X POST http://127.0.0.1:8765/api/knowledge/personal/documents \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -F 'file=@CMP-03-pad-record.docx' \
+  -F 'metadata={"process_steps":["CMP"],"equipment_ids":["CMP-03"]};type=application/json'
+```
+
+成功响应为 `202 Accepted`。上传完成只表示文件已经安全接收，解析和索引在后台继续执行。
+
+```json
+{
+  "document_id": "23b2a160-3f13-4bf5-a65d-b2a45968c616",
+  "job_id": "37dd3495-830a-47a5-8770-8020ad099476",
+  "status": "uploaded",
+  "filename": "CMP-03-pad-record.docx",
+  "status_url": "/api/knowledge/jobs/37dd3495-830a-47a5-8770-8020ad099476"
+}
+```
+
+上传约束：
+
+- 默认单文件上限 50 MiB，通过服务端配置调整，前端限制不能替代服务端校验。
+- `Idempotency-Key` 在当前用户范围内生效，重复请求返回同一个 `document_id` 和 `job_id`。
+- 服务端同时校验扩展名、MIME、文件签名和 SHA-256。
+- 用户不能指定 storage key、所有者、状态、权威等级或可见范围。
+- 完全重复的文件只在当前用户自己的文档中检查，不进行跨用户去重探测。
+
+### 10.2 处理状态与失败重试
+
+查询任务：
+
+```http
+GET /api/knowledge/jobs/{job_id}
+```
+
+```json
+{
+  "job_id": "37dd3495-830a-47a5-8770-8020ad099476",
+  "document_id": "23b2a160-3f13-4bf5-a65d-b2a45968c616",
+  "status": "indexing",
+  "stage": "embedding",
+  "progress": 72,
+  "attempt": 1,
+  "error": null,
+  "updated_at": "2026-07-16T15:21:08Z"
+}
+```
+
+状态机：
+
+```text
+uploaded -> parsing -> chunking -> embedding -> indexing -> ready
+                    \-> failed
+ready / failed -> deleting -> deleted
+```
+
+失败任务由用户手动重试：
+
+```http
+POST /api/knowledge/personal/documents/{document_id}/retry
+```
+
+仅 `failed` 状态允许重试。重试创建新的 `job_id`，不会重复创建文档。
+
+扫描版 PDF 在异步解析时进入 `failed`，任务返回：
+
+```json
+{
+  "error": {
+    "error_code": "OCR_REQUIRED",
+    "detail": "该文件需要 OCR，当前版本暂不支持",
+    "retryable": false
+  }
+}
+```
+
+第一期前端每 1 至 2 秒轮询任务接口。后续任务量增加时可增加 `GET /api/knowledge/jobs/{job_id}/events` SSE 接口，不改变任务数据结构。
+
+### 10.3 个人文档管理
+
+```text
+GET    /api/knowledge/personal/documents
+GET    /api/knowledge/personal/documents/{document_id}
+PATCH  /api/knowledge/personal/documents/{document_id}
+DELETE /api/knowledge/personal/documents/{document_id}
+GET    /api/knowledge/personal/documents/{document_id}/content
+GET    /api/knowledge/personal/documents/{document_id}/file
+```
+
+列表接口支持：
+
+```http
+GET /api/knowledge/personal/documents?status=ready&q=CMP&limit=20&cursor=<cursor>
+```
+
+返回内容必须限定为当前用户的个人文档。分页采用不透明 cursor，不使用高偏移量分页。
+
+允许修改的字段只有：
+
+```json
+{
+  "title": "CMP-03 Pad 更换与检查记录",
+  "process_steps": ["CMP"],
+  "equipment_ids": ["CMP-03"],
+  "effective_date": "2026-07-01",
+  "tags": ["pad", "maintenance"]
+}
+```
+
+`PATCH` 不接受 owner、scope、visibility、status、storage key 或索引版本。
+
+删除接口返回 `202 Accepted`，因为对象存储、全文索引、向量索引和缓存需要异步清理：
+
+```json
+{
+  "document_id": "23b2a160-3f13-4bf5-a65d-b2a45968c616",
+  "job_id": "70512683-977e-4584-a8c5-f8775b379809",
+  "status": "deleting"
+}
+```
+
+文档进入 `deleting` 后立即停止检索和下载。删除任务完成前，列表可以展示处理状态，但内容不可访问。
+
+### 10.4 检索预览与引用跳转
+
+用户可在知识库页面验证自己的文档能否被正确召回：
+
+```http
+POST /api/knowledge/personal/search-preview
+Content-Type: application/json
+
+{
+  "query": "CMP-03 最近一次 Pad 更换后的检查结果",
+  "limit": 10,
+  "document_ids": []
+}
+```
+
+`document_ids` 为空表示检索当前用户全部 `ready` 个人文档；非空时服务端仍逐一验证所有权。
+
+引用跳转：
+
+```http
+GET /api/knowledge/personal/chunks/{chunk_id}
+```
+
+返回文档标题、页码、章节路径和文本块上下文。该接口必须重新鉴权，不能因为 `chunk_id` 出现在历史回答中就放行。
+
+### 10.5 后续：大文件预签名上传
+
+文件超过直接上传阈值或部署到对象存储后，增加三段式接口：
+
+```text
+POST /api/knowledge/personal/upload-sessions
+PUT  <response.upload_url>
+POST /api/knowledge/personal/upload-sessions/{upload_id}/complete
+```
+
+初始化请求：
+
+```json
+{
+  "filename": "equipment-manual.pdf",
+  "mime_type": "application/pdf",
+  "size_bytes": 83886080,
+  "checksum_sha256": "<64-character hex>",
+  "metadata": {
+    "process_steps": ["ETCH"],
+    "equipment_ids": ["ETCH-01"]
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "upload_id": "52f9a13d-d792-4986-993c-650c7698659e",
+  "upload_url": "<short-lived presigned URL>",
+  "method": "PUT",
+  "required_headers": {"Content-Type": "application/pdf"},
+  "expires_at": "2026-07-16T15:40:00Z"
+}
+```
+
+对象上传完成后调用 `complete`。后端验证对象大小和 SHA-256，再创建 `document_id`、`job_id` 并返回与直接上传相同的 `202` 响应。仅向对象存储上传文件不会创建知识文档。
+
+### 10.6 标准错误
+
+所有错误使用统一结构：
+
+```json
+{
+  "error_code": "UNSUPPORTED_FILE_TYPE",
+  "detail": "当前不支持该文件类型",
+  "retryable": false,
+  "request_id": "req-..."
+}
+```
+
+| HTTP 状态 | 错误码 | 场景 |
+|---|---|---|
+| 400 | `INVALID_METADATA` | 元数据格式或字段值不合法 |
+| 401 | `AUTHENTICATION_REQUIRED` | 未登录或令牌失效 |
+| 404 | `DOCUMENT_NOT_FOUND` | 文档不存在或不属于当前用户 |
+| 409 | `DUPLICATE_DOCUMENT` | 当前用户已上传完全相同文件 |
+| 409 | `INVALID_DOCUMENT_STATE` | 当前状态不允许修改、重试或删除 |
+| 413 | `FILE_TOO_LARGE` | 超过直接上传或租户限制 |
+| 415 | `UNSUPPORTED_FILE_TYPE` | 扩展名、MIME 或文件签名不支持 |
+| 422 | `INVALID_FILE_CONTENT` | 文件损坏或无法解析 |
+| 429 | `KNOWLEDGE_QUOTA_EXCEEDED` | 用户存储量、文档量或速率超限 |
+| 500 | `INGESTION_FAILED` | 可重试的内部解析或索引错误 |
+
+访问他人的 `document_id`、`chunk_id` 或 `job_id` 一律返回与不存在相同的 `404`，避免泄露资源存在性。
+
+### 10.7 Backend 与 Data Service 内部接口
+
+公开接口完成身份认证、配额和请求校验后，通过内部服务接口执行数据操作：
+
+```text
+POST   /internal/v1/knowledge/ingestions
+GET    /internal/v1/knowledge/jobs/{job_id}
+POST   /internal/v1/knowledge/retrieval
+GET    /internal/v1/knowledge/chunks/{chunk_id}
+DELETE /internal/v1/knowledge/documents/{document_id}
+```
+
+内部请求携带后端签名的主体信息和 `request_id`，不信任来自浏览器的身份字段。Data Service 仍需执行所有者过滤，不能只依赖 Backend 已经鉴权。
 
 ## 11. 前端交互要求
 
