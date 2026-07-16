@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="半导体制造报表与数据分析 Agent">
-  <meta name="app-version" content="20260716-3">
+  <meta name="app-version" content="20260716-4">
   <title>Fab Insight</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20260716-3">
+  <link rel="stylesheet" href="/static/styles.css?v=20260716-4">
 </head>
 <body>
   <header class="topbar">
@@ -88,15 +88,29 @@
       <section id="knowledgeView" class="view">
         <div class="page-heading">
           <div><p class="eyebrow">PROCESS KNOWLEDGE</p><h1>制造知识库</h1><p>厂内 SOP、控制计划与分析手册</p></div>
-          <div class="knowledge-search"><input id="knowledgeFilter" type="search" placeholder="筛选文档或章节" aria-label="筛选知识库"><span id="knowledgeCount"></span></div>
+          <div class="knowledge-toolbar">
+            <div id="knowledgeSourceTabs" class="segmented knowledge-source-tabs" aria-label="选择知识来源">
+              <button type="button" data-knowledge-mode="factory" class="active">工厂知识</button>
+              <button type="button" data-knowledge-mode="personal">我的知识</button>
+            </div>
+            <div class="knowledge-search"><input id="knowledgeFilter" type="search" placeholder="筛选文档或章节" aria-label="筛选知识库"><span id="knowledgeCount"></span></div>
+            <button id="openKnowledgeUpload" type="button" class="primary-btn knowledge-upload-button"><span aria-hidden="true">＋</span> 上传个人文档</button>
+          </div>
         </div>
         <div class="knowledge-layout">
           <aside class="panel knowledge-index">
-            <div class="panel-heading"><div><h2>文档目录</h2><p>按文档浏览章节</p></div></div>
+            <div class="panel-heading"><div><h2 id="knowledgeIndexTitle">文档目录</h2><p id="knowledgeIndexHint">按文档浏览章节</p></div></div>
             <div id="knowledgeDocuments" class="knowledge-document-list"></div>
           </aside>
           <article class="panel knowledge-reader">
-            <div class="knowledge-reader-heading"><div><p id="knowledgeSource" class="eyebrow">KNOWLEDGE BASE</p><h2 id="knowledgeTitle">选择一份知识文档</h2></div></div>
+            <div class="knowledge-reader-heading">
+              <div><p id="knowledgeSource" class="eyebrow">KNOWLEDGE BASE</p><h2 id="knowledgeTitle">选择一份知识文档</h2><div id="knowledgeMeta" class="knowledge-meta"></div></div>
+              <div id="personalKnowledgeActions" class="knowledge-reader-actions" hidden>
+                <button id="downloadPersonalKnowledge" type="button" class="secondary-btn">下载原文</button>
+                <button id="retryPersonalKnowledge" type="button" class="secondary-btn" hidden>重新处理</button>
+                <button id="deletePersonalKnowledge" type="button" class="danger-btn">删除</button>
+              </div>
+            </div>
             <div id="knowledgeContent" class="knowledge-content"><p class="empty">从左侧选择文档，或点击 Agent 回答中的来源。</p></div>
           </article>
         </div>
@@ -223,6 +237,37 @@
     </form>
   </dialog>
 
+  <dialog id="knowledgeUploadDialog" class="settings-dialog knowledge-upload-dialog">
+    <form id="knowledgeUploadForm">
+      <div class="dialog-heading"><div><p class="eyebrow">PRIVATE KNOWLEDGE</p><h2>上传个人文档</h2></div><button id="closeKnowledgeUploadDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="dialog-body knowledge-upload-body">
+        <label id="knowledgeUploadDrop" class="knowledge-upload-drop" for="knowledgeUploadFile" tabindex="0">
+          <input id="knowledgeUploadFile" type="file" accept=".pdf,.docx,.md,.txt,.csv,.xlsx" required>
+          <strong>选择文件或拖放到这里</strong>
+          <span id="knowledgeUploadFileState">支持 PDF、DOCX、Markdown、TXT、CSV、XLSX，最大 50 MB</span>
+        </label>
+        <div class="knowledge-form-grid">
+          <label><span class="field-label">文档标题（可选）</span><input id="knowledgeUploadTitle" class="dialog-text-input" type="text" maxlength="200" placeholder="默认使用文件名"></label>
+          <label><span class="field-label">所属制程（可选）</span><select id="knowledgeUploadStep"><option value="">不指定</option><option value="LITHO">光刻</option><option value="ETCH">刻蚀</option><option value="CVD">化学气相沉积</option><option value="PVD">物理气相沉积</option><option value="DIFFUSION">扩散 / 炉管</option><option value="IMPLANT">离子注入</option><option value="CMP">化学机械研磨</option><option value="CLEAN">湿法清洗</option><option value="METROLOGY">量测</option></select></label>
+          <label><span class="field-label">设备编号（可选）</span><input id="knowledgeUploadEquipment" class="dialog-text-input" type="text" maxlength="500" placeholder="例如 CMP-01, CMP-02"></label>
+          <label><span class="field-label">生效日期（可选）</span><input id="knowledgeUploadEffectiveDate" class="dialog-text-input" type="date"></label>
+          <label class="knowledge-tags-field"><span class="field-label">标签（可选）</span><input id="knowledgeUploadTags" class="dialog-text-input" type="text" maxlength="500" placeholder="例如 抛光垫, 异常处置, SPC"></label>
+        </div>
+        <p class="knowledge-privacy-note">文档仅对当前用户可见。上传后将自动解析并建立个人检索索引。</p>
+        <div id="knowledgeUploadMessage" class="settings-message" role="status" hidden></div>
+      </div>
+      <div class="dialog-actions"><button id="cancelKnowledgeUpload" type="button" class="secondary-btn">取消</button><button id="confirmKnowledgeUpload" type="submit" class="primary-btn">上传并处理</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="personalKnowledgeDeleteDialog" class="settings-dialog session-delete-dialog">
+    <form id="personalKnowledgeDeleteForm">
+      <div class="dialog-heading"><div><p class="eyebrow">DELETE DOCUMENT</p><h2>删除个人文档？</h2></div><button id="closePersonalKnowledgeDeleteDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="dialog-body"><p id="personalKnowledgeDeleteMessage" class="delete-warning"></p><p class="delete-consequence">原始文件、解析内容和个人检索索引都会删除，且无法恢复。</p></div>
+      <div class="dialog-actions"><button id="cancelPersonalKnowledgeDelete" type="button" class="secondary-btn">取消</button><button id="confirmPersonalKnowledgeDelete" type="submit" class="danger-btn">删除</button></div>
+    </form>
+  </dialog>
+
   <dialog id="modelDialog" class="settings-dialog">
     <form id="modelSettingsForm">
       <div class="dialog-heading"><div><p class="eyebrow">MODEL PROVIDER</p><h2>DeepSeek 模型设置</h2></div><button id="closeModelDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
@@ -237,6 +282,6 @@
       <div class="dialog-actions"><button id="cancelModelSettings" type="button" class="secondary-btn">取消</button><button id="saveModelSettings" type="submit" class="primary-btn">应用设置</button></div>
     </form>
   </dialog>
-  <script src="/static/app.js?v=20260716-3" defer></script>
+  <script src="/static/app.js?v=20260716-4" defer></script>
 </body>
 </html>

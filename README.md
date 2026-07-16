@@ -178,7 +178,7 @@ conda run -n fab-insight-agent python -m scripts.manage_databases checkpoint
 
 ## 知识库与历史案例库
 
-个人知识库、权限隔离、上传处理，以及从 SQLite/FTS5、PostgreSQL/pgvector 到独立向量与全文检索集群的分级 RAG 方案，见 [个人知识库与分级 RAG 架构设计](docs/knowledge-base-rag-architecture.md)。第一期上传与检索接口已经实现；个人知识不共享，OCR 仍为待做能力。
+个人知识库、权限隔离、上传处理，以及从 SQLite/FTS5、PostgreSQL/pgvector 到独立向量与全文检索集群的分级 RAG 方案，见 [个人知识库与分级 RAG 架构设计](docs/knowledge-base-rag-architecture.md)。第一期上传与检索接口及网页入口已经实现；在“知识库”页面可切换到“我的知识”，上传、查看处理进度、预览、下载、重试或删除个人文档。个人知识不共享，OCR 仍为待做能力。
 
 当前样例尚未接入正式登录系统，个人知识所有者由服务端 `FAB_PERSONAL_KNOWLEDGE_USER_ID` 决定，客户端不能传入或修改所有者。配置 `FAB_PERSONAL_KNOWLEDGE_API_TOKEN` 后，个人知识接口必须携带对应 Bearer Token；留空时仅适合本机单用户开发。
 

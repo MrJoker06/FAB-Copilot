@@ -56,6 +56,22 @@ class FabInsightTests(unittest.TestCase):
         self.assertEqual(len(defect_types), len(set(defect_types)))
         self.assertTrue(all("process_steps" in row for row in dashboard["defects"]))
 
+    def test_frontend_exposes_personal_knowledge_upload_workflow(self):
+        with TestClient(app) as client:
+            response = client.get("/")
+        self.assertEqual(response.status_code, 200)
+        page = response.text
+        for element_id in (
+            "knowledgeSourceTabs",
+            "openKnowledgeUpload",
+            "knowledgeUploadDialog",
+            "knowledgeUploadFile",
+            "personalKnowledgeActions",
+            "personalKnowledgeDeleteDialog",
+        ):
+            self.assertIn(f'id="{element_id}"', page)
+        self.assertIn("/static/app.js?v=20260716-4", page)
+
     def test_seeded_cvd_drift_is_detectable(self):
         capability = process_capability(process_step="CVD")
         cvd_02 = next(row for row in capability if row["equipment_id"] == "CVD-02")

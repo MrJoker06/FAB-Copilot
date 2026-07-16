@@ -1,4 +1,4 @@
-const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, selectedSessionIds: new Set(), sessionBatchMode: false, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionIds: [], toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeDocuments: [], knowledgeIndexPromise: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
+const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, selectedSessionIds: new Set(), sessionBatchMode: false, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionIds: [], toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeMode: 'factory', knowledgeDocuments: [], knowledgeIndexPromise: null, personalKnowledgeDocuments: [], selectedPersonalDocumentId: null, selectedPersonalDocument: null, personalKnowledgeRequestId: 0, personalKnowledgePollTimer: null, pendingPersonalDeleteId: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
 const $ = (selector) => document.querySelector(selector);
 const AGENT_WIDTH_KEY = 'fabInsightAgentWidth';
 const CHAT_DRAFT_KEY = 'fabInsightChatDraft';
@@ -11,6 +11,7 @@ const toolLabels = { get_fab_overview: '查询工厂总览', get_yield_trend: '�
 function isoDate(date) { return date.toISOString().slice(0, 10); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 function formatNumber(value) { const number = Number(value); return Number.isFinite(number) ? number.toLocaleString('zh-CN') : String(value ?? '—'); }
+function formatFileSize(value) { const bytes = Number(value) || 0; if (bytes < 1024) return `${bytes} B`; if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`; return `${(bytes / 1024 ** 2).toFixed(1)} MB`; }
 
 class FabApiError extends Error {
   constructor(message, {code = 'REQUEST_ERROR', requestId = '', retryable = false, status = 0} = {}) {
@@ -154,6 +155,260 @@ function renderKnowledgeDocuments(filter = '') {
   $('#knowledgeDocuments').innerHTML = documents.map(doc => `<button class="knowledge-document" data-knowledge-chunk="${doc.first_chunk_id}" title="${escapeHtml(doc.sections)}"><strong>${escapeHtml(doc.title)}</strong><span>${escapeHtml(doc.doc_type)} · v${escapeHtml(doc.version)} · ${doc.section_count} 章</span></button>`).join('') || '<p class="empty">没有匹配的文档</p>';
 }
 
+const personalKnowledgeStatus = {
+  uploaded: ['等待处理', 'processing'], parsing: ['正在解析', 'processing'], chunking: ['正在分段', 'processing'], indexing: ['正在索引', 'processing'],
+  ready: ['可检索', 'ready'], failed: ['处理失败', 'failed'], deleting: ['正在删除', 'processing'],
+};
+
+function personalKnowledgeStatusLabel(status) {
+  return personalKnowledgeStatus[status] || [status || '未知', 'processing'];
+}
+
+function resetKnowledgeReader(mode = state.knowledgeMode) {
+  $('#knowledgeSource').textContent = mode === 'personal' ? 'PERSONAL KNOWLEDGE · 私有' : 'KNOWLEDGE BASE';
+  $('#knowledgeTitle').textContent = mode === 'personal' ? '选择一份个人文档' : '选择一份知识文档';
+  $('#knowledgeMeta').innerHTML = '';
+  $('#personalKnowledgeActions').hidden = true;
+  $('#knowledgeContent').innerHTML = `<p class="empty">${mode === 'personal' ? '上传文档后，可在这里查看解析内容与处理状态。' : '从左侧选择文档，或点击 Agent 回答中的来源。'}</p>`;
+}
+
+function renderPersonalKnowledgeDocuments() {
+  const documents = state.personalKnowledgeDocuments;
+  $('#knowledgeCount').textContent = `${documents.length} 份文档`;
+  $('#knowledgeDocuments').innerHTML = documents.map(doc => {
+    const [label, tone] = personalKnowledgeStatusLabel(doc.status);
+    const details = [doc.filename, formatFileSize(doc.size_bytes), doc.chunk_count ? `${doc.chunk_count} 段` : ''].filter(Boolean).join(' · ');
+    return `<button class="knowledge-document personal-document ${doc.document_id === state.selectedPersonalDocumentId ? 'active' : ''}" data-personal-document-id="${escapeHtml(doc.document_id)}"><span class="personal-document-title"><strong>${escapeHtml(doc.title)}</strong><em class="personal-status ${tone}">${escapeHtml(label)}</em></span><span>${escapeHtml(details)}</span></button>`;
+  }).join('') || '<div class="personal-knowledge-empty"><strong>还没有个人文档</strong><span>上传 SOP、分析记录或设备资料后，可在此预览和检索。</span><button type="button" class="secondary-btn" data-open-knowledge-upload>上传文档</button></div>';
+}
+
+function schedulePersonalKnowledgeRefresh() {
+  window.clearTimeout(state.personalKnowledgePollTimer);
+  state.personalKnowledgePollTimer = null;
+  const processing = state.personalKnowledgeDocuments.some(doc => ['uploaded', 'parsing', 'chunking', 'indexing', 'deleting'].includes(doc.status));
+  if (state.knowledgeMode !== 'personal' || !processing) return;
+  state.personalKnowledgePollTimer = window.setTimeout(async () => {
+    try {
+      await loadPersonalKnowledgeDocuments({selectFirst:false});
+      if (state.selectedPersonalDocumentId && state.personalKnowledgeDocuments.some(doc => doc.document_id === state.selectedPersonalDocumentId)) {
+        await openPersonalKnowledgeDocument(state.selectedPersonalDocumentId, {scroll:false});
+      }
+    } catch { /* A later user action can retry the refresh. */ }
+  }, 1200);
+}
+
+async function loadPersonalKnowledgeDocuments({selectFirst = true} = {}) {
+  const requestId = ++state.personalKnowledgeRequestId;
+  const query = $('#knowledgeFilter').value.trim();
+  const payload = await api(`/api/knowledge/personal/documents?q=${encodeURIComponent(query)}&limit=100`);
+  if (requestId !== state.personalKnowledgeRequestId || state.knowledgeMode !== 'personal') return [];
+  state.personalKnowledgeDocuments = payload.items || [];
+  if (state.selectedPersonalDocumentId && !state.personalKnowledgeDocuments.some(doc => doc.document_id === state.selectedPersonalDocumentId)) {
+    state.selectedPersonalDocumentId = null;
+    state.selectedPersonalDocument = null;
+    resetKnowledgeReader('personal');
+  }
+  renderPersonalKnowledgeDocuments();
+  schedulePersonalKnowledgeRefresh();
+  if (selectFirst && !state.selectedPersonalDocumentId && state.personalKnowledgeDocuments.length) {
+    await openPersonalKnowledgeDocument(state.personalKnowledgeDocuments[0].document_id, {scroll:false});
+  }
+  return state.personalKnowledgeDocuments;
+}
+
+function personalKnowledgeMeta(document) {
+  const [label, tone] = personalKnowledgeStatusLabel(document.status);
+  const items = [`<span class="personal-status ${tone}">${escapeHtml(label)}</span>`, `<span>${escapeHtml(document.filename)}</span>`, `<span>${escapeHtml(formatFileSize(document.size_bytes))}</span>`];
+  for (const step of document.process_steps || []) items.push(`<span>${escapeHtml(processLabels[step] || step)}</span>`);
+  for (const equipment of document.equipment_ids || []) items.push(`<span>${escapeHtml(equipment)}</span>`);
+  if (document.effective_date) items.push(`<span>生效 ${escapeHtml(document.effective_date)}</span>`);
+  for (const tag of document.tags || []) items.push(`<span>#${escapeHtml(tag)}</span>`);
+  return items.join('');
+}
+
+function renderPersonalKnowledgeContent(document) {
+  const job = document.latest_job;
+  const error = job?.error || (document.error_code ? {error_code:document.error_code, detail:document.error_message} : null);
+  if (document.status === 'failed') {
+    const ocrNote = error?.error_code === 'OCR_REQUIRED' ? '<p>当前文件可能是扫描件。OCR 尚未启用，请上传可复制文本的 PDF 或转换后的文档。</p>' : '';
+    return `<div class="knowledge-processing failed"><strong>文档处理失败</strong><p>${escapeHtml(error?.detail || '解析或索引过程未完成。')}</p>${ocrNote}<code>${escapeHtml(error?.error_code || 'PROCESSING_FAILED')}</code></div>`;
+  }
+  if (document.status !== 'ready') {
+    const progress = Math.max(0, Math.min(100, Number(job?.progress) || 0));
+    return `<div class="knowledge-processing"><div class="knowledge-processing-heading"><strong>${escapeHtml(personalKnowledgeStatusLabel(document.status)[0])}</strong><span>${progress}%</span></div><div class="knowledge-progress"><span style="width:${progress}%"></span></div><p>系统正在提取文本并建立个人检索索引，此页面会自动更新。</p></div>`;
+  }
+  if (!document.chunks?.length) return '<p class="empty">文档已完成处理，但没有可显示的文本片段。</p>';
+  return document.chunks.map((chunk, index) => `<section id="personal-knowledge-chunk-${escapeHtml(chunk.chunk_id)}" class="knowledge-chunk"><h3>${escapeHtml(chunk.section_path || `片段 ${index + 1}`)}${chunk.page_number ? `<span class="knowledge-page-number">第 ${chunk.page_number} 页</span>` : ''}</h3><div class="markdown-content">${renderMarkdown(chunk.content)}</div></section>`).join('');
+}
+
+async function openPersonalKnowledgeDocument(documentId, {scroll = true} = {}) {
+  state.selectedPersonalDocumentId = documentId;
+  renderPersonalKnowledgeDocuments();
+  const requestId = ++state.personalKnowledgeRequestId;
+  try {
+    const personalDocument = await api(`/api/knowledge/personal/documents/${encodeURIComponent(documentId)}/content`);
+    if (requestId !== state.personalKnowledgeRequestId || state.knowledgeMode !== 'personal' || state.selectedPersonalDocumentId !== documentId) return;
+    state.selectedPersonalDocument = personalDocument;
+    $('#knowledgeSource').textContent = 'PERSONAL KNOWLEDGE · 私有';
+    $('#knowledgeTitle').textContent = personalDocument.title;
+    $('#knowledgeMeta').innerHTML = personalKnowledgeMeta(personalDocument);
+    $('#knowledgeContent').innerHTML = renderPersonalKnowledgeContent(personalDocument);
+    $('#personalKnowledgeActions').hidden = false;
+    $('#downloadPersonalKnowledge').disabled = personalDocument.status === 'deleting';
+    $('#deletePersonalKnowledge').disabled = personalDocument.status === 'deleting';
+    $('#retryPersonalKnowledge').hidden = personalDocument.status !== 'failed' || personalDocument.error_code === 'DELETE_FAILED';
+    document.querySelectorAll('.personal-document').forEach(button => button.classList.toggle('active', button.dataset.personalDocumentId === documentId));
+    if (scroll) document.querySelector('.knowledge-reader')?.scrollIntoView({behavior:'smooth', block:'start'});
+  } catch (error) {
+    if (error.status === 404) {
+      state.selectedPersonalDocumentId = null;
+      state.selectedPersonalDocument = null;
+      await loadPersonalKnowledgeDocuments({selectFirst:true});
+      return;
+    }
+    throw error;
+  }
+}
+
+async function setKnowledgeMode(mode) {
+  if (!['factory', 'personal'].includes(mode)) return;
+  state.knowledgeMode = mode;
+  window.clearTimeout(state.personalKnowledgePollTimer);
+  state.personalKnowledgePollTimer = null;
+  document.querySelectorAll('[data-knowledge-mode]').forEach(button => button.classList.toggle('active', button.dataset.knowledgeMode === mode));
+  $('#knowledgeIndexTitle').textContent = mode === 'personal' ? '我的文档' : '文档目录';
+  $('#knowledgeIndexHint').textContent = mode === 'personal' ? '仅当前用户可见' : '按文档浏览章节';
+  $('#knowledgeFilter').placeholder = mode === 'personal' ? '搜索我的文档' : '筛选文档或章节';
+  resetKnowledgeReader(mode);
+  if (mode === 'personal') await loadPersonalKnowledgeDocuments();
+  else await loadKnowledgeIndex();
+}
+
+function selectedUploadFile() {
+  return $('#knowledgeUploadFile').files?.[0] || null;
+}
+
+function updateKnowledgeUploadFileState() {
+  const file = selectedUploadFile();
+  const stateLabel = $('#knowledgeUploadFileState');
+  $('#knowledgeUploadDrop').classList.toggle('has-file', Boolean(file));
+  stateLabel.textContent = file ? `${file.name} · ${formatFileSize(file.size)}` : '支持 PDF、DOCX、Markdown、TXT、CSV、XLSX，最大 50 MB';
+}
+
+function resetKnowledgeUploadForm() {
+  $('#knowledgeUploadForm').reset();
+  $('#knowledgeUploadMessage').hidden = true;
+  $('#knowledgeUploadMessage').classList.remove('error');
+  $('#confirmKnowledgeUpload').disabled = false;
+  $('#confirmKnowledgeUpload').textContent = '上传并处理';
+  updateKnowledgeUploadFileState();
+}
+
+function openKnowledgeUploadDialog() {
+  resetKnowledgeUploadForm();
+  $('#knowledgeUploadDialog').showModal();
+}
+
+function splitMetadataValues(value) {
+  return [...new Set(value.split(/[,，、;；\n]+/).map(item => item.trim()).filter(Boolean))];
+}
+
+async function uploadPersonalKnowledge(event) {
+  event.preventDefault();
+  const file = selectedUploadFile();
+  const message = $('#knowledgeUploadMessage');
+  if (!file) return;
+  if (file.size > 50 * 1024 * 1024) {
+    message.textContent = '文件超过 50 MB，请选择更小的文件。';
+    message.classList.add('error');
+    message.hidden = false;
+    return;
+  }
+  const metadata = {
+    process_steps: $('#knowledgeUploadStep').value ? [$('#knowledgeUploadStep').value] : [],
+    equipment_ids: splitMetadataValues($('#knowledgeUploadEquipment').value),
+    tags: splitMetadataValues($('#knowledgeUploadTags').value),
+  };
+  const title = $('#knowledgeUploadTitle').value.trim();
+  const effectiveDate = $('#knowledgeUploadEffectiveDate').value;
+  if (title) metadata.title = title;
+  if (effectiveDate) metadata.effective_date = effectiveDate;
+  const form = new FormData();
+  form.append('file', file);
+  form.append('metadata', JSON.stringify(metadata));
+  const button = $('#confirmKnowledgeUpload');
+  button.disabled = true;
+  button.textContent = '正在上传…';
+  message.hidden = true;
+  message.classList.remove('error');
+  try {
+    const result = await api('/api/knowledge/personal/documents', {method:'POST', headers:{'Idempotency-Key':newClientMessageId()}, body:form});
+    $('#knowledgeUploadDialog').close();
+    $('#knowledgeFilter').value = '';
+    state.selectedPersonalDocumentId = result.document_id;
+    await setKnowledgeMode('personal');
+    await openPersonalKnowledgeDocument(result.document_id, {scroll:false});
+    showToast('文档已上传，正在建立个人检索索引');
+  } catch (error) {
+    message.textContent = error.message;
+    message.classList.add('error');
+    message.hidden = false;
+  } finally {
+    button.disabled = false;
+    button.textContent = '上传并处理';
+  }
+}
+
+async function retrySelectedPersonalKnowledge() {
+  const documentId = state.selectedPersonalDocumentId;
+  if (!documentId) return;
+  $('#retryPersonalKnowledge').disabled = true;
+  try {
+    await api(`/api/knowledge/personal/documents/${encodeURIComponent(documentId)}/retry`, {method:'POST'});
+    await loadPersonalKnowledgeDocuments({selectFirst:false});
+    await openPersonalKnowledgeDocument(documentId, {scroll:false});
+    showToast('已重新提交文档处理任务');
+  } catch (error) {
+    showToast(`重新处理失败：${error.message}`, {tone:'error'});
+  } finally { $('#retryPersonalKnowledge').disabled = false; }
+}
+
+function openPersonalKnowledgeDeleteDialog() {
+  if (!state.selectedPersonalDocumentId || !state.selectedPersonalDocument) return;
+  state.pendingPersonalDeleteId = state.selectedPersonalDocumentId;
+  $('#personalKnowledgeDeleteMessage').textContent = `“${state.selectedPersonalDocument.title}”将从我的知识中删除。`;
+  $('#personalKnowledgeDeleteDialog').showModal();
+}
+
+async function deleteSelectedPersonalKnowledge(event) {
+  event.preventDefault();
+  const documentId = state.pendingPersonalDeleteId;
+  if (!documentId) return;
+  const button = $('#confirmPersonalKnowledgeDelete');
+  button.disabled = true;
+  try {
+    await api(`/api/knowledge/personal/documents/${encodeURIComponent(documentId)}`, {method:'DELETE'});
+    $('#personalKnowledgeDeleteDialog').close();
+    state.selectedPersonalDocumentId = null;
+    state.selectedPersonalDocument = null;
+    resetKnowledgeReader('personal');
+    await loadPersonalKnowledgeDocuments({selectFirst:true});
+    showToast('个人文档已删除');
+  } catch (error) {
+    showToast(`删除失败：${error.message}`, {tone:'error'});
+  } finally { button.disabled = false; }
+}
+
+function downloadSelectedPersonalKnowledge() {
+  if (!state.selectedPersonalDocumentId) return;
+  const link = document.createElement('a');
+  link.href = `/api/knowledge/personal/documents/${encodeURIComponent(state.selectedPersonalDocumentId)}/file`;
+  link.download = state.selectedPersonalDocument?.filename || '';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
 async function loadKnowledgeIndex() {
   if (!state.knowledgeDocuments.length) {
     state.knowledgeIndexPromise ||= api('/api/knowledge/documents');
@@ -165,10 +420,13 @@ async function loadKnowledgeIndex() {
 
 async function openKnowledgeChunk(chunkId) {
   showView('knowledge');
+  if (state.knowledgeMode !== 'factory') await setKnowledgeMode('factory');
   await loadKnowledgeIndex();
   const payload = await api(`/api/knowledge/chunks/${chunkId}`);
   $('#knowledgeTitle').textContent = payload.document.title;
   $('#knowledgeSource').textContent = `${payload.document.source} · v${payload.document.version} · ${payload.document.status}`;
+  $('#knowledgeMeta').innerHTML = '';
+  $('#personalKnowledgeActions').hidden = true;
   $('#knowledgeContent').innerHTML = payload.chunks.map(chunk => `<section id="knowledge-chunk-${chunk.chunk_id}" class="knowledge-chunk ${chunk.chunk_id === Number(chunkId) ? 'target-chunk' : ''}"><h3>${escapeHtml(chunk.section)}</h3><div class="markdown-content">${renderMarkdown(chunk.content)}</div></section>`).join('');
   document.querySelectorAll('.knowledge-document').forEach(button => button.classList.toggle('active', Number(button.dataset.knowledgeChunk) === payload.chunks[0].chunk_id));
   window.setTimeout(() => document.querySelector(`#knowledge-chunk-${chunkId}`)?.scrollIntoView({behavior:'smooth', block:'start'}), 80);
@@ -993,7 +1251,7 @@ function showView(name) {
   $('#sessionHistoryButton').title = historyActive ? '关闭历史会话' : '打开历史会话';
   if (!document.querySelector('.app-shell').classList.contains('agent-collapsed')) $('#focusAgent').classList.add('active');
   if (name === 'capability') loadCapability();
-  else if (name === 'knowledge') loadKnowledgeIndex();
+  else if (name === 'knowledge') state.knowledgeMode === 'personal' ? loadPersonalKnowledgeDocuments() : loadKnowledgeIndex();
   else if (name === 'cases') loadCaseIndex();
   else if (name === 'sessions') loadSessionLibrary();
   else if (name === 'monitor') loadMonitor();
@@ -1137,8 +1395,44 @@ async function init() {
   $('#stepSelector').addEventListener('click', e => { if (!e.target.dataset.step) return; document.querySelectorAll('#stepSelector button').forEach(b=>b.classList.remove('active')); e.target.classList.add('active'); loadCapability(e.target.dataset.step); });
   $('#refreshMonitor').addEventListener('click', loadMonitor);
   $('#monitorHours').addEventListener('change', loadMonitor);
-  $('#knowledgeFilter').addEventListener('input', event => renderKnowledgeDocuments(event.target.value));
-  $('#knowledgeDocuments').addEventListener('click', event => { const target=event.target.closest('[data-knowledge-chunk]'); if (target) openKnowledgeChunk(Number(target.dataset.knowledgeChunk)); });
+  let knowledgeSearchTimer = null;
+  $('#knowledgeFilter').addEventListener('input', event => {
+    window.clearTimeout(knowledgeSearchTimer);
+    if (state.knowledgeMode === 'factory') renderKnowledgeDocuments(event.target.value);
+    else knowledgeSearchTimer = window.setTimeout(() => loadPersonalKnowledgeDocuments({selectFirst:true}).catch(error => showToast(`搜索失败：${error.message}`, {tone:'error'})), 180);
+  });
+  $('#knowledgeSourceTabs').addEventListener('click', event => {
+    const button = event.target.closest('[data-knowledge-mode]');
+    if (button) setKnowledgeMode(button.dataset.knowledgeMode).catch(error => showToast(`知识库加载失败：${error.message}`, {tone:'error'}));
+  });
+  $('#knowledgeDocuments').addEventListener('click', event => {
+    const factoryTarget = event.target.closest('[data-knowledge-chunk]');
+    const personalTarget = event.target.closest('[data-personal-document-id]');
+    if (factoryTarget) openKnowledgeChunk(Number(factoryTarget.dataset.knowledgeChunk));
+    else if (personalTarget) openPersonalKnowledgeDocument(personalTarget.dataset.personalDocumentId).catch(error => showToast(`文档加载失败：${error.message}`, {tone:'error'}));
+    else if (event.target.closest('[data-open-knowledge-upload]')) openKnowledgeUploadDialog();
+  });
+  $('#openKnowledgeUpload').addEventListener('click', openKnowledgeUploadDialog);
+  $('#knowledgeUploadForm').addEventListener('submit', uploadPersonalKnowledge);
+  $('#knowledgeUploadFile').addEventListener('change', updateKnowledgeUploadFileState);
+  $('#knowledgeUploadDrop').addEventListener('dragover', event => { event.preventDefault(); event.currentTarget.classList.add('dragging'); });
+  $('#knowledgeUploadDrop').addEventListener('dragleave', event => event.currentTarget.classList.remove('dragging'));
+  $('#knowledgeUploadDrop').addEventListener('drop', event => {
+    event.preventDefault();
+    event.currentTarget.classList.remove('dragging');
+    const files = event.dataTransfer?.files;
+    if (files?.length) { $('#knowledgeUploadFile').files = files; updateKnowledgeUploadFileState(); }
+  });
+  $('#closeKnowledgeUploadDialog').addEventListener('click', () => $('#knowledgeUploadDialog').close());
+  $('#cancelKnowledgeUpload').addEventListener('click', () => $('#knowledgeUploadDialog').close());
+  $('#knowledgeUploadDialog').addEventListener('close', resetKnowledgeUploadForm);
+  $('#downloadPersonalKnowledge').addEventListener('click', downloadSelectedPersonalKnowledge);
+  $('#retryPersonalKnowledge').addEventListener('click', retrySelectedPersonalKnowledge);
+  $('#deletePersonalKnowledge').addEventListener('click', openPersonalKnowledgeDeleteDialog);
+  $('#personalKnowledgeDeleteForm').addEventListener('submit', deleteSelectedPersonalKnowledge);
+  $('#closePersonalKnowledgeDeleteDialog').addEventListener('click', () => $('#personalKnowledgeDeleteDialog').close());
+  $('#cancelPersonalKnowledgeDelete').addEventListener('click', () => $('#personalKnowledgeDeleteDialog').close());
+  $('#personalKnowledgeDeleteDialog').addEventListener('close', () => { state.pendingPersonalDeleteId = null; });
   $('#caseFilter').addEventListener('input', renderCaseList);
   $('#caseStepFilter').addEventListener('change', renderCaseList);
   $('#caseList').addEventListener('click', event => { const target=event.target.closest('[data-case-id]'); if (target) openHistoricalCase(target.dataset.caseId); });
