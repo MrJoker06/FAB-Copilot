@@ -1,0 +1,20 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import { expect, test, vi } from 'vitest'
+
+import App from './App'
+
+vi.mock('echarts-for-react', () => ({ default: () => <div data-testid="chart" /> }))
+
+vi.stubGlobal('fetch', vi.fn(async () => ({
+  ok: true,
+  json: async () => ({ data: { overview:{lots:2,wafers:50,yield_pct:91,avg_cycle_hours:88,avg_hold_hours:1,held_lots:1,excursions:1,start:'2026-07-01',end:'2026-07-17'}, yield_trend:[], equipment:[], defects:[], excursions:[] }, request_id:'req-test0001' }),
+})))
+
+test('renders the FAB command shell and Copilot', async () => {
+  render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={['/dashboard']}><App /></MemoryRouter></QueryClientProvider>)
+  expect(screen.getByText('制造分析指挥台')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Fab Copilot' })).toBeInTheDocument()
+  expect(await screen.findByText('完成批次')).toBeInTheDocument()
+})
