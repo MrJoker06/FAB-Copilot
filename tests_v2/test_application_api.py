@@ -175,6 +175,26 @@ async def test_chat_answers_introduction_without_unrelated_tool_calls(tmp_path: 
 
 
 @pytest.mark.asyncio
+async def test_chat_returns_previewable_governed_knowledge_sources(tmp_path: Path) -> None:
+    database_dir = tmp_path / "application"
+    _create_application_databases(database_dir)
+    gateway = RecordingGateway()
+    app = create_app(APISettings(project_dir=tmp_path, application_database_dir=database_dir), gateway)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/api/v1/chat", json={"message": "CVD 膜厚漂移的原因和处置建议"})
+        session_id = response.json()["data"]["session_id"]
+        session = await client.get(f"/api/v1/sessions/{session_id}")
+        preview = await client.get("/api/v1/knowledge/chunks/1")
+
+    assert response.status_code == 200
+    assert gateway.calls == []
+    assert response.json()["data"]["sources"][0]["reference_id"] == "KB-1"
+    assert session.json()["data"]["messages"][1]["metadata"]["sources"][0]["chunk_id"] == 1
+    assert preview.json()["data"]["chunks"][0]["content"] == "Thickness limits"
+
+
+@pytest.mark.asyncio
 async def test_model_configuration_api_supports_runtime_switch_without_exposing_key(tmp_path: Path) -> None:
     database_dir = tmp_path / "application"
     _create_application_databases(database_dir)

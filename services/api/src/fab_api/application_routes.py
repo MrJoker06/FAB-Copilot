@@ -124,7 +124,11 @@ def build_application_router(
             session_id,
             "assistant",
             str(result["answer"]),
-            {"mode": result["mode"], "tool_trace": result["tool_trace"]},
+            {
+                "mode": result["mode"],
+                "tool_trace": result["tool_trace"],
+                "sources": result.get("sources", []),
+            },
             model=str(model_config["model"]) if model_config["api_key_configured"] else "local-rules",
         )
         return ApiEnvelope(

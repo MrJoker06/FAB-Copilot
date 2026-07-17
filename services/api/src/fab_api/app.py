@@ -23,6 +23,8 @@ def create_app(settings: APISettings | None = None, gateway: DataGateway | None 
     resolved = settings or APISettings()
     data_gateway = gateway or MCPDataGateway(resolved)
     reports = ReportService(data_gateway)
+    database_dir = resolved.resolved_application_database_dir()
+    knowledge = KnowledgeRepository(database_dir / "process_knowledge.db")
     agent = FabAnalysisAgent(
         data_gateway,
         ModelConfig(
@@ -33,6 +35,7 @@ def create_app(settings: APISettings | None = None, gateway: DataGateway | None 
             max_tool_rounds=resolved.model_max_tool_rounds,
             api_key_source="environment" if resolved.model_api_key else "none",
         ),
+        knowledge=knowledge,
     )
     identities = DevelopmentIdentityProvider(resolved)
     app = FastAPI(
@@ -45,10 +48,9 @@ def create_app(settings: APISettings | None = None, gateway: DataGateway | None 
     def identity(authorization: Annotated[str | None, Header()] = None) -> IdentityContext:
         return identities.resolve(authorization, current_request_id())
 
-    database_dir = resolved.resolved_application_database_dir()
     app.include_router(
         build_application_router(
-            KnowledgeRepository(database_dir / "process_knowledge.db"),
+            knowledge,
             SessionRepository(database_dir / "ai_operations.db"),
             AuditReader(resolved.resolved_audit_log_dir()),
             agent,

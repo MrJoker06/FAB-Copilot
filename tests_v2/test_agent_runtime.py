@@ -29,6 +29,25 @@ class GatewaySpy:
         return {"ok": True}
 
 
+class KnowledgeSpy:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, int]] = []
+
+    def search(self, query: str, limit: int = 6) -> list[dict[str, Any]]:
+        self.calls.append((query, limit))
+        return [
+            {
+                "source_type": "knowledge",
+                "reference_id": "KB-1",
+                "chunk_id": 1,
+                "title": "CVD Control Plan",
+                "source": "CP-CVD-01",
+                "section": "Limits",
+                "excerpt": "Thickness limits",
+            }
+        ]
+
+
 @pytest.mark.parametrize(
     ("message", "expected", "argument"),
     [
@@ -80,6 +99,22 @@ async def test_agent_answers_introduction_without_querying_manufacturing_data() 
     assert result["mode"] == "direct"
     assert "Fab Copilot" in result["answer"]
     assert "只读" in result["answer"]
+
+
+@pytest.mark.asyncio
+async def test_agent_retrieves_governed_knowledge_for_root_cause_questions() -> None:
+    gateway = GatewaySpy()
+    knowledge = KnowledgeSpy()
+    agent = FabAnalysisAgent(gateway, knowledge=knowledge)
+    identity = IdentityContext(user_id="analyst", request_id="req-12345678")
+
+    result = await agent.analyze("CVD 膜厚漂移的潜在原因和处置建议", identity)
+
+    assert gateway.calls == []
+    assert knowledge.calls == [("CVD 膜厚漂移的潜在原因和处置建议", 6)]
+    assert result["tool_trace"][0]["tool"] == "search_knowledge"
+    assert result["sources"][0]["reference_id"] == "KB-1"
+    assert "[KB-1]" in result["answer"]
 
 
 @pytest.mark.asyncio

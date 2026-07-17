@@ -8,9 +8,7 @@ from fab_data_mcp.service import DataToolService
 
 def test_data_tool_service_uses_temporary_readonly_databases(data_mcp_settings) -> None:
     service = DataToolService(data_mcp_settings)
-    identity = IdentityContext(
-        user_id="tester", request_id="req-12345678", scopes=("analytics:adhoc",)
-    )
+    identity = IdentityContext(user_id="tester", request_id="req-12345678", scopes=("analytics:adhoc",))
     overview = service.call(
         "get_fab_overview",
         {"start": "2026-07-01", "end": "2026-07-17"},

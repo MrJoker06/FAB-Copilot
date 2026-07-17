@@ -11,7 +11,7 @@ type SessionFilter = 'active' | 'archived' | 'all'
 interface Props {
   activeSessionId?: string
   onContinueSession: (sessionId: string) => void
-  onNewSession: () => void
+  onNewSession: () => Promise<void>
   onSessionUnavailable: (sessionId: string) => void
 }
 

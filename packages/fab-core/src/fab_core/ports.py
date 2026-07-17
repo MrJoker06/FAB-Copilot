@@ -17,6 +17,12 @@ class DataGateway(Protocol):
     async def health(self) -> dict[str, Any]: ...
 
 
+class KnowledgeGateway(Protocol):
+    """Read-only governed knowledge access used by the analysis agent."""
+
+    def search(self, query: str, limit: int = 6) -> list[dict[str, Any]]: ...
+
+
 class IdentityProvider(Protocol):
     def resolve(self, authorization: str | None, request_id: str) -> IdentityContext: ...
 

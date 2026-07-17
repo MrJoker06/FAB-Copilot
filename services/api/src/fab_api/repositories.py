@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import uuid
 from collections.abc import Iterator
@@ -39,6 +40,35 @@ class SQLiteRepository:
 
 
 class KnowledgeRepository(SQLiteRepository):
+    _DOMAIN_TERMS = (
+        "CVD",
+        "ETCH",
+        "LITHO",
+        "CMP",
+        "PVD",
+        "IMPLANT",
+        "DIFFUSION",
+        "CLEAN",
+        "METROLOGY",
+        "膜厚",
+        "漂移",
+        "颗粒",
+        "缺陷",
+        "异常",
+        "良率",
+        "根因",
+        "处置",
+        "设备",
+        "传感器",
+        "清洗",
+        "刻蚀",
+        "光刻",
+        "沉积",
+        "污染",
+        "划伤",
+        "残留",
+    )
+
     def list_documents(self) -> list[dict[str, Any]]:
         with self.connection() as connection:
             rows = connection.execute(
@@ -76,6 +106,73 @@ class KnowledgeRepository(SQLiteRepository):
             "document": dict(selected),
             "chunks": [dict(row) for row in rows],
         }
+
+    def search(self, query: str, limit: int = 6) -> list[dict[str, Any]]:
+        """Search governed documents and validated cases without querying manufacturing data."""
+        cleaned = " ".join(query.strip().split())
+        requested_limit = max(1, min(int(limit), 10))
+        latin_terms = re.findall(r"[A-Za-z0-9_-]{2,}", cleaned)
+        domain_terms = [term for term in self._DOMAIN_TERMS if term.lower() in cleaned.lower()]
+        terms = list(dict.fromkeys([*latin_terms, *domain_terms, cleaned]))[:8]
+        patterns = [f"%{term}%" for term in terms if term]
+        if not patterns:
+            return []
+        document_where = " OR ".join(
+            ["(k.title LIKE ? OR k.section LIKE ? OR k.content LIKE ?)"] * len(patterns)
+        )
+        document_params = [value for pattern in patterns for value in (pattern, pattern, pattern)]
+        case_where = " OR ".join(
+            ["(c.title LIKE ? OR c.problem LIKE ? OR c.summary LIKE ? OR c.root_cause LIKE ?)"]
+            * len(patterns)
+        )
+        case_params = [value for pattern in patterns for value in (pattern, pattern, pattern, pattern)]
+        with self.connection() as connection:
+            documents = connection.execute(
+                f"""SELECT k.chunk_id, k.title, k.source, k.section, k.content
+                    FROM knowledge_chunks k
+                    JOIN knowledge_documents d ON d.source = k.source
+                    WHERE d.status = 'Active' AND ({document_where})
+                    ORDER BY k.chunk_id LIMIT ?""",
+                [*document_params, requested_limit],
+            ).fetchall()
+            remaining = max(0, requested_limit - len(documents))
+            cases = []
+            if remaining:
+                cases = connection.execute(
+                    f"""SELECT c.case_id, c.title, c.process_step, c.equipment_id,
+                               c.summary, c.root_cause
+                        FROM historical_cases c
+                        WHERE c.case_status = 'Validated' AND ({case_where})
+                        ORDER BY c.occurred_date DESC LIMIT ?""",
+                    [*case_params, remaining],
+                ).fetchall()
+        results = [
+            {
+                "source_type": "knowledge",
+                "reference_id": f"KB-{row['chunk_id']}",
+                "chunk_id": row["chunk_id"],
+                "title": row["title"],
+                "source": row["source"],
+                "section": row["section"],
+                "excerpt": str(row["content"])[:800],
+            }
+            for row in documents
+        ]
+        results.extend(
+            {
+                "source_type": "case",
+                "reference_id": row["case_id"],
+                "case_id": row["case_id"],
+                "title": row["title"],
+                "source": row["title"],
+                "section": "已验证历史案例",
+                "excerpt": "；".join(value for value in (row["summary"], row["root_cause"]) if value)[:800],
+                "process_step": row["process_step"],
+                "equipment_id": row["equipment_id"],
+            }
+            for row in cases
+        )
+        return results
 
     def list_cases(self) -> list[dict[str, Any]]:
         with self.connection() as connection:

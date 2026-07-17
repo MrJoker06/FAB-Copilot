@@ -4,6 +4,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 
 import CopilotPanel from './components/CopilotPanel'
 import ModelSettingsModal from './components/ModelSettingsModal'
+import { api } from './api/client'
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const CapabilityPage = lazy(() => import('./pages/CapabilityPage'))
 const KnowledgePage = lazy(() => import('./pages/KnowledgePage'))
@@ -34,6 +35,14 @@ export default function App() {
   }
   const continueSession = (sessionId: string) => {
     selectSession(sessionId)
+    setCopilotOpen(true)
+  }
+  const startNewSession = async () => {
+    const session = await api<{ session_id: string }>('/api/v1/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ title: '新会话' }),
+    })
+    selectSession(session.session_id)
     setCopilotOpen(true)
   }
 
@@ -68,12 +77,12 @@ export default function App() {
               <Route path="/capability" element={<CapabilityPage />} />
               <Route path="/knowledge" element={<KnowledgePage />} />
               <Route path="/cases" element={<CasesPage />} />
-              <Route path="/sessions" element={<SessionsPage activeSessionId={activeSessionId} onContinueSession={continueSession} onNewSession={() => { selectSession(undefined); setCopilotOpen(true) }} onSessionUnavailable={id => { if (id === activeSessionId) selectSession(undefined) }} />} />
+              <Route path="/sessions" element={<SessionsPage activeSessionId={activeSessionId} onContinueSession={continueSession} onNewSession={startNewSession} onSessionUnavailable={id => { if (id === activeSessionId) selectSession(undefined) }} />} />
               <Route path="/monitor" element={<MonitorPage />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes></Suspense>
           </Content>
-          {copilotOpen && <CopilotPanel sessionId={activeSessionId} onSessionChange={selectSession} onOpenHistory={() => navigate('/sessions')} onClose={() => setCopilotOpen(false)} />}
+          {copilotOpen && <CopilotPanel sessionId={activeSessionId} onSessionChange={selectSession} onNewSession={startNewSession} onOpenHistory={() => navigate('/sessions')} onOpenSource={source => navigate(source.source_type === 'case' ? `/cases?case=${encodeURIComponent(source.case_id || source.reference_id)}` : `/knowledge?chunk=${source.chunk_id}`)} onClose={() => setCopilotOpen(false)} />}
         </Layout>
       </Layout>
       <ModelSettingsModal open={modelSettingsOpen} onClose={() => setModelSettingsOpen(false)} />

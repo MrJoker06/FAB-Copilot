@@ -13,6 +13,8 @@ DATA_TOOL_NAMES = (
     "get_sensor_summary",
     "query_manufacturing_data",
 )
+KNOWLEDGE_TOOL_NAMES = ("search_knowledge",)
+ANALYSIS_TOOL_NAMES = (*DATA_TOOL_NAMES, *KNOWLEDGE_TOOL_NAMES)
 
 
 def tool_definitions() -> list[dict[str, Any]]:
@@ -44,6 +46,10 @@ def tool_definitions() -> list[dict[str, Any]]:
             },
         ),
         "query_manufacturing_data": ("执行受控只读制造数据查询", {"sql": {"type": "string"}}),
+        "search_knowledge": (
+            "检索厂内受控 SOP、控制计划和已验证历史案例",
+            {"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}},
+        ),
     }
     return [
         {

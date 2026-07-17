@@ -56,6 +56,31 @@ export interface KnowledgeDocument {
   first_chunk_id: number
 }
 
+export interface KnowledgeChunk {
+  chunk_id: number
+  title: string
+  source: string
+  section: string
+  content: string
+}
+
+export interface KnowledgePreview {
+  selected_chunk_id: number
+  document: KnowledgeDocument & { status: string; process_steps: string; tags: string }
+  chunks: KnowledgeChunk[]
+}
+
+export interface KnowledgeSource {
+  source_type: 'knowledge' | 'case' | 'personal' | string
+  reference_id: string
+  chunk_id?: number
+  case_id?: string
+  title: string
+  source: string
+  section: string
+  excerpt: string
+}
+
 export interface HistoricalCase {
   case_id: string
   title: string
@@ -120,4 +145,5 @@ export interface ChatResult {
   session_id: string
   message_id: number
   tool_trace: Array<{ tool: string; status: string; rows: number | null; truncated: boolean }>
+  sources: KnowledgeSource[]
 }
