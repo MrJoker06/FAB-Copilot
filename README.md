@@ -97,6 +97,7 @@ run.bat
 
 企业模拟数据接口、租户请求头和真实数据源替换契约见 [企业化并行方案](docs/enterprise-transition.md)。
 用户端、管理端、模型发布和管理认证边界见 [用户端与管理端分离设计](docs/user-admin-separation.md)。
+项目已完成项和后续任务按工作流维护在 [TODO 总清单](TODO.md)。
 
 ## 模型切换
 
