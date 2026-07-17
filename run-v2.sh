@@ -4,6 +4,23 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
+# Keep V2 compatible with the workspace-level model configuration used by V1.
+# Explicit process environment values retain precedence over dotenv files.
+for ENV_FILE in "$ROOT/../../.env" "$ROOT/.env"; do
+  if [[ -f "$ENV_FILE" ]]; then
+    while IFS='=' read -r KEY VALUE; do
+      [[ "$KEY" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+      [[ -v "$KEY" ]] && continue
+      VALUE="${VALUE%$'\r'}"
+      VALUE="${VALUE%\"}"
+      VALUE="${VALUE#\"}"
+      VALUE="${VALUE%\'}"
+      VALUE="${VALUE#\'}"
+      export "$KEY=$VALUE"
+    done < <(grep -Ev '^[[:space:]]*(#|$)' "$ENV_FILE")
+  fi
+done
+
 if [[ ! -x .venv/bin/fab-api ]]; then
   uv sync --frozen --all-packages
 fi

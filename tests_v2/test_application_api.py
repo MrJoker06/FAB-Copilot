@@ -145,4 +145,30 @@ async def test_chat_router_selects_specialized_defect_tool(tmp_path: Path) -> No
         response = await client.post("/api/v1/chat", json={"message": "查看近期缺陷 Pareto"})
     assert response.status_code == 200
     assert gateway.calls[0][0] == "get_defect_pareto"
-    assert "get_defect_pareto" in response.json()["data"]["answer"]
+    answer = response.json()["data"]["answer"]
+    assert "Particle" in answer
+    assert "8" in answer
+    assert "get_defect_pareto" not in answer
+
+
+@pytest.mark.asyncio
+async def test_chat_answers_introduction_without_unrelated_tool_calls(tmp_path: Path) -> None:
+    database_dir = tmp_path / "application"
+    _create_application_databases(database_dir)
+    gateway = RecordingGateway()
+    app = create_app(
+        APISettings(
+            project_dir=tmp_path,
+            application_database_dir=database_dir,
+            model_api_key="",
+        ),
+        gateway,
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/api/v1/chat", json={"message": "介绍一下你自己"})
+
+    assert response.status_code == 200
+    assert gateway.calls == []
+    assert response.json()["data"]["mode"] == "direct"
+    assert "Fab Copilot" in response.json()["data"]["answer"]

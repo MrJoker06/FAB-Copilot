@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 import uvicorn
-from fab_agent import FabAnalysisAgent
+from fab_agent import FabAnalysisAgent, ModelConfig
 from fab_contracts import AdHocQueryRequest, ApiEnvelope, IdentityContext, ProblemDetail, ReportRequest
 from fab_core import DataGateway, DomainError, ReportService
 from fastapi import Depends, FastAPI, Header, Query, Request
@@ -23,7 +23,16 @@ def create_app(settings: APISettings | None = None, gateway: DataGateway | None 
     resolved = settings or APISettings()
     data_gateway = gateway or MCPDataGateway(resolved)
     reports = ReportService(data_gateway)
-    agent = FabAnalysisAgent(data_gateway)
+    agent = FabAnalysisAgent(
+        data_gateway,
+        ModelConfig(
+            api_key=resolved.model_api_key,
+            base_url=resolved.model_base_url,
+            model=resolved.model_name,
+            timeout_seconds=resolved.model_timeout_seconds,
+            max_tool_rounds=resolved.model_max_tool_rounds,
+        ),
+    )
     identities = DevelopmentIdentityProvider(resolved)
     app = FastAPI(
         title="Fab Insight API",

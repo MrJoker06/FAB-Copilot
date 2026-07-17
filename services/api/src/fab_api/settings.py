@@ -2,12 +2,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class APISettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="FAB_API_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="FAB_API_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     project_dir: Path = Field(default_factory=lambda: Path.cwd())
     host: str = "127.0.0.1"
@@ -21,6 +26,28 @@ class APISettings(BaseSettings):
     web_dist: Path = Path("web/dist")
     application_database_dir: Path = Path("data/departments")
     audit_log_dir: Path = Path("logs")
+    model_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("FAB_API_MODEL_API_KEY", "DEEPSEEK_API_KEY"),
+    )
+    model_base_url: str = Field(
+        default="https://api.deepseek.com",
+        validation_alias=AliasChoices("FAB_API_MODEL_BASE_URL", "DEEPSEEK_BASE_URL"),
+    )
+    model_name: str = Field(
+        default="deepseek-v4-flash",
+        validation_alias=AliasChoices("FAB_API_MODEL_NAME", "DEEPSEEK_MODEL"),
+    )
+    model_timeout_seconds: float = Field(default=60.0, gt=0, le=180)
+    model_max_tool_rounds: int = Field(default=6, ge=1, le=10)
+
+    @field_validator("model_name")
+    @classmethod
+    def normalize_model_name(cls, value: str) -> str:
+        return {
+            "deepseekv4-flash": "deepseek-v4-flash",
+            "deepseekv4-pro": "deepseek-v4-pro",
+        }.get(value, value)
 
     def resolved_web_dist(self) -> Path:
         return self.web_dist if self.web_dist.is_absolute() else (self.project_dir / self.web_dist).resolve()
