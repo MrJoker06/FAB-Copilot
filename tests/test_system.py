@@ -8,7 +8,7 @@ import os
 import shutil
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -70,7 +70,7 @@ class FabInsightTests(unittest.TestCase):
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("/static/app.js?v=20260717-1", page)
+        self.assertIn("/static/app.js?v=20260717-2", page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")
         self.assertIn("scrollbar-gutter: stable", styles)
         script = (Path(__file__).parents[1] / "app" / "static" / "app.js").read_text(encoding="utf-8")
@@ -562,6 +562,56 @@ class FabInsightTests(unittest.TestCase):
             )
             self.assertEqual(invalid.status_code, 400)
             self.assertEqual(invalid.json()["error_code"], "INVALID_CURSOR")
+
+    def test_enterprise_summary_is_projected_deterministic_and_tenant_scoped(self):
+        end = date.today()
+        start = end - timedelta(days=6)
+        params = {"start": start.isoformat(), "end": end.isoformat(), "process_step": "CMP"}
+        tenant_a = {"X-Tenant-ID": "fab-summary-a", "X-User-ID": "analyst"}
+        tenant_b = {"X-Tenant-ID": "fab-summary-b", "X-User-ID": "analyst"}
+        with TestClient(app) as client:
+            first = client.get("/api/enterprise/data/summary", headers=tenant_a, params=params)
+            repeated = client.get("/api/enterprise/data/summary", headers=tenant_a, params=params)
+            self.assertEqual(first.status_code, 200, first.text)
+            self.assertEqual(first.json(), repeated.json())
+            payload = first.json()
+            self.assertTrue(payload["simulated"])
+            self.assertFalse(payload["aggregation"]["exact"])
+            self.assertEqual(payload["aggregation"]["semantics"], "deterministic_projection")
+            self.assertEqual(payload["query"]["filters"]["process_step"], "CMP")
+            self.assertGreater(payload["totals"]["lots"], 0)
+            self.assertGreater(payload["totals"]["process_runs"], payload["totals"]["lots"])
+            self.assertGreater(payload["totals"]["sensor_events"], payload["totals"]["process_runs"])
+            self.assertEqual(len(payload["equipment"]), 5)
+            self.assertEqual(
+                [item["health_score"] for item in payload["equipment"]],
+                sorted(item["health_score"] for item in payload["equipment"]),
+            )
+            self.assertEqual(payload["lineage"]["classification"], "synthetic_non_production")
+
+            other_tenant = client.get("/api/enterprise/data/summary", headers=tenant_b, params=params)
+            self.assertEqual(other_tenant.status_code, 200)
+            for field in ("lots", "wafers", "process_runs", "sensor_events"):
+                self.assertEqual(other_tenant.json()["totals"][field], payload["totals"][field])
+            self.assertNotEqual(other_tenant.json()["query"]["query_id"], payload["query"]["query_id"])
+            self.assertNotEqual(other_tenant.json()["kpis"], payload["kpis"])
+
+            equipment = client.get(
+                "/api/enterprise/data/summary",
+                headers=tenant_a,
+                params={**params, "equipment_id": "CMP-03"},
+            )
+            self.assertEqual(equipment.status_code, 200)
+            self.assertEqual([item["equipment_id"] for item in equipment.json()["equipment"]], ["CMP-03"])
+            self.assertLess(equipment.json()["totals"]["lots"], payload["totals"]["lots"])
+
+            invalid = client.get(
+                "/api/enterprise/data/summary",
+                headers=tenant_a,
+                params={"start": end.isoformat(), "end": start.isoformat()},
+            )
+            self.assertEqual(invalid.status_code, 400)
+            self.assertEqual(invalid.json()["error_code"], "INVALID_DATE_RANGE")
 
     def test_api_errors_include_correlation_id_and_retry_metadata(self):
         request_id = "req-test-correlation-001"

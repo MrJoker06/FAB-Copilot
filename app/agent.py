@@ -14,7 +14,7 @@ import httpx
 
 from .audit import CONTENT_MODE, content_fingerprint, emit
 from .config import get_settings
-from .enterprise_data import enterprise_data_manifest, query_enterprise_data
+from .enterprise_data import enterprise_data_manifest, enterprise_fab_summary, query_enterprise_data
 from .processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS
 from .rag import search_agent_knowledge
 from .reports import (
@@ -45,7 +45,8 @@ SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的�
 8. 历史案例只能用于生成和排序根因假设，不能证明当前问题具有相同根因。必须结合当前制造数据说明案例的相似点、差异和待验证项。
 9. 检索结果包含 retrieval.confidence、final_score 和 selection_reason。若所有结果均为 low，必须说明检索证据不足并请求补充站点、设备、缺陷或时间范围；不得用低置信度材料形成确定性结论。
 10. 需要调用工具时直接返回 tool_calls，该轮 content 必须为空；只有所有工具调用完成后的最终结论才输出文字。
-11. get_enterprise_data_manifest 返回的是企业接口的可复现模拟数据规模与契约，不得把 simulated=true 的记录表述为真实生产数据。
+11. 企业数据工具返回的是可复现模拟数据。get_enterprise_fab_summary 的 aggregation.exact=false 表示确定性投影，不得把 simulated=true 的结果表述为真实生产观测，也不得把 query_enterprise_data 样本外推为全量统计。
+12. 只有用户明确询问企业模拟数据、数据规模、数据接口或投影分析时才使用 enterprise 工具；日常设备、批次、良率和异常分析继续使用标准制造数据工具，禁止在同一结论中无说明地混合两套数据口径。
 
 数据库字段提示：
 - lots: lot_id, product, technology_nm, route, priority, start_time, complete_time, status, wafer_count, good_wafers, yield_rate(0-1), cycle_time_hours, hold_hours
@@ -71,6 +72,7 @@ DATE_PROPERTIES = {
 
 TOOLS = [
     {"type": "function", "function": {"name": "get_enterprise_data_manifest", "description": "查询当前租户可用的企业数据实体、虚拟数据规模、分页方式和模拟数据标记", "parameters": _schema({})}},
+    {"type": "function", "function": {"name": "get_enterprise_fab_summary", "description": "对当前租户的亿级企业模拟数据执行服务端聚合，返回范围内规模、KPI、设备风险和血缘。结果是确定性投影，不是真实生产观测", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "equipment_id": {"type": "string"}})}},
     {"type": "function", "function": {"name": "query_enterprise_data", "description": "从当前租户的企业模拟数据接口抽取最多50条记录用于接口和数据形态分析；结果是样本，不能代表全量统计", "parameters": _schema({"entity": {"type": "string", "enum": ["lots", "process-runs", "sensor-events"]}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}, **DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "equipment_id": {"type": "string"}, "product": {"type": "string"}, "status": {"type": "string", "enum": ["Completed", "Running", "Hold"]}, "signal_name": {"type": "string"}}, ["entity"])}},
     {"type": "function", "function": {"name": "get_fab_overview", "description": "查询工厂批次、晶圆、良率、周期、hold和异常总览", "parameters": _schema(DATE_PROPERTIES)}},
     {"type": "function", "function": {"name": "get_yield_trend", "description": "按周查询良率和周期趋势，可按产品过滤", "parameters": _schema({**DATE_PROPERTIES, "product": {"type": "string", "description": "产品名，如 Nova-P1"}})}},
@@ -87,6 +89,7 @@ TOOLS = [
 
 TOOL_HANDLERS: dict[str, Callable[..., Any]] = {
     "get_enterprise_data_manifest": enterprise_data_manifest,
+    "get_enterprise_fab_summary": enterprise_fab_summary,
     "query_enterprise_data": query_enterprise_data,
     "get_fab_overview": fab_overview,
     "get_yield_trend": yield_trend,

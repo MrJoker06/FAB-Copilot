@@ -281,6 +281,27 @@ def enterprise_manifest() -> dict:
     return get_enterprise_provider().manifest(current_principal())
 
 
+@app.get("/api/enterprise/data/summary")
+def enterprise_summary(
+    start: str | None = None,
+    end: str | None = None,
+    process_step: str | None = Query(None, pattern=PROCESS_STEP_PATTERN),
+    equipment_id: str | None = Query(None, min_length=2, max_length=64),
+) -> dict:
+    try:
+        return get_enterprise_provider().summary(
+            current_principal(),
+            {
+                "start": start,
+                "end": end,
+                "process_step": process_step,
+                "equipment_id": equipment_id,
+            },
+        )
+    except EnterpriseDataError as exc:
+        raise http_problem(400, exc.error_code, exc.detail, False) from exc
+
+
 @app.get("/api/enterprise/data/lots")
 def enterprise_lots(
     limit: int = Query(100, ge=1, le=500),

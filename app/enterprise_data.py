@@ -40,6 +40,8 @@ class EnterpriseDataError(ValueError):
 class EnterpriseDataProvider(Protocol):
     def manifest(self, principal: Principal) -> dict: ...
 
+    def summary(self, principal: Principal, filters: dict) -> dict: ...
+
     def page(
         self,
         entity: str,
@@ -87,10 +89,92 @@ class SyntheticFabProvider:
                 "process-runs": {"path": "/api/enterprise/data/process-runs", "primary_key": "run_id"},
                 "sensor-events": {"path": "/api/enterprise/data/sensor-events", "primary_key": "reading_id"},
             },
+            "analytics": {
+                "summary_path": "/api/enterprise/data/summary",
+                "semantics": "deterministic_projection",
+                "supports": ["date_range", "process_step", "equipment_id"],
+            },
             "pagination": {"strategy": "signed_keyset_cursor", "default_limit": 100, "max_limit": 500},
             "retention_days": 730,
             "partition_recommendation": ["tenant_id", "event_date", "process_step"],
             "data_classification": "synthetic_non_production",
+        }
+
+    def summary(self, principal: Principal, filters: dict | None = None) -> dict:
+        normalized = _canonical_filters(filters or {})
+        self._validate_filters("process-runs", normalized)
+        today = date.today()
+        requested_start = self._parse_date(normalized.get("start"), "start")
+        requested_end = self._parse_date(normalized.get("end"), "end")
+        effective_start = max(requested_start or today - timedelta(days=89), today - timedelta(days=729))
+        effective_end = min(requested_end or today, today)
+        effective_filters = {
+            **normalized,
+            "start": effective_start.isoformat(),
+            "end": effective_end.isoformat(),
+        }
+        if effective_start > effective_end:
+            lot_count = run_count = sensor_count = 0
+        else:
+            run_count = self._filtered_count("process-runs", effective_filters)
+            sensor_count = self._filtered_count("sensor-events", effective_filters)
+            lot_count = self._filtered_count(
+                "lots",
+                {key: effective_filters[key] for key in ("start", "end")},
+            )
+            if effective_filters.get("equipment_id"):
+                lot_count //= 5
+
+        key = json.dumps(effective_filters, ensure_ascii=True, sort_keys=True)
+        yield_pct = self._projected_metric(principal.tenant_id, key, "yield", 91.5, 97.8)
+        pass_rate_pct = self._projected_metric(principal.tenant_id, key, "pass", 92.0, 99.2)
+        avg_cycle_hours = self._projected_metric(principal.tenant_id, key, "cycle", 78.0, 138.0)
+        hold_rate_pct = self._projected_metric(principal.tenant_id, key, "hold", 0.8, 4.8)
+        excursion_rate_pct = self._projected_metric(principal.tenant_id, key, "excursion", 0.12, 1.25)
+        sensor_missing_pct = self._projected_metric(principal.tenant_id, key, "missing", 0.03, 0.35)
+        sensor_outlier_pct = self._projected_metric(principal.tenant_id, key, "outlier", 0.08, 0.9)
+        completed_lots = round(lot_count * self._projected_metric(principal.tenant_id, key, "completed", 0.90, 0.98))
+        equipment_rows = self._equipment_projection(principal, effective_filters, key, run_count)
+        return {
+            "provider": self.provider_id,
+            "simulated": True,
+            "tenant_id": principal.tenant_id,
+            "query": {
+                "filters": normalized,
+                "effective_start": effective_start.isoformat(),
+                "effective_end": effective_end.isoformat(),
+                "query_id": f"agg-{_digest_int(self.seed, principal.tenant_id, key):016x}",
+            },
+            "aggregation": {
+                "semantics": "deterministic_projection",
+                "exact": False,
+                "description": "由可复现模拟分布直接计算，未扫描或抽样外推原始明细",
+            },
+            "totals": {
+                "lots": lot_count,
+                "completed_lots": completed_lots,
+                "wafers": lot_count * 25,
+                "process_runs": run_count,
+                "sensor_events": sensor_count,
+            },
+            "kpis": {
+                "yield_pct": yield_pct,
+                "process_pass_rate_pct": pass_rate_pct,
+                "avg_cycle_hours": avg_cycle_hours,
+                "hold_rate_pct": hold_rate_pct,
+                "excursion_rate_pct": excursion_rate_pct,
+                "excursion_runs": round(run_count * excursion_rate_pct / 100),
+                "sensor_missing_pct": sensor_missing_pct,
+                "sensor_outlier_pct": sensor_outlier_pct,
+            },
+            "equipment": equipment_rows,
+            "lineage": {
+                "source": self.provider_id,
+                "classification": "synthetic_non_production",
+                "generated_from": ["tenant_id", "date_window", "process_step", "equipment_id", "mock_seed"],
+                "as_of": datetime.combine(today, time.min, tzinfo=timezone.utc).isoformat(),
+                "freshness": "deterministic_daily_snapshot",
+            },
         }
 
     def page(
@@ -199,6 +283,37 @@ class SyntheticFabProvider:
             covered_days = max(0, (upper - lower).days + 1)
             total = math.floor(total * covered_days / 730)
         return max(0, total)
+
+    def _projected_metric(self, tenant_id: str, key: str, metric: str, low: float, high: float) -> float:
+        ratio = (_digest_int(self.seed, tenant_id, key, metric) % 10_000) / 9_999
+        return round(low + (high - low) * ratio, 3)
+
+    def _equipment_projection(
+        self,
+        principal: Principal,
+        filters: dict,
+        key: str,
+        total_runs: int,
+    ) -> list[dict]:
+        step = filters.get("process_step") or "FAB"
+        requested = filters.get("equipment_id")
+        equipment_ids = [requested] if requested else [f"{step}-{index:02d}" for index in range(1, 6)]
+        rows = []
+        for equipment_id in equipment_ids:
+            equipment_key = f"{key}|{equipment_id}"
+            pass_rate = self._projected_metric(principal.tenant_id, equipment_key, "pass", 90.0, 99.5)
+            excursion_rate = self._projected_metric(principal.tenant_id, equipment_key, "excursion", 0.08, 1.8)
+            health_score = round(max(0.0, min(100.0, pass_rate - excursion_rate * 2.5)), 2)
+            rows.append({
+                "equipment_id": equipment_id,
+                "projected_runs": total_runs if requested else total_runs // len(equipment_ids),
+                "pass_rate_pct": pass_rate,
+                "excursion_rate_pct": excursion_rate,
+                "health_score": health_score,
+                "risk": "high" if health_score < 92 else ("watch" if health_score < 96 else "stable"),
+            })
+        rows.sort(key=lambda item: (item["health_score"], item["equipment_id"]))
+        return rows
 
     def _record(self, entity: str, principal: Principal, filters: dict, position: int) -> dict:
         total = self.virtual_lots * ENTITY_COUNTS[entity]
@@ -317,6 +432,23 @@ def get_enterprise_provider() -> EnterpriseDataProvider:
 
 def enterprise_data_manifest() -> dict:
     return get_enterprise_provider().manifest(current_principal())
+
+
+def enterprise_fab_summary(
+    start: str | None = None,
+    end: str | None = None,
+    process_step: str | None = None,
+    equipment_id: str | None = None,
+) -> dict:
+    return get_enterprise_provider().summary(
+        current_principal(),
+        {
+            "start": start,
+            "end": end,
+            "process_step": process_step,
+            "equipment_id": equipment_id,
+        },
+    )
 
 
 def query_enterprise_data(

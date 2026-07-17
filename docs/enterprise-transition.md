@@ -38,6 +38,7 @@ X-Roles: analyst,process-engineer
 ```text
 GET /api/enterprise/context
 GET /api/enterprise/data/manifest
+GET /api/enterprise/data/summary
 GET /api/enterprise/data/lots
 GET /api/enterprise/data/process-runs
 GET /api/enterprise/data/sensor-events
@@ -62,14 +63,17 @@ curl -H 'X-Tenant-ID: fab-a' -H 'X-User-ID: engineer-001' \
 
 记录由固定 seed、租户、筛选条件和游标位置确定性生成。相同请求会得到相同业务记录；服务只生成当前页，不会在 SQLite 中物化几十亿行。所有响应和记录都标记 `simulated=true`，Agent 不得将其描述为真实生产数据。
 
-Agent 工具 `get_enterprise_data_manifest` 可读取目录和规模，`query_enterprise_data` 可抽取最多 50 条当前租户样本。样本工具只用于接口、字段和数据形态分析，不承担全量统计。
+`/api/enterprise/data/summary` 在提供器内部完成聚合，支持日期、制程和设备筛选，返回规模、制造 KPI、设备风险和数据血缘。当前模拟实现使用 `aggregation.semantics=deterministic_projection` 且 `exact=false`，用于验证亿级聚合契约和 Agent 分析流程，不代表扫描真实明细得到的精确生产指标。
+
+Agent 工具 `get_enterprise_data_manifest` 可读取目录和规模，`get_enterprise_fab_summary` 用于全量语义的服务端聚合，`query_enterprise_data` 可抽取最多 50 条当前租户样本。样本工具只用于接口、字段和数据形态分析，不承担全量统计。
 
 ## 4. 数据提供器替换契约
 
-`app.enterprise_data.EnterpriseDataProvider` 定义两项能力：
+`app.enterprise_data.EnterpriseDataProvider` 定义三项能力：
 
 ```python
 def manifest(principal: Principal) -> dict: ...
+def summary(principal: Principal, filters: dict) -> dict: ...
 def page(entity: str, principal: Principal, limit: int, cursor: str | None, filters: dict) -> dict: ...
 ```
 
