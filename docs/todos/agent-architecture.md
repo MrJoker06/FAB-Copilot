@@ -11,10 +11,10 @@
 - [x] `AGENT-007` 在模型服务暂时失败且尚未输出答案时执行有限重试。
 - [x] `AGENT-008` 在没有服务端模型凭据时提供本地规则降级回答。
 - [x] `AGENT-009` 实现结构化 Intent Router，输出意图、制程、设备、时间范围、数据需求和风险等级。
+- [x] `AGENT-010` 为能力异常、良率下降、设备故障、批次追踪和 SOP 查询建立独立 Domain Playbook。
 
 ## 待做
 
-- [ ] `AGENT-010` 为能力异常、良率下降、设备故障、批次追踪和 SOP 查询建立独立 Domain Playbook。
 - [ ] `AGENT-011` 实现 Planner，将 Playbook 实例化为带依赖、必需证据和预算的执行计划。
 - [ ] `AGENT-012` 实现 Evidence Validator，检查证据覆盖、样本量、时间口径、来源置信度和事实冲突。
 - [ ] `AGENT-013` 实现受验证结果约束的 Answer Synthesizer，强制区分事实、推断、假设和建议。

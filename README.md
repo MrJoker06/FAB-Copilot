@@ -269,6 +269,8 @@ python3 scripts/evaluate_rag.py
 
 每次 Agent 运行会在首次模型调用前执行确定性 Intent Router。路由结果随接口结果保存在 `intent_route`，包括 `intent`、`candidate_intents`、`process_steps`、`equipment_ids`、`time_range`、`data_requirements`、`risk_level` 和需要澄清的问题。路由只限定分析范围和推荐取证工具，不作为制造事实；未知或相近的多意图问题会要求澄清，不会静默猜测查询目标。
 
+Router 之后会为制程能力异常、良率下降、设备故障、批次追踪和 SOP 查询选择版本化 Domain Playbook。接口结果中的 `domain_playbook` 保存模板编号、Schema 版本、Playbook 版本、必需/可选证据、字段契约、验收条件、分析问题、答案结构和安全约束。歧义问题只返回候选模板，澄清前不会混合执行；未覆盖意图继续使用通用 Agent 规则。
+
 ## Agent 日志与监控
 
 前端“Agent 监控”页面每 30 秒刷新一次，也可直接查询：
@@ -286,6 +288,7 @@ GET /api/monitor/events?limit=100
 - `api_exception`：未预期服务端异常及测试模式下的完整堆栈
 - `agent_run_started`：问题长度、问题指纹和历史消息数
 - `intent_routed`：结构化意图、制程、设备、时间范围、数据需求和风险等级
+- `playbook_selected`：模板选择状态、Playbook 编号、版本和歧义候选
 - `model_call_finished`：模型、延迟、Token 和状态
 - `model_call_retry_scheduled`：重试原因、次数和退避时间
 - `tool_call_finished`：工具名、延迟、返回行数和状态
@@ -308,6 +311,7 @@ app/
   main.py       FastAPI 接口与静态站点
   agent.py      DeepSeek 工具调用循环与系统约束
   intent_router.py  确定性问题分类、范围抽取与风险路由
+  domain_playbooks.py  五类版本化领域证据与回答契约
   reports.py    制造报表及只读 SQL 保护
   rag.py        FTS5 trigram 知识与案例联合检索
   audit.py      脱敏结构化日志、轮转和监控汇总

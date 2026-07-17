@@ -14,6 +14,7 @@ import httpx
 
 from .audit import CONTENT_MODE, content_fingerprint, emit
 from .config import get_settings
+from .domain_playbooks import PlaybookSelection, playbook_system_message, select_playbook
 from .enterprise_data import enterprise_data_manifest, enterprise_fab_summary, query_enterprise_data
 from .intent_router import IntentRoute, route_question, routing_system_message
 from .model_registry import effective_agent_settings
@@ -50,6 +51,7 @@ SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的�
 11. 企业数据工具返回的是可复现模拟数据。get_enterprise_fab_summary 的 aggregation.exact=false 表示确定性投影，不得把 simulated=true 的结果表述为真实生产观测，也不得把 query_enterprise_data 样本外推为全量统计。
 12. 只有用户明确询问企业模拟数据、数据规模、数据接口或投影分析时才使用 enterprise 工具；日常设备、批次、良率和异常分析继续使用标准制造数据工具，禁止在同一结论中无说明地混合两套数据口径。
 13. 系统会在用户问题前提供 intent_route。它只用于限定分析范围和推荐取证工具，不是制造事实；若标记需要澄清，不得用无范围的工具调用代替澄清。
+14. domain_playbook 定义当前领域的证据与回答契约。必须优先覆盖 required=true 的证据；缺失时明确降级结论，不得宣称模板本身就是证据。
 
 数据库字段提示：
 - lots: lot_id, product, technology_nm, route, priority, start_time, complete_time, status, wafer_count, good_wafers, yield_rate(0-1), cycle_time_hours, hold_hours
@@ -117,7 +119,11 @@ async def _notify(progress: ProgressCallback | None, event: dict) -> None:
         await result
 
 
-def _offline_answer(question: str, intent_route: IntentRoute) -> dict:
+def _offline_answer(
+    question: str,
+    intent_route: IntentRoute,
+    playbook_selection: PlaybookSelection,
+) -> dict:
     overview = fab_overview()
     equipment = equipment_health()
     risky = equipment[:3]
@@ -138,6 +144,7 @@ def _offline_answer(question: str, intent_route: IntentRoute) -> dict:
         "sources": [],
         "mode": "offline",
         "intent_route": intent_route.to_dict(),
+        "domain_playbook": playbook_selection.to_dict(),
     }
 
 
@@ -149,6 +156,15 @@ def _routing_progress_message(route: IntentRoute) -> str:
     scope = "、".join(route.equipment_ids or route.process_steps)
     scope_text = f" · {scope}" if scope else ""
     return f"已识别为{route.intent_label}{scope_text}，正在限定数据范围"
+
+
+def _playbook_progress_message(selection: PlaybookSelection) -> str:
+    if selection.selected_playbook is not None:
+        playbook = selection.selected_playbook
+        return f"已加载 {playbook.title} · v{playbook.playbook_version}"
+    if selection.status == "clarification_required":
+        return "存在多个领域模板，正在等待确认主分析目标"
+    return "当前问题使用通用分析规则"
 
 
 async def _stream_completion(
@@ -272,10 +288,28 @@ async def _run_agent_impl(
         "message": _routing_progress_message(intent_route),
         "route": route_payload,
     })
+    playbook_selection = select_playbook(intent_route)
+    playbook_payload = playbook_selection.to_dict()
+    selected_playbook = playbook_selection.selected_playbook
+    emit(
+        "playbook_selected",
+        run_id,
+        status=playbook_selection.status,
+        route_intent=intent_route.intent,
+        playbook_id=selected_playbook.playbook_id if selected_playbook else None,
+        playbook_version=selected_playbook.playbook_version if selected_playbook else None,
+        candidate_playbooks=[item.playbook_id for item in playbook_selection.candidate_playbooks],
+    )
+    await _notify(progress, {
+        "event": "stage",
+        "stage": "playbook",
+        "message": _playbook_progress_message(playbook_selection),
+        "playbook": playbook_payload,
+    })
     settings = effective_agent_settings(get_settings())
     if not settings.deepseek_api_key:
         await _notify(progress, {"event": "stage", "stage": "planning", "message": "正在使用本地规则规划分析路径"})
-        result = _offline_answer(question, intent_route)
+        result = _offline_answer(question, intent_route, playbook_selection)
         for item in result["tool_trace"]:
             await _notify(progress, {"event": "tool_started", "tool": item["tool"], "arguments": {}})
             await _notify(progress, {"event": "tool_finished", **item})
@@ -288,6 +322,7 @@ async def _run_agent_impl(
     messages: list[dict] = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "system", "content": routing_system_message(intent_route)},
+        {"role": "system", "content": playbook_system_message(playbook_selection)},
     ]
     for item in (history or [])[-8:]:
         role = item.get("role")
@@ -403,6 +438,7 @@ async def _run_agent_impl(
                     "model": settings.deepseek_model,
                     "usage": total_usage,
                     "intent_route": route_payload,
+                    "domain_playbook": playbook_payload,
                 }
 
             for call in tool_calls:
@@ -477,6 +513,7 @@ async def _run_agent_impl(
         "model": settings.deepseek_model,
         "usage": total_usage,
         "intent_route": route_payload,
+        "domain_playbook": playbook_payload,
     }
 
 
@@ -522,6 +559,8 @@ async def run_agent(
             source_count=len(result.get("sources", [])),
             intent=result.get("intent_route", {}).get("intent", "unknown"),
             risk_level=result.get("intent_route", {}).get("risk_level", "unknown"),
+            playbook_id=(result.get("domain_playbook", {}).get("selected_playbook") or {}).get("playbook_id"),
+            playbook_version=(result.get("domain_playbook", {}).get("selected_playbook") or {}).get("playbook_version"),
             **({
                 "answer": result.get("answer"),
                 "tool_trace": result.get("tool_trace", []),

@@ -2,7 +2,7 @@
 
 状态基线：`experiment/parallel-platform`，2026-07-18。
 
-当前统计：共 122 个独立任务，已完成 64 个，待做 58 个。
+当前统计：共 122 个独立任务，已完成 65 个，待做 57 个。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
@@ -19,7 +19,7 @@
 
 | 工作流 | 清单 | 当前结论 |
 |---|---|---|
-| Agent 执行架构 | [Agent TODO](docs/todos/agent-architecture.md) | Tool Agent Loop 与结构化 Router 已完成；Playbook、Planner、Validator 待做 |
+| Agent 执行架构 | [Agent TODO](docs/todos/agent-architecture.md) | Tool Agent Loop、结构化 Router 与五类 Playbook 已完成；Planner、Validator 待做 |
 | 身份与权限 | [身份安全 TODO](docs/todos/identity-security.md) | 本地隔离和管理令牌已完成；企业 SSO/RBAC 待做 |
 | 模型治理 | [模型治理 TODO](docs/todos/model-governance.md) | 模型目录和用户选择已完成；企业凭据与审批待做 |
 | RAG 与知识库 | [知识库 TODO](docs/todos/rag-knowledge.md) | L0 本地 RAG 已完成；OCR 和分布式 RAG 待做 |
