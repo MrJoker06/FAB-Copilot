@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
 from fab_contracts import IdentityContext, ReportRequest, ToolResult
@@ -21,17 +20,6 @@ class KnowledgeGateway(Protocol):
     """Read-only governed knowledge access used by the analysis agent."""
 
     def search(self, query: str, limit: int = 6) -> list[dict[str, Any]]: ...
-
-
-class IdentityProvider(Protocol):
-    def resolve(self, authorization: str | None, request_id: str) -> IdentityContext: ...
-
-
-JobCallable = Callable[..., Awaitable[None] | None]
-
-
-class JobDispatcher(Protocol):
-    def submit(self, job: JobCallable, *args: Any) -> None: ...
 
 
 class ReportService:
