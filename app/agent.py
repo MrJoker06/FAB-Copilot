@@ -15,6 +15,7 @@ import httpx
 from .audit import CONTENT_MODE, content_fingerprint, emit
 from .config import get_settings
 from .enterprise_data import enterprise_data_manifest, enterprise_fab_summary, query_enterprise_data
+from .intent_router import IntentRoute, route_question, routing_system_message
 from .model_registry import effective_agent_settings
 from .processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS
 from .rag import search_agent_knowledge
@@ -48,6 +49,7 @@ SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的�
 10. 需要调用工具时直接返回 tool_calls，该轮 content 必须为空；只有所有工具调用完成后的最终结论才输出文字。
 11. 企业数据工具返回的是可复现模拟数据。get_enterprise_fab_summary 的 aggregation.exact=false 表示确定性投影，不得把 simulated=true 的结果表述为真实生产观测，也不得把 query_enterprise_data 样本外推为全量统计。
 12. 只有用户明确询问企业模拟数据、数据规模、数据接口或投影分析时才使用 enterprise 工具；日常设备、批次、良率和异常分析继续使用标准制造数据工具，禁止在同一结论中无说明地混合两套数据口径。
+13. 系统会在用户问题前提供 intent_route。它只用于限定分析范围和推荐取证工具，不是制造事实；若标记需要澄清，不得用无范围的工具调用代替澄清。
 
 数据库字段提示：
 - lots: lot_id, product, technology_nm, route, priority, start_time, complete_time, status, wafer_count, good_wafers, yield_rate(0-1), cycle_time_hours, hold_hours
@@ -115,7 +117,7 @@ async def _notify(progress: ProgressCallback | None, event: dict) -> None:
         await result
 
 
-def _offline_answer(question: str) -> dict:
+def _offline_answer(question: str, intent_route: IntentRoute) -> dict:
     overview = fab_overview()
     equipment = equipment_health()
     risky = equipment[:3]
@@ -127,7 +129,26 @@ def _offline_answer(question: str) -> dict:
         names = "、".join(f"{row['equipment_id']}（{row['health']}，{row['excursions']}次异常）" for row in risky)
         lines.append(f"优先关注设备：{names}。")
     lines.append("配置根目录 .env 的 DEEPSEEK_API_KEY 后，可获得针对问题的多轮工具分析。")
-    return {"answer": "\n\n".join(lines), "tool_trace": [{"tool": "get_fab_overview", "status": "local"}, {"tool": "get_equipment_health", "status": "local"}], "sources": [], "mode": "offline"}
+    return {
+        "answer": "\n\n".join(lines),
+        "tool_trace": [
+            {"tool": "get_fab_overview", "status": "local"},
+            {"tool": "get_equipment_health", "status": "local"},
+        ],
+        "sources": [],
+        "mode": "offline",
+        "intent_route": intent_route.to_dict(),
+    }
+
+
+def _routing_progress_message(route: IntentRoute) -> str:
+    if route.intent == "unknown":
+        return "尚未识别明确分析目标，正在准备澄清问题"
+    if route.intent == "ambiguous":
+        return "识别到多个分析目标，正在确认优先路径"
+    scope = "、".join(route.equipment_ids or route.process_steps)
+    scope_text = f" · {scope}" if scope else ""
+    return f"已识别为{route.intent_label}{scope_text}，正在限定数据范围"
 
 
 async def _stream_completion(
@@ -231,10 +252,30 @@ async def _run_agent_impl(
     run_id: str,
     progress: ProgressCallback | None = None,
 ) -> dict:
+    intent_route = route_question(question)
+    route_payload = intent_route.to_dict()
+    emit(
+        "intent_routed",
+        run_id,
+        intent=intent_route.intent,
+        confidence=intent_route.confidence,
+        process_steps=list(intent_route.process_steps),
+        equipment_ids=list(intent_route.equipment_ids),
+        time_range=route_payload["time_range"],
+        data_requirements=list(intent_route.data_requirements),
+        risk_level=intent_route.risk_level,
+        clarification_needed=intent_route.clarification_needed,
+    )
+    await _notify(progress, {
+        "event": "stage",
+        "stage": "routing",
+        "message": _routing_progress_message(intent_route),
+        "route": route_payload,
+    })
     settings = effective_agent_settings(get_settings())
     if not settings.deepseek_api_key:
         await _notify(progress, {"event": "stage", "stage": "planning", "message": "正在使用本地规则规划分析路径"})
-        result = _offline_answer(question)
+        result = _offline_answer(question, intent_route)
         for item in result["tool_trace"]:
             await _notify(progress, {"event": "tool_started", "tool": item["tool"], "arguments": {}})
             await _notify(progress, {"event": "tool_finished", **item})
@@ -244,7 +285,10 @@ async def _run_agent_impl(
         result["usage"] = {}
         return result
 
-    messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages: list[dict] = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": routing_system_message(intent_route)},
+    ]
     for item in (history or [])[-8:]:
         role = item.get("role")
         content = str(item.get("content", ""))[:4000]
@@ -351,7 +395,15 @@ async def _run_agent_impl(
             messages.append(assistant)
             tool_calls = assistant.get("tool_calls") or []
             if not tool_calls:
-                return {"answer": assistant.get("content") or "分析完成，但模型没有返回文字。", "tool_trace": trace, "sources": list(sources.values()), "mode": "deepseek", "model": settings.deepseek_model, "usage": total_usage}
+                return {
+                    "answer": assistant.get("content") or "分析完成，但模型没有返回文字。",
+                    "tool_trace": trace,
+                    "sources": list(sources.values()),
+                    "mode": "deepseek",
+                    "model": settings.deepseek_model,
+                    "usage": total_usage,
+                    "intent_route": route_payload,
+                }
 
             for call in tool_calls:
                 function = call.get("function", {})
@@ -417,7 +469,15 @@ async def _run_agent_impl(
 
     answer = "工具调用达到上限。请缩小问题范围后重试。"
     await _notify(progress, {"event": "answer_delta", "delta": answer})
-    return {"answer": answer, "tool_trace": trace, "sources": list(sources.values()), "mode": "deepseek", "model": settings.deepseek_model, "usage": total_usage}
+    return {
+        "answer": answer,
+        "tool_trace": trace,
+        "sources": list(sources.values()),
+        "mode": "deepseek",
+        "model": settings.deepseek_model,
+        "usage": total_usage,
+        "intent_route": route_payload,
+    }
 
 
 async def run_agent(
@@ -460,6 +520,8 @@ async def run_agent(
             duration_ms=result["duration_ms"],
             tool_count=len(result.get("tool_trace", [])),
             source_count=len(result.get("sources", [])),
+            intent=result.get("intent_route", {}).get("intent", "unknown"),
+            risk_level=result.get("intent_route", {}).get("risk_level", "unknown"),
             **({
                 "answer": result.get("answer"),
                 "tool_trace": result.get("tool_trace", []),
