@@ -1525,6 +1525,11 @@ async function init() {
     else if (suggestion) sendChat(suggestion.textContent);
   });
   $('#chatForm').addEventListener('submit', e => { e.preventDefault(); sendChat($('#chatInput').value); });
+  $('#chatInput').addEventListener('keydown', event => {
+    if (event.key !== 'Enter' || event.shiftKey || event.isComposing || event.keyCode === 229) return;
+    event.preventDefault();
+    if (!state.streaming) $('#chatForm').requestSubmit();
+  });
   $('#chatInput').addEventListener('input', event => {
     const draft = event.target.value;
     if (draft) localStorage.setItem(CHAT_DRAFT_KEY, draft);

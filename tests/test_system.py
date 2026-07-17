@@ -70,12 +70,14 @@ class FabInsightTests(unittest.TestCase):
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("/static/app.js?v=20260717-3", page)
+        self.assertIn("/static/app.js?v=20260717-4", page)
         self.assertNotIn('id="monitorView"', page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")
         self.assertIn("scrollbar-gutter: stable", styles)
         script = (Path(__file__).parents[1] / "app" / "static" / "app.js").read_text(encoding="utf-8")
         self.assertIn("data-personal-chunk", script)
+        self.assertIn("event.key !== 'Enter' || event.shiftKey || event.isComposing || event.keyCode === 229", script)
+        self.assertIn("$('#chatForm').requestSubmit()", script)
 
     def test_admin_frontend_is_separate_from_user_workspace(self):
         with TestClient(app) as client:
@@ -89,7 +91,7 @@ class FabInsightTests(unittest.TestCase):
             "publishModelDialog",
         ):
             self.assertIn(f'id="{element_id}"', response.text)
-        self.assertIn("/static/admin.js?v=20260717-3", response.text)
+        self.assertIn("/static/admin.js?v=20260717-4", response.text)
         script = (Path(__file__).parents[1] / "app" / "static" / "admin.js").read_text(encoding="utf-8")
         self.assertIn("/api/admin/overview", script)
         self.assertIn("/api/admin/models", script)
