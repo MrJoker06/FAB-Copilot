@@ -8,7 +8,7 @@
 - 个人知识与历史会话按租户、用户隔离。
 - 在没有测试数据接口时，提供可复现、可分页、无需全量落盘的大规模模拟接口。
 - 页面布局、报表、知识库、历史会话和 Fab Copilot 交互保持原样。
-- 数据提供器可替换，后续接入 MES、EDA、FDC、YMS 或 Lakehouse 时不改变上层 API。
+- 数据提供器边界保持可替换，接入 MES、EDA、FDC、YMS 或 Lakehouse 时不改变上层 API。
 - 用户工作区与企业管理控制台分离，模型发布和运行监控不再暴露在用户导航中。
 
 ## 2. 身份边界
@@ -88,27 +88,14 @@ def page(entity: str, principal: Principal, limit: int, cursor: str | None, filt
 - 每页最多 500 行；Agent 优先读取聚合结果，不把原始大页直接塞入模型上下文。
 - 对 MES/EDA/FDC 分别设置超时、熔断、重试和限流，失败时返回数据源级错误，不静默混用模拟数据。
 
-## 5. 分阶段演进
+## 5. 任务跟踪
 
-### 当前阶段：模块化单体
+本文只维护企业数据边界、模拟契约和提供器替换原则，不重复维护演进任务状态。相关任务统一记录在：
 
-- FastAPI 保持现有路由。
-- SQLite 部门库继续支撑页面报表、知识和会话。
-- 虚拟提供器支撑大数据接口及权限、分页、Agent 工具测试。
-
-### 数据增长阶段
-
-- 会话、租户、ACL 和知识元数据迁移到 PostgreSQL。
-- 对象存储保存原始知识文件，任务队列负责解析、OCR、分块和重建索引。
-- 制造事实表进入 ClickHouse、Iceberg 或企业 Lakehouse，按租户、事件日期和制程站点分区。
-- RAG 按 `docs/knowledge-base-rag-architecture.md` 中的数据量级方案迁移到 PostgreSQL/pgvector 或独立混合检索集群。
-
-### 多工厂生产阶段
-
-- OIDC/企业 SSO、RBAC 与文档 ACL 成为强制前置条件。
-- API Gateway、审计日志、密钥管理、数据保留和删除策略纳入平台治理。
-- Agent 工具改为聚合查询服务，原始数据访问采用短期授权和行列级策略。
-- 使用离线黄金集、租户隔离测试、数据漂移检测和线上反馈持续评估检索与回答质量。
+- [企业数据 TODO](todos/enterprise-data.md)
+- [身份与权限 TODO](todos/identity-security.md)
+- [RAG 与知识库 TODO](todos/rag-knowledge.md)
+- [部署与服务拆分 TODO](todos/deployment-architecture.md)
 
 ## 6. 运行隔离
 

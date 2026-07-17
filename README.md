@@ -24,7 +24,7 @@
 - 全 API 请求使用 `request_id` 串联 HTTP、会话、Agent、模型和工具日志，错误响应提供稳定错误码和可重试标记
 - 68 个知识章节与 17 个固定格式历史案例
 - SQLite FTS5 trigram 双来源 RAG，支持中文检索与引用跳转
-- 个人知识库支持私有文件上传、异步解析、分块索引、Agent 三路融合检索、来源跳转、下载、重试和完整删除；OCR 暂未实现
+- 个人知识库支持私有文件上传、异步解析、分块索引、Agent 三路融合检索、来源跳转、下载、重试和完整删除；扫描件会明确返回 `OCR_REQUIRED`
 - DeepSeek 不可用时自动提供本地规则分析
 
 > 所有数据和知识文档均为演示用途，不代表真实工厂或量产规范。公开数据只用于校准数据形态和统计特征，具体配方、规格与根因均为可复现合成内容。
@@ -194,7 +194,7 @@ conda run -n fab-insight-agent python -m scripts.manage_databases checkpoint
 
 ## 知识库与历史案例库
 
-个人知识库、权限隔离、上传处理，以及从 SQLite/FTS5、PostgreSQL/pgvector 到独立向量与全文检索集群的分级 RAG 方案，见 [个人知识库与分级 RAG 架构设计](docs/knowledge-base-rag-architecture.md)。第一期上传与检索接口及网页入口已经实现；在“知识库”页面可切换到“我的知识”，上传、查看处理进度、预览、下载、重试或删除个人文档。个人知识不共享，OCR 仍为待做能力。
+个人知识库、权限隔离、上传处理，以及从 SQLite/FTS5、PostgreSQL/pgvector 到独立向量与全文检索集群的分级 RAG 方案，见 [个人知识库与分级 RAG 架构设计](docs/knowledge-base-rag-architecture.md)。当前网页可在“知识库”页面切换到“我的知识”，上传、查看处理进度、预览、下载、重试或删除个人文档。个人知识不共享；实现状态统一维护在 [RAG 与知识库 TODO](docs/todos/rag-knowledge.md)。
 
 当前样例尚未接入正式登录系统，个人知识所有者由服务端 `FAB_PERSONAL_KNOWLEDGE_USER_ID` 决定，客户端不能传入或修改所有者。配置 `FAB_PERSONAL_KNOWLEDGE_API_TOKEN` 后，个人知识接口必须携带对应 Bearer Token；留空时仅适合本机单用户开发。
 

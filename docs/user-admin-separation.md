@@ -54,10 +54,11 @@ GET   /api/monitor/events
 
 管理端把内存实时状态与 AI 运营库中的会话、Agent Runs、耗时和 Token 统计合并。进程重启后实时状态会清空，但已完成运行仍可从数据库恢复；生产多实例部署时应把实时状态迁移到 Redis 或事件流。
 
-## 5. 生产演进约束
+## 5. 任务跟踪
 
-- 使用 OIDC/SSO 和 RBAC 代替请求头身份与静态管理令牌。
-- API Key 进入企业 Secret Manager，由后台模型目录保存受管凭据引用，用户端始终不接触密钥。
-- 模型发布增加审批、连通性测试、工具调用兼容测试、限额和灰度范围。
-- 运行状态通过 Redis、Kafka 或 OpenTelemetry 汇聚，避免单进程内存视图。
-- 管理 API 与用户 API 使用不同网关路由、审计策略和网络访问控制。
+本文只维护用户端与管理端的职责、认证和数据边界，不重复维护生产化任务状态。相关任务统一记录在：
+
+- [身份与权限 TODO](todos/identity-security.md)
+- [模型治理 TODO](todos/model-governance.md)
+- [日志与运行监控 TODO](todos/observability.md)
+- [部署与服务拆分 TODO](todos/deployment-architecture.md)
