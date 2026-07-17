@@ -1,4 +1,4 @@
-const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, selectedSessionIds: new Set(), sessionBatchMode: false, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionIds: [], toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, enterpriseContext: null, knowledgeMode: 'factory', knowledgeDocuments: [], knowledgeIndexPromise: null, personalKnowledgeDocuments: [], selectedPersonalDocumentId: null, selectedPersonalDocument: null, personalKnowledgeRequestId: 0, personalKnowledgePollTimer: null, pendingPersonalDeleteId: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
+const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, selectedSessionIds: new Set(), sessionBatchMode: false, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionIds: [], toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', modelConfig: null, enterpriseContext: null, knowledgeMode: 'factory', knowledgeDocuments: [], knowledgeIndexPromise: null, personalKnowledgeDocuments: [], selectedPersonalDocumentId: null, selectedPersonalDocument: null, personalKnowledgeRequestId: 0, personalKnowledgePollTimer: null, pendingPersonalDeleteId: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
 const $ = (selector) => document.querySelector(selector);
 const AGENT_WIDTH_KEY = 'fabInsightAgentWidth';
 const CHAT_DRAFT_KEY = 'fabInsightChatDraft';
@@ -493,11 +493,13 @@ async function openHistoricalCase(caseId) {
 
 function renderModelConfig(config) {
   state.modelConfig = config;
-  $('#activeModelLabel').textContent = config.model;
-  $('#agentMode').textContent = `${config.model} · 工具分析`;
+  const activeLabel = config.display_name || config.model;
+  $('#activeModelLabel').textContent = activeLabel;
+  $('#agentMode').textContent = `${activeLabel} · 工具分析`;
   $('#apiKeyState').textContent = config.api_key_configured ? `已配置 ${config.api_key_masked}` : '尚未配置 API Key';
   const select = $('#modelSelect');
-  select.innerHTML = config.allowed_models.map(model => `<option value="${escapeHtml(model)}" ${model === config.model ? 'selected' : ''}>${escapeHtml(model)}</option>`).join('');
+  const options = config.model_options?.length ? config.model_options : config.allowed_models.map(model => ({model_id:model, display_name:model, provider_model:model}));
+  select.innerHTML = options.map(model => `<option value="${escapeHtml(model.model_id)}" ${model.model_id === config.model ? 'selected' : ''}>${escapeHtml(model.display_name)} · ${escapeHtml(model.provider_model)}</option>`).join('');
 }
 
 async function loadModelConfig() {
@@ -523,8 +525,8 @@ async function saveModelSettings(event) {
   try {
     const config = await api('/api/settings/model', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
     renderModelConfig(config); $('#apiKeyInput').value = '';
-    message.textContent = `已切换到 ${config.model}`; message.classList.remove('error'); message.hidden = false;
-    updateSystemStatus(config.model);
+    message.textContent = `已切换到 ${config.display_name || config.model}`; message.classList.remove('error'); message.hidden = false;
+    updateSystemStatus(config.display_name || config.model);
     window.setTimeout(() => $('#modelDialog').open && $('#modelDialog').close(), 700);
   } catch (error) {
     message.textContent = error.message; message.classList.add('error'); message.hidden = false;
@@ -1143,33 +1145,6 @@ async function streamAgent(message, clientMessageId, onProgress) {
   return finalResult;
 }
 
-async function loadMonitor() {
-  const hours = $('#monitorHours').value;
-  try {
-    const data = await api(`/api/monitor/summary?hours=${hours}&recent_limit=30`);
-    const items = [
-      ['Agent 运行', data.runs, '次', `${data.success_runs} 成功 / ${data.failed_runs} 失败`],
-      ['成功率', data.success_rate_pct ?? '—', data.success_rate_pct == null ? '' : '%', '完成运行统计'],
-      ['平均耗时', data.avg_duration_ms == null ? '—' : (data.avg_duration_ms / 1000).toFixed(2), data.avg_duration_ms == null ? '' : 's', `P95 ${formatDuration(data.p95_duration_ms)}`],
-      ['模型 Token', data.input_tokens + data.output_tokens, '', `输入 ${formatNumber(data.input_tokens)} / 输出 ${formatNumber(data.output_tokens)}`],
-      ['工具调用', data.tool_calls, '次', `${data.model_calls} 次模型请求`],
-    ];
-    $('#monitorKpis').innerHTML = items.map(([label,value,unit,meta]) => `<div class="kpi"><span class="kpi-label">${label}</span><span class="kpi-value">${formatNumber(value)}<span class="kpi-unit">${unit}</span></span><span class="kpi-meta">${meta}</span></div>`).join('');
-    $('#recentRunsBody').innerHTML = data.recent_runs.map(run => {
-      const success = run.status === 'success';
-      const localTime = new Date(run.timestamp).toLocaleString('zh-CN', {hour12:false});
-      return `<tr><td>${localTime}</td><td title="${run.run_id}"><code>${run.run_id.slice(0,8)}</code></td><td><span class="status-pill ${success ? 'status-healthy' : 'status-critical'}">${success ? '成功' : '失败'}</span></td><td>${escapeHtml(run.mode || '—')}</td><td>${formatDuration(run.duration_ms)}</td><td>${run.tool_count ?? 0}</td></tr>`;
-    }).join('') || '<tr><td colspan="6">当前时间范围内尚无 Agent 运行记录</td></tr>';
-    const max = Math.max(...data.tool_usage.map(item => item.count), 1);
-    $('#toolUsage').innerHTML = data.tool_usage.map(item => `<div class="bar-row"><span class="bar-label" title="${escapeHtml(item.tool)}">${escapeHtml(item.tool)}</span><span class="bar-track"><span class="bar-fill" style="width:${item.count/max*100}%;background:#087f70"></span></span><span class="bar-value">${item.count}</span></div>`).join('') || '<p class="empty">尚无工具调用记录</p>';
-    $('#logPath').textContent = data.log_path;
-    $('#monitorWindow').textContent = `最近 ${hours} 小时 · 每 30 秒自动刷新`;
-    $('#monitorUpdated').textContent = `更新于 ${new Date().toLocaleTimeString('zh-CN',{hour12:false})}`;
-  } catch (error) {
-    $('#recentRunsBody').innerHTML = `<tr><td colspan="6">监控数据加载失败：${escapeHtml(error.message)}</td></tr>`;
-  }
-}
-
 function renderAssistantInto(el, content, extra = {}) {
   const sourceReferences = new Map();
   for (const source of (extra.sources || [])) {
@@ -1282,7 +1257,6 @@ function showView(name) {
   else if (name === 'knowledge') state.knowledgeMode === 'personal' ? loadPersonalKnowledgeDocuments() : loadKnowledgeIndex();
   else if (name === 'cases') loadCaseIndex();
   else if (name === 'sessions') loadSessionLibrary();
-  else if (name === 'monitor') loadMonitor();
   else requestAnimationFrame(() => state.dashboard && drawYieldChart(state.dashboard.yield_trend));
 }
 
@@ -1406,14 +1380,14 @@ async function init() {
   try {
     const [health, modelConfig] = await Promise.all([api('/api/health'), loadModelConfig()]);
     state.enterpriseContext = health.enterprise || null;
-    updateSystemStatus(modelConfig.api_key_configured ? modelConfig.model : '离线模式');
+    updateSystemStatus(modelConfig.api_key_configured ? (modelConfig.display_name || modelConfig.model) : '离线模式');
     handleBuildVersion(health.build);
   } catch { $('#systemStatus').textContent='数据源不可用'; }
   await loadDashboard();
   await restoreConversation();
   setAgentOpen(true, false);
   const requestedView = new URLSearchParams(window.location.search).get('view');
-  if (['dashboard', 'capability', 'knowledge', 'cases', 'sessions', 'monitor'].includes(requestedView)) showView(requestedView);
+  if (['dashboard', 'capability', 'knowledge', 'cases', 'sessions'].includes(requestedView)) showView(requestedView);
   $('#dateForm').addEventListener('submit', e => { e.preventDefault(); state.capabilityCache.clear(); loadDashboard(); if ($('#capabilityView').classList.contains('active')) loadCapability(); });
   document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
   $('#focusAgent').addEventListener('click', toggleAgentPanel);
@@ -1422,8 +1396,6 @@ async function init() {
   $('#sessionHistoryButton').addEventListener('click', () => state.activeView === 'sessions' ? closeSessionLibraryWorkspace() : openSessionLibraryWorkspace());
   $('#closeSessionLibrary').addEventListener('click', closeSessionLibraryWorkspace);
   $('#stepSelector').addEventListener('click', e => { if (!e.target.dataset.step) return; document.querySelectorAll('#stepSelector button').forEach(b=>b.classList.remove('active')); e.target.classList.add('active'); loadCapability(e.target.dataset.step); });
-  $('#refreshMonitor').addEventListener('click', loadMonitor);
-  $('#monitorHours').addEventListener('change', loadMonitor);
   let knowledgeSearchTimer = null;
   $('#knowledgeFilter').addEventListener('input', event => {
     window.clearTimeout(knowledgeSearchTimer);
@@ -1577,7 +1549,6 @@ async function init() {
     restoreAgentPanelWidth();
     state.dashboard && drawYieldChart(state.dashboard.yield_trend);
   });
-  state.monitorTimer = window.setInterval(() => $('#monitorView').classList.contains('active') && loadMonitor(), 30000);
 }
 
 document.addEventListener('DOMContentLoaded', init);

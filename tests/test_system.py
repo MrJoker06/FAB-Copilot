@@ -70,11 +70,29 @@ class FabInsightTests(unittest.TestCase):
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("/static/app.js?v=20260717-2", page)
+        self.assertIn("/static/app.js?v=20260717-3", page)
+        self.assertNotIn('id="monitorView"', page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")
         self.assertIn("scrollbar-gutter: stable", styles)
         script = (Path(__file__).parents[1] / "app" / "static" / "app.js").read_text(encoding="utf-8")
         self.assertIn("data-personal-chunk", script)
+
+    def test_admin_frontend_is_separate_from_user_workspace(self):
+        with TestClient(app) as client:
+            response = client.get("/admin")
+        self.assertEqual(response.status_code, 200)
+        for element_id in (
+            "adminAuthDialog",
+            "runtimeView",
+            "userStatusBody",
+            "modelsView",
+            "publishModelDialog",
+        ):
+            self.assertIn(f'id="{element_id}"', response.text)
+        self.assertIn("/static/admin.js?v=20260717-3", response.text)
+        script = (Path(__file__).parents[1] / "app" / "static" / "admin.js").read_text(encoding="utf-8")
+        self.assertIn("/api/admin/overview", script)
+        self.assertIn("/api/admin/models", script)
 
     def test_seeded_cvd_drift_is_detectable(self):
         capability = process_capability(process_step="CVD")
@@ -640,8 +658,12 @@ class FabInsightTests(unittest.TestCase):
             self.assertNotIn("database secret detail", response.text)
 
     def test_monitor_endpoint_is_sanitized(self):
-        with TestClient(app) as client:
-            response = client.get("/api/monitor/summary?hours=24")
+        with patch.dict(os.environ, {"FAB_ADMIN_API_TOKEN": "monitor-admin-token"}), TestClient(app) as client:
+            self.assertEqual(client.get("/api/monitor/summary?hours=24").status_code, 401)
+            response = client.get(
+                "/api/monitor/summary?hours=24",
+                headers={"Authorization": "Bearer monitor-admin-token"},
+            )
             self.assertEqual(response.status_code, 200)
             payload = response.json()
             self.assertIn("runs", payload)
@@ -652,6 +674,7 @@ class FabInsightTests(unittest.TestCase):
             initial = client.get("/api/settings/model")
             self.assertEqual(initial.status_code, 200)
             self.assertEqual(initial.json()["allowed_models"], ["deepseekv4-flash", "deepseekv4-pro"])
+            self.assertEqual(len(initial.json()["model_options"]), 2)
             response = client.post("/api/settings/model", json={
                 "model": "deepseekv4-pro",
                 "api_key": "test-secret-api-key",
@@ -661,6 +684,87 @@ class FabInsightTests(unittest.TestCase):
             self.assertEqual(response.json()["provider_model"], "deepseek-v4-pro")
             self.assertNotIn("test-secret-api-key", response.text)
             client.post("/api/settings/model", json={"model": "deepseekv4-flash"})
+
+    def test_admin_can_publish_model_and_user_selection_is_scoped(self):
+        model_id = "enterprise-test-model"
+        admin_token = "enterprise-admin-token"
+        with db_session() as connection:
+            connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
+            connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
+            connection.commit()
+        try:
+            with patch.dict(os.environ, {"FAB_ADMIN_API_TOKEN": admin_token}), TestClient(app) as client:
+                self.assertEqual(client.get("/api/admin/models").status_code, 401)
+                admin_headers = {"Authorization": f"Bearer {admin_token}"}
+                published = client.post(
+                    "/api/admin/models",
+                    headers=admin_headers,
+                    json={
+                        "model_id": model_id,
+                        "display_name": "Enterprise Test Model",
+                        "provider": "openai-compatible",
+                        "provider_model": "enterprise-test-v1",
+                        "base_url": "https://models.example.test/v1",
+                        "capabilities": {"streaming": True, "tool_calls": True},
+                    },
+                )
+                self.assertEqual(published.status_code, 201, published.text)
+                self.assertEqual(published.json()["status"], "published")
+                invalid = client.post(
+                    "/api/admin/models",
+                    headers=admin_headers,
+                    json={
+                        "model_id": "invalid-blank-name",
+                        "display_name": "  ",
+                        "provider": "openai-compatible",
+                        "provider_model": "enterprise-test-v1",
+                        "base_url": "https://models.example.test/v1",
+                    },
+                )
+                self.assertEqual(invalid.status_code, 400, invalid.text)
+
+                user_a = {"X-Tenant-ID": "model-fab", "X-User-ID": "user-a"}
+                user_b = {"X-Tenant-ID": "model-fab", "X-User-ID": "user-b"}
+                catalog = client.get("/api/settings/model", headers=user_a)
+                self.assertIn(model_id, catalog.json()["allowed_models"])
+                selected = client.post(
+                    "/api/settings/model",
+                    headers=user_a,
+                    json={"model": model_id, "api_key": "user-a-private-key"},
+                )
+                self.assertEqual(selected.status_code, 200, selected.text)
+                self.assertEqual(selected.json()["model"], model_id)
+                self.assertEqual(selected.json()["api_key_source"], "user_runtime")
+                self.assertNotIn("user-a-private-key", selected.text)
+                self.assertNotEqual(client.get("/api/settings/model", headers=user_b).json()["model"], model_id)
+
+                captured = {}
+
+                async def fake_model_stream(client_session, endpoint, headers, request_payload, progress, stream_state):
+                    captured.update({"endpoint": endpoint, "headers": headers, "payload": request_payload})
+                    return ({"role": "assistant", "content": "模型作用域验证完成"}, {"total_tokens": 3}, "response-model-scope")
+
+                with patch("app.agent._stream_completion", new=fake_model_stream):
+                    chat_response = client.post("/api/chat", headers=user_a, json={"message": "验证当前模型"})
+                self.assertEqual(chat_response.status_code, 200, chat_response.text)
+                self.assertEqual(captured["payload"]["model"], "enterprise-test-v1")
+                self.assertEqual(captured["endpoint"], "https://models.example.test/v1/chat/completions")
+                self.assertEqual(captured["headers"]["Authorization"], "Bearer user-a-private-key")
+                client.delete(f"/api/sessions/{chat_response.json()['session_id']}/permanent", headers=user_a)
+
+                client.post("/api/settings/model", headers=user_a, json={"model": "deepseekv4-flash"})
+                retired = client.patch(
+                    f"/api/admin/models/{model_id}",
+                    headers=admin_headers,
+                    json={"status": "retired"},
+                )
+                self.assertEqual(retired.status_code, 200, retired.text)
+                self.assertNotIn(model_id, client.get("/api/settings/model", headers=user_a).json()["allowed_models"])
+        finally:
+            with db_session() as connection:
+                connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
+                connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
+                connection.commit()
 
     def test_unknown_model_is_rejected(self):
         with TestClient(app) as client:
@@ -803,6 +907,46 @@ class FabInsightTests(unittest.TestCase):
             self.assertEqual([item["role"] for item in restored["messages"]], ["user", "assistant"])
             self.assertEqual(restored["messages"][1]["metadata"]["run_id"], "run-test")
             client.delete(f"/api/sessions/{created['session_id']}")
+
+    def test_admin_overview_tracks_user_agent_runtime(self):
+        async def fake_agent(question, history, progress=None):
+            await progress({"event": "run_started", "run_id": "run-admin-runtime", "message": "分析任务已创建"})
+            await progress({"event": "answer_delta", "delta": "完成"})
+            return {
+                "answer": "运行状态测试完成",
+                "tool_trace": [],
+                "sources": [],
+                "mode": "test",
+                "model": "runtime-test-model",
+                "run_id": "run-admin-runtime",
+            }
+
+        admin_token = "runtime-admin-token"
+        user_headers = {"X-Tenant-ID": "runtime-fab", "X-User-ID": "operator-01"}
+        with (
+            patch.dict(os.environ, {"FAB_ADMIN_API_TOKEN": admin_token}),
+            patch("app.main.run_agent", new=fake_agent),
+            TestClient(app) as client,
+        ):
+            response = client.post("/api/chat/stream", headers=user_headers, json={"message": "检查运行状态"})
+            self.assertEqual(response.status_code, 200, response.text)
+            events = [json.loads(line) for line in response.text.splitlines() if line]
+            session_id = next(item["session_id"] for item in events if item["type"] == "session")
+            overview = client.get(
+                "/api/admin/overview?hours=24",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+            self.assertEqual(overview.status_code, 200, overview.text)
+            user = next(
+                item for item in overview.json()["users"]
+                if item["tenant_id"] == "runtime-fab" and item["user_id"] == "operator-01"
+            )
+            self.assertEqual(user["status"], "idle")
+            self.assertEqual(user["active_runs"], 0)
+            self.assertEqual(user["model"], "runtime-test-model")
+            self.assertGreaterEqual(user["run_count"], 1)
+            self.assertTrue(any(item["run_id"] == "run-admin-runtime" for item in overview.json()["recent_runs"]))
+            client.delete(f"/api/sessions/{session_id}/permanent", headers=user_headers)
 
     def test_stream_retry_with_same_client_message_id_is_idempotent(self):
         calls = 0

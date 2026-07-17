@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="app-version" content="20260717-3">
+  <meta name="description" content="Fab Insight 企业管理控制台">
+  <title>Fab Insight Admin</title>
+  <link rel="stylesheet" href="/static/admin.css?v=20260717-3">
+</head>
+<body>
+  <header class="admin-topbar">
+    <div class="admin-brand"><span class="admin-mark">FI</span><div><strong>Fab Insight</strong><small>企业管理控制台</small></div></div>
+    <div class="admin-top-actions"><span id="adminConnection" class="connection-state"><i></i>未连接</span><button id="adminLogout" class="quiet-button" type="button">退出管理端</button></div>
+  </header>
+
+  <div class="admin-shell">
+    <aside class="admin-sidebar" aria-label="管理导航">
+      <button class="admin-nav active" data-admin-view="runtime" type="button"><span aria-hidden="true">◉</span><span>运行状态</span></button>
+      <button class="admin-nav" data-admin-view="models" type="button"><span aria-hidden="true">▤</span><span>模型目录</span></button>
+      <div class="admin-sidebar-meta"><span>PLATFORM OPS</span><small id="adminBuild">等待连接</small></div>
+    </aside>
+
+    <main class="admin-main">
+      <section id="runtimeView" class="admin-view active">
+        <div class="admin-page-heading">
+          <div><p class="admin-eyebrow">AGENT OPERATIONS</p><h1>用户运行状态</h1><p id="runtimeWindow">最近 24 小时</p></div>
+          <div class="runtime-controls"><select id="runtimeHours" aria-label="统计时间范围"><option value="1">最近 1 小时</option><option value="24" selected>最近 24 小时</option><option value="168">最近 7 天</option><option value="720">最近 30 天</option></select><button id="refreshRuntime" class="primary-button" type="button">刷新</button></div>
+        </div>
+        <div id="adminNotice" class="admin-notice" role="status" hidden></div>
+        <div id="runtimeKpis" class="admin-kpis"></div>
+        <section class="admin-panel user-status-panel">
+          <div class="panel-heading"><div><h2>用户状态</h2><p>当前活动与窗口期运行汇总</p></div><span id="runtimeUpdated" class="panel-meta"></span></div>
+          <div class="admin-table-wrap"><table><thead><tr><th>租户 / 用户</th><th>状态</th><th>当前模型</th><th>会话</th><th>运行</th><th>成功率</th><th>Token</th><th>最近活动</th></tr></thead><tbody id="userStatusBody"></tbody></table></div>
+        </section>
+        <section class="admin-panel recent-run-panel">
+          <div class="panel-heading"><div><h2>最近运行</h2><p>按完成时间倒序</p></div></div>
+          <div class="admin-table-wrap"><table><thead><tr><th>完成时间</th><th>租户 / 用户</th><th>会话</th><th>模型</th><th>状态</th><th>耗时</th><th>Token</th></tr></thead><tbody id="recentAdminRuns"></tbody></table></div>
+        </section>
+      </section>
+
+      <section id="modelsView" class="admin-view">
+        <div class="admin-page-heading">
+          <div><p class="admin-eyebrow">MODEL GOVERNANCE</p><h1>模型目录</h1><p>面向用户端的可选模型</p></div>
+          <button id="openPublishModel" class="primary-button" type="button">＋ 发布模型</button>
+        </div>
+        <div id="modelNotice" class="admin-notice" role="status" hidden></div>
+        <section class="admin-panel model-catalog-panel">
+          <div class="panel-heading"><div><h2>模型版本</h2><p id="modelCatalogCount">正在加载</p></div><button id="refreshModels" class="quiet-button" type="button">刷新</button></div>
+          <div class="admin-table-wrap"><table><thead><tr><th>显示名称</th><th>模型编号</th><th>提供方</th><th>Provider Model</th><th>使用用户</th><th>状态</th><th>发布时间</th><th>操作</th></tr></thead><tbody id="modelCatalogBody"></tbody></table></div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="adminAuthDialog" class="admin-dialog auth-dialog">
+    <form id="adminAuthForm">
+      <div class="dialog-heading"><div><p class="admin-eyebrow">ADMIN ACCESS</p><h2>连接管理端</h2></div></div>
+      <div class="dialog-body"><label for="adminToken">管理访问令牌</label><input id="adminToken" type="password" autocomplete="off" required><div id="adminAuthMessage" class="form-message" role="alert" hidden></div></div>
+      <div class="dialog-actions"><a class="quiet-button link-button" href="/">返回用户端</a><button class="primary-button" type="submit">连接</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="publishModelDialog" class="admin-dialog publish-dialog">
+    <form id="publishModelForm">
+      <div class="dialog-heading"><div><p class="admin-eyebrow">PUBLISH MODEL</p><h2>发布新模型</h2></div><button id="closePublishModel" class="icon-button" type="button" aria-label="关闭">×</button></div>
+      <div class="dialog-body model-form-grid">
+        <label><span>显示名称</span><input id="publishDisplayName" type="text" maxlength="100" required></label>
+        <label><span>模型编号</span><input id="publishModelId" type="text" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9_.-]+" required></label>
+        <label><span>提供方</span><select id="publishProvider"><option value="deepseek">DeepSeek</option><option value="openai-compatible">OpenAI Compatible</option></select></label>
+        <label><span>Provider Model</span><input id="publishProviderModel" type="text" maxlength="120" required></label>
+        <label class="full-field"><span>API Base URL</span><input id="publishBaseUrl" type="url" maxlength="500" value="https://api.deepseek.com" required></label>
+        <div class="capability-options full-field"><label><input id="publishStreaming" type="checkbox" checked> Streaming</label><label><input id="publishToolCalls" type="checkbox" checked> Tool calls</label></div>
+        <div id="publishModelMessage" class="form-message full-field" role="alert" hidden></div>
+      </div>
+      <div class="dialog-actions"><button id="cancelPublishModel" class="quiet-button" type="button">取消</button><button id="confirmPublishModel" class="primary-button" type="submit">发布</button></div>
+    </form>
+  </dialog>
+
+  <div id="adminToast" class="admin-toast" role="status" hidden></div>
+  <script src="/static/admin.js?v=20260717-3" defer></script>
+</body>
+</html>

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import os
-import threading
 from dataclasses import dataclass
 from pathlib import Path
 
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 WORKSPACE_DIR = PROJECT_DIR.parent.parent
-APP_VERSION = "20260717-2"
+APP_VERSION = "20260717-3"
 
 
 def _load_env(path: Path) -> None:
@@ -33,11 +32,9 @@ MODEL_API_NAMES = {
     "deepseekv4-flash": "deepseek-v4-flash",
     "deepseekv4-pro": "deepseek-v4-pro",
 }
-_runtime_lock = threading.Lock()
-_runtime_api_key: str | None = None
 _configured_model = os.getenv("DEEPSEEK_MODEL", "")
 _configured_alias = next((alias for alias, api_name in MODEL_API_NAMES.items() if api_name == _configured_model), _configured_model)
-_runtime_model = _configured_alias if _configured_alias in ALLOWED_MODELS else ALLOWED_MODELS[0]
+_default_model = _configured_alias if _configured_alias in ALLOWED_MODELS else ALLOWED_MODELS[0]
 
 
 @dataclass(frozen=True)
@@ -66,6 +63,7 @@ class Settings:
     enterprise_mock_seed: int
     enterprise_mock_virtual_lots: int
     enterprise_mock_cursor_secret: str
+    admin_api_token: str
 
 
 def get_settings() -> Settings:
@@ -82,9 +80,8 @@ def get_settings() -> Settings:
         value = os.getenv(variable)
         path = Path(value) if value else database_dir / filename
         return path if path.is_absolute() else PROJECT_DIR / path
-    with _runtime_lock:
-        api_key = _runtime_api_key if _runtime_api_key is not None else os.getenv("DEEPSEEK_API_KEY", "")
-        model = MODEL_API_NAMES[_runtime_model]
+    api_key = os.getenv("DEEPSEEK_API_KEY", "")
+    model = MODEL_API_NAMES[_default_model]
     personal_storage = Path(os.getenv("FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH", "data/personal_knowledge"))
     if not personal_storage.is_absolute():
         personal_storage = PROJECT_DIR / personal_storage
@@ -120,35 +117,5 @@ def get_settings() -> Settings:
         enterprise_mock_virtual_lots=max(100_000, int(os.getenv("FAB_MOCK_VIRTUAL_LOTS", "25000000"))),
         enterprise_mock_cursor_secret=os.getenv("FAB_MOCK_CURSOR_SECRET", "fab-insight-local-demo-secret").strip()
         or "fab-insight-local-demo-secret",
+        admin_api_token=os.getenv("FAB_ADMIN_API_TOKEN", "").strip(),
     )
-
-
-def update_model_config(model: str, api_key: str | None = None) -> dict:
-    if model not in ALLOWED_MODELS:
-        raise ValueError(f"不支持的模型: {model}")
-    cleaned_key = api_key.strip() if api_key is not None else None
-    if cleaned_key is not None and len(cleaned_key) < 8:
-        raise ValueError("API Key 长度不能少于 8 个字符")
-    global _runtime_api_key, _runtime_model
-    with _runtime_lock:
-        _runtime_model = model
-        if cleaned_key:
-            _runtime_api_key = cleaned_key
-    return public_model_config()
-
-
-def public_model_config() -> dict:
-    with _runtime_lock:
-        key = _runtime_api_key if _runtime_api_key is not None else os.getenv("DEEPSEEK_API_KEY", "")
-        source = "runtime" if _runtime_api_key is not None else ("environment" if key else "none")
-        model = _runtime_model
-    masked = f"••••••••{key[-4:]}" if len(key) >= 4 else ""
-    return {
-        "model": model,
-        "provider_model": MODEL_API_NAMES[model],
-        "allowed_models": list(ALLOWED_MODELS),
-        "api_key_configured": bool(key),
-        "api_key_masked": masked,
-        "api_key_source": source,
-        "persistence": "process_memory",
-    }

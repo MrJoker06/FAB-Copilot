@@ -1,6 +1,6 @@
 # Fab Insight Agent
 
-一个可运行的虚拟半导体制造报表系统，包含 24 个月历史数据、制造 KPI、制程能力分析、设备异常检测、知识库 RAG，以及通过 DeepSeek 工具调用驱动的数据分析 Agent。
+一个可运行的虚拟半导体制造报表系统，包含 24 个月历史数据、制造 KPI、制程能力分析、设备异常检测、知识库 RAG，以及通过 OpenAI 兼容模型工具调用驱动的数据分析 Agent。
 
 ## 已实现能力
 
@@ -8,6 +8,8 @@
 - 企业模拟数据适配器按签名游标提供 2,500 万虚拟批次、4.5 亿工序和 36 亿传感器事件，无需在本地物化全部记录
 - 企业聚合接口按租户、日期、制程和设备返回确定性投影 KPI、风险排序及数据血缘，Agent 不再从明细样本外推全量结论
 - 请求级租户与用户上下文隔离个人知识和历史会话；默认演示身份兼容现有单用户页面
+- 用户端与管理端分离：用户端保留个人知识上传和模型选择，管理端集中查看用户运行状态、运行记录并发布或停用模型
+- 模型目录和用户偏好持久化到 AI 运营库；用户 API Key 按租户/用户隔离且只保存在当前服务进程内存
 - 综合良率、周期时间、Hold、异常数等 KPI
 - 周良率趋势、设备健康、缺陷 Pareto、近期异常批次
 - 覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗和量测，各站点按自身关键量测与规格计算 Cpk
@@ -68,6 +70,7 @@ FAB_REQUIRE_IDENTITY=false
 FAB_MOCK_SEED=20260717
 FAB_MOCK_VIRTUAL_LOTS=25000000
 FAB_MOCK_CURSOR_SECRET=replace-with-a-long-random-secret
+FAB_ADMIN_API_TOKEN=replace-with-a-long-random-admin-token
 ```
 
 在 WSL 中运行：
@@ -90,18 +93,19 @@ run.bat
 
 `run.bat` 是 Windows 入口，会通过 `wsl.exe` 调用 `run.sh`，实际运行时仍使用 WSL 中的 `fab-insight-agent` Conda 环境；Windows 端不需要另外安装 Python 或项目依赖。
 
-本并行方案默认使用独立端口。浏览器访问 <http://127.0.0.1:8876>，接口文档位于 <http://127.0.0.1:8876/docs>。
+本并行方案默认使用独立端口。用户端访问 <http://127.0.0.1:8876>，管理端访问 <http://127.0.0.1:8876/admin>，接口文档位于 <http://127.0.0.1:8876/docs>。
 
 企业模拟数据接口、租户请求头和真实数据源替换契约见 [企业化并行方案](docs/enterprise-transition.md)。
+用户端、管理端、模型发布和管理认证边界见 [用户端与管理端分离设计](docs/user-admin-separation.md)。
 
 ## 模型切换
 
-点击页面右上角的模型按钮，可以更新 API Key，并在以下模型中切换：
+点击用户端右上角的模型按钮，可以更新当前用户的 API Key，并在管理端已发布模型中切换。新数据库默认发布：
 
 - `deepseekv4-flash`
 - `deepseekv4-pro`
 
-界面名称会分别映射到 DeepSeek API 实际要求的 `deepseek-v4-flash` 和 `deepseek-v4-pro`。
+管理员可以在 `/admin` 发布新的 DeepSeek 或 OpenAI Compatible 模型。模型目录持久化保存 `model_id`、显示名称、Provider Model、Base URL、能力与发布状态；停用模型会立即从用户选择列表移除。
 
 也可以直接调用：
 
@@ -117,7 +121,7 @@ POST /api/settings/model
 }
 ```
 
-API Key 只保存在当前服务进程的内存中，响应仅返回掩码，服务重启后重新读取 `.env`。只切换模型时可以省略 `api_key`。服务端使用模型白名单校验，当前样例不接受其他模型名称。
+模型偏好按租户和用户写入 AI 运营库。用户 API Key 只保存在当前服务进程的内存中，响应仅返回掩码；没有用户 Key 时回退到服务端 `.env` 的 `DEEPSEEK_API_KEY`。只切换模型时可以省略 `api_key`。
 
 如独立环境缺少依赖：
 
@@ -142,15 +146,14 @@ conda run -n fab-insight-agent python -m unittest discover -s tests -v
 ## 架构
 
 ```text
-浏览器报表 / 对话 / 知识库 / 案例库
-          |
-       FastAPI
-      /       \
-报表查询工具   DeepSeek Agent loop
-      \       /       |
-  部门数据库联邦   联合 RAG / 受限 SQL
-      |              /             \
-制造/设备/质量库   FTS5 知识库    FTS5 案例库
+用户端 /                  管理端 /admin
+报表·对话·个人知识·模型选择   用户状态·运行记录·模型发布
+            \              /
+                 FastAPI
+              /            \
+       报表与 Agent 工具      管理 API
+              \            /
+        部门数据库联邦 · 模型目录 · 联合 RAG
 ```
 
 Agent 不直接访问数据库连接，而是通过 `app/agent.py` 中声明的工具工作。任意 SQL 仅允许单条 `SELECT`，限制在四张制造数据表并最多返回 100 行；数据库写入、DDL、PRAGMA 和系统表访问均被拒绝。
@@ -165,7 +168,7 @@ Agent 不直接访问数据库连接，而是通过 `app/agent.py` 中声明的�
 | 设备工程 | `equipment_engineering.db` | FDC传感器、SEMI E10状态、设备事件 |
 | 良率质量 | `yield_quality.db` | 缺陷、晶圆图、缺陷标准目录与别名 |
 | 工艺知识管理 | `process_knowledge.db` | 知识文档、章节、历史案例、FTS5索引 |
-| AI运营 | `ai_operations.db` | 会话、消息、Agent运行、工具事件、回答来源 |
+| AI运营 | `ai_operations.db` | 会话、消息、Agent运行、工具事件、回答来源、模型目录、用户模型偏好 |
 
 应用连接会挂载五库并提供只读兼容视图，因此报表与受限SQL仍可使用原有表名。跨部门关系通过启动治理检查验证；各部门库内部继续使用外键和唯一约束。旧单库 `data/fab_history.db` 仅作为迁移源保留，不再承担运行写入。
 

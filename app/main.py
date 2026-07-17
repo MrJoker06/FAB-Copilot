@@ -18,10 +18,18 @@ from starlette.concurrency import run_in_threadpool
 
 from .agent import run_agent
 from .audit import CONTENT_MODE, GIT_COMMIT, current_request_id, emit, monitoring_summary, read_events
-from .config import APP_VERSION, PROJECT_DIR, get_settings, public_model_config, update_model_config
+from .config import APP_VERSION, PROJECT_DIR, get_settings
 from .database import db_session, department_paths, ensure_department_databases
 from .enterprise_data import EnterpriseDataError, get_enterprise_provider
 from .identity import PrincipalContextMiddleware, current_principal
+from .model_registry import (
+    ensure_model_catalog,
+    list_models,
+    public_user_model_config,
+    publish_model,
+    select_user_model,
+    set_model_status,
+)
 from .processes import MANUFACTURING_STEPS, PROCESS_STEP_PATTERN
 from .personal_knowledge import (
     PersonalDocumentPatch,
@@ -49,6 +57,7 @@ from .rag import (
     search_knowledge,
 )
 from .reports import process_capability, report_bundle
+from .runtime_status import admin_runtime_overview, begin_agent_run, finish_agent_run
 from .seed import generate_database, seed_reference_data
 from .sessions import (
     append_message,
@@ -70,6 +79,7 @@ from .sessions import (
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     ensure_department_databases()
+    ensure_model_catalog()
     with db_session() as connection:
         populated_steps = {
             row[0]
@@ -173,6 +183,19 @@ class ModelConfigRequest(BaseModel):
     api_key: SecretStr | None = None
 
 
+class AdminModelPublishRequest(BaseModel):
+    model_id: str = Field(min_length=2, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]+$")
+    display_name: str = Field(min_length=2, max_length=100)
+    provider: str = Field(pattern=r"^(deepseek|openai-compatible)$")
+    provider_model: str = Field(min_length=2, max_length=120)
+    base_url: str = Field(min_length=8, max_length=500, pattern=r"^https?://")
+    capabilities: dict[str, bool] = Field(default_factory=lambda: {"streaming": True, "tool_calls": True})
+
+
+class AdminModelStatusRequest(BaseModel):
+    status: str = Field(pattern=r"^(published|retired)$")
+
+
 class SessionUpdateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=80)
 
@@ -207,6 +230,26 @@ def current_personal_user(
     return current_principal().knowledge_owner_id
 
 
+def current_admin(
+    authorization: Annotated[str | None, Header()] = None,
+) -> str:
+    configured_token = get_settings().admin_api_token
+    if not configured_token:
+        raise http_problem(503, "ADMIN_NOT_CONFIGURED", "管理端访问令牌尚未配置", False)
+    scheme, _, provided_token = (authorization or "").partition(" ")
+    if scheme.lower() != "bearer" or not secrets.compare_digest(provided_token, configured_token):
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error_code": "ADMIN_AUTHENTICATION_REQUIRED",
+                "message": "管理端访问令牌无效",
+                "retryable": False,
+            },
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return "administrator"
+
+
 def personal_problem(exc: PersonalKnowledgeError) -> HTTPException:
     return http_problem(exc.status_code, exc.error_code, exc.detail, exc.retryable)
 
@@ -219,10 +262,19 @@ async def index():
     )
 
 
+@app.get("/admin", include_in_schema=False)
+async def admin_index():
+    return FileResponse(
+        PROJECT_DIR / "app" / "static" / "admin.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
+
+
 @app.get("/api/health")
 def health() -> dict:
     settings = get_settings()
     principal = current_principal()
+    model_config = public_user_model_config(principal)
     enterprise = get_enterprise_provider().manifest(principal)
     department_names = {"main": "manufacturing"}
     with db_session() as connection:
@@ -243,8 +295,8 @@ def health() -> dict:
             }
             for name, path in department_paths().items()
         },
-        "model": settings.deepseek_model,
-        "agent_configured": bool(settings.deepseek_api_key),
+        "model": model_config["provider_model"],
+        "agent_configured": model_config["api_key_configured"],
         "build": {"version": APP_VERSION, "git_commit": GIT_COMMIT},
         "reference_data": {"knowledge_chunks": knowledge_chunks, "historical_cases": historical_cases},
         "enterprise": enterprise,
@@ -341,14 +393,14 @@ def enterprise_sensor_events(
 
 @app.get("/api/settings/model")
 def get_model_config() -> dict:
-    return public_model_config()
+    return public_user_model_config()
 
 
 @app.post("/api/settings/model")
 def set_model_config(request: ModelConfigRequest) -> dict:
     api_key = request.api_key.get_secret_value() if request.api_key is not None else None
     try:
-        result = update_model_config(request.model, api_key)
+        result = select_user_model(request.model, api_key)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     emit(
@@ -358,8 +410,79 @@ def set_model_config(request: ModelConfigRequest) -> dict:
         model=result["model"],
         api_key_updated=bool(api_key),
         api_key_source=result["api_key_source"],
+        tenant_id=current_principal().tenant_id,
+        user_id=current_principal().user_id,
     )
     return result
+
+
+@app.get("/api/admin/overview")
+def admin_overview(
+    _: Annotated[str, Depends(current_admin)],
+    hours: int = Query(24, ge=1, le=720),
+    recent_limit: int = Query(30, ge=1, le=100),
+) -> dict:
+    overview = admin_runtime_overview(hours, recent_limit)
+    overview["agent"] = monitoring_summary(hours, recent_limit)
+    overview["build"] = {"version": APP_VERSION, "git_commit": GIT_COMMIT}
+    return overview
+
+
+@app.get("/api/admin/models")
+def admin_models(_: Annotated[str, Depends(current_admin)]) -> list[dict]:
+    return list_models(include_retired=True)
+
+
+@app.post("/api/admin/models", status_code=201)
+def admin_publish_model(
+    request: AdminModelPublishRequest,
+    admin_user: Annotated[str, Depends(current_admin)],
+) -> dict:
+    try:
+        model = publish_model(
+            request.model_id,
+            request.display_name,
+            request.provider,
+            request.provider_model,
+            request.base_url,
+            request.capabilities,
+            admin_user,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 409 if "已经存在" in message else 400
+        raise http_problem(status_code, "MODEL_PUBLICATION_FAILED", message, False) from exc
+    emit(
+        "model_published",
+        f"model-{uuid.uuid4()}",
+        status="success",
+        model_id=model["model_id"],
+        provider=model["provider"],
+        provider_model=model["provider_model"],
+        created_by=admin_user,
+    )
+    return model
+
+
+@app.patch("/api/admin/models/{model_id}")
+def admin_update_model_status(
+    model_id: str,
+    request: AdminModelStatusRequest,
+    admin_user: Annotated[str, Depends(current_admin)],
+) -> dict:
+    try:
+        model = set_model_status(model_id, request.status)
+    except ValueError as exc:
+        raise http_problem(400, "MODEL_STATUS_UPDATE_FAILED", str(exc), False) from exc
+    emit(
+        "model_status_changed",
+        f"model-{uuid.uuid4()}",
+        status="success",
+        model_id=model_id,
+        model_status=request.status,
+        changed_by=admin_user,
+    )
+    return model
 
 
 @app.get("/api/reports/dashboard")
@@ -583,6 +706,9 @@ async def chat(request: ChatRequest) -> dict:
         cached["session_id"] = session_id
         cached["request_id"] = current_request_id()
         return cached
+    principal = current_principal()
+    selected_model = public_user_model_config(principal)["model"]
+    begin_agent_run(principal, session_id, request.message, selected_model)
     try:
         result = await run_agent(request.message, history or [item.model_dump() for item in request.history])
         result["session_id"] = session_id
@@ -590,12 +716,18 @@ async def chat(request: ChatRequest) -> dict:
         result["client_message_id"] = request.client_message_id
         message = append_message(session_id, "assistant", result["answer"], result)
         record_agent_result(session_id, message["message_id"], result)
+        finish_agent_run(principal, "success", str(result.get("run_id") or ""), str(result.get("model") or selected_model))
         return result
     except httpx.HTTPStatusError as exc:
+        finish_agent_run(principal, "error", model=selected_model, error=str(exc))
         detail, retryable = _model_status_error(exc)
         raise http_problem(502, "MODEL_UPSTREAM_ERROR", detail, retryable) from exc
     except httpx.RequestError as exc:
+        finish_agent_run(principal, "error", model=selected_model, error=str(exc))
         raise http_problem(502, "MODEL_NETWORK_ERROR", f"无法连接 DeepSeek API: {exc}", True) from exc
+    except Exception as exc:
+        finish_agent_run(principal, "error", model=selected_model, error=str(exc))
+        raise
 
 
 @app.post("/api/sessions")
@@ -700,6 +832,8 @@ def _model_status_error(exc: httpx.HTTPStatusError) -> tuple[str, bool]:
 @app.post("/api/chat/stream")
 async def chat_stream(request: ChatRequest) -> StreamingResponse:
     session_id, history, cached = _prepare_chat(request)
+    principal = current_principal()
+    selected_model = public_user_model_config(principal)["model"]
 
     async def event_stream():
         yield _stream_line("session", session_id=session_id)
@@ -708,6 +842,8 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             cached["request_id"] = current_request_id()
             yield _stream_line("result", result=cached)
             return
+        begin_agent_run(principal, session_id, request.message, selected_model)
+        activity_finished = False
         queue: asyncio.Queue[dict] = asyncio.Queue()
 
         async def progress(event: dict) -> None:
@@ -728,20 +864,30 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             result["client_message_id"] = request.client_message_id
             message = append_message(session_id, "assistant", result["answer"], result)
             record_agent_result(session_id, message["message_id"], result)
+            finish_agent_run(principal, "success", str(result.get("run_id") or ""), str(result.get("model") or selected_model))
+            activity_finished = True
             yield _stream_line("result", result=result)
         except asyncio.CancelledError:
             task.cancel()
+            finish_agent_run(principal, "error", model=selected_model, error="客户端已断开连接")
+            activity_finished = True
             raise
         except httpx.HTTPStatusError as exc:
+            finish_agent_run(principal, "error", model=selected_model, error=str(exc))
+            activity_finished = True
             detail, retryable = _model_status_error(exc)
             problem = error_payload("MODEL_UPSTREAM_ERROR", detail, retryable)
             emit("api_stream_error", current_request_id() or session_id, status="error", error_type="MODEL_UPSTREAM_ERROR", session_id=session_id, retryable=retryable)
             yield _stream_line("error", detail=detail, error=problem)
         except httpx.RequestError as exc:
+            finish_agent_run(principal, "error", model=selected_model, error=str(exc))
+            activity_finished = True
             detail = f"无法连接 DeepSeek API: {exc}"
             emit("api_stream_error", current_request_id() or session_id, status="error", error_type="MODEL_NETWORK_ERROR", session_id=session_id, retryable=True)
             yield _stream_line("error", detail=detail, error=error_payload("MODEL_NETWORK_ERROR", detail, True))
         except Exception as exc:
+            finish_agent_run(principal, "error", model=selected_model, error=str(exc))
+            activity_finished = True
             detail = f"分析失败: {exc}"
             emit(
                 "api_stream_error",
@@ -756,6 +902,8 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
         finally:
             if not task.done():
                 task.cancel()
+            if not activity_finished:
+                finish_agent_run(principal, "error", model=selected_model, error="Agent 运行未正常完成")
 
     return StreamingResponse(
         event_stream(),
@@ -766,6 +914,7 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
 
 @app.get("/api/monitor/summary")
 def monitor_summary(
+    _: Annotated[str, Depends(current_admin)],
     hours: int = Query(24, ge=1, le=720),
     recent_limit: int = Query(20, ge=1, le=100),
 ) -> dict:
@@ -773,5 +922,8 @@ def monitor_summary(
 
 
 @app.get("/api/monitor/events")
-def monitor_events(limit: int = Query(100, ge=1, le=1000)) -> list[dict]:
+def monitor_events(
+    _: Annotated[str, Depends(current_admin)],
+    limit: int = Query(100, ge=1, le=1000),
+) -> list[dict]:
     return list(reversed(read_events(limit)))

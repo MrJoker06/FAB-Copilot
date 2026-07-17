@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 SCHEMA_METADATA = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -304,6 +304,28 @@ CREATE INDEX IF NOT EXISTS idx_personal_jobs_owner_updated ON personal_knowledge
 
 
 AGENT_SCHEMA = SCHEMA_METADATA + """
+CREATE TABLE IF NOT EXISTS model_catalog (
+    model_id TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    provider_model TEXT NOT NULL,
+    base_url TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('published', 'retired')),
+    capabilities_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(capabilities_json)),
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    published_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS user_model_preferences (
+    tenant_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    model_id TEXT NOT NULL REFERENCES model_catalog(model_id),
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY(tenant_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS chat_sessions (
     session_id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL DEFAULT 'demo-fab',
@@ -367,6 +389,8 @@ CREATE TABLE IF NOT EXISTS message_sources (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, message_id);
+CREATE INDEX IF NOT EXISTS idx_model_catalog_status ON model_catalog(status, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_model_preferences_model ON user_model_preferences(model_id);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated ON chat_sessions(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_owner_updated ON chat_sessions(tenant_id, owner_user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_runs_session ON agent_runs(session_id, completed_at DESC);
@@ -401,6 +425,8 @@ TABLE_DEPARTMENTS = {
     "personal_knowledge_documents": "knowledge",
     "personal_knowledge_chunks": "knowledge",
     "personal_knowledge_jobs": "knowledge",
+    "model_catalog": "agent",
+    "user_model_preferences": "agent",
     "chat_sessions": "agent",
     "chat_messages": "agent",
     "agent_runs": "agent",

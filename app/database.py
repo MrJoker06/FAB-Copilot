@@ -200,6 +200,28 @@ CREATE VIRTUAL TABLE IF NOT EXISTS case_trigram_fts USING fts5(
     tokenize='trigram'
 );
 
+CREATE TABLE IF NOT EXISTS model_catalog (
+    model_id TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    provider_model TEXT NOT NULL,
+    base_url TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('published', 'retired')),
+    capabilities_json TEXT NOT NULL DEFAULT '{}',
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    published_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS user_model_preferences (
+    tenant_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    model_id TEXT NOT NULL REFERENCES model_catalog(model_id),
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY(tenant_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS chat_sessions (
     session_id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL DEFAULT 'demo-fab',
@@ -274,6 +296,8 @@ CREATE INDEX IF NOT EXISTS idx_states_equipment_time ON equipment_state_interval
 CREATE INDEX IF NOT EXISTS idx_wafer_maps_pattern ON wafer_maps(pattern_class, detected_time);
 CREATE INDEX IF NOT EXISTS idx_cases_step_date ON historical_cases(process_step, occurred_date);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, message_id);
+CREATE INDEX IF NOT EXISTS idx_model_catalog_status ON model_catalog(status, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_model_preferences_model ON user_model_preferences(model_id);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated ON chat_sessions(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_owner_updated ON chat_sessions(tenant_id, owner_user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_runs_session ON agent_runs(session_id, completed_at DESC);

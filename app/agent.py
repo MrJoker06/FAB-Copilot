@@ -15,6 +15,7 @@ import httpx
 from .audit import CONTENT_MODE, content_fingerprint, emit
 from .config import get_settings
 from .enterprise_data import enterprise_data_manifest, enterprise_fab_summary, query_enterprise_data
+from .model_registry import effective_agent_settings
 from .processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS
 from .rag import search_agent_knowledge
 from .reports import (
@@ -230,7 +231,7 @@ async def _run_agent_impl(
     run_id: str,
     progress: ProgressCallback | None = None,
 ) -> dict:
-    settings = get_settings()
+    settings = effective_agent_settings(get_settings())
     if not settings.deepseek_api_key:
         await _notify(progress, {"event": "stage", "stage": "planning", "message": "正在使用本地规则规划分析路径"})
         result = _offline_answer(question)
