@@ -37,6 +37,7 @@ services:
       FAB_API_AUDIT_LOG_DIR: /app/logs
       FAB_API_WEB_DIST: /app/web/dist
       FAB_API_DEV_API_TOKEN: ${FAB_API_DEV_API_TOKEN:-}
+      FAB_API_ADMIN_API_TOKEN: ${FAB_API_ADMIN_API_TOKEN:-}
     volumes:
       - ./data/v2/api:/app/data/v2/api:rw
       - ./data/v2/blobs:/app/data/v2/blobs:rw

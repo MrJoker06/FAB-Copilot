@@ -203,18 +203,31 @@ async def test_model_configuration_api_supports_runtime_switch_without_exposing_
             project_dir=tmp_path,
             application_database_dir=database_dir,
             model_api_key="environment-secret",
+            admin_api_token="admin-secret",
         ),
         RecordingGateway(),
     )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        initial = await client.get("/api/v1/settings/model")
+        public = await client.get("/api/v1/settings/model/current")
+        forbidden = await client.get("/api/v1/admin/settings/model")
+        monitor_forbidden = await client.get("/api/v1/monitor/summary")
+        headers = {"Authorization": "Bearer admin-secret"}
+        initial = await client.get("/api/v1/admin/settings/model", headers=headers)
+        monitor = await client.get("/api/v1/monitor/summary", headers=headers)
         updated = await client.post(
-            "/api/v1/settings/model",
+            "/api/v1/admin/settings/model",
             json={"model": "deepseek-v4-pro", "api_key": "runtime-secret"},
+            headers=headers,
         )
-        current = await client.get("/api/v1/settings/model")
+        current = await client.get("/api/v1/admin/settings/model", headers=headers)
 
+    assert public.status_code == 200
+    assert public.json()["data"] == {"model": "deepseek-v4-flash"}
+    assert forbidden.status_code == 403
+    assert forbidden.json()["error_code"] == "ADMIN_REQUIRED"
+    assert monitor_forbidden.status_code == 403
+    assert monitor.status_code == 200
     assert initial.status_code == 200
     assert initial.json()["data"]["api_key_source"] == "environment"
     assert updated.status_code == 200

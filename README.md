@@ -113,20 +113,23 @@ run.bat
 
 浏览器访问 <http://127.0.0.1:8765>，接口文档位于 <http://127.0.0.1:8765/docs>。
 
-## 模型切换
+## 用户端与管理后台
 
-点击页面右上角的模型按钮，可以更新 API Key，并在以下模型中切换：
+普通用户工作台位于 <http://127.0.0.1:8765>，只显示并使用管理员提供的当前模型，不提供模型或 API Key 修改入口。
+
+管理后台位于 <http://127.0.0.1:8765/admin>。先在 `.env` 配置 `FAB_API_ADMIN_API_TOKEN`，然后使用该令牌进入后台。管理端可以更新 API Key、切换以下白名单模型并查看运行状态：
 
 - `deepseekv4-flash`
 - `deepseekv4-pro`
 
 界面名称会分别映射到 DeepSeek API 实际要求的 `deepseek-v4-flash` 和 `deepseek-v4-pro`。
 
-也可以直接调用：
+管理接口也可以直接调用，且必须携带 `Authorization: Bearer <admin-token>`：
 
 ```text
-GET  /api/settings/model
-POST /api/settings/model
+GET  /api/v1/admin/settings/model
+POST /api/v1/admin/settings/model
+GET  /api/v1/monitor/summary
 ```
 
 ```json
@@ -137,6 +140,8 @@ POST /api/settings/model
 ```
 
 API Key 只保存在当前服务进程的内存中，响应仅返回掩码，服务重启后重新读取 `.env`。只切换模型时可以省略 `api_key`。服务端使用模型白名单校验，当前样例不接受其他模型名称。
+
+普通用户只能读取不含密钥和白名单信息的 `GET /api/v1/settings/model/current`。
 
 如独立环境缺少依赖：
 

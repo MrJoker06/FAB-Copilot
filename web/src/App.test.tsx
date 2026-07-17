@@ -5,8 +5,6 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import App from './App'
 
-vi.mock('echarts-for-react', () => ({ default: () => <div data-testid="chart" /> }))
-
 const sessions = [
   {
     session_id: 'session-active', title: '已恢复会话', created_at: '2026-07-16T10:00:00Z', updated_at: '2026-07-17T10:00:00Z',
@@ -22,6 +20,7 @@ const jsonResponse = (data: unknown) => Promise.resolve({ ok: true, json: async 
 
 beforeEach(() => {
   localStorage.clear()
+  sessionStorage.clear()
   Object.defineProperty(window, 'innerWidth', { value: 1440, configurable: true })
   vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input)
@@ -39,7 +38,9 @@ beforeEach(() => {
       { message_id: 2, role: 'assistant', content: '我是 Fab Copilot。', metadata: {}, created_at: '2026-07-17T09:00:01Z' },
     ] })
     if (path.includes('/api/v1/sessions')) return jsonResponse(sessions)
-    if (path.includes('/api/v1/settings/model')) return jsonResponse({ model: 'deepseek-v4-flash', allowed_models: ['deepseek-v4-flash', 'deepseek-v4-pro'], api_key_configured: true, api_key_masked: '••••1234', api_key_source: 'environment', persistence: 'process_memory' })
+    if (path.includes('/api/v1/admin/settings/model')) return jsonResponse({ model: 'deepseek-v4-flash', allowed_models: ['deepseek-v4-flash', 'deepseek-v4-pro'], api_key_configured: true, api_key_masked: '••••1234', api_key_source: 'environment', persistence: 'process_memory' })
+    if (path.includes('/api/v1/settings/model/current')) return jsonResponse({ model: 'deepseek-v4-flash' })
+    if (path.includes('/api/v1/monitor/summary')) return jsonResponse({ runs: 8, success_runs: 8, failed_runs: 0, success_rate_pct: 100, avg_duration_ms: 300, p95_duration_ms: 500, model_calls: 8, tool_calls: 12, tool_usage: [], errors: [] })
     return jsonResponse({ overview:{lots:2,wafers:50,yield_pct:91,avg_cycle_hours:88,avg_hold_hours:1,held_lots:1,excursions:1,start:'2026-07-01',end:'2026-07-17'}, yield_trend:[], equipment:[], defects:[], excursions:[] })
   }))
 })
@@ -54,7 +55,8 @@ test('renders the V1-style FAB shell and resizable Copilot', async () => {
   renderApp()
   expect(screen.getByText('Fab Insight')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /隐藏分析助手/ })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: /模型设置/ })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /模型设置/ })).not.toBeInTheDocument()
+  expect(screen.queryByText('Agent 监控')).not.toBeInTheDocument()
   expect(await screen.findByText('deepseek-v4-flash')).toBeInTheDocument()
   expect(screen.queryByText('API 与 Data MCP 已连接')).not.toBeInTheDocument()
   expect(screen.queryByText('当前为可复现虚拟 FAB 数据，不代表真实量产规范。')).not.toBeInTheDocument()
@@ -76,11 +78,15 @@ test('shows the archived-session entrance and active-session continue action', a
   expect(await screen.findByText('我是 Fab Copilot。')).toBeInTheDocument()
 })
 
-test('opens model configuration from the V1 topbar entrance', async () => {
-  renderApp()
-  fireEvent.click(screen.getByRole('button', { name: /模型设置/ }))
-  expect(await screen.findByRole('dialog')).toHaveTextContent('模型配置')
+test('separates model configuration into the authenticated admin console', async () => {
+  renderApp('/admin')
+  fireEvent.change(await screen.findByPlaceholderText('管理员令牌'), { target: { value: 'admin-secret' } })
+  fireEvent.click(screen.getByRole('button', { name: '进入管理后台' }))
+  expect(await screen.findByRole('heading', { name: '模型与运行管理' })).toBeInTheDocument()
   expect(await screen.findByText('API Key 已配置')).toBeInTheDocument()
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/v1/admin/settings/model', expect.objectContaining({
+    headers: expect.objectContaining({ Authorization: 'Bearer admin-secret' }),
+  })))
 })
 
 test('keeps the V1 assistant send and draft behavior', async () => {

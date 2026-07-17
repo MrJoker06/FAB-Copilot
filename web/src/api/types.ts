@@ -126,6 +126,10 @@ export interface ModelConfigView {
   persistence: string
 }
 
+export interface CurrentModelView {
+  model: string
+}
+
 export interface MonitorSummary {
   runs: number
   success_runs: number

@@ -1,9 +1,48 @@
 import { useQuery } from '@tanstack/react-query'
 import { Card, Empty, Skeleton, Statistic, Table, Tag, Typography } from 'antd'
-import ReactECharts from 'echarts-for-react'
 
 import { api } from '../api/client'
-import type { DashboardData, EquipmentHealth } from '../api/types'
+import type { DashboardData, EquipmentHealth, YieldPoint } from '../api/types'
+
+function TrendChart({ data }: { data: YieldPoint[] }) {
+  const width = 720
+  const height = 245
+  const left = 48
+  const right = 36
+  const top = 20
+  const bottom = 44
+  const chartWidth = width - left - right
+  const chartHeight = height - top - bottom
+  const points = (values: number[]) => {
+    const minimum = Math.min(...values)
+    const maximum = Math.max(...values)
+    const span = maximum - minimum || 1
+    return values.map((value, index) => {
+      const x = left + (data.length === 1 ? chartWidth / 2 : index / (data.length - 1) * chartWidth)
+      const y = top + (1 - (value - minimum) / span) * chartHeight
+      return `${x},${y}`
+    }).join(' ')
+  }
+  if (!data.length) return <div className="trend-empty">暂无趋势数据</div>
+  const yieldPoints = points(data.map(item => item.yield_pct))
+  const cyclePoints = points(data.map(item => item.cycle_time_hours))
+  return <div className="trend-chart" role="img" aria-label="综合良率与周期趋势图">
+    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+      {[0, 1, 2, 3, 4].map(index => {
+        const y = top + index / 4 * chartHeight
+        return <line key={index} x1={left} x2={width - right} y1={y} y2={y} className="trend-grid-line" />
+      })}
+      <polyline points={yieldPoints} className="trend-line yield" />
+      <polyline points={cyclePoints} className="trend-line cycle" />
+      {data.map((item, index) => {
+        if (index % Math.max(1, Math.ceil(data.length / 6)) !== 0 && index !== data.length - 1) return null
+        const x = left + (data.length === 1 ? chartWidth / 2 : index / (data.length - 1) * chartWidth)
+        return <text key={item.week} x={x} y={height - 14} textAnchor="middle">{item.week}</text>
+      })}
+    </svg>
+    <div className="trend-legend"><span><i className="yield" />良率</span><span><i className="cycle" />周期</span></div>
+  </div>
+}
 
 export default function DashboardPage() {
   const dashboard = useQuery({ queryKey: ['dashboard'], queryFn: () => api<DashboardData>('/api/v1/reports/dashboard') })
@@ -23,7 +62,7 @@ export default function DashboardPage() {
       <div className="kpi-grid-v1">{kpis.map(([title, value, suffix]) => <Card className="metric-card" key={title}><Statistic title={title} value={value} suffix={suffix} /></Card>)}</div>
       <div className="report-grid-v1">
         <Card title={<div><strong>周良率趋势</strong><small>综合良率与周期变化</small></div>} className="panel-card trend-panel-v1">
-          <ReactECharts style={{height:245}} option={{ color:['#087f70','#b87917'], tooltip:{trigger:'axis'}, legend:{data:['良率','周期']}, xAxis:{type:'category',data:data.yield_trend.map(item=>item.week),axisLine:{lineStyle:{color:'#dce3e1'}}}, yAxis:[{type:'value',name:'良率 %',splitLine:{lineStyle:{color:'#edf1ef'}}},{type:'value',name:'周期 h',splitLine:{show:false}}], series:[{name:'良率',type:'line',smooth:true,symbolSize:5,data:data.yield_trend.map(item=>item.yield_pct)},{name:'周期',type:'line',yAxisIndex:1,smooth:true,symbolSize:5,data:data.yield_trend.map(item=>item.cycle_time_hours)}] }} />
+          <TrendChart data={data.yield_trend} />
         </Card>
         <Card title={<div><strong>缺陷 Pareto</strong><small>按缺陷数量排序</small></div>} className="panel-card defect-panel-v1">
           <div className="defect-list">{data.defects.slice(0,8).map((item) => {

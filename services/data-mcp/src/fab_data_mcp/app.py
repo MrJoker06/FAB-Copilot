@@ -102,6 +102,13 @@ def create_mcp(service: DataToolService) -> FastMCP:
         return service.call(name, arguments, _identity(ctx)).model_dump(mode="json")
 
     @mcp.tool()
+    def get_dashboard(
+        ctx: Context[Any, Any], start: str | None = None, end: str | None = None
+    ) -> dict[str, Any]:
+        """Query the complete read-only dashboard snapshot in one request."""
+        return invoke("get_dashboard", {"start": start, "end": end}, ctx)
+
+    @mcp.tool()
     def get_fab_overview(
         ctx: Context[Any, Any], start: str | None = None, end: str | None = None
     ) -> dict[str, Any]:

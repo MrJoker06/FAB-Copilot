@@ -33,8 +33,24 @@ class DataToolService:
 
     def call(self, tool_name: str, arguments: dict[str, Any], identity: IdentityContext) -> ToolResult:
         started = time.perf_counter()
+        data: Any
+        audit_fields: dict[str, Any]
         try:
-            if tool_name == "query_manufacturing_data":
+            if tool_name == "get_dashboard":
+                request = ReportRequest.model_validate(arguments)
+                data = {
+                    "overview": self.repository.get_fab_overview(request),
+                    "yield_trend": self.repository.get_yield_trend(request),
+                    "equipment": self.repository.get_equipment_health(request),
+                    "defects": self.repository.get_defect_pareto(request.model_copy(update={"limit": 8})),
+                    "excursions": self.repository.get_recent_excursions(
+                        request.model_copy(update={"limit": 12})
+                    ),
+                }
+                row_count = sum(len(value) if isinstance(value, list) else 1 for value in data.values())
+                truncated = False
+                audit_fields = {"aggregate": True}
+            elif tool_name == "query_manufacturing_data":
                 if not identity.has_scope("analytics:adhoc"):
                     raise DomainError(
                         "MCP_SCOPE_REQUIRED",
@@ -43,7 +59,7 @@ class DataToolService:
                     )
                 sql = str(arguments.get("sql") or "")
                 result, tables = execute_guarded_query(sql, self.settings)
-                data: Any = result.model_dump(mode="json")
+                data = result.model_dump(mode="json")
                 row_count = result.row_count
                 truncated = result.truncated
                 audit_fields = {

@@ -40,6 +40,14 @@ def build_application_router(
     router = APIRouter(prefix="/api/v1")
     current_identity = Annotated[IdentityContext, Depends(identity)]
 
+    def require_admin(current: IdentityContext) -> None:
+        if "admin" not in current.roles:
+            raise DomainError(
+                "ADMIN_REQUIRED",
+                "administrator credentials are required",
+                status_code=403,
+            )
+
     @router.get("/knowledge/documents")
     def knowledge_documents(_: current_identity) -> ApiEnvelope[list[dict[str, Any]]]:
         return ApiEnvelope(data=knowledge.list_documents(), request_id=current_request_id())
@@ -93,12 +101,22 @@ def build_application_router(
     def delete_session(session_id: str, _: current_identity) -> ApiEnvelope[dict[str, Any]]:
         return ApiEnvelope(data=sessions.delete(session_id), request_id=current_request_id())
 
-    @router.get("/settings/model")
-    def get_model_config(_: current_identity) -> ApiEnvelope[dict[str, Any]]:
+    @router.get("/settings/model/current")
+    def get_current_model(_: current_identity) -> ApiEnvelope[dict[str, str]]:
+        config = agent.public_model_config()
+        model = str(config["model"]) if config["api_key_configured"] else "local-rules"
+        return ApiEnvelope(data={"model": model}, request_id=current_request_id())
+
+    @router.get("/admin/settings/model")
+    def get_model_config(current: current_identity) -> ApiEnvelope[dict[str, Any]]:
+        require_admin(current)
         return ApiEnvelope(data=agent.public_model_config(), request_id=current_request_id())
 
-    @router.post("/settings/model")
-    def update_model_config(payload: ModelConfigUpdate, _: current_identity) -> ApiEnvelope[dict[str, Any]]:
+    @router.post("/admin/settings/model")
+    def update_model_config(
+        payload: ModelConfigUpdate, current: current_identity
+    ) -> ApiEnvelope[dict[str, Any]]:
+        require_admin(current)
         api_key = payload.api_key.get_secret_value() if payload.api_key is not None else None
         try:
             data = agent.configure_model(payload.model, api_key)
@@ -138,14 +156,16 @@ def build_application_router(
 
     @router.get("/monitor/summary")
     def monitor_summary(
-        _: current_identity, hours: int = Query(24, ge=1, le=720)
+        current: current_identity, hours: int = Query(24, ge=1, le=720)
     ) -> ApiEnvelope[dict[str, Any]]:
+        require_admin(current)
         return ApiEnvelope(data=audit.summary(hours), request_id=current_request_id())
 
     @router.get("/monitor/events")
     def monitor_events(
-        _: current_identity, limit: int = Query(100, ge=1, le=1000)
+        current: current_identity, limit: int = Query(100, ge=1, le=1000)
     ) -> ApiEnvelope[list[dict[str, Any]]]:
+        require_admin(current)
         return ApiEnvelope(data=audit.events(limit), request_id=current_request_id())
 
     return router

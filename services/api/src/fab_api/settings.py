@@ -24,6 +24,7 @@ class APISettings(BaseSettings):
     mcp_timeout_seconds: float = Field(default=15.0, gt=0, le=120)
     dev_user_id: str = "local-user"
     dev_api_token: str = ""
+    admin_api_token: str = ""
     web_dist: Path = Path("web/dist")
     application_database_dir: Path = Path("data/departments")
     audit_log_dir: Path = Path("logs")

@@ -16,6 +16,10 @@ def test_data_tool_service_uses_temporary_readonly_databases(data_mcp_settings) 
     )
     assert overview.data["lots"] == 2
     assert overview.data["held_lots"] == 1
+    dashboard = service.call("get_dashboard", {}, identity)
+    assert dashboard.data["overview"]["lots"] == 2
+    assert dashboard.data["equipment"][0]["equipment_id"] == "CVD-02"
+    assert set(dashboard.data) == {"overview", "yield_trend", "equipment", "defects", "excursions"}
     query = service.call("query_manufacturing_data", {"sql": "SELECT lot_id FROM lots"}, identity)
     assert query.row_count == 2
     assert query.request_id == identity.request_id

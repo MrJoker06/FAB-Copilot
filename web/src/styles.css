@@ -57,21 +57,6 @@ button, input, textarea { font: inherit; letter-spacing: 0; }
 .topbar-actions { display: flex; align-items: center; gap: 14px; color: #b7c5c1; }
 .system-status { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .system-status strong { color: #dce8e4; font-weight: 600; }
-.model-settings-button {
-  height: 32px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 10px;
-  border: 1px solid #4b5d58;
-  color: #d5dfdc;
-  background: #26332f;
-  border-radius: 4px;
-  font-size: 10px;
-  cursor: pointer;
-}
-.model-settings-button:hover { border-color: #759189; background: #2e3d39; }
-.model-settings-button span:first-child { color: #82c8b8; font-size: 13px; }
 .mobile-agent-toggle { display: none; width: 32px; height: 32px; border: 1px solid #4b5d58; border-radius: 4px; color: #82c8b8; background: #26332f; font-size: 17px; }
 
 .app-shell { min-height: calc(100vh - 62px); background: var(--bg); }
@@ -329,6 +314,41 @@ body.copilot-resizing, body.copilot-resizing * { cursor: col-resize !important; 
 .suggestions button { padding: 8px 10px; border: 1px solid #d9e4e1; border-radius: 4px; color: #42645d; background: #fff; text-align: left; font-size: 10px; cursor: pointer; }
 .suggestions button:hover { border-color: #8dbcb1; background: #f7fbfa; }
 .assistant-thinking { display: flex; align-items: center; gap: 8px; padding: 7px 2px; color: var(--muted); font-size: 10px; }
+
+.trend-chart { position: relative; height: 245px; }
+.trend-chart svg { width: 100%; height: 220px; overflow: visible; }
+.trend-chart text { fill: #6d7976; font-size: 11px; }
+.trend-grid-line { stroke: #e9eeec; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.trend-line { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.trend-line.yield { stroke: #087f70; }
+.trend-line.cycle { stroke: #b87917; }
+.trend-legend { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: center; gap: 22px; color: #65716e; font-size: 12px; }
+.trend-legend span { display: flex; align-items: center; gap: 6px; }
+.trend-legend i { width: 18px; height: 2px; }
+.trend-legend i.yield { background: #087f70; }
+.trend-legend i.cycle { background: #b87917; }
+.trend-empty { height: 245px; display: grid; place-items: center; color: var(--muted); }
+
+.admin-login { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #eef2f1; }
+.admin-login-card { width: min(420px, 100%); }
+.admin-login-card .ant-card-body { display: grid; gap: 16px; }
+.admin-shell { min-height: 100vh; background: #eef2f1; }
+.admin-header { height: 62px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; background: #142521; color: #fff; }
+.admin-header > div { display: flex; align-items: center; gap: 12px; }
+.admin-header strong, .admin-header small { display: block; }
+.admin-header small { color: #9db0ab; font-size: 10px; }
+.admin-header a { color: #bfe4da; }
+.admin-content { max-width: 1280px; margin: 0 auto; padding: 28px; }
+.admin-content > .ant-alert { margin-bottom: 20px; }
+.admin-model-card .ant-card-body { display: grid; gap: 14px; }
+.admin-model-card label { color: var(--muted); font-size: 12px; }
+.admin-model-card .ant-select { width: 100%; }
+.admin-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+
+@media (max-width: 800px) {
+  .admin-content { padding: 18px; }
+  .admin-metrics { grid-template-columns: repeat(2, 1fr); }
+}
 .assistant-answer { align-self: start; width: 100%; max-height: 58vh; overflow: auto; padding: 10px 11px; border: 1px solid #e2e9e7; border-radius: 5px; color: var(--ink); background: #f1f5f4; white-space: pre-wrap; font-size: 12px; line-height: 1.65; }
 .chat-form { flex: 0 0 auto; padding: 12px; border-top: 1px solid var(--line); background: #fafcfb; }
 .chat-form textarea { width: 100%; resize: none; padding: 9px 10px; border-color: #cfd9d6; border-radius: 4px; outline: none; color: var(--ink); background: #fff; font-size: 12px; line-height: 1.45; }
@@ -348,7 +368,6 @@ body.copilot-resizing, body.copilot-resizing * { cursor: col-resize !important; 
 @media (max-width: 800px) {
   .system-status { display: none; }
   .mobile-agent-toggle { display: block; }
-  .model-settings-button span:last-child { display: none; }
   .domain-sidebar { display: none; }
   .workspace-content { padding: 20px 12px; }
   .page-heading { flex-direction: column; gap: 14px; }

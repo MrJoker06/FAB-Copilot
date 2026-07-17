@@ -102,23 +102,8 @@ def create_app(settings: APISettings | None = None, gateway: DataGateway | None 
         current: IdentityContext = Depends(identity),
     ) -> ApiEnvelope[dict[str, Any]]:
         request = ReportRequest.model_validate({"start": start, "end": end})
-        overview = await reports.run("get_fab_overview", request, current)
-        yield_trend = await reports.run("get_yield_trend", request, current)
-        equipment = await reports.run("get_equipment_health", request, current)
-        defects = await reports.run("get_defect_pareto", request.model_copy(update={"limit": 8}), current)
-        excursions = await reports.run(
-            "get_recent_excursions", request.model_copy(update={"limit": 12}), current
-        )
-        return ApiEnvelope(
-            data={
-                "overview": overview.data,
-                "yield_trend": yield_trend.data,
-                "equipment": equipment.data,
-                "defects": defects.data,
-                "excursions": excursions.data,
-            },
-            request_id=current_request_id(),
-        )
+        result = await reports.run("get_dashboard", request, current)
+        return ApiEnvelope(data=result.data, request_id=current_request_id())
 
     @app.get("/api/v1/reports/capability")
     async def capability(

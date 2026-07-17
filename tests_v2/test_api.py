@@ -17,6 +17,13 @@ class FakeGateway:
         identity: IdentityContext,
     ) -> ToolResult:
         values: dict[str, Any] = {
+            "get_dashboard": {
+                "overview": {"lots": 2, "yield_pct": 91.0},
+                "yield_trend": [{"week": "2026-27", "yield_pct": 91.0}],
+                "equipment": [{"equipment_id": "CVD-01", "health": "Healthy"}],
+                "defects": [{"defect_type": "Particle", "defect_count": 4}],
+                "excursions": [{"lot_id": "LOT-2"}],
+            },
             "get_fab_overview": {"lots": 2, "yield_pct": 91.0},
             "get_yield_trend": [{"week": "2026-27", "yield_pct": 91.0}],
             "get_equipment_health": [{"equipment_id": "CVD-01", "health": "Healthy"}],
