@@ -45,6 +45,8 @@ test('renders the V1-style FAB shell and resizable Copilot', async () => {
   renderApp()
   expect(screen.getByText('Fab Insight')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /隐藏分析助手/ })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /模型设置/ })).toBeInTheDocument()
+  expect(screen.queryByText('当前为可复现虚拟 FAB 数据，不代表真实量产规范。')).not.toBeInTheDocument()
   expect(await screen.findByText('制造绩效总览')).toBeInTheDocument()
   expect(await screen.findByText('完成批次')).toBeInTheDocument()
   const resizeHandle = screen.getByRole('separator', { name: '调整分析助手宽度' })
@@ -58,15 +60,14 @@ test('shows the archived-session entrance and active-session continue action', a
   renderApp('/sessions')
   expect(await screen.findByRole('heading', { name: '历史会话' })).toBeInTheDocument()
   expect(await screen.findByText('已归档 1')).toBeInTheDocument()
-  const activeTitle = await screen.findByRole('button', { name: '已恢复会话' })
-  const continueButton = [...activeTitle.closest('tr')!.querySelectorAll('button')]
-    .find(button => button.textContent?.replace(/\s/g, '') === '继续')
-  expect(continueButton).toBeInTheDocument()
+  expect(await screen.findByRole('button', { name: /已恢复会话/ })).toBeInTheDocument()
+  expect(await screen.findByRole('button', { name: '在助手中继续' })).toBeInTheDocument()
+  expect(await screen.findByText('我是 Fab Copilot。')).toBeInTheDocument()
 })
 
-test('opens model configuration from the Copilot header', async () => {
+test('opens model configuration from the V1 topbar entrance', async () => {
   renderApp()
-  fireEvent.click(screen.getByRole('button', { name: '模型配置' }))
+  fireEvent.click(screen.getByRole('button', { name: /模型设置/ }))
   expect(await screen.findByRole('dialog')).toHaveTextContent('模型配置')
   expect(await screen.findByText('API Key 已配置')).toBeInTheDocument()
 })

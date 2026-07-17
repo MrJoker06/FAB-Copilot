@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, Card, Empty, Input, Modal, Popconfirm, Segmented, Space, Table, Tag, Typography } from 'antd'
+import { Button, Input, Popconfirm, Segmented, Spin } from 'antd'
 import ReactMarkdown from 'react-markdown'
 
 import { api } from '../api/client'
@@ -11,10 +11,13 @@ type SessionFilter = 'active' | 'archived' | 'all'
 interface Props {
   activeSessionId?: string
   onContinueSession: (sessionId: string) => void
+  onNewSession: () => void
   onSessionUnavailable: (sessionId: string) => void
 }
 
-export default function SessionsPage({ activeSessionId, onContinueSession, onSessionUnavailable }: Props) {
+const formatDate = (value: string) => new Date(value).toLocaleString('zh-CN', { hour12: false })
+
+export default function SessionsPage({ activeSessionId, onContinueSession, onNewSession, onSessionUnavailable }: Props) {
   const client = useQueryClient()
   const [filter, setFilter] = useState<SessionFilter>('active')
   const [search, setSearch] = useState('')
@@ -23,88 +26,109 @@ export default function SessionsPage({ activeSessionId, onContinueSession, onSes
     queryKey: ['sessions', search],
     queryFn: () => api<SessionSummary[]>(`/api/v1/sessions?include_archived=true&limit=200&query=${encodeURIComponent(search)}`),
   })
-  const detail = useQuery({
-    queryKey: ['session', selectedId],
-    queryFn: () => api<SessionDetail>(`/api/v1/sessions/${selectedId}`),
-    enabled: Boolean(selectedId),
-  })
-  const refresh = () => client.invalidateQueries({ queryKey: ['sessions'] })
-  const archive = useMutation({
-    mutationFn: (id: string) => api(`/api/v1/sessions/${id}`, { method: 'DELETE' }),
-    onSuccess: (_, id) => { if (id === activeSessionId) onSessionUnavailable(id); refresh() },
-  })
-  const restore = useMutation({
-    mutationFn: (id: string) => api(`/api/v1/sessions/${id}/restore`, { method: 'POST' }),
-    onSuccess: (_, id) => {
-      client.invalidateQueries({ queryKey: ['session', id] })
-      refresh()
-    },
-  })
-  const remove = useMutation({
-    mutationFn: (id: string) => api(`/api/v1/sessions/${id}/permanent`, { method: 'DELETE' }),
-    onSuccess: (_, id) => {
-      if (id === activeSessionId) onSessionUnavailable(id)
-      if (id === selectedId) setSelectedId(undefined)
-      refresh()
-    },
-  })
   const rows = useMemo(() => (query.data ?? []).filter(item => {
     if (filter === 'active') return !item.archived_at
     if (filter === 'archived') return Boolean(item.archived_at)
     return true
   }), [filter, query.data])
+  const effectiveSelectedId = rows.some(item => item.session_id === selectedId) ? selectedId : rows[0]?.session_id
+  const detail = useQuery({
+    queryKey: ['session', effectiveSelectedId],
+    queryFn: () => api<SessionDetail>(`/api/v1/sessions/${effectiveSelectedId}`),
+    enabled: Boolean(effectiveSelectedId),
+  })
+  const refresh = async (id?: string) => {
+    await client.invalidateQueries({ queryKey: ['sessions'] })
+    if (id) await client.invalidateQueries({ queryKey: ['session', id] })
+  }
+  const archive = useMutation({
+    mutationFn: (id: string) => api(`/api/v1/sessions/${id}`, { method: 'DELETE' }),
+    onSuccess: async (_, id) => {
+      if (id === activeSessionId) onSessionUnavailable(id)
+      await refresh(id)
+    },
+  })
+  const restore = useMutation({
+    mutationFn: (id: string) => api(`/api/v1/sessions/${id}/restore`, { method: 'POST' }),
+    onSuccess: (_, id) => refresh(id),
+  })
+  const remove = useMutation({
+    mutationFn: (id: string) => api(`/api/v1/sessions/${id}/permanent`, { method: 'DELETE' }),
+    onSuccess: async (_, id) => {
+      if (id === activeSessionId) onSessionUnavailable(id)
+      if (id === selectedId) setSelectedId(undefined)
+      await refresh()
+    },
+  })
   const archivedCount = (query.data ?? []).filter(item => item.archived_at).length
+  const activeCount = (query.data ?? []).length - archivedCount
   const continueSession = async (row: SessionSummary | SessionDetail) => {
     if (row.archived_at) await restore.mutateAsync(row.session_id)
     onContinueSession(row.session_id)
-    setSelectedId(undefined)
   }
+  const selected = detail.data
 
-  return <section>
-    <div className="page-heading"><div><Typography.Text type="secondary">ANALYSIS MEMORY</Typography.Text><h2>历史会话</h2><p>恢复上下文继续分析；归档会话可在独立入口中恢复。</p></div><Space><Tag>{rows.length} RESULTS</Tag><Tag color="gold">{archivedCount} ARCHIVED</Tag></Space></div>
-    <Card className="panel-card sessions-panel-v1">
-      <div className="sessions-toolbar">
-        <Segmented value={filter} onChange={value => setFilter(value as SessionFilter)} options={[
-          { label: '活跃会话', value: 'active' },
+  return <section className="sessions-view">
+    <div className="page-heading session-page-heading">
+      <div className="session-page-title">
+        <div><span className="eyebrow">CONVERSATION ARCHIVE</span><h2>历史会话</h2><p>集中检索、回看和继续 Fab Copilot 分析</p></div>
+      </div>
+      <div className="session-library-controls">
+        <Input.Search allowClear placeholder="搜索标题或最近消息" onSearch={setSearch} onChange={event => { if (!event.target.value) setSearch('') }} />
+        <Segmented className="session-filter" value={filter} onChange={value => setFilter(value as SessionFilter)} options={[
+          { label: `活跃 ${activeCount}`, value: 'active' },
           { label: `已归档 ${archivedCount}`, value: 'archived' },
           { label: '全部', value: 'all' },
         ]} />
-        <Input.Search allowClear placeholder="搜索标题或最近消息" onSearch={setSearch} onChange={event => { if (!event.target.value) setSearch('') }} />
+        <Button type="primary" onClick={onNewSession}>＋ 新建会话</Button>
       </div>
-      <Table<SessionSummary> rowKey="session_id" loading={query.isLoading} dataSource={rows} pagination={{ pageSize: 10 }} locale={{ emptyText: <Empty description={filter === 'archived' ? '暂无已归档会话' : '暂无历史会话'} /> }} columns={[
-        { title: '标题', dataIndex: 'title', render: (value: string, row) => <Button type="link" className="session-title-button" onClick={() => setSelectedId(row.session_id)}>{value}</Button> },
-        { title: '最近消息', dataIndex: 'last_message_preview', ellipsis: true },
-        { title: '消息', dataIndex: 'message_count', width: 66 },
-        { title: '模型/模式', dataIndex: 'model', width: 145, render: (value: string | null) => value || 'local-rules' },
-        { title: '状态', dataIndex: 'archived_at', width: 76, render: (value: string | null) => value ? <Tag>已归档</Tag> : <Tag color="green">活跃</Tag> },
-        { title: '更新时间', dataIndex: 'updated_at', width: 180, render: (value: string) => new Date(value).toLocaleString('zh-CN', { hour12: false }) },
-        { title: '操作', key: 'actions', width: 220, render: (_, row) => <Space size={4}>
-          <Button size="small" type="primary" ghost onClick={() => continueSession(row)}>{row.archived_at ? '恢复并继续' : '继续'}</Button>
-          {row.archived_at
-            ? <Button size="small" onClick={() => restore.mutate(row.session_id)}>恢复</Button>
-            : <Popconfirm title="归档该会话？" onConfirm={() => archive.mutate(row.session_id)}><Button size="small">归档</Button></Popconfirm>}
-          <Popconfirm title="永久删除该会话及全部消息？" onConfirm={() => remove.mutate(row.session_id)}><Button danger size="small">删除</Button></Popconfirm>
-        </Space> },
-      ]} />
-    </Card>
-    <Modal
-      width={760}
-      title={detail.data?.title || '会话详情'}
-      open={Boolean(selectedId)}
-      onCancel={() => setSelectedId(undefined)}
-      footer={detail.data ? <Space>
-        <Button onClick={() => setSelectedId(undefined)}>关闭</Button>
-        <Button type="primary" onClick={() => continueSession(detail.data!)}>{detail.data.archived_at ? '恢复并继续' : '在助手中继续'}</Button>
-      </Space> : null}
-    >
-      <div className="session-preview-meta">{detail.data && <><Tag>{detail.data.archived_at ? '已归档' : '活跃'}</Tag><Tag>{detail.data.model || 'local-rules'}</Tag><span>{detail.data.messages.length} 条消息</span></>}</div>
-      <div className="session-preview-messages">
-        {detail.isLoading && <Typography.Text type="secondary">正在加载会话…</Typography.Text>}
-        {detail.data?.messages.map(item => <article key={item.message_id} className={`session-preview-message ${item.role}`}>
-          <strong>{item.role === 'assistant' ? 'FAB COPILOT' : '你'}</strong>
-          <div>{item.role === 'assistant' ? <ReactMarkdown>{item.content}</ReactMarkdown> : item.content}</div>
-        </article>)}
-      </div>
-    </Modal>
+    </div>
+    <div className="session-library-notice">
+      {filter === 'archived' ? '已归档会话保留完整上下文，可恢复后继续分析。' : filter === 'active' ? '选择会话可查看完整分析记录，并在右侧助手中继续。' : '这里统一显示活跃与已归档的全部会话。'}
+    </div>
+    <div className="session-library-layout">
+      <aside className="panel-card session-library-index">
+        <div className="session-library-list">
+          {query.isLoading && <div className="session-library-loading"><Spin size="small" /> 正在加载会话…</div>}
+          {!query.isLoading && !rows.length && <div className="session-empty">{filter === 'archived' ? '暂无已归档会话' : '暂无历史会话'}</div>}
+          {!!rows.length && <div className="session-library-group">
+            <h3>{filter === 'archived' ? '已归档会话' : filter === 'active' ? '最近会话' : '全部会话'}</h3>
+            {rows.map(row => <div key={row.session_id} className={`session-library-item${row.session_id === effectiveSelectedId ? ' active' : ''}`}>
+              <button className="session-library-open" onClick={() => setSelectedId(row.session_id)}>
+                <strong>{row.title}</strong>
+                <span>{formatDate(row.updated_at)} · {row.message_count} 条消息</span>
+                <small>{row.last_message_preview || '尚无消息'}</small>
+              </button>
+              <span className={`session-state${row.archived_at ? ' archived' : ''}`}>{row.archived_at ? '已归档' : '活跃'}</span>
+            </div>)}
+          </div>}
+        </div>
+      </aside>
+      <article className="panel-card session-library-reader">
+        {detail.isLoading && <div className="session-reader-empty"><Spin /> 正在加载会话…</div>}
+        {!detail.isLoading && !selected && <div className="session-reader-empty"><strong>选择一个会话</strong><span>完整对话将在这里显示。</span></div>}
+        {selected && <>
+          <header className="session-library-reader-heading">
+            <div className="session-reader-title">
+              <h2>{selected.title}</h2>
+              <div className="session-library-meta"><span>{selected.archived_at ? '已归档' : '活跃'}</span><span>{selected.model || 'local-rules'}</span><span>{selected.messages.length} 条消息</span><span>{formatDate(selected.updated_at)}</span></div>
+            </div>
+            <div className="session-library-actions">
+              <Button type="primary" onClick={() => continueSession(selected)}>{selected.archived_at ? '恢复并继续' : '在助手中继续'}</Button>
+              {selected.archived_at
+                ? <Button onClick={() => restore.mutate(selected.session_id)}>恢复</Button>
+                : <Popconfirm title="归档该会话？" onConfirm={() => archive.mutate(selected.session_id)}><Button>归档</Button></Popconfirm>}
+              <Popconfirm title="永久删除该会话及全部消息？" onConfirm={() => remove.mutate(selected.session_id)}><Button danger>删除</Button></Popconfirm>
+            </div>
+          </header>
+          <div className="session-library-messages">
+            {selected.messages.map(item => <section key={item.message_id} className={`session-transcript-item ${item.role}`}>
+              <div className="session-transcript-heading"><strong>{item.role === 'assistant' ? 'FAB COPILOT' : '你'}</strong><time>{formatDate(item.created_at)}</time></div>
+              <div className="session-transcript-content markdown-content">{item.role === 'assistant' ? <ReactMarkdown>{item.content}</ReactMarkdown> : item.content}</div>
+            </section>)}
+          </div>
+        </>}
+      </article>
+    </div>
   </section>
 }

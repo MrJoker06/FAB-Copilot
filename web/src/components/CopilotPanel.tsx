@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Button, Empty, Input, Space, Spin, Tag } from 'antd'
+import { Alert, Button, Input, Spin } from 'antd'
 import ReactMarkdown from 'react-markdown'
 
 import { api } from '../api/client'
 import type { ChatResult, SessionDetail } from '../api/types'
-import ModelSettingsModal from './ModelSettingsModal'
 
 interface Props {
   sessionId?: string
@@ -28,7 +27,6 @@ export default function CopilotPanel({ sessionId, onSessionChange, onOpenHistory
   const client = useQueryClient()
   const [message, setMessage] = useState('')
   const [pendingQuestion, setPendingQuestion] = useState('')
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [width, setWidth] = useState(initialWidth)
   const drag = useRef<{ pointerId: number; startX: number; startWidth: number } | undefined>(undefined)
   const session = useQuery({
@@ -126,27 +124,31 @@ export default function CopilotPanel({ sessionId, onSessionChange, onOpenHistory
       <div className="copilot-heading">
         <span className="copilot-icon">◇</span>
         <div className="copilot-title"><strong>Fab Copilot</strong><small>{session.data ? `${session.data.title} · ${messages.length} 条消息` : '制造数据分析助手'}</small></div>
-        <Space size={2} className="copilot-actions">
-          <Button type="text" onClick={() => onSessionChange(undefined)} aria-label="新建会话">＋</Button>
-          <Button type="text" onClick={onOpenHistory} aria-label="历史会话">◫</Button>
-          <Button type="text" onClick={() => setSettingsOpen(true)} aria-label="模型配置">⚙</Button>
-          <Button type="text" onClick={onClose} aria-label="关闭 Copilot">×</Button>
-        </Space>
+        <button className="session-history-button" onClick={onOpenHistory}><span>◷</span><span>历史会话</span></button>
+        <button className="icon-btn" onClick={() => onSessionChange(undefined)} aria-label="新建会话" title="新建会话">＋</button>
+        <button className="icon-btn" onClick={onClose} aria-label="收起分析助手" title="收起分析助手">›</button>
       </div>
-      <Space className="copilot-badges" wrap><Tag color="cyan">MCP</Tag><Tag color="blue">RAG</Tag><Tag>只读</Tag></Space>
       <div className="copilot-messages">
         {session.isLoading && <div className="copilot-loading"><Spin /></div>}
         {session.isError && <Alert type="error" showIcon title="无法恢复历史会话" description={session.error.message} />}
-        {!session.isLoading && !messages.length && !pendingQuestion && <div className="copilot-empty"><Empty description="输入制造问题，或从历史会话继续分析。" image={Empty.PRESENTED_IMAGE_SIMPLE} /></div>}
-        {messages.map(item => <article key={item.message_id} className={`chat-message ${item.role}`}>
-          <strong>{item.role === 'assistant' ? 'FAB COPILOT' : '你'}</strong>
-          <div>{item.role === 'assistant' ? <ReactMarkdown>{item.content}</ReactMarkdown> : item.content}</div>
+        {!session.isLoading && !messages.length && !pendingQuestion && <>
+          <article className="message assistant welcome-message">
+            <div className="message-meta"><strong className="message-label">FAB COPILOT</strong></div>
+            <div className="message-content">可以从制造总览、制程能力、设备异常或历史案例开始分析。我会通过受控数据工具读取信息，并保留每轮分析上下文。</div>
+          </article>
+          <div className="suggestions">
+            {['最近有哪些高风险异常？', '查看综合良率和周期趋势', '分析设备健康与停机风险'].map(prompt => <button key={prompt} onClick={() => setMessage(prompt)}>{prompt}</button>)}
+          </div>
+        </>}
+        {messages.map(item => <article key={item.message_id} className={`message ${item.role}`}>
+          <div className="message-meta"><strong className="message-label">{item.role === 'assistant' ? 'FAB COPILOT' : '你'}</strong></div>
+          <div className={`message-content${item.role === 'assistant' ? ' markdown-content' : ''}`}>{item.role === 'assistant' ? <ReactMarkdown>{item.content}</ReactMarkdown> : item.content}</div>
         </article>)}
-        {pendingQuestion && <article className="chat-message user pending"><strong>你</strong><div>{pendingQuestion}</div></article>}
+        {pendingQuestion && <article className="message user pending"><div className="message-meta"><strong className="message-label">你</strong></div><div className="message-content">{pendingQuestion}</div></article>}
         {chat.isPending && <div className="assistant-thinking"><Spin size="small" /> 正在分析并调用受控工具…</div>}
         {chat.isError && <Alert type="error" showIcon title="分析失败" description={chat.error.message} />}
       </div>
-      <div className="copilot-composer">
+      <div className="chat-form">
         <Input.TextArea
           value={message}
           onChange={event => setMessage(event.target.value)}
@@ -159,9 +161,11 @@ export default function CopilotPanel({ sessionId, onSessionChange, onOpenHistory
           placeholder="例如：最近 30 天 CVD-02 的能力变化与可能原因"
           autoSize={{ minRows: 3, maxRows: 7 }}
         />
-        <Button type="primary" block loading={chat.isPending} disabled={!message.trim()} onClick={() => chat.mutate(message.trim())}>发送分析请求</Button>
+        <div className="chat-actions">
+          <span>基于历史数据库与厂内知识</span>
+          <Button className="send-btn" type="primary" loading={chat.isPending} disabled={!message.trim()} onClick={() => chat.mutate(message.trim())}>发送</Button>
+        </div>
       </div>
-      <ModelSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </aside>
   )
 }
