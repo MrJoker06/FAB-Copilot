@@ -1,12 +1,14 @@
-const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, selectedSessionIds: new Set(), sessionBatchMode: false, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionIds: [], toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, knowledgeMode: 'factory', knowledgeDocuments: [], knowledgeIndexPromise: null, personalKnowledgeDocuments: [], selectedPersonalDocumentId: null, selectedPersonalDocument: null, personalKnowledgeRequestId: 0, personalKnowledgePollTimer: null, pendingPersonalDeleteId: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
+const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, selectedSessionIds: new Set(), sessionBatchMode: false, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionIds: [], toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', monitorTimer: null, modelConfig: null, enterpriseContext: null, knowledgeMode: 'factory', knowledgeDocuments: [], knowledgeIndexPromise: null, personalKnowledgeDocuments: [], selectedPersonalDocumentId: null, selectedPersonalDocument: null, personalKnowledgeRequestId: 0, personalKnowledgePollTimer: null, pendingPersonalDeleteId: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
 const $ = (selector) => document.querySelector(selector);
 const AGENT_WIDTH_KEY = 'fabInsightAgentWidth';
 const CHAT_DRAFT_KEY = 'fabInsightChatDraft';
+const TENANT_ID_KEY = 'fabInsightTenantId';
+const USER_ID_KEY = 'fabInsightUserId';
 const AGENT_MIN_WIDTH = 300;
 const AGENT_MAX_WIDTH = 620;
 const APP_VERSION = document.querySelector('meta[name="app-version"]')?.content || 'unknown';
 const processLabels = { LITHO: '光刻', ETCH: '刻蚀', CVD: '化学气相沉积', PVD: '物理气相沉积', DIFFUSION: '扩散/炉管', IMPLANT: '离子注入', CMP: '化学机械研磨', CLEAN: '湿法清洗', METROLOGY: '量测' };
-const toolLabels = { get_fab_overview: '查询工厂总览', get_yield_trend: '查询良率趋势', get_equipment_health: '查询设备健康', get_equipment_productivity: '查询设备生产状态', get_process_capability: '查询制程能力', get_defect_pareto: '查询缺陷 Pareto', get_recent_excursions: '查询近期异常', get_sensor_summary: '查询传感器摘要', search_knowledge: '检索知识与案例', query_manufacturing_data: '执行制造数据查询' };
+const toolLabels = { get_enterprise_data_manifest: '查询企业数据目录', query_enterprise_data: '抽取企业模拟数据', get_fab_overview: '查询工厂总览', get_yield_trend: '查询良率趋势', get_equipment_health: '查询设备健康', get_equipment_productivity: '查询设备生产状态', get_process_capability: '查询制程能力', get_defect_pareto: '查询缺陷 Pareto', get_recent_excursions: '查询近期异常', get_sensor_summary: '查询传感器摘要', search_knowledge: '检索知识与案例', query_manufacturing_data: '执行制造数据查询' };
 
 function isoDate(date) { return date.toISOString().slice(0, 10); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
@@ -42,12 +44,25 @@ function setInitialDates() {
 }
 
 async function api(url, options) {
+  const headers = new Headers(options?.headers || {});
+  const tenantId = localStorage.getItem(TENANT_ID_KEY);
+  const userId = localStorage.getItem(USER_ID_KEY);
+  if (tenantId) headers.set('X-Tenant-ID', tenantId);
+  if (userId) headers.set('X-User-ID', userId);
   let response;
-  try { response = await fetch(url, options); }
+  try { response = await fetch(url, {...(options || {}), headers}); }
   catch (error) { throw new FabApiError('无法连接 Fab Insight 服务', {code:'NETWORK_ERROR', retryable:true}); }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw apiError(payload, response);
   return payload;
+}
+
+function updateSystemStatus(modelLabel) {
+  const enterprise = state.enterpriseContext;
+  $('#systemStatus').textContent = enterprise
+    ? `${enterprise.tenant_id} · 企业模拟源 · ${modelLabel}`
+    : `${formatNumber(state.dashboard?.overview?.lots ?? 0)} 批次 · ${modelLabel}`;
+  if (enterprise) $('#systemStatus').title = `${formatNumber(enterprise.virtual_scale?.lots || 0)} 个虚拟批次；数据不代表真实生产`;
 }
 
 function handleBuildVersion(build) {
@@ -509,7 +524,7 @@ async function saveModelSettings(event) {
     const config = await api('/api/settings/model', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
     renderModelConfig(config); $('#apiKeyInput').value = '';
     message.textContent = `已切换到 ${config.model}`; message.classList.remove('error'); message.hidden = false;
-    $('#systemStatus').textContent = `${formatNumber(state.dashboard?.overview?.lots ?? 0)} 批次 · ${config.model}`;
+    updateSystemStatus(config.model);
     window.setTimeout(() => $('#modelDialog').open && $('#modelDialog').close(), 700);
   } catch (error) {
     message.textContent = error.message; message.classList.add('error'); message.hidden = false;
@@ -1390,7 +1405,8 @@ async function init() {
   $('#chatInput').value = localStorage.getItem(CHAT_DRAFT_KEY) || '';
   try {
     const [health, modelConfig] = await Promise.all([api('/api/health'), loadModelConfig()]);
-    $('#systemStatus').textContent = `${formatNumber(health.database.lots)} 批次 · ${modelConfig.api_key_configured ? modelConfig.model : '离线模式'}`;
+    state.enterpriseContext = health.enterprise || null;
+    updateSystemStatus(modelConfig.api_key_configured ? modelConfig.model : '离线模式');
     handleBuildVersion(health.build);
   } catch { $('#systemStatus').textContent='数据源不可用'; }
   await loadDashboard();

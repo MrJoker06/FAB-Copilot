@@ -5,6 +5,7 @@ from datetime import date
 
 from .config import get_settings
 from .database import db_session, get_active_defect_aliases, rows_to_dicts
+from .identity import current_principal
 from .personal_knowledge import search_personal_knowledge
 from .processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS, PROCESS_ALIASES
 
@@ -275,7 +276,6 @@ def search_agent_knowledge(
     defect_type: str | None = None,
     source_types: list[str] | None = None,
 ) -> list[dict]:
-    settings = get_settings()
     return search_knowledge(
         query,
         limit,
@@ -284,7 +284,7 @@ def search_agent_knowledge(
         defect_type,
         source_types,
         include_personal=True,
-        owner_user_id=settings.personal_knowledge_user_id,
+        owner_user_id=current_principal().knowledge_owner_id,
     )
 
 

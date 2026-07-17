@@ -362,7 +362,7 @@ Content-Type: multipart/form-data
 调用示例：
 
 ```bash
-curl -X POST http://127.0.0.1:8765/api/knowledge/personal/documents \
+curl -X POST http://127.0.0.1:8876/api/knowledge/personal/documents \
   -H "Authorization: Bearer $TOKEN" \
   -H "Idempotency-Key: $(uuidgen)" \
   -F 'file=@CMP-03-pad-record.docx' \

@@ -8,7 +8,7 @@ from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 WORKSPACE_DIR = PROJECT_DIR.parent.parent
-APP_VERSION = "20260716-6"
+APP_VERSION = "20260717-1"
 
 
 def _load_env(path: Path) -> None:
@@ -58,6 +58,14 @@ class Settings:
     personal_knowledge_user_id: str
     personal_knowledge_api_token: str
     personal_knowledge_max_upload_bytes: int
+    enterprise_mode: bool
+    enterprise_data_provider: str
+    enterprise_default_tenant_id: str
+    enterprise_default_user_id: str
+    enterprise_require_identity: bool
+    enterprise_mock_seed: int
+    enterprise_mock_virtual_lots: int
+    enterprise_mock_cursor_secret: str
 
 
 def get_settings() -> Settings:
@@ -100,6 +108,18 @@ def get_settings() -> Settings:
             1024,
             min(int(os.getenv("FAB_PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES", str(50 * 1024 * 1024))), 500 * 1024 * 1024),
         ),
+        enterprise_mode=os.getenv("FAB_ENTERPRISE_MODE", "true").strip().lower() in {"1", "true", "yes", "on"},
+        enterprise_data_provider=os.getenv("FAB_DATA_PROVIDER", "synthetic").strip().lower() or "synthetic",
+        enterprise_default_tenant_id=os.getenv("FAB_DEFAULT_TENANT_ID", "demo-fab").strip() or "demo-fab",
+        enterprise_default_user_id=os.getenv(
+            "FAB_DEFAULT_USER_ID",
+            os.getenv("FAB_PERSONAL_KNOWLEDGE_USER_ID", "local-user"),
+        ).strip() or "local-user",
+        enterprise_require_identity=os.getenv("FAB_REQUIRE_IDENTITY", "false").strip().lower() in {"1", "true", "yes", "on"},
+        enterprise_mock_seed=int(os.getenv("FAB_MOCK_SEED", "20260717")),
+        enterprise_mock_virtual_lots=max(100_000, int(os.getenv("FAB_MOCK_VIRTUAL_LOTS", "25000000"))),
+        enterprise_mock_cursor_secret=os.getenv("FAB_MOCK_CURSOR_SECRET", "fab-insight-local-demo-secret").strip()
+        or "fab-insight-local-demo-secret",
     )
 
 

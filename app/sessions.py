@@ -5,30 +5,41 @@ import uuid
 from datetime import datetime, timezone
 
 from .database import db_session
+from .identity import current_principal
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
+def _scope() -> tuple[str, str]:
+    principal = current_principal()
+    return principal.tenant_id, principal.user_id
+
+
 def create_session(title: str = "新会话") -> dict:
     session_id = str(uuid.uuid4())
     timestamp = _now()
+    tenant_id, owner_user_id = _scope()
     with db_session() as connection:
         connection.execute(
-            "INSERT INTO agent.chat_sessions(session_id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
-            (session_id, title[:80] or "新会话", timestamp, timestamp),
+            """INSERT INTO agent.chat_sessions(
+                   session_id, tenant_id, owner_user_id, title, created_at, updated_at
+               ) VALUES (?, ?, ?, ?, ?, ?)""",
+            (session_id, tenant_id, owner_user_id, title[:80] or "新会话", timestamp, timestamp),
         )
         connection.commit()
     return {"session_id": session_id, "title": title[:80] or "新会话", "created_at": timestamp, "updated_at": timestamp}
 
 
 def get_session(session_id: str) -> dict:
+    tenant_id, owner_user_id = _scope()
     with db_session() as connection:
         session = connection.execute(
             """SELECT session_id, title, created_at, updated_at, model, archived_at
-               FROM chat_sessions WHERE session_id = ?""",
-            (session_id,),
+               FROM chat_sessions
+               WHERE session_id = ? AND tenant_id = ? AND owner_user_id = ?""",
+            (session_id, tenant_id, owner_user_id),
         ).fetchone()
         if session is None:
             raise ValueError("会话不存在")
@@ -51,8 +62,9 @@ def get_session(session_id: str) -> dict:
 
 
 def list_sessions(query: str = "", limit: int = 100, include_archived: bool = False) -> list[dict]:
-    clauses = ["1 = 1"]
-    params: list[object] = []
+    tenant_id, owner_user_id = _scope()
+    clauses = ["s.tenant_id = ?", "s.owner_user_id = ?"]
+    params: list[object] = [tenant_id, owner_user_id]
     if not include_archived:
         clauses.append("s.archived_at IS NULL")
     if query.strip():
@@ -81,10 +93,12 @@ def rename_session(session_id: str, title: str) -> dict:
     if not cleaned:
         raise ValueError("会话标题不能为空")
     timestamp = _now()
+    tenant_id, owner_user_id = _scope()
     with db_session() as connection:
         cursor = connection.execute(
-            "UPDATE agent.chat_sessions SET title = ?, updated_at = ? WHERE session_id = ?",
-            (cleaned, timestamp, session_id),
+            """UPDATE agent.chat_sessions SET title = ?, updated_at = ?
+               WHERE session_id = ? AND tenant_id = ? AND owner_user_id = ?""",
+            (cleaned, timestamp, session_id, tenant_id, owner_user_id),
         )
         if cursor.rowcount == 0:
             raise ValueError("会话不存在")
@@ -94,10 +108,12 @@ def rename_session(session_id: str, title: str) -> dict:
 
 def archive_session(session_id: str) -> dict:
     timestamp = _now()
+    tenant_id, owner_user_id = _scope()
     with db_session() as connection:
         cursor = connection.execute(
-            "UPDATE agent.chat_sessions SET archived_at = ?, updated_at = ? WHERE session_id = ?",
-            (timestamp, timestamp, session_id),
+            """UPDATE agent.chat_sessions SET archived_at = ?, updated_at = ?
+               WHERE session_id = ? AND tenant_id = ? AND owner_user_id = ?""",
+            (timestamp, timestamp, session_id, tenant_id, owner_user_id),
         )
         if cursor.rowcount == 0:
             raise ValueError("会话不存在")
@@ -107,10 +123,12 @@ def archive_session(session_id: str) -> dict:
 
 def restore_session(session_id: str) -> dict:
     timestamp = _now()
+    tenant_id, owner_user_id = _scope()
     with db_session() as connection:
         cursor = connection.execute(
-            "UPDATE agent.chat_sessions SET archived_at = NULL, updated_at = ? WHERE session_id = ?",
-            (timestamp, session_id),
+            """UPDATE agent.chat_sessions SET archived_at = NULL, updated_at = ?
+               WHERE session_id = ? AND tenant_id = ? AND owner_user_id = ?""",
+            (timestamp, session_id, tenant_id, owner_user_id),
         )
         if cursor.rowcount == 0:
             raise ValueError("会话不存在")
@@ -130,12 +148,15 @@ def delete_sessions_permanently(session_ids: list[str]) -> dict:
     if not unique_ids:
         return {"deleted_session_ids": [], "deleted_count": 0, "missing_session_ids": []}
     placeholders = ", ".join("?" for _ in unique_ids)
+    tenant_id, owner_user_id = _scope()
     with db_session() as connection:
         existing_ids = {
             row[0]
             for row in connection.execute(
-                f"SELECT session_id FROM chat_sessions WHERE session_id IN ({placeholders})",
-                unique_ids,
+                f"""SELECT session_id FROM chat_sessions
+                    WHERE tenant_id = ? AND owner_user_id = ?
+                      AND session_id IN ({placeholders})""",
+                [tenant_id, owner_user_id, *unique_ids],
             ).fetchall()
         }
         deleted_ids = [session_id for session_id in unique_ids if session_id in existing_ids]
@@ -148,8 +169,10 @@ def delete_sessions_permanently(session_ids: list[str]) -> dict:
             }
         delete_placeholders = ", ".join("?" for _ in deleted_ids)
         connection.execute(
-            f"DELETE FROM agent.chat_sessions WHERE session_id IN ({delete_placeholders})",
-            deleted_ids,
+            f"""DELETE FROM agent.chat_sessions
+                WHERE tenant_id = ? AND owner_user_id = ?
+                  AND session_id IN ({delete_placeholders})""",
+            [tenant_id, owner_user_id, *deleted_ids],
         )
         connection.commit()
     return {
@@ -160,8 +183,13 @@ def delete_sessions_permanently(session_ids: list[str]) -> dict:
 
 
 def session_history(session_id: str, limit: int = 8) -> list[dict]:
+    tenant_id, owner_user_id = _scope()
     with db_session() as connection:
-        exists = connection.execute("SELECT 1 FROM chat_sessions WHERE session_id = ?", (session_id,)).fetchone()
+        exists = connection.execute(
+            """SELECT 1 FROM chat_sessions
+               WHERE session_id = ? AND tenant_id = ? AND owner_user_id = ?""",
+            (session_id, tenant_id, owner_user_id),
+        ).fetchone()
         if exists is None:
             raise ValueError("会话不存在")
         rows = connection.execute(
@@ -177,13 +205,16 @@ def session_history(session_id: str, limit: int = 8) -> list[dict]:
 def cached_agent_result(session_id: str, client_message_id: str | None) -> dict | None:
     if not client_message_id:
         return None
+    tenant_id, owner_user_id = _scope()
     with db_session() as connection:
         row = connection.execute(
-            """SELECT content, metadata_json FROM chat_messages
-               WHERE session_id = ? AND role = 'assistant'
+            """SELECT m.content, m.metadata_json FROM chat_messages m
+               JOIN chat_sessions s ON s.session_id = m.session_id
+               WHERE m.session_id = ? AND m.role = 'assistant'
+                 AND s.tenant_id = ? AND s.owner_user_id = ?
                  AND json_extract(metadata_json, '$.client_message_id') = ?
-               ORDER BY message_id DESC LIMIT 1""",
-            (session_id, client_message_id),
+               ORDER BY m.message_id DESC LIMIT 1""",
+            (session_id, tenant_id, owner_user_id, client_message_id),
         ).fetchone()
     if row is None:
         return None
@@ -200,11 +231,14 @@ def cached_agent_result(session_id: str, client_message_id: str | None) -> dict 
 def client_message_content(session_id: str, client_message_id: str | None) -> str | None:
     if not client_message_id:
         return None
+    tenant_id, owner_user_id = _scope()
     with db_session() as connection:
         row = connection.execute(
-            """SELECT content FROM chat_messages
-               WHERE session_id = ? AND role = 'user' AND client_message_id = ?""",
-            (session_id, client_message_id),
+            """SELECT m.content FROM chat_messages m
+               JOIN chat_sessions s ON s.session_id = m.session_id
+               WHERE m.session_id = ? AND m.role = 'user' AND m.client_message_id = ?
+                 AND s.tenant_id = ? AND s.owner_user_id = ?""",
+            (session_id, client_message_id, tenant_id, owner_user_id),
         ).fetchone()
     return None if row is None else str(row["content"])
 
@@ -219,10 +253,12 @@ def append_message(
     if role not in {"user", "assistant"}:
         raise ValueError("不支持的消息角色")
     timestamp = _now()
+    tenant_id, owner_user_id = _scope()
     with db_session() as connection:
         session = connection.execute(
-            "SELECT title FROM chat_sessions WHERE session_id = ?",
-            (session_id,),
+            """SELECT title FROM chat_sessions
+               WHERE session_id = ? AND tenant_id = ? AND owner_user_id = ?""",
+            (session_id, tenant_id, owner_user_id),
         ).fetchone()
         if session is None:
             raise ValueError("会话不存在")
@@ -290,7 +326,15 @@ def record_agent_result(session_id: str, assistant_message_id: int, result: dict
     completed_at = str(result.get("completed_at") or _now())
     started_at = str(result.get("started_at") or completed_at)
     usage = result.get("usage") or {}
+    tenant_id, owner_user_id = _scope()
     with db_session() as connection:
+        owned = connection.execute(
+            """SELECT 1 FROM chat_sessions
+               WHERE session_id = ? AND tenant_id = ? AND owner_user_id = ?""",
+            (session_id, tenant_id, owner_user_id),
+        ).fetchone()
+        if owned is None:
+            raise ValueError("会话不存在")
         connection.execute(
             """INSERT OR REPLACE INTO agent.agent_runs(
                    run_id, session_id, assistant_message_id, model, mode, status,

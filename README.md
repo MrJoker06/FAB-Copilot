@@ -5,6 +5,8 @@
 ## 已实现能力
 
 - 约 9,500 个制造批次、170,000 条分层工序、100 万条传感器记录、28 台设备及对应状态、事件和缺陷记录
+- 企业模拟数据适配器按签名游标提供 2,500 万虚拟批次、4.5 亿工序和 36 亿传感器事件，无需在本地物化全部记录
+- 请求级租户与用户上下文隔离个人知识和历史会话；默认演示身份兼容现有单用户页面
 - 综合良率、周期时间、Hold、异常数等 KPI
 - 周良率趋势、设备健康、缺陷 Pareto、近期异常批次
 - 覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗和量测，各站点按自身关键量测与规格计算 Cpk
@@ -57,6 +59,14 @@ FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH=data/personal_knowledge
 FAB_PERSONAL_KNOWLEDGE_USER_ID=local-user
 FAB_PERSONAL_KNOWLEDGE_API_TOKEN=
 FAB_PERSONAL_KNOWLEDGE_MAX_UPLOAD_BYTES=52428800
+FAB_ENTERPRISE_MODE=true
+FAB_DATA_PROVIDER=synthetic
+FAB_DEFAULT_TENANT_ID=demo-fab
+FAB_DEFAULT_USER_ID=local-user
+FAB_REQUIRE_IDENTITY=false
+FAB_MOCK_SEED=20260717
+FAB_MOCK_VIRTUAL_LOTS=25000000
+FAB_MOCK_CURSOR_SECRET=replace-with-a-long-random-secret
 ```
 
 在 WSL 中运行：
@@ -79,7 +89,9 @@ run.bat
 
 `run.bat` 是 Windows 入口，会通过 `wsl.exe` 调用 `run.sh`，实际运行时仍使用 WSL 中的 `fab-insight-agent` Conda 环境；Windows 端不需要另外安装 Python 或项目依赖。
 
-浏览器访问 <http://127.0.0.1:8765>，接口文档位于 <http://127.0.0.1:8765/docs>。
+本并行方案默认使用独立端口。浏览器访问 <http://127.0.0.1:8876>，接口文档位于 <http://127.0.0.1:8876/docs>。
+
+企业模拟数据接口、租户请求头和真实数据源替换契约见 [企业化并行方案](docs/enterprise-transition.md)。
 
 ## 模型切换
 

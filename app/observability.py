@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import unquote
 
 from .audit import CONTENT_MODE, emit, reset_request_id, set_request_id
+from .config import get_settings
 
 
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
@@ -44,6 +45,9 @@ class RequestAuditMiddleware:
             return
 
         headers = {key.decode("latin-1").lower(): value.decode("latin-1") for key, value in scope.get("headers", [])}
+        settings = get_settings()
+        tenant_id = headers.get("x-tenant-id") or settings.enterprise_default_tenant_id
+        user_id = headers.get("x-user-id") or settings.enterprise_default_user_id
         request_id = new_request_id(headers.get("x-request-id"))
         token = set_request_id(request_id)
         method = scope.get("method", "GET")
@@ -63,6 +67,8 @@ class RequestAuditMiddleware:
             path=path,
             query=query,
             client=scope.get("client"),
+            tenant_id=tenant_id,
+            user_id=user_id,
             **({"headers": headers} if CONTENT_MODE == "full" else {}),
         )
 
@@ -91,6 +97,8 @@ class RequestAuditMiddleware:
                     path=path,
                     status_code=status_code,
                     duration_ms=round((time.perf_counter() - started) * 1000, 1),
+                    tenant_id=tenant_id,
+                    user_id=user_id,
                     **({"error_type": f"HTTP_{status_code}"} if status_code >= 400 else {}),
                     **({"request_body": _decode_body(b"".join(body_parts), headers.get("content-type", ""))} if CONTENT_MODE == "full" and body_parts else {}),
                 )
@@ -107,6 +115,8 @@ class RequestAuditMiddleware:
                     method=method,
                     path=path,
                     error_type=type(exc).__name__,
+                    tenant_id=tenant_id,
+                    user_id=user_id,
                     **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
                 )
                 emit(
@@ -118,6 +128,8 @@ class RequestAuditMiddleware:
                     status_code=status_code,
                     duration_ms=round((time.perf_counter() - started) * 1000, 1),
                     error_type=type(exc).__name__,
+                    tenant_id=tenant_id,
+                    user_id=user_id,
                     **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
                 )
             if response_started:

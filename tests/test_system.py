@@ -70,7 +70,7 @@ class FabInsightTests(unittest.TestCase):
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("/static/app.js?v=20260716-6", page)
+        self.assertIn("/static/app.js?v=20260717-1", page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")
         self.assertIn("scrollbar-gutter: stable", styles)
         script = (Path(__file__).parents[1] / "app" / "static" / "app.js").read_text(encoding="utf-8")
@@ -486,6 +486,82 @@ class FabInsightTests(unittest.TestCase):
             self.assertEqual(response.json()["reference_data"]["knowledge_chunks"], 68)
             self.assertEqual(response.json()["reference_data"]["historical_cases"], 17)
             self.assertTrue(response.json()["build"]["version"])
+            self.assertTrue(response.json()["enterprise"]["simulated"])
+            self.assertEqual(response.json()["enterprise"]["virtual_scale"]["lots"], 25_000_000)
+
+    def test_enterprise_context_resolves_request_identity(self):
+        headers = {"X-Tenant-ID": "fab-east", "X-User-ID": "engineer-07", "X-Roles": "analyst,process-engineer"}
+        with TestClient(app) as client:
+            response = client.get("/api/enterprise/context", headers=headers)
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()["identity"]["tenant_id"], "fab-east")
+            self.assertEqual(response.json()["identity"]["user_id"], "engineer-07")
+            self.assertEqual(response.json()["knowledge_owner_scope"], "fab-east:engineer-07")
+            self.assertEqual(response.json()["identity"]["roles"], ["analyst", "process-engineer"])
+
+            invalid = client.get(
+                "/api/enterprise/context",
+                headers={"X-Tenant-ID": "invalid tenant", "X-User-ID": "engineer-07"},
+            )
+            self.assertEqual(invalid.status_code, 400)
+            self.assertEqual(invalid.json()["error_code"], "INVALID_IDENTITY")
+
+    def test_sessions_are_isolated_by_tenant_and_user(self):
+        owner_headers = {"X-Tenant-ID": "fab-a", "X-User-ID": "owner"}
+        other_tenant_headers = {"X-Tenant-ID": "fab-b", "X-User-ID": "owner"}
+        other_user_headers = {"X-Tenant-ID": "fab-a", "X-User-ID": "other"}
+        with TestClient(app) as client:
+            created = client.post("/api/sessions", headers=owner_headers)
+            self.assertEqual(created.status_code, 200)
+            session_id = created.json()["session_id"]
+
+            self.assertEqual(client.get(f"/api/sessions/{session_id}", headers=owner_headers).status_code, 200)
+            self.assertEqual(client.get(f"/api/sessions/{session_id}", headers=other_tenant_headers).status_code, 404)
+            self.assertEqual(client.get(f"/api/sessions/{session_id}", headers=other_user_headers).status_code, 404)
+            self.assertNotIn(session_id, {item["session_id"] for item in client.get("/api/sessions", headers=other_tenant_headers).json()})
+            self.assertEqual(client.delete(f"/api/sessions/{session_id}/permanent", headers=owner_headers).status_code, 200)
+
+    def test_enterprise_mock_data_is_deterministic_and_cursor_scoped(self):
+        headers = {"X-Tenant-ID": "fab-a", "X-User-ID": "analyst"}
+        path = "/api/enterprise/data/process-runs?process_step=ETCH&limit=3"
+        with TestClient(app) as client:
+            first = client.get(path, headers=headers)
+            repeated = client.get(path, headers=headers)
+            self.assertEqual(first.status_code, 200, first.text)
+            self.assertEqual(first.json()["records"], repeated.json()["records"])
+            self.assertTrue(all(item["process_step"] == "ETCH" and item["synthetic"] for item in first.json()["records"]))
+            cursor = first.json()["page"]["next_cursor"]
+            self.assertTrue(cursor)
+
+            second = client.get(
+                "/api/enterprise/data/process-runs",
+                headers=headers,
+                params={"process_step": "ETCH", "limit": 3, "cursor": cursor},
+            )
+            self.assertEqual(second.status_code, 200, second.text)
+            self.assertFalse(
+                {item["run_id"] for item in first.json()["records"]}
+                & {item["run_id"] for item in second.json()["records"]}
+            )
+
+            cross_tenant = client.get(
+                "/api/enterprise/data/process-runs",
+                headers={"X-Tenant-ID": "fab-b", "X-User-ID": "analyst"},
+                params={"process_step": "ETCH", "limit": 3, "cursor": cursor},
+            )
+            self.assertEqual(cross_tenant.status_code, 400)
+            self.assertEqual(cross_tenant.json()["error_code"], "CURSOR_SCOPE_MISMATCH")
+
+            midpoint = len(cursor) // 2
+            replacement = "A" if cursor[midpoint] != "A" else "B"
+            tampered = f"{cursor[:midpoint]}{replacement}{cursor[midpoint + 1:]}"
+            invalid = client.get(
+                "/api/enterprise/data/process-runs",
+                headers=headers,
+                params={"process_step": "ETCH", "limit": 3, "cursor": tampered},
+            )
+            self.assertEqual(invalid.status_code, 400)
+            self.assertEqual(invalid.json()["error_code"], "INVALID_CURSOR")
 
     def test_api_errors_include_correlation_id_and_retry_metadata(self):
         request_id = "req-test-correlation-001"

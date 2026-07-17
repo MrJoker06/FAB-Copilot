@@ -202,6 +202,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS case_trigram_fts USING fts5(
 
 CREATE TABLE IF NOT EXISTS chat_sessions (
     session_id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT 'demo-fab',
+    owner_user_id TEXT NOT NULL DEFAULT 'local-user',
     title TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -273,6 +275,7 @@ CREATE INDEX IF NOT EXISTS idx_wafer_maps_pattern ON wafer_maps(pattern_class, d
 CREATE INDEX IF NOT EXISTS idx_cases_step_date ON historical_cases(process_step, occurred_date);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, message_id);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated ON chat_sessions(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_owner_updated ON chat_sessions(tenant_id, owner_user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_runs_session ON agent_runs(session_id, completed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tool_events_run ON agent_tool_events(run_id, sequence_no);
 CREATE INDEX IF NOT EXISTS idx_message_sources_message ON message_sources(message_id);
@@ -305,6 +308,8 @@ PROCESS_RUN_MEASUREMENT_COLUMNS = {
 }
 
 CHAT_SESSION_COLUMNS = {
+    "tenant_id": "TEXT NOT NULL DEFAULT 'demo-fab'",
+    "owner_user_id": "TEXT NOT NULL DEFAULT 'local-user'",
     "model": "TEXT NOT NULL DEFAULT ''",
     "archived_at": "TEXT",
     "last_message_preview": "TEXT NOT NULL DEFAULT ''",
@@ -442,6 +447,10 @@ def _initialize_departments() -> None:
             connection.execute(f"PRAGMA journal_mode={sqlite_journal_mode(path)}")
             connection.executescript(DEPARTMENT_SCHEMAS[department])
             if department == "agent":
+                session_columns = {row[1] for row in connection.execute("PRAGMA table_info(chat_sessions)")}
+                for name, definition in CHAT_SESSION_COLUMNS.items():
+                    if name not in session_columns:
+                        connection.execute(f"ALTER TABLE chat_sessions ADD COLUMN {name} {definition}")
                 message_columns = {row[1] for row in connection.execute("PRAGMA table_info(chat_messages)")}
                 for name, definition in CHAT_MESSAGE_COLUMNS.items():
                     if name not in message_columns:
@@ -450,6 +459,10 @@ def _initialize_departments() -> None:
                     "CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_messages_client_id "
                     "ON chat_messages(session_id, client_message_id) "
                     "WHERE role = 'user' AND client_message_id IS NOT NULL"
+                )
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_chat_sessions_owner_updated "
+                    "ON chat_sessions(tenant_id, owner_user_id, updated_at DESC)"
                 )
             connection.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version, description) VALUES (?, ?)",

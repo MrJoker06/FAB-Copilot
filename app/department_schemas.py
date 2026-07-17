@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 SCHEMA_METADATA = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -306,6 +306,8 @@ CREATE INDEX IF NOT EXISTS idx_personal_jobs_owner_updated ON personal_knowledge
 AGENT_SCHEMA = SCHEMA_METADATA + """
 CREATE TABLE IF NOT EXISTS chat_sessions (
     session_id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT 'demo-fab',
+    owner_user_id TEXT NOT NULL DEFAULT 'local-user',
     title TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -366,6 +368,7 @@ CREATE TABLE IF NOT EXISTS message_sources (
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, message_id);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated ON chat_sessions(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_owner_updated ON chat_sessions(tenant_id, owner_user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_runs_session ON agent_runs(session_id, completed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_runs_message ON agent_runs(assistant_message_id);
 CREATE INDEX IF NOT EXISTS idx_tool_events_run ON agent_tool_events(run_id, sequence_no);

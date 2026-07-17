@@ -20,6 +20,8 @@ from .agent import run_agent
 from .audit import CONTENT_MODE, GIT_COMMIT, current_request_id, emit, monitoring_summary, read_events
 from .config import APP_VERSION, PROJECT_DIR, get_settings, public_model_config, update_model_config
 from .database import db_session, department_paths, ensure_department_databases
+from .enterprise_data import EnterpriseDataError, get_enterprise_provider
+from .identity import PrincipalContextMiddleware, current_principal
 from .processes import MANUFACTURING_STEPS, PROCESS_STEP_PATTERN
 from .personal_knowledge import (
     PersonalDocumentPatch,
@@ -96,6 +98,7 @@ app = FastAPI(
     description="虚拟半导体制造报表、RAG 与数据分析 Agent",
     lifespan=lifespan,
 )
+app.add_middleware(PrincipalContextMiddleware)
 app.add_middleware(RequestAuditMiddleware)
 app.mount("/static", StaticFiles(directory=PROJECT_DIR / "app" / "static"), name="static")
 
@@ -201,7 +204,7 @@ def current_personal_user(
                 },
                 headers={"WWW-Authenticate": "Bearer"},
             )
-    return settings.personal_knowledge_user_id
+    return current_principal().knowledge_owner_id
 
 
 def personal_problem(exc: PersonalKnowledgeError) -> HTTPException:
@@ -219,6 +222,8 @@ async def index():
 @app.get("/api/health")
 def health() -> dict:
     settings = get_settings()
+    principal = current_principal()
+    enterprise = get_enterprise_provider().manifest(principal)
     department_names = {"main": "manufacturing"}
     with db_session() as connection:
         lots = connection.execute("SELECT COUNT(*) FROM lots").fetchone()[0]
@@ -242,12 +247,75 @@ def health() -> dict:
         "agent_configured": bool(settings.deepseek_api_key),
         "build": {"version": APP_VERSION, "git_commit": GIT_COMMIT},
         "reference_data": {"knowledge_chunks": knowledge_chunks, "historical_cases": historical_cases},
+        "enterprise": enterprise,
     }
 
 
 @app.get("/api/version")
 def version() -> dict:
     return {"version": APP_VERSION, "git_commit": GIT_COMMIT}
+
+
+@app.get("/api/enterprise/context")
+def enterprise_context() -> dict:
+    settings = get_settings()
+    principal = current_principal()
+    return {
+        "mode": "enterprise" if settings.enterprise_mode else "personal",
+        "identity": principal.public_dict(),
+        "knowledge_owner_scope": principal.knowledge_owner_id,
+        "data": get_enterprise_provider().manifest(principal),
+    }
+
+
+def _enterprise_page(entity: str, limit: int, cursor: str | None, filters: dict) -> dict:
+    try:
+        query_filters = {key: value for key, value in filters.items() if key not in {"entity", "limit", "cursor"}}
+        return get_enterprise_provider().page(entity, current_principal(), limit, cursor, query_filters)
+    except EnterpriseDataError as exc:
+        raise http_problem(400, exc.error_code, exc.detail, False) from exc
+
+
+@app.get("/api/enterprise/data/manifest")
+def enterprise_manifest() -> dict:
+    return get_enterprise_provider().manifest(current_principal())
+
+
+@app.get("/api/enterprise/data/lots")
+def enterprise_lots(
+    limit: int = Query(100, ge=1, le=500),
+    cursor: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    product: str | None = None,
+    status: str | None = None,
+) -> dict:
+    return _enterprise_page("lots", limit, cursor, locals())
+
+
+@app.get("/api/enterprise/data/process-runs")
+def enterprise_process_runs(
+    limit: int = Query(100, ge=1, le=500),
+    cursor: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    process_step: str | None = None,
+    equipment_id: str | None = None,
+) -> dict:
+    return _enterprise_page("process-runs", limit, cursor, locals())
+
+
+@app.get("/api/enterprise/data/sensor-events")
+def enterprise_sensor_events(
+    limit: int = Query(100, ge=1, le=500),
+    cursor: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    process_step: str | None = None,
+    equipment_id: str | None = None,
+    signal_name: str | None = None,
+) -> dict:
+    return _enterprise_page("sensor-events", limit, cursor, locals())
 
 
 @app.get("/api/settings/model")
