@@ -98,7 +98,8 @@ async def test_agent_answers_introduction_without_querying_manufacturing_data() 
     assert gateway.calls == []
     assert result["mode"] == "direct"
     assert "Fab Copilot" in result["answer"]
-    assert "只读" in result["answer"]
+    assert "可以帮助你" in result["answer"]
+    assert "Data MCP" not in result["answer"]
 
 
 @pytest.mark.asyncio
@@ -139,6 +140,7 @@ async def test_deterministic_fallback_summarizes_tool_rows_without_dumping_json(
     assert "CLEAN-02" in result["answer"]
     assert "CLEAN-PARTICLE-HI" in result["answer"]
     assert '{"run_time"' not in result["answer"]
+    assert "Data MCP" not in result["answer"]
 
 
 @pytest.mark.asyncio

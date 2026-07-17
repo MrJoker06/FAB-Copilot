@@ -270,10 +270,11 @@ class FabAnalysisAgent:
         if not any(phrase in normalized for phrase in introduction_phrases):
             return None
         return (
-            "我是 Fab Copilot，一名面向晶圆厂制造分析的只读助手。\n\n"
-            "我可以通过受控 Data MCP 查询良率趋势、设备健康、SEMI E10 生产率、"
-            "制程能力 Cpk、缺陷 Pareto、异常批次和传感器摘要，并把结果整理成可读结论。"
-            "我不会修改生产数据库；涉及停机、报废或配方变更时，会要求工程师复核。\n\n"
+            "我是 Fab Copilot，可以帮助你：\n\n"
+            "- 查看良率、周期、设备、异常、缺陷和制程能力趋势；\n"
+            "- 分析特定设备或工序的风险，梳理可能原因和待验证项；\n"
+            "- 查找 SOP、控制计划和历史案例，并给出可追溯来源；\n"
+            "- 整理分析结论、关键证据和后续建议。\n\n"
             "你可以问我：『最近 30 天 CVD-02 的能力变化与可能原因』。"
         )
 
@@ -364,17 +365,7 @@ class FabAnalysisAgent:
 
     @classmethod
     def _answer(cls, message: str, results: list[ToolResult]) -> str:
-        has_data = any(result.tool != "search_knowledge" for result in results)
-        has_knowledge = any(result.tool == "search_knowledge" for result in results)
-        if has_data and has_knowledge:
-            opening = "已通过受控 Data MCP 查询制造数据，并检索厂内受控知识。"
-        elif has_knowledge:
-            opening = "已检索厂内受控知识与已验证案例。"
-        else:
-            opening = "已通过受控 Data MCP 查询制造数据。"
-        sections = [opening]
-        for result in results:
-            sections.append(cls._summarize_result(result))
+        sections = [cls._summarize_result(result) for result in results]
         sections.append("以上是数据事实；根因判断仍需结合批次、设备状态和工程验证。")
         return "\n\n".join(sections)
 

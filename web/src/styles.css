@@ -56,7 +56,7 @@ button, input, textarea { font: inherit; letter-spacing: 0; }
 .brand small { margin-top: 2px; color: #9eb0ac; font-size: 10px; line-height: 1.2; }
 .topbar-actions { display: flex; align-items: center; gap: 14px; color: #b7c5c1; }
 .system-status { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-.system-status i { width: 7px; height: 7px; border-radius: 50%; background: #5cc597; box-shadow: 0 0 0 3px rgba(92,197,151,.12); }
+.system-status strong { color: #dce8e4; font-weight: 600; }
 .model-settings-button {
   height: 32px;
   display: flex;

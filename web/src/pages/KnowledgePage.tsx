@@ -27,7 +27,7 @@ export default function KnowledgePage() {
 
   return <section>
     <div className="page-heading">
-      <div><span className="eyebrow">CONTROLLED KNOWLEDGE</span><h2>知识中心</h2><p>厂内受控文档与引用章节；制造事实仍由 Data MCP 提供。</p></div>
+      <div><span className="eyebrow">FAB KNOWLEDGE</span><h2>知识中心</h2><p>浏览厂内知识文档、引用章节和完整正文。</p></div>
       <div className="knowledge-search"><Input allowClear placeholder="筛选文档或章节" value={search} onChange={event => setSearch(event.target.value)} /><span>{filtered.length} 份文档</span></div>
     </div>
     <div className="knowledge-layout">

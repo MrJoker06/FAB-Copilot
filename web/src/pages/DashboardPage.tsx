@@ -8,7 +8,7 @@ import type { DashboardData, EquipmentHealth } from '../api/types'
 export default function DashboardPage() {
   const dashboard = useQuery({ queryKey: ['dashboard'], queryFn: () => api<DashboardData>('/api/v1/reports/dashboard') })
   if (dashboard.isLoading) return <Skeleton active paragraph={{ rows: 12 }} />
-  if (!dashboard.data) return <Empty description="制造总览暂不可用，请检查 Data MCP。" />
+  if (!dashboard.data) return <Empty description="制造总览暂不可用，请稍后重试。" />
   const data = dashboard.data
   const kpis = [
     ['完成批次', data.overview.lots, 'lots'],

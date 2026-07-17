@@ -1,10 +1,12 @@
 import { lazy, Suspense, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Layout, Menu, Spin } from 'antd'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 
+import { api } from './api/client'
+import type { ModelConfigView } from './api/types'
 import CopilotPanel from './components/CopilotPanel'
 import ModelSettingsModal from './components/ModelSettingsModal'
-import { api } from './api/client'
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const CapabilityPage = lazy(() => import('./pages/CapabilityPage'))
 const KnowledgePage = lazy(() => import('./pages/KnowledgePage'))
@@ -28,6 +30,14 @@ export default function App() {
   const [copilotOpen, setCopilotOpen] = useState(true)
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false)
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>(() => localStorage.getItem('fabInsightSessionId') || undefined)
+  const modelConfig = useQuery({
+    queryKey: ['model-config'],
+    queryFn: () => api<ModelConfigView>('/api/v1/settings/model'),
+    staleTime: 60_000,
+  })
+  const currentModel = modelConfig.data
+    ? modelConfig.data.api_key_configured ? modelConfig.data.model : '本地规则'
+    : modelConfig.isError ? '暂不可用' : '加载中…'
   const selectSession = (sessionId?: string) => {
     setActiveSessionId(sessionId)
     if (sessionId) localStorage.setItem('fabInsightSessionId', sessionId)
@@ -54,7 +64,7 @@ export default function App() {
           <div><strong>Fab Insight</strong><small>制造分析控制台</small></div>
         </div>
         <div className="topbar-actions">
-          <span className="system-status"><i />API 与 Data MCP 已连接</span>
+          <span className="system-status">当前模型：<strong>{currentModel}</strong></span>
           <button className="mobile-agent-toggle" onClick={() => setCopilotOpen(!copilotOpen)} aria-label={copilotOpen ? '隐藏分析助手' : '显示分析助手'}>◇</button>
           <button className="model-settings-button" onClick={() => setModelSettingsOpen(true)}><span>⚙</span><span>模型设置</span></button>
         </div>

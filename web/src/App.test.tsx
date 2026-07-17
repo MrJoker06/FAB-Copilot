@@ -55,6 +55,8 @@ test('renders the V1-style FAB shell and resizable Copilot', async () => {
   expect(screen.getByText('Fab Insight')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /隐藏分析助手/ })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /模型设置/ })).toBeInTheDocument()
+  expect(await screen.findByText('deepseek-v4-flash')).toBeInTheDocument()
+  expect(screen.queryByText('API 与 Data MCP 已连接')).not.toBeInTheDocument()
   expect(screen.queryByText('当前为可复现虚拟 FAB 数据，不代表真实量产规范。')).not.toBeInTheDocument()
   expect(await screen.findByText('制造绩效总览')).toBeInTheDocument()
   expect(await screen.findByText('完成批次')).toBeInTheDocument()
@@ -83,6 +85,8 @@ test('opens model configuration from the V1 topbar entrance', async () => {
 
 test('keeps the V1 assistant send and draft behavior', async () => {
   renderApp()
+  expect(screen.getByText(/我可以帮你查看制造总览和趋势/)).toBeInTheDocument()
+  expect(screen.queryByText(/受控数据工具/)).not.toBeInTheDocument()
   const input = screen.getByPlaceholderText('例如：最近 30 天 CVD-02 的能力变化与可能原因')
   fireEvent.change(input, { target: { value: '待继续分析的草稿' } })
   expect(localStorage.getItem('fabInsightChatDraft')).toBe('待继续分析的草稿')

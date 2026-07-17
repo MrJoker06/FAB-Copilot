@@ -174,7 +174,7 @@ export default function CopilotPanel({ sessionId, onSessionChange, onNewSession,
         {!session.isLoading && !messages.length && !pendingQuestion && <>
           <article className="message assistant welcome-message">
             <div className="message-meta"><strong className="message-label">FAB COPILOT</strong></div>
-            <div className="message-content">可以从制造总览、制程能力、设备异常或历史案例开始分析。我会通过受控数据工具读取信息，并保留每轮分析上下文。</div>
+            <div className="message-content">我可以帮你查看制造总览和趋势、分析设备与工序异常、评估制程能力、查找知识文档和历史案例，并整理可能原因与待验证项。</div>
           </article>
           <div className="suggestions">
             {['最近三个月哪些设备风险最高？', 'CVD-02 的膜厚是否发生漂移？', '分析刻蚀设备 CD 偏移的潜在原因'].map(prompt => <button key={prompt} onClick={() => submit(prompt)}>{prompt}</button>)}
@@ -191,7 +191,7 @@ export default function CopilotPanel({ sessionId, onSessionChange, onNewSession,
           {item.role === 'assistant' && <div className="message-actions"><button className="copy-answer" onClick={async () => { await navigator.clipboard.writeText(item.content); setCopiedMessageId(item.message_id); window.setTimeout(() => setCopiedMessageId(undefined), 1600) }}><span>{copiedMessageId === item.message_id ? '✓' : '⧉'}</span><span>{copiedMessageId === item.message_id ? '已复制' : '复制'}</span></button></div>}
         </article>)}
         {pendingQuestion && <article className="message user pending"><div className="message-meta"><strong className="message-label">你</strong></div><div className="message-content">{pendingQuestion}</div></article>}
-        {chat.isPending && <div className="assistant-thinking"><Spin size="small" /> 正在分析并调用受控工具…</div>}
+        {chat.isPending && <div className="assistant-thinking"><Spin size="small" /> 正在分析问题并整理证据…</div>}
         {chat.isError && <Alert type="error" showIcon title="分析请求未完成" description={<><span>{chat.error.message}</span><Button size="small" onClick={() => submit(lastQuestion)}>重试</Button></>} />}
         <div ref={messagesEnd} />
       </div>
