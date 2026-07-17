@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import re
-import threading
 from dataclasses import replace
 from datetime import datetime, timezone
 
@@ -13,8 +12,6 @@ from .identity import Principal, current_principal
 
 MODEL_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{1,63}$")
 MODEL_PROVIDERS = {"deepseek", "openai-compatible"}
-_key_lock = threading.Lock()
-_user_api_keys: dict[tuple[str, str], str] = {}
 
 
 def _now() -> str:
@@ -99,20 +96,11 @@ def _selected_model(principal: Principal) -> dict:
     return _decode_model(row)
 
 
-def _runtime_api_key(principal: Principal) -> tuple[str, str]:
-    with _key_lock:
-        key = _user_api_keys.get((principal.tenant_id, principal.user_id), "")
-    if key:
-        return key, "user_runtime"
-    environment_key = get_settings().deepseek_api_key
-    return environment_key, "environment" if environment_key else "none"
-
-
 def public_user_model_config(principal: Principal | None = None) -> dict:
     principal = principal or current_principal()
     selected = _selected_model(principal)
     models = list_models()
-    api_key, key_source = _runtime_api_key(principal)
+    api_key_configured = bool(get_settings().deepseek_api_key)
     return {
         "model": selected["model_id"],
         "display_name": selected["display_name"],
@@ -130,18 +118,14 @@ def public_user_model_config(principal: Principal | None = None) -> dict:
             }
             for item in models
         ],
-        "api_key_configured": bool(api_key),
-        "api_key_masked": f"••••••••{api_key[-4:]}" if len(api_key) >= 4 else "",
-        "api_key_source": key_source,
-        "persistence": "model_preference_database_api_key_process_memory",
+        "api_key_configured": api_key_configured,
+        "credential_scope": "server_managed",
+        "persistence": "model_preference_database",
     }
 
 
-def select_user_model(model_id: str, api_key: str | None = None, principal: Principal | None = None) -> dict:
+def select_user_model(model_id: str, principal: Principal | None = None) -> dict:
     principal = principal or current_principal()
-    cleaned_key = api_key.strip() if api_key is not None else None
-    if cleaned_key is not None and cleaned_key and len(cleaned_key) < 8:
-        raise ValueError("API Key 长度不能少于 8 个字符")
     with db_session() as connection:
         exists = connection.execute(
             "SELECT 1 FROM model_catalog WHERE model_id = ? AND status = 'published'",
@@ -157,9 +141,6 @@ def select_user_model(model_id: str, api_key: str | None = None, principal: Prin
             (principal.tenant_id, principal.user_id, model_id, _now()),
         )
         connection.commit()
-    if cleaned_key:
-        with _key_lock:
-            _user_api_keys[(principal.tenant_id, principal.user_id)] = cleaned_key
     return public_user_model_config(principal)
 
 
@@ -168,10 +149,8 @@ def effective_agent_settings(settings):
         return settings
     principal = current_principal()
     selected = _selected_model(principal)
-    api_key, _ = _runtime_api_key(principal)
     return replace(
         settings,
-        deepseek_api_key=api_key,
         deepseek_base_url=selected["base_url"].rstrip("/"),
         deepseek_model=selected["provider_model"],
     )

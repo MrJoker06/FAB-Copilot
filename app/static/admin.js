@@ -44,10 +44,19 @@ function showNotice(selector, message, error = false) {
 }
 
 function showAuth(message = '') {
+  $('#adminWorkspace').hidden = true;
+  if ($('#publishModelDialog').open) $('#publishModelDialog').close();
+  $('#adminToast').hidden = true;
   setConnection(false);
   $('#adminAuthMessage').textContent = message;
   $('#adminAuthMessage').hidden = !message;
   if (!$('#adminAuthDialog').open) $('#adminAuthDialog').showModal();
+}
+
+function showWorkspace() {
+  $('#adminWorkspace').hidden = false;
+  if ($('#adminAuthDialog').open) $('#adminAuthDialog').close();
+  setConnection(true);
 }
 
 function statusChip(status) {
@@ -140,7 +149,8 @@ async function authenticate(event) {
   try {
     await loadOverview();
     sessionStorage.setItem('fabInsightAdminToken', adminState.token);
-    $('#adminToken').value = ''; $('#adminAuthDialog').close(); setConnection(true);
+    $('#adminToken').value = '';
+    showWorkspace();
   } catch { adminState.token = ''; sessionStorage.removeItem('fabInsightAdminToken'); }
 }
 
@@ -156,7 +166,7 @@ function init() {
   $('#cancelPublishModel').addEventListener('click', () => $('#publishModelDialog').close());
   $('#publishModelForm').addEventListener('submit', publishModel);
   $('#modelCatalogBody').addEventListener('click', event => { const button = event.target.closest('[data-model-id]'); if (button) updateModelStatus(button.dataset.modelId, button.dataset.modelStatus, button); });
-  if (adminState.token) loadOverview().then(() => setConnection(true)).catch(() => {}); else showAuth();
+  if (adminState.token) loadOverview().then(showWorkspace).catch(() => {}); else showAuth();
   adminState.refreshTimer = window.setInterval(() => adminState.token && adminState.activeView === 'runtime' && loadOverview().catch(() => {}), 10000);
 }
 

@@ -13,7 +13,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPE
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from .agent import run_agent
@@ -179,8 +179,9 @@ class ChatRequest(BaseModel):
 
 
 class ModelConfigRequest(BaseModel):
-    model: str
-    api_key: SecretStr | None = None
+    model_config = ConfigDict(extra="forbid")
+
+    model: str = Field(min_length=2, max_length=64)
 
 
 class AdminModelPublishRequest(BaseModel):
@@ -398,9 +399,8 @@ def get_model_config() -> dict:
 
 @app.post("/api/settings/model")
 def set_model_config(request: ModelConfigRequest) -> dict:
-    api_key = request.api_key.get_secret_value() if request.api_key is not None else None
     try:
-        result = select_user_model(request.model, api_key)
+        result = select_user_model(request.model)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     emit(
@@ -408,8 +408,6 @@ def set_model_config(request: ModelConfigRequest) -> dict:
         f"config-{uuid.uuid4()}",
         status="success",
         model=result["model"],
-        api_key_updated=bool(api_key),
-        api_key_source=result["api_key_source"],
         tenant_id=current_principal().tenant_id,
         user_id=current_principal().user_id,
     )

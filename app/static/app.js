@@ -496,7 +496,6 @@ function renderModelConfig(config) {
   const activeLabel = config.display_name || config.model;
   $('#activeModelLabel').textContent = activeLabel;
   $('#agentMode').textContent = `${activeLabel} · 工具分析`;
-  $('#apiKeyState').textContent = config.api_key_configured ? `已配置 ${config.api_key_masked}` : '尚未配置 API Key';
   const select = $('#modelSelect');
   const options = config.model_options?.length ? config.model_options : config.allowed_models.map(model => ({model_id:model, display_name:model, provider_model:model}));
   select.innerHTML = options.map(model => `<option value="${escapeHtml(model.model_id)}" ${model.model_id === config.model ? 'selected' : ''}>${escapeHtml(model.display_name)} · ${escapeHtml(model.provider_model)}</option>`).join('');
@@ -510,7 +509,6 @@ async function loadModelConfig() {
 
 async function openModelSettings() {
   const message = $('#modelSettingsMessage'); message.hidden = true; message.classList.remove('error');
-  $('#apiKeyInput').value = ''; $('#apiKeyInput').type = 'password';
   try { await loadModelConfig(); $('#modelDialog').showModal(); }
   catch (error) { alert(`无法加载模型配置：${error.message}`); }
 }
@@ -518,13 +516,11 @@ async function openModelSettings() {
 async function saveModelSettings(event) {
   event.preventDefault();
   const button = $('#saveModelSettings'), message = $('#modelSettingsMessage');
-  const apiKey = $('#apiKeyInput').value.trim();
   const body = {model: $('#modelSelect').value};
-  if (apiKey) body.api_key = apiKey;
   button.disabled = true; message.hidden = true;
   try {
     const config = await api('/api/settings/model', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-    renderModelConfig(config); $('#apiKeyInput').value = '';
+    renderModelConfig(config);
     message.textContent = `已切换到 ${config.display_name || config.model}`; message.classList.remove('error'); message.hidden = false;
     updateSystemStatus(config.display_name || config.model);
     window.setTimeout(() => $('#modelDialog').open && $('#modelDialog').close(), 700);
@@ -1547,7 +1543,6 @@ async function init() {
   $('#modelSettingsForm').addEventListener('submit', saveModelSettings);
   $('#closeModelDialog').addEventListener('click', () => $('#modelDialog').close());
   $('#cancelModelSettings').addEventListener('click', () => $('#modelDialog').close());
-  $('#toggleApiKey').addEventListener('click', () => { const input=$('#apiKeyInput'); input.type=input.type === 'password' ? 'text' : 'password'; });
   $('#yieldChart').addEventListener('mousemove', e => { const rect=e.currentTarget.getBoundingClientRect(), mx=e.clientX-rect.left; const point=state.chartPoints.reduce((a,b)=>Math.abs(b.x-mx)<Math.abs(a.x-mx)?b:a,state.chartPoints[0]); const tip=$('#chartTooltip'); if (!point || Math.abs(point.x-mx)>18) {tip.hidden=true;return;} tip.hidden=false; tip.style.left=`${point.x}px`; tip.style.top=`${point.y}px`; tip.textContent=`${point.row.week_start} · ${point.row.yield_pct}% · ${point.row.lots}批`; });
   $('#yieldChart').addEventListener('mouseleave', () => $('#chartTooltip').hidden=true);
   window.addEventListener('resize', () => {

@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="app-version" content="20260717-4">
+  <meta name="app-version" content="20260717-5">
   <meta name="description" content="Fab Insight 企业管理控制台">
   <title>Fab Insight Admin</title>
-  <link rel="stylesheet" href="/static/admin.css?v=20260717-4">
+  <link rel="stylesheet" href="/static/admin.css?v=20260717-5">
 </head>
 <body>
+  <div id="adminWorkspace" class="admin-workspace" hidden>
   <header class="admin-topbar">
     <div class="admin-brand"><span class="admin-mark">FI</span><div><strong>Fab Insight</strong><small>企业管理控制台</small></div></div>
     <div class="admin-top-actions"><span id="adminConnection" class="connection-state"><i></i>未连接</span><button id="adminLogout" class="quiet-button" type="button">退出管理端</button></div>
@@ -52,6 +53,7 @@
       </section>
     </main>
   </div>
+  </div>
 
   <dialog id="adminAuthDialog" class="admin-dialog auth-dialog">
     <form id="adminAuthForm">
@@ -78,6 +80,6 @@
   </dialog>
 
   <div id="adminToast" class="admin-toast" role="status" hidden></div>
-  <script src="/static/admin.js?v=20260717-4" defer></script>
+  <script src="/static/admin.js?v=20260717-5" defer></script>
 </body>
 </html>

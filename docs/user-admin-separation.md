@@ -28,7 +28,7 @@ GET   /api/monitor/summary
 GET   /api/monitor/events
 ```
 
-管理端令牌只存放在浏览器 `sessionStorage`，关闭标签页会话后失效。当前 Bearer Token 是本地过渡方案，不能替代生产 SSO；生产环境必须由可信网关验证 JWT，并从签名声明映射管理员角色。
+管理端令牌只存放在浏览器 `sessionStorage`，关闭标签页会话后失效。管理工作区默认隐藏，只有令牌校验成功后才显示；登出、令牌失效或认证失败会立即重新隐藏。当前 Bearer Token 是本地过渡方案，不能替代生产 SSO；生产环境必须由可信网关验证 JWT，并从签名声明映射管理员角色。
 
 ## 3. 模型生命周期
 
@@ -41,7 +41,7 @@ GET   /api/monitor/events
 
 管理员发布后，模型立即进入用户端选择列表。停用后新请求不能再选择该模型；已有用户偏好会自动回退到其他已发布模型。系统阻止停用最后一个已发布模型。
 
-`user_model_preferences` 使用 `(tenant_id, user_id)` 作为主键。用户切换模型不会影响其他用户。用户填写的 API Key 使用进程内存中的相同作用域保存，不写数据库、日志或响应正文；未填写时使用服务端环境 Key。
+`user_model_preferences` 使用 `(tenant_id, user_id)` 作为主键。用户切换模型不会影响其他用户。用户端只能选择管理端已发布的 `model_id`，不能提交模型名称、API 地址或 API Key；模型凭据由服务端环境或模型网关统一管理。
 
 ## 4. 用户运行状态
 
@@ -57,7 +57,7 @@ GET   /api/monitor/events
 ## 5. 生产演进约束
 
 - 使用 OIDC/SSO 和 RBAC 代替请求头身份与静态管理令牌。
-- API Key 进入企业 Secret Manager，或只允许用户提交受管凭据引用。
+- API Key 进入企业 Secret Manager，由后台模型目录保存受管凭据引用，用户端始终不接触密钥。
 - 模型发布增加审批、连通性测试、工具调用兼容测试、限额和灰度范围。
 - 运行状态通过 Redis、Kafka 或 OpenTelemetry 汇聚，避免单进程内存视图。
 - 管理 API 与用户 API 使用不同网关路由、审计策略和网络访问控制。

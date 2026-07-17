@@ -34,7 +34,7 @@ X-Roles: analyst,process-engineer
 - 其他租户使用 `tenant_id:user_id` 作为个人知识 owner，避免不同租户的同名用户共享索引。
 - 工厂正式知识与历史案例暂为全局演示数据；生产版应增加站点、组织、保密级别和 ACL 过滤。
 
-管理端使用独立的 `FAB_ADMIN_API_TOKEN` Bearer Token，入口为 `/admin`。该令牌只适合本地和集成测试；生产环境仍应由 OIDC/SSO、管理员角色声明和 API Gateway 策略替代。模型目录与用户模型偏好持久化在 AI 运营库，用户提供的 API Key 不落数据库。
+管理端使用独立的 `FAB_ADMIN_API_TOKEN` Bearer Token，入口为 `/admin`。管理工作区在认证成功前保持隐藏。该令牌只适合本地和集成测试；生产环境仍应由 OIDC/SSO、管理员角色声明和 API Gateway 策略替代。模型目录与用户模型偏好持久化在 AI 运营库，用户端只能选择已发布模型，模型凭据由服务端统一管理。
 
 ## 3. 企业模拟数据接口
 

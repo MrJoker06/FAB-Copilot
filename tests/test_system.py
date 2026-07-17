@@ -70,8 +70,9 @@ class FabInsightTests(unittest.TestCase):
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("/static/app.js?v=20260717-4", page)
+        self.assertIn("/static/app.js?v=20260717-5", page)
         self.assertNotIn('id="monitorView"', page)
+        self.assertNotIn('id="apiKeyInput"', page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")
         self.assertIn("scrollbar-gutter: stable", styles)
         script = (Path(__file__).parents[1] / "app" / "static" / "app.js").read_text(encoding="utf-8")
@@ -91,10 +92,13 @@ class FabInsightTests(unittest.TestCase):
             "publishModelDialog",
         ):
             self.assertIn(f'id="{element_id}"', response.text)
-        self.assertIn("/static/admin.js?v=20260717-4", response.text)
+        self.assertIn('<div id="adminWorkspace" class="admin-workspace" hidden>', response.text)
+        self.assertIn("/static/admin.js?v=20260717-5", response.text)
         script = (Path(__file__).parents[1] / "app" / "static" / "admin.js").read_text(encoding="utf-8")
         self.assertIn("/api/admin/overview", script)
         self.assertIn("/api/admin/models", script)
+        self.assertIn("$('#adminWorkspace').hidden = true", script)
+        self.assertIn("$('#adminWorkspace').hidden = false", script)
 
     def test_seeded_cvd_drift_is_detectable(self):
         capability = process_capability(process_step="CVD")
@@ -671,20 +675,25 @@ class FabInsightTests(unittest.TestCase):
             self.assertIn("runs", payload)
             self.assertNotIn("api_key", str(payload).lower())
 
-    def test_model_can_be_switched_without_exposing_key(self):
+    def test_model_can_only_be_selected_from_published_catalog(self):
         with TestClient(app) as client:
             initial = client.get("/api/settings/model")
             self.assertEqual(initial.status_code, 200)
             self.assertEqual(initial.json()["allowed_models"], ["deepseekv4-flash", "deepseekv4-pro"])
             self.assertEqual(len(initial.json()["model_options"]), 2)
-            response = client.post("/api/settings/model", json={
-                "model": "deepseekv4-pro",
-                "api_key": "test-secret-api-key",
-            })
+            self.assertEqual(initial.json()["credential_scope"], "server_managed")
+            self.assertNotIn("api_key_masked", initial.json())
+            self.assertNotIn("api_key_source", initial.json())
+            response = client.post("/api/settings/model", json={"model": "deepseekv4-pro"})
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["model"], "deepseekv4-pro")
             self.assertEqual(response.json()["provider_model"], "deepseek-v4-pro")
-            self.assertNotIn("test-secret-api-key", response.text)
+            rejected = client.post("/api/settings/model", json={
+                "model": "deepseekv4-pro",
+                "api_key": "user-supplied-key-must-be-rejected",
+            })
+            self.assertEqual(rejected.status_code, 422, rejected.text)
+            self.assertNotIn("user-supplied-key-must-be-rejected", rejected.text)
             client.post("/api/settings/model", json={"model": "deepseekv4-flash"})
 
     def test_admin_can_publish_model_and_user_selection_is_scoped(self):
@@ -695,7 +704,10 @@ class FabInsightTests(unittest.TestCase):
             connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
             connection.commit()
         try:
-            with patch.dict(os.environ, {"FAB_ADMIN_API_TOKEN": admin_token}), TestClient(app) as client:
+            with patch.dict(os.environ, {
+                "FAB_ADMIN_API_TOKEN": admin_token,
+                "DEEPSEEK_API_KEY": "server-managed-test-key",
+            }), TestClient(app) as client:
                 self.assertEqual(client.get("/api/admin/models").status_code, 401)
                 admin_headers = {"Authorization": f"Bearer {admin_token}"}
                 published = client.post(
@@ -732,12 +744,11 @@ class FabInsightTests(unittest.TestCase):
                 selected = client.post(
                     "/api/settings/model",
                     headers=user_a,
-                    json={"model": model_id, "api_key": "user-a-private-key"},
+                    json={"model": model_id},
                 )
                 self.assertEqual(selected.status_code, 200, selected.text)
                 self.assertEqual(selected.json()["model"], model_id)
-                self.assertEqual(selected.json()["api_key_source"], "user_runtime")
-                self.assertNotIn("user-a-private-key", selected.text)
+                self.assertEqual(selected.json()["credential_scope"], "server_managed")
                 self.assertNotEqual(client.get("/api/settings/model", headers=user_b).json()["model"], model_id)
 
                 captured = {}
@@ -751,7 +762,7 @@ class FabInsightTests(unittest.TestCase):
                 self.assertEqual(chat_response.status_code, 200, chat_response.text)
                 self.assertEqual(captured["payload"]["model"], "enterprise-test-v1")
                 self.assertEqual(captured["endpoint"], "https://models.example.test/v1/chat/completions")
-                self.assertEqual(captured["headers"]["Authorization"], "Bearer user-a-private-key")
+                self.assertEqual(captured["headers"]["Authorization"], "Bearer server-managed-test-key")
                 client.delete(f"/api/sessions/{chat_response.json()['session_id']}/permanent", headers=user_a)
 
                 client.post("/api/settings/model", headers=user_a, json={"model": "deepseekv4-flash"})
