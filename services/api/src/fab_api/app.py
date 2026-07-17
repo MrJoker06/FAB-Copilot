@@ -31,6 +31,7 @@ def create_app(settings: APISettings | None = None, gateway: DataGateway | None 
             model=resolved.model_name,
             timeout_seconds=resolved.model_timeout_seconds,
             max_tool_rounds=resolved.model_max_tool_rounds,
+            api_key_source="environment" if resolved.model_api_key else "none",
         ),
     )
     identities = DevelopmentIdentityProvider(resolved)

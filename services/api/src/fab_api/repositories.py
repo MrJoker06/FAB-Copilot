@@ -210,6 +210,7 @@ class SessionRepository(SQLiteRepository):
         role: str,
         content: str,
         metadata: dict[str, Any] | None = None,
+        model: str | None = None,
     ) -> dict[str, Any]:
         if role not in {"user", "assistant"}:
             raise DomainError("INVALID_ROLE", "不支持的消息角色", status_code=422)
@@ -230,9 +231,10 @@ class SessionRepository(SQLiteRepository):
                 title = " ".join(content.strip().split())[:50] or title
             preview = " ".join(content.strip().split())[:140]
             connection.execute(
-                """UPDATE chat_sessions SET title = ?, updated_at = ?, last_message_preview = ?, archived_at = NULL
+                """UPDATE chat_sessions SET title = ?, updated_at = ?, last_message_preview = ?,
+                          archived_at = NULL, model = COALESCE(?, model)
                    WHERE session_id = ?""",
-                (title, timestamp, preview, session_id),
+                (title, timestamp, preview, model, session_id),
             )
             connection.commit()
         return {

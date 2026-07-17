@@ -25,6 +25,16 @@ export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const [copilotOpen, setCopilotOpen] = useState(true)
+  const [activeSessionId, setActiveSessionId] = useState<string | undefined>(() => localStorage.getItem('fabInsightSessionId') || undefined)
+  const selectSession = (sessionId?: string) => {
+    setActiveSessionId(sessionId)
+    if (sessionId) localStorage.setItem('fabInsightSessionId', sessionId)
+    else localStorage.removeItem('fabInsightSessionId')
+  }
+  const continueSession = (sessionId: string) => {
+    selectSession(sessionId)
+    setCopilotOpen(true)
+  }
 
   return (
     <Layout className="root-layout">
@@ -65,12 +75,12 @@ export default function App() {
               <Route path="/capability" element={<CapabilityPage />} />
               <Route path="/knowledge" element={<KnowledgePage />} />
               <Route path="/cases" element={<CasesPage />} />
-              <Route path="/sessions" element={<SessionsPage />} />
+              <Route path="/sessions" element={<SessionsPage activeSessionId={activeSessionId} onContinueSession={continueSession} onSessionUnavailable={id => { if (id === activeSessionId) selectSession(undefined) }} />} />
               <Route path="/monitor" element={<MonitorPage />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes></Suspense>
           </Content>
-          {copilotOpen && <CopilotPanel onClose={() => setCopilotOpen(false)} />}
+          {copilotOpen && <CopilotPanel sessionId={activeSessionId} onSessionChange={selectSession} onOpenHistory={() => navigate('/sessions')} onClose={() => setCopilotOpen(false)} />}
         </Layout>
       </Layout>
     </Layout>

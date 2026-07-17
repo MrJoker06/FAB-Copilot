@@ -20,6 +20,10 @@ class ModelConfig:
     model: str = "deepseek-v4-flash"
     timeout_seconds: float = 60.0
     max_tool_rounds: int = 6
+    api_key_source: str = "none"
+
+
+ALLOWED_MODELS = ("deepseek-v4-flash", "deepseek-v4-pro")
 
 
 SYSTEM_PROMPT = f"""你是晶圆厂制造分析助手 Fab Copilot。当前日期是 {date.today().isoformat()}。
@@ -42,7 +46,12 @@ class FabAnalysisAgent:
         self._gateway = gateway
         self._model = model or ModelConfig()
 
-    async def analyze(self, message: str, identity: IdentityContext) -> dict[str, Any]:
+    async def analyze(
+        self,
+        message: str,
+        identity: IdentityContext,
+        history: list[dict[str, str]] | None = None,
+    ) -> dict[str, Any]:
         direct_answer = self._direct_answer(message)
         if direct_answer is not None:
             return {
@@ -54,18 +63,53 @@ class FabAnalysisAgent:
 
         if self._model.api_key:
             try:
-                return await self._analyze_with_model(message, identity)
+                return await self._analyze_with_model(message, identity, history)
             except (httpx.HTTPError, KeyError, TypeError, ValueError, json.JSONDecodeError):
                 # A model outage must not turn the UI into an empty response. The
                 # typed MCP router remains available as an explicit local fallback.
                 return await self._analyze_deterministically(message, identity, fallback=True)
         return await self._analyze_deterministically(message, identity)
 
-    async def _analyze_with_model(self, message: str, identity: IdentityContext) -> dict[str, Any]:
-        messages: list[dict[str, Any]] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": message},
-        ]
+    def public_model_config(self) -> dict[str, Any]:
+        key = self._model.api_key
+        return {
+            "model": self._model.model,
+            "allowed_models": list(dict.fromkeys((*ALLOWED_MODELS, self._model.model))),
+            "api_key_configured": bool(key),
+            "api_key_masked": f"••••••••{key[-4:]}" if len(key) >= 4 else "",
+            "api_key_source": self._model.api_key_source if key else "none",
+            "persistence": "process_memory",
+        }
+
+    def configure_model(self, model: str, api_key: str | None = None) -> dict[str, Any]:
+        if model not in ALLOWED_MODELS and model != self._model.model:
+            raise ValueError(f"unsupported model: {model}")
+        cleaned_key = api_key.strip() if api_key is not None else self._model.api_key
+        if cleaned_key and len(cleaned_key) < 8:
+            raise ValueError("API Key 长度不能少于 8 个字符")
+        self._model = ModelConfig(
+            api_key=cleaned_key,
+            base_url=self._model.base_url,
+            model=model,
+            timeout_seconds=self._model.timeout_seconds,
+            max_tool_rounds=self._model.max_tool_rounds,
+            api_key_source="runtime" if api_key is not None else self._model.api_key_source,
+        )
+        return self.public_model_config()
+
+    async def _analyze_with_model(
+        self,
+        message: str,
+        identity: IdentityContext,
+        history: list[dict[str, str]] | None = None,
+    ) -> dict[str, Any]:
+        messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
+        for item in (history or [])[-10:]:
+            role = item.get("role")
+            content = str(item.get("content", ""))[:4_000]
+            if role in {"user", "assistant"} and content:
+                messages.append({"role": role, "content": content})
+        messages.append({"role": "user", "content": message})
         trace: list[dict[str, Any]] = []
         evidence: list[dict[str, Any]] = []
         endpoint = f"{self._model.base_url.rstrip('/')}/chat/completions"

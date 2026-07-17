@@ -12,6 +12,7 @@ class APISettings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        populate_by_name=True,
     )
 
     project_dir: Path = Field(default_factory=lambda: Path.cwd())

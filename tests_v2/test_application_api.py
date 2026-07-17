@@ -172,3 +172,68 @@ async def test_chat_answers_introduction_without_unrelated_tool_calls(tmp_path: 
     assert gateway.calls == []
     assert response.json()["data"]["mode"] == "direct"
     assert "Fab Copilot" in response.json()["data"]["answer"]
+
+
+@pytest.mark.asyncio
+async def test_model_configuration_api_supports_runtime_switch_without_exposing_key(tmp_path: Path) -> None:
+    database_dir = tmp_path / "application"
+    _create_application_databases(database_dir)
+    app = create_app(
+        APISettings(
+            project_dir=tmp_path,
+            application_database_dir=database_dir,
+            model_api_key="environment-secret",
+        ),
+        RecordingGateway(),
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        initial = await client.get("/api/v1/settings/model")
+        updated = await client.post(
+            "/api/v1/settings/model",
+            json={"model": "deepseek-v4-pro", "api_key": "runtime-secret"},
+        )
+        current = await client.get("/api/v1/settings/model")
+
+    assert initial.status_code == 200
+    assert initial.json()["data"]["api_key_source"] == "environment"
+    assert updated.status_code == 200
+    assert updated.json()["data"]["model"] == "deepseek-v4-pro"
+    assert current.json()["data"]["api_key_source"] == "runtime"
+    assert "runtime-secret" not in current.text
+
+
+@pytest.mark.asyncio
+async def test_archived_session_can_be_listed_restored_and_continued(tmp_path: Path) -> None:
+    database_dir = tmp_path / "application"
+    _create_application_databases(database_dir)
+    app = create_app(
+        APISettings(
+            project_dir=tmp_path,
+            application_database_dir=database_dir,
+            model_api_key="",
+        ),
+        RecordingGateway(),
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        created = await client.post("/api/v1/sessions", json={"title": "待恢复会话"})
+        session_id = created.json()["data"]["session_id"]
+        await client.post(
+            "/api/v1/chat",
+            json={"message": "介绍一下你自己", "session_id": session_id},
+        )
+        await client.delete(f"/api/v1/sessions/{session_id}")
+        archived = await client.get("/api/v1/sessions", params={"include_archived": True})
+        await client.post(f"/api/v1/sessions/{session_id}/restore")
+        continued = await client.post(
+            "/api/v1/chat",
+            json={"message": "你能做什么", "session_id": session_id},
+        )
+        detail = await client.get(f"/api/v1/sessions/{session_id}")
+
+    archived_row = next(item for item in archived.json()["data"] if item["session_id"] == session_id)
+    assert archived_row["archived_at"] is not None
+    assert continued.status_code == 200
+    assert detail.json()["data"]["archived_at"] is None
+    assert len(detail.json()["data"]["messages"]) == 4

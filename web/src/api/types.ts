@@ -72,11 +72,33 @@ export interface HistoricalCase {
 export interface SessionSummary {
   session_id: string
   title: string
+  created_at: string
   updated_at: string
   model: string | null
   archived_at: string | null
   last_message_preview: string | null
   message_count: number
+}
+
+export interface SessionMessage {
+  message_id: number
+  role: 'user' | 'assistant'
+  content: string
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+export interface SessionDetail extends Omit<SessionSummary, 'message_count' | 'last_message_preview'> {
+  messages: SessionMessage[]
+}
+
+export interface ModelConfigView {
+  model: string
+  allowed_models: string[]
+  api_key_configured: boolean
+  api_key_masked: string
+  api_key_source: 'none' | 'environment' | 'runtime' | string
+  persistence: string
 }
 
 export interface MonitorSummary {

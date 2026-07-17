@@ -3,8 +3,9 @@ from typing import Annotated, Any
 
 from fab_agent import FabAnalysisAgent
 from fab_contracts import ApiEnvelope, IdentityContext
+from fab_core import DomainError
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 from .middleware import current_request_id
 from .monitoring import AuditReader
@@ -22,6 +23,11 @@ class SessionUpdate(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(min_length=2, max_length=8_000)
     session_id: str | None = None
+
+
+class ModelConfigUpdate(BaseModel):
+    model: str = Field(min_length=2, max_length=100)
+    api_key: SecretStr | None = None
 
 
 def build_application_router(
@@ -87,18 +93,39 @@ def build_application_router(
     def delete_session(session_id: str, _: current_identity) -> ApiEnvelope[dict[str, Any]]:
         return ApiEnvelope(data=sessions.delete(session_id), request_id=current_request_id())
 
+    @router.get("/settings/model")
+    def get_model_config(_: current_identity) -> ApiEnvelope[dict[str, Any]]:
+        return ApiEnvelope(data=agent.public_model_config(), request_id=current_request_id())
+
+    @router.post("/settings/model")
+    def update_model_config(payload: ModelConfigUpdate, _: current_identity) -> ApiEnvelope[dict[str, Any]]:
+        api_key = payload.api_key.get_secret_value() if payload.api_key is not None else None
+        try:
+            data = agent.configure_model(payload.model, api_key)
+        except ValueError as exc:
+            raise DomainError("INVALID_MODEL_CONFIG", str(exc), status_code=422) from exc
+        return ApiEnvelope(data=data, request_id=current_request_id())
+
     @router.post("/chat")
     async def chat(payload: ChatRequest, current: current_identity) -> ApiEnvelope[dict[str, Any]]:
         session_id = payload.session_id
         if session_id is None:
             session_id = sessions.create()["session_id"]
+            history: list[dict[str, str]] = []
+        else:
+            session = sessions.get(session_id)
+            history = [
+                {"role": item["role"], "content": item["content"]} for item in session["messages"][-10:]
+            ]
         sessions.append_message(session_id, "user", payload.message)
-        result = await agent.analyze(payload.message, current)
+        result = await agent.analyze(payload.message, current, history)
+        model_config = agent.public_model_config()
         assistant = sessions.append_message(
             session_id,
             "assistant",
             str(result["answer"]),
             {"mode": result["mode"], "tool_trace": result["tool_trace"]},
+            model=str(model_config["model"]) if model_config["api_key_configured"] else "local-rules",
         )
         return ApiEnvelope(
             data={**result, "session_id": session_id, "message_id": assistant["message_id"]},

@@ -108,6 +108,7 @@ async def test_deterministic_fallback_summarizes_tool_rows_without_dumping_json(
 
 @pytest.mark.asyncio
 async def test_model_tool_loop_returns_synthesized_answer(monkeypatch: pytest.MonkeyPatch) -> None:
+    requests: list[dict[str, Any]] = []
     responses = iter(
         [
             {
@@ -144,6 +145,7 @@ async def test_model_tool_loop_returns_synthesized_answer(monkeypatch: pytest.Mo
     )
 
     async def fake_post(self: httpx.AsyncClient, *args: Any, **kwargs: Any) -> httpx.Response:
+        requests.append(kwargs["json"])
         return httpx.Response(200, json=next(responses), request=httpx.Request("POST", "https://model.test"))
 
     monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
@@ -154,8 +156,41 @@ async def test_model_tool_loop_returns_synthesized_answer(monkeypatch: pytest.Mo
     )
     identity = IdentityContext(user_id="analyst", request_id="req-12345678")
 
-    result = await agent.analyze("近期主要缺陷是什么", identity)
+    result = await agent.analyze(
+        "继续分析主要来源",
+        identity,
+        history=[
+            {"role": "user", "content": "近期主要缺陷是什么"},
+            {"role": "assistant", "content": "上轮发现 Particle 居首。"},
+        ],
+    )
 
     assert result["mode"] == "model-mcp"
     assert gateway.calls == [("get_defect_pareto", {"limit": 10})]
     assert result["answer"].startswith("主要缺陷为 Particle")
+    assert requests[0]["messages"][1:4] == [
+        {"role": "user", "content": "近期主要缺陷是什么"},
+        {"role": "assistant", "content": "上轮发现 Particle 居首。"},
+        {"role": "user", "content": "继续分析主要来源"},
+    ]
+
+
+def test_runtime_model_configuration_masks_key_and_preserves_provider_settings() -> None:
+    agent = FabAnalysisAgent(
+        GatewaySpy(),
+        ModelConfig(
+            api_key="environment-secret",
+            base_url="https://model.test",
+            model="deepseek-v4-flash",
+            api_key_source="environment",
+        ),
+    )
+
+    initial = agent.public_model_config()
+    updated = agent.configure_model("deepseek-v4-pro", "runtime-secret")
+
+    assert initial["api_key_masked"].endswith("cret")
+    assert "environment-secret" not in str(initial)
+    assert updated["model"] == "deepseek-v4-pro"
+    assert updated["api_key_source"] == "runtime"
+    assert updated["api_key_masked"].endswith("cret")
