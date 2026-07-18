@@ -176,10 +176,7 @@ class ToolLoopGuardTests(unittest.TestCase):
         self.assertEqual(result["loop_guard"]["total_calls"], 1)
         self.assertEqual(result["loop_guard"]["blocked_calls"], 2)
         self.assertEqual([request["tool_choice"] for request in requests[:3]], ["auto", "auto", "auto"])
-        self.assertEqual(
-            requests[-1]["tool_choice"],
-            {"type": "function", "function": {"name": "submit_analysis"}},
-        )
+        self.assertEqual(requests[-1]["tool_choice"], "auto")
         self.assertEqual(requests[-1]["max_tokens"], 8192)
         self.assertEqual(
             [tool["function"]["name"] for tool in requests[-1]["tools"]],

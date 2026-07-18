@@ -1076,10 +1076,6 @@ async def _run_agent_impl(
                     "none" if synthesis_only and answer_contract.status != "required" else "auto"
                 )
                 if synthesis_only and answer_contract.status == "required":
-                    request_payload["tool_choice"] = {
-                        "type": "function",
-                        "function": {"name": "submit_analysis"},
-                    }
                     request_payload["max_tokens"] = 8192
             for attempt in range(1, settings.model_max_retries + 2):
                 model_started = time.perf_counter()
