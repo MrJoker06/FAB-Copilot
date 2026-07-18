@@ -12,6 +12,14 @@ from typing import Any, Callable
 
 import httpx
 
+from .answer_synthesizer import (
+    SUBMIT_ANALYSIS_TOOL,
+    AnswerSynthesisReport,
+    create_answer_contract,
+    synthesize_legacy_answer,
+    synthesize_submission,
+    synthesizer_system_message,
+)
 from .audit import CONTENT_MODE, content_fingerprint, emit
 from .config import get_settings
 from .domain_playbooks import PlaybookSelection, playbook_system_message, select_playbook
@@ -58,6 +66,7 @@ SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的�
 15. execution_plan 是当前问题的结构化取证计划。按 depends_on 处理步骤依赖，使用给定参数并覆盖 required=true 的步骤；计划或预算本身不代表工具已经执行成功。
 16. runtime_guard 会强制限制总工具数、单工具次数、相同参数重复调用和无进展轮次。进入仅综合模式后不得继续调用工具，必须基于已有证据作答并说明证据缺口。
 17. evidence_validation 是对实际工具证据的确定性校验结果。最终措辞不得超过 allowed_conclusion_strength，必须披露缺失、部分覆盖、样本风险、时间或范围偏差、低置信度来源和事实冲突。
+18. 对已选择 Domain Playbook 的问题，最终答案必须调用 submit_analysis 提交面向用户的结构化内容；不要输出隐藏思维链。事实必须有合法证据引用，推断、假设、建议和限制必须分开提交。
 
 数据库字段提示：
 - lots: lot_id, product, technology_nm, route, priority, start_time, complete_time, status, wafer_count, good_wafers, yield_rate(0-1), cycle_time_hours, hold_hours
@@ -95,6 +104,7 @@ TOOLS = [
     {"type": "function", "function": {"name": "get_sensor_summary", "description": "按站点、设备或信号查询传感器均值、范围、缺失和异常标记", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "equipment_id": {"type": "string"}, "signal_name": {"type": "string"}})}},
     {"type": "function", "function": {"name": "search_knowledge", "description": "联合检索当前用户个人知识、厂内SOP、控制计划、分析方法与已验证历史案例。支持中英文制程术语召回，可按元数据过滤，返回可解释评分和reference_id", "parameters": _schema({"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}, "process_step": {"type": "string", "enum": list(ANALYSIS_SCOPES)}, "equipment_id": {"type": "string"}, "defect_type": {"type": "string"}, "source_types": {"type": "array", "items": {"type": "string", "enum": ["personal", "knowledge", "case"]}}}, ["query"])}},
     {"type": "function", "function": {"name": "query_manufacturing_data", "description": "在固定报表不足时执行只读SQLite SELECT。只能访问白名单表，最多返回100行", "parameters": _schema({"sql": {"type": "string", "description": "单条SELECT语句，SQLite语法"}}, ["sql"])}},
+    SUBMIT_ANALYSIS_TOOL,
 ]
 
 
@@ -125,6 +135,28 @@ async def _notify(progress: ProgressCallback | None, event: dict) -> None:
         await result
 
 
+async def _stream_answer(progress: ProgressCallback | None, answer: str) -> None:
+    for start in range(0, len(answer), 120):
+        await _notify(progress, {"event": "answer_delta", "delta": answer[start:start + 120]})
+        await asyncio.sleep(0)
+
+
+def _emit_answer_synthesis(run_id: str, report: AnswerSynthesisReport) -> None:
+    payload = report.to_dict()
+    emit(
+        "answer_synthesis_completed",
+        run_id,
+        plan_id=report.plan_id,
+        status=report.status,
+        allowed_conclusion_strength=report.allowed_conclusion_strength,
+        source_count=len(report.source_refs),
+        invalid_source_count=len(report.invalid_source_refs),
+        moved_claims=report.moved_claims,
+        wording_adjustment_count=len(report.wording_adjustments),
+        **({"answer_synthesis": payload} if CONTENT_MODE == "full" else {}),
+    )
+
+
 def _offline_answer(
     question: str,
     intent_route: IntentRoute,
@@ -135,10 +167,15 @@ def _offline_answer(
     if execution_plan.status == "clarification_required":
         questions = execution_plan.clarification_questions or ("请补充要分析的制程、设备或时间范围。",)
         validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, [])
-        return {
-            "answer": "为了生成可执行的分析路径，请先补充以下信息：\n\n" + "\n".join(
+        contract = create_answer_contract(validation)
+        synthesis = synthesize_legacy_answer(
+            "为了生成可执行的分析路径，请先补充以下信息：\n\n" + "\n".join(
                 f"{index}. {item}" for index, item in enumerate(questions, start=1)
             ),
+            contract,
+        )
+        return {
+            "answer": synthesis.answer,
             "tool_trace": [],
             "sources": [],
             "mode": "offline",
@@ -147,6 +184,8 @@ def _offline_answer(
             "execution_plan": execution_plan.to_dict(),
             "loop_guard": loop_guard.summary(),
             "evidence_validation": validation.to_dict(),
+            "answer_contract": contract.to_dict(),
+            "answer_synthesis": synthesis.report.to_dict(),
         }
 
     local_trace: list[dict] = []
@@ -186,8 +225,10 @@ def _offline_answer(
         lines.append(f"优先关注设备：{names}。")
     lines.append("配置根目录 .env 的 DEEPSEEK_API_KEY 后，可获得针对问题的多轮工具分析。")
     validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, observations)
+    contract = create_answer_contract(validation)
+    synthesis = synthesize_legacy_answer("\n\n".join(lines), contract)
     return {
-        "answer": "\n\n".join(lines),
+        "answer": synthesis.answer,
         "tool_trace": local_trace,
         "sources": [],
         "mode": "offline",
@@ -196,6 +237,8 @@ def _offline_answer(
         "execution_plan": execution_plan.to_dict(),
         "loop_guard": loop_guard.summary(),
         "evidence_validation": validation.to_dict(),
+        "answer_contract": contract.to_dict(),
+        "answer_synthesis": synthesis.report.to_dict(),
     }
 
 
@@ -406,6 +449,7 @@ async def _run_agent_impl(
     loop_guard = ToolLoopGuard(execution_plan)
     evidence_observations: list[EvidenceObservation] = []
     evidence_validation = validate_evidence(execution_plan, selected_playbook, evidence_observations)
+    answer_contract = create_answer_contract(evidence_validation)
     emit(
         "loop_guard_initialized",
         run_id,
@@ -421,6 +465,17 @@ async def _run_agent_impl(
         await _notify(progress, {"event": "stage", "stage": "planning", "message": "正在使用本地规则规划分析路径"})
         result = _offline_answer(question, intent_route, playbook_selection, execution_plan, loop_guard)
         _emit_evidence_validation(run_id, 1, result["evidence_validation"])
+        emit(
+            "answer_synthesis_completed",
+            run_id,
+            plan_id=result["answer_synthesis"]["plan_id"],
+            status=result["answer_synthesis"]["status"],
+            allowed_conclusion_strength=result["answer_synthesis"]["allowed_conclusion_strength"],
+            source_count=len(result["answer_synthesis"]["source_refs"]),
+            invalid_source_count=len(result["answer_synthesis"]["invalid_source_refs"]),
+            moved_claims=result["answer_synthesis"]["moved_claims"],
+            wording_adjustment_count=len(result["answer_synthesis"]["wording_adjustments"]),
+        )
         for item in result["tool_trace"]:
             await _notify(progress, {"event": "tool_started", "tool": item["tool"], "arguments": {}})
             await _notify(progress, {"event": "tool_finished", **item})
@@ -436,7 +491,7 @@ async def _run_agent_impl(
             "validation": result["evidence_validation"],
         })
         await _notify(progress, {"event": "stage", "stage": "synthesis", "message": "正在汇总本地分析结果"})
-        await _notify(progress, {"event": "answer_delta", "delta": result["answer"]})
+        await _stream_answer(progress, result["answer"])
         result["model"] = "local-rules"
         result["usage"] = {}
         return result
@@ -449,6 +504,7 @@ async def _run_agent_impl(
         {"role": "system", "content": playbook_system_message(playbook_selection)},
         {"role": "system", "content": planner_system_message(execution_plan)},
         {"role": "system", "content": validator_system_message(evidence_validation)},
+        {"role": "system", "content": synthesizer_system_message(answer_contract)},
     ]
     for item in (history or [])[-8:]:
         role = item.get("role")
@@ -462,11 +518,18 @@ async def _run_agent_impl(
     total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     applied_synthesis_reason: str | None = None
 
-    def build_result(answer: str) -> dict:
+    def build_result(answer: str, synthesis_report: AnswerSynthesisReport) -> dict:
+        cited_knowledge_refs = {
+            reference for reference in synthesis_report.source_refs
+            if not reference.startswith("TOOL:")
+        }
         return {
             "answer": answer,
             "tool_trace": trace,
-            "sources": list(sources.values()),
+            "sources": [
+                source for reference, source in sources.items()
+                if reference in cited_knowledge_refs
+            ],
             "mode": "deepseek",
             "model": settings.deepseek_model,
             "usage": total_usage,
@@ -475,6 +538,8 @@ async def _run_agent_impl(
             "execution_plan": plan_payload,
             "loop_guard": loop_guard.summary(),
             "evidence_validation": evidence_validation.to_dict(),
+            "answer_contract": answer_contract.to_dict(),
+            "answer_synthesis": synthesis_report.to_dict(),
         }
 
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
@@ -500,8 +565,8 @@ async def _run_agent_impl(
             request_payload = {
                 "model": settings.deepseek_model,
                 "messages": messages,
-                "tools": TOOLS,
-                "tool_choice": "none" if synthesis_only else "auto",
+                "tools": [SUBMIT_ANALYSIS_TOOL] if synthesis_only and answer_contract.status == "required" else TOOLS,
+                "tool_choice": "none" if synthesis_only and answer_contract.status != "required" else "auto",
                 "temperature": 0.15,
             }
             for attempt in range(1, settings.model_max_retries + 2):
@@ -522,7 +587,7 @@ async def _run_agent_impl(
                         endpoint,
                         {"Authorization": f"Bearer {settings.deepseek_api_key}", "Content-Type": "application/json"},
                         request_payload,
-                        progress,
+                        None if answer_contract.status == "required" else progress,
                         stream_state,
                     )
                 except Exception as exc:
@@ -584,14 +649,36 @@ async def _run_agent_impl(
             messages.append(assistant)
             tool_calls = assistant.get("tool_calls") or []
             if not tool_calls:
-                answer = assistant.get("content") or (
+                raw_answer = assistant.get("content") or (
                     loop_guard.termination_answer()
                     if loop_guard.force_synthesis
                     else "分析完成，但模型没有返回文字。"
                 )
-                if not assistant.get("content"):
-                    await _notify(progress, {"event": "answer_delta", "delta": answer})
-                return build_result(answer)
+                synthesis = synthesize_legacy_answer(raw_answer, answer_contract, list(sources.values()))
+                _emit_answer_synthesis(run_id, synthesis.report)
+                if answer_contract.status == "required" or not assistant.get("content"):
+                    await _notify(progress, {"event": "stage", "stage": "synthesis", "message": "正在按证据等级整理结构化答案"})
+                    await _stream_answer(progress, synthesis.answer)
+                return build_result(synthesis.answer, synthesis.report)
+
+            if len(tool_calls) == 1 and tool_calls[0].get("function", {}).get("name") == "submit_analysis":
+                raw_arguments = tool_calls[0].get("function", {}).get("arguments") or "{}"
+                try:
+                    submission = json.loads(raw_arguments)
+                    if not isinstance(submission, dict):
+                        raise ValueError("结构化答案必须是 JSON 对象")
+                except Exception:
+                    submission = {}
+                synthesis = synthesize_submission(
+                    submission,
+                    answer_contract,
+                    list(sources.values()),
+                    status="structured" if submission else "repaired",
+                )
+                await _notify(progress, {"event": "stage", "stage": "synthesis", "message": "结构化答案已通过证据约束，正在输出"})
+                _emit_answer_synthesis(run_id, synthesis.report)
+                await _stream_answer(progress, synthesis.answer)
+                return build_result(synthesis.answer, synthesis.report)
 
             loop_guard.begin_round()
             for call in tool_calls:
@@ -607,6 +694,17 @@ async def _run_agent_impl(
                 except Exception as exc:
                     parse_error = exc
                     arguments = {"_raw": str(raw_arguments)[:1000]}
+
+                if name == "submit_analysis":
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": call.get("id") or "submit-analysis-rejected",
+                        "content": json.dumps({
+                            "ok": False,
+                            "error": "submit_analysis 必须单独调用，不能与数据工具处于同一轮。",
+                        }, ensure_ascii=False),
+                    })
+                    continue
 
                 await _notify(progress, {"event": "tool_started", "tool": name, "arguments": arguments})
                 emit(
@@ -718,7 +816,9 @@ async def _run_agent_impl(
 
             loop_guard.finish_round()
             evidence_validation = validate_evidence(execution_plan, selected_playbook, evidence_observations)
+            answer_contract = create_answer_contract(evidence_validation, list(sources.values()))
             messages.append({"role": "system", "content": validator_system_message(evidence_validation)})
+            messages.append({"role": "system", "content": synthesizer_system_message(answer_contract)})
             await _notify(progress, {
                 "event": "stage",
                 "stage": "validation",
@@ -749,8 +849,10 @@ async def _run_agent_impl(
         f"模型已达到 {loop_guard.max_model_iterations} 轮执行上限。",
     )
     answer = loop_guard.termination_answer()
-    await _notify(progress, {"event": "answer_delta", "delta": answer})
-    return build_result(answer)
+    synthesis = synthesize_legacy_answer(answer, answer_contract, list(sources.values()))
+    _emit_answer_synthesis(run_id, synthesis.report)
+    await _stream_answer(progress, synthesis.answer)
+    return build_result(synthesis.answer, synthesis.report)
 
 
 async def run_agent(
@@ -807,12 +909,17 @@ async def run_agent(
             evidence_risk_count=len(result.get("evidence_validation", {}).get("risks", [])),
             evidence_conflict_count=len(result.get("evidence_validation", {}).get("conflicts", [])),
             allowed_conclusion_strength=result.get("evidence_validation", {}).get("allowed_conclusion_strength"),
+            answer_synthesis_status=result.get("answer_synthesis", {}).get("status"),
+            answer_synthesis_moved_claims=result.get("answer_synthesis", {}).get("moved_claims", 0),
+            answer_synthesis_invalid_sources=len(result.get("answer_synthesis", {}).get("invalid_source_refs", [])),
             **({
                 "answer": result.get("answer"),
                 "tool_trace": result.get("tool_trace", []),
                 "sources": result.get("sources", []),
                 "loop_guard": result.get("loop_guard", {}),
                 "evidence_validation": result.get("evidence_validation", {}),
+                "answer_contract": result.get("answer_contract", {}),
+                "answer_synthesis": result.get("answer_synthesis", {}),
             } if CONTENT_MODE == "full" else {}),
         )
         return result
