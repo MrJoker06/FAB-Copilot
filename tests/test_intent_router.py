@@ -89,6 +89,195 @@ class IntentRouterTests(unittest.TestCase):
         self.assertTrue(route.clarification_needed)
         self.assertEqual(route.risk_level, "medium")
 
+    def test_general_comparison_does_not_request_production_scope(self):
+        route = route_question("GAN器件和S器件的差别", current_date=date(2026, 7, 18))
+
+        self.assertEqual(route.intent, "general_knowledge")
+        self.assertEqual(route.data_requirements, ("search_knowledge",))
+        self.assertEqual(route.risk_level, "low")
+        self.assertFalse(route.clarification_needed)
+
+    def test_general_agent_path_searches_private_and_factory_before_model(self):
+        captured: dict = {}
+        search_calls: list[dict] = []
+        personal_source = {
+            "reference_id": "PERSONAL-GAN-001",
+            "source_type": "personal",
+            "title": "GaN 与 Si 器件笔记",
+            "section": "材料差异",
+            "excerpt": "GaN 是宽禁带半导体，Si 是传统硅半导体。",
+            "retrieval": {"confidence": "high", "final_score": 5.0},
+        }
+
+        def fake_search(**arguments):
+            search_calls.append(arguments)
+            return [personal_source] if arguments["source_types"] == ["personal"] else []
+
+        async def fake_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            captured.update(request_payload)
+            return (
+                {
+                    "role": "assistant",
+                    "content": "我暂按 S 指 Si 理解。GaN 是宽禁带半导体，Si 是传统硅半导体。[来源 PERSONAL-GAN-001]",
+                },
+                {"total_tokens": 8},
+                "general-knowledge-response",
+            )
+
+        settings = SimpleNamespace(
+            deepseek_api_key="test-key",
+            deepseek_base_url="https://example.test",
+            deepseek_model="test-model",
+            api_timeout_seconds=5,
+            model_max_retries=0,
+            model_retry_base_seconds=0.05,
+        )
+        with (
+            patch("app.agent.get_settings", return_value=settings),
+            patch("app.agent._stream_completion", new=fake_stream),
+            patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": fake_search}),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "GAN器件和S器件的差别", [], "run-general-knowledge-test",
+            ))
+
+        self.assertEqual(result["intent_route"]["intent"], "general_knowledge")
+        self.assertEqual(result["execution_plan"]["status"], "unsupported")
+        self.assertEqual(result["retrieval_decision"]["state"], "GROUND_PERSONAL")
+        self.assertFalse(result["knowledge_fallback"]["used"])
+        self.assertEqual(len(result["tool_trace"]), 4)
+        self.assertEqual(
+            {tuple(item["source_types"]) for item in search_calls},
+            {("personal",), ("knowledge",)},
+        )
+        self.assertNotIn("tools", captured)
+        self.assertNotIn("tool_choice", captured)
+        self.assertIn("GaN", result["answer"])
+        self.assertEqual(result["sources"][0]["reference_id"], "PERSONAL-GAN-001")
+
+    def test_general_agent_falls_back_only_after_all_scopes_and_rewrite_are_empty(self):
+        search_calls: list[dict] = []
+
+        def empty_search(**arguments):
+            search_calls.append(arguments)
+            return []
+
+        async def fake_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            return (
+                {"role": "assistant", "content": "我暂按 S 指 Si 理解。GaN 与 Si 的材料特性不同。"},
+                {"total_tokens": 6},
+                "general-fallback-response",
+            )
+
+        settings = SimpleNamespace(
+            deepseek_api_key="test-key",
+            deepseek_base_url="https://example.test",
+            deepseek_model="test-model",
+            api_timeout_seconds=5,
+            model_max_retries=0,
+            model_retry_base_seconds=0.05,
+        )
+        with (
+            patch("app.agent.get_settings", return_value=settings),
+            patch("app.agent._stream_completion", new=fake_stream),
+            patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": empty_search}),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "GAN器件和S器件的差别", [], "run-general-fallback-test",
+            ))
+
+        self.assertEqual(len(search_calls), 4)
+        self.assertEqual(result["retrieval_decision"]["state"], "MODEL_ONLY_FALLBACK")
+        self.assertEqual(result["retrieval_decision"]["rewritten_query"], "GaN器件和Si器件的差别")
+        self.assertTrue(result["knowledge_fallback"]["used"])
+        self.assertIn("个人知识库和工厂知识库", result["answer"])
+        self.assertIn("模型通用知识", result["answer"])
+
+    def test_general_agent_does_not_duplicate_semantic_fallback_disclosure(self):
+        disclosed_answer = (
+            "个人知识库和工厂知识库均未检索到相关内容。"
+            "以下根据模型通用知识回答，仅供参考。\n\nGaN 与 Si 的材料特性不同。"
+        )
+
+        async def fake_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            stream_state["answer_emitted"] = True
+            return (
+                {"role": "assistant", "content": disclosed_answer},
+                {"total_tokens": 6},
+                "general-disclosed-response",
+            )
+
+        settings = SimpleNamespace(
+            deepseek_api_key="test-key",
+            deepseek_base_url="https://example.test",
+            deepseek_model="test-model",
+            api_timeout_seconds=5,
+            model_max_retries=0,
+            model_retry_base_seconds=0.05,
+        )
+        with (
+            patch("app.agent.get_settings", return_value=settings),
+            patch("app.agent._stream_completion", new=fake_stream),
+            patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": lambda **_: []}),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "GAN器件和S器件的差别", [], "run-general-disclosure-test",
+            ))
+
+        self.assertEqual(result["answer"], disclosed_answer)
+        self.assertEqual(result["answer"].count("个人知识库和工厂知识库"), 1)
+
+    def test_general_agent_unwraps_model_tool_json_before_streaming(self):
+        progress_events: list[dict] = []
+
+        async def progress(event: dict) -> None:
+            progress_events.append(event)
+
+        async def fake_stream(client, endpoint, headers, request_payload, callback, stream_state):
+            self.assertIsNotNone(callback)
+            wrapped = {
+                "tool_calls": [{
+                    "id": "fake-submit",
+                    "type": "function",
+                    "function": {
+                        "name": "submit_analysis",
+                        "arguments": {
+                            "content": "我暂按 S 指 Si 理解。\n\nGaN 是宽禁带半导体。",
+                        },
+                    },
+                }],
+            }
+            return (
+                {"role": "assistant", "content": "```json\n" + json.dumps(wrapped, ensure_ascii=False) + "\n```"},
+                {"total_tokens": 6},
+                "wrapped-general-response",
+            )
+
+        settings = SimpleNamespace(
+            deepseek_api_key="test-key",
+            deepseek_base_url="https://example.test",
+            deepseek_model="test-model",
+            api_timeout_seconds=5,
+            model_max_retries=0,
+            model_retry_base_seconds=0.05,
+        )
+        with (
+            patch("app.agent.get_settings", return_value=settings),
+            patch("app.agent._stream_completion", new=fake_stream),
+            patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": lambda **_: []}),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "GAN器件和S器件的差别", [], "run-general-json-repair-test", progress,
+            ))
+
+        self.assertNotIn("tool_calls", result["answer"])
+        self.assertNotIn("```json", result["answer"])
+        self.assertIn("GaN 是宽禁带半导体", result["answer"])
+        streamed = "".join(
+            item.get("delta", "") for item in progress_events if item.get("event") == "answer_delta"
+        )
+        self.assertEqual(streamed, result["answer"])
+
     def test_agent_loop_injects_and_returns_structured_route(self):
         captured: dict = {}
         progress_events: list[dict] = []

@@ -375,7 +375,7 @@ def _generic_budget() -> PlanBudget:
         max_tool_calls=10,
         max_model_iterations=6,
         max_rows_per_call=100,
-        per_tool_limits={"*": 3, "query_manufacturing_data": 5},
+        per_tool_limits={"*": 3, "search_knowledge": 6, "query_manufacturing_data": 5},
         max_identical_parameter_calls=1,
         max_no_progress_rounds=2,
     )

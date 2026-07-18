@@ -70,6 +70,20 @@ class ContextResolverTests(unittest.TestCase):
         self.assertFalse(resolution.applied)
         self.assertEqual(resolution.resolved_question, "最后一点")
 
+    def test_general_scope_correction_restores_previous_question(self):
+        resolution = resolve_question_context(
+            "不涉及具体工艺",
+            [
+                {"role": "user", "content": "GAN器件和S器件的差别"},
+                {"role": "assistant", "content": "请补充生产范围。"},
+            ],
+        )
+
+        self.assertTrue(resolution.applied)
+        self.assertEqual(resolution.strategy, "general_scope_correction")
+        self.assertIn("GAN器件和S器件的差别", resolution.resolved_question)
+        self.assertEqual(route_question(resolution.resolved_question).intent, "general_knowledge")
+
     def test_agent_does_not_override_explicit_current_intent_with_history(self):
         history = [
             {"role": "user", "content": INITIAL_QUESTION},

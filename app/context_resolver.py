@@ -6,7 +6,12 @@ from dataclasses import asdict, dataclass
 from typing import Literal
 
 
-ResolutionStrategy = Literal["none", "ordinal_selection", "continue_previous_action"]
+ResolutionStrategy = Literal[
+    "none",
+    "ordinal_selection",
+    "continue_previous_action",
+    "general_scope_correction",
+]
 
 
 @dataclass(frozen=True)
@@ -31,6 +36,10 @@ _CONTINUATION_PATTERN = re.compile(
     r"^(?:为什么|怎么|为何)(?:还)?没有继续[。！!？?]*$"
 )
 _ACTION_PATTERN = re.compile(r"(?:调用|查询|查找|检索|分析|执行|开始|继续|接下来|我先)")
+_GENERAL_SCOPE_PATTERN = re.compile(
+    r"(?:不涉及|不需要|无需).{0,12}(?:具体工艺|具体制程|生产数据|厂内数据|设备数据)|"
+    r"(?:只|仅).{0,8}(?:通用问题|通用知识|概念|原理)"
+)
 _MARKDOWN_PATTERN = re.compile(r"[*_`#]+")
 
 
@@ -114,10 +123,31 @@ def _resolve_continuation(question: str, history: list[dict]) -> ContextResoluti
     return ContextResolution(question, resolved, True, "continue_previous_action", last_assistant)
 
 
+def _resolve_general_scope(question: str, history: list[dict]) -> ContextResolution | None:
+    normalized = _plain(question, 200)
+    if not _GENERAL_SCOPE_PATTERN.search(normalized):
+        return None
+    base = _base_user_question(history)
+    if not base:
+        return None
+    selected = "不查询或推断厂内生产数据，先检索个人知识和工厂知识后回答"
+    return ContextResolution(
+        question,
+        f"{base}；用户明确要求{selected}。",
+        True,
+        "general_scope_correction",
+        selected,
+    )
+
+
 def resolve_question_context(question: str, history: list[dict] | None = None) -> ContextResolution:
     normalized = _plain(question, 4000)
     items = list(history or [])
-    resolution = _resolve_ordinal(normalized, items) or _resolve_continuation(normalized, items)
+    resolution = (
+        _resolve_ordinal(normalized, items)
+        or _resolve_continuation(normalized, items)
+        or _resolve_general_scope(normalized, items)
+    )
     return resolution or ContextResolution(question, question, False, "none", "")
 
 

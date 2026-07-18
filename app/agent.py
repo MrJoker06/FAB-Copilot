@@ -29,6 +29,14 @@ from .domain_playbooks import PlaybookSelection, playbook_system_message, select
 from .evidence_validator import EvidenceObservation, validate_evidence, validator_system_message
 from .enterprise_data import enterprise_data_manifest, enterprise_fab_summary, query_enterprise_data
 from .intent_router import IntentRoute, route_question, routing_system_message
+from .knowledge_decision import (
+    RetrievalDecision,
+    assess_retrieval,
+    required_scopes,
+    retrieval_system_message,
+    rewrite_query,
+    usable_result,
+)
 from .loop_guard import ToolLoopGuard
 from .model_registry import effective_agent_settings
 from .planner import ExecutionPlan, create_execution_plan, planner_system_message
@@ -71,6 +79,7 @@ SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的�
 17. evidence_validation 是对实际工具证据的确定性校验结果。最终措辞不得超过 allowed_conclusion_strength，必须披露缺失、部分覆盖、样本风险、时间或范围偏差、低置信度来源和事实冲突。
 18. 对已选择 Domain Playbook 的问题，最终答案必须调用 submit_analysis 提交面向用户的结构化内容；不要输出隐藏思维链。事实必须有合法证据引用，推断、假设、建议和限制必须分开提交。
 19. search_knowledge 已执行但没有返回可用内容时，可以用模型通用知识回答一般性技术问题，但必须明确告知用户知识库无结果；不得把模型通用知识表述为厂内 SOP、配方、规格、历史案例或当前生产事实。
+20. intent_route.intent=general_knowledge 时，服务端会先分别检索个人知识与工厂知识并提供 knowledge_retrieval 判定。必须遵守该判定：优先使用可用来源，只有明确允许时才补充模型通用知识；不得索要无关的制程、设备、批次或时间范围。
 
 数据库字段提示：
 - lots: lot_id, product, technology_nm, route, priority, start_time, complete_time, status, wafer_count, good_wafers, yield_rate(0-1), cycle_time_hours, hold_hours
@@ -203,6 +212,27 @@ def _offline_answer(
             "answer_synthesis": synthesis.report.to_dict(),
         }
 
+    if intent_route.intent == "general_knowledge":
+        validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, [])
+        contract = create_answer_contract(validation)
+        synthesis = synthesize_legacy_answer(
+            "当前未配置可用的模型 API，无法生成通用知识回答。请检查服务端模型配置后重试。",
+            contract,
+        )
+        return {
+            "answer": synthesis.answer,
+            "tool_trace": [],
+            "sources": [],
+            "mode": "offline",
+            "intent_route": intent_route.to_dict(),
+            "domain_playbook": playbook_selection.to_dict(),
+            "execution_plan": execution_plan.to_dict(),
+            "loop_guard": loop_guard.summary(),
+            "evidence_validation": validation.to_dict(),
+            "answer_contract": contract.to_dict(),
+            "answer_synthesis": synthesis.report.to_dict(),
+        }
+
     local_trace: list[dict] = []
     observations: list[EvidenceObservation] = []
 
@@ -262,6 +292,8 @@ def _routing_progress_message(route: IntentRoute) -> str:
         return "尚未识别明确分析目标，正在准备澄清问题"
     if route.intent == "ambiguous":
         return "识别到多个分析目标，正在确认优先路径"
+    if route.intent == "general_knowledge":
+        return "已识别为知识问题，正在检索个人知识与工厂知识"
     scope = "、".join(route.equipment_ids or route.process_steps)
     scope_text = f" · {scope}" if scope else ""
     return f"已识别为{route.intent_label}{scope_text}，正在限定数据范围"
@@ -324,52 +356,228 @@ def _knowledge_fallback_state(
     return {"used": True, "reason": reason, "disclosure": disclosure}
 
 
-_GENERIC_KNOWLEDGE_TERMS = {
-    "sop", "规范", "知识", "案例", "查询", "检索", "分析", "说明", "介绍",
-    "工艺", "技术", "器件", "差异", "原理", "基础", "相关", "资料", "文档",
-}
-
-
-def _knowledge_anchor_terms(query: str) -> tuple[str, ...]:
-    terms: list[str] = []
-    for token in re.findall(r"[A-Za-z0-9_-]+|[\u4e00-\u9fff]{2,}", query.lower()):
-        candidates = (
-            [token[index:index + 3] for index in range(len(token) - 2)]
-            if re.fullmatch(r"[\u4e00-\u9fff]+", token) and len(token) > 4
-            else [token]
-        )
-        terms.extend(
-            item for item in candidates
-            if len(item) >= 2 and item not in _GENERIC_KNOWLEDGE_TERMS
-        )
-    return tuple(dict.fromkeys(terms))
-
-
 def _usable_knowledge_result(query: str, result: dict[str, Any]) -> bool:
-    retrieval = result.get("retrieval") or {}
-    confidence = str(retrieval.get("confidence") or "").lower()
-    if confidence == "low":
-        return False
-    if confidence == "high" or not confidence:
-        return True
+    return usable_result(query, result)
 
-    filters = retrieval.get("filters") or {}
-    process_step = str(filters.get("process_step") or "").upper()
-    candidate_steps = result.get("process_steps") or result.get("process_step") or []
-    if isinstance(candidate_steps, str):
-        candidate_steps = re.split(r"[,|\s]+", candidate_steps.upper())
-    if process_step and process_step in set(candidate_steps):
-        return True
 
-    searchable = " ".join(
-        str(result.get(field) or "")
-        for field in (
-            "title", "source", "section", "content", "excerpt", "tags",
-            "problem", "solution", "result", "summary",
-        )
-    ).lower()
-    anchors = _knowledge_anchor_terms(query)
-    return bool(anchors and any(term in searchable for term in anchors))
+def _normalize_general_knowledge_answer(answer: str) -> str:
+    stripped = answer.strip()
+    fenced = re.fullmatch(r"```(?:json)?\s*(\{.*\})\s*```", stripped, re.DOTALL | re.IGNORECASE)
+    candidate = fenced.group(1) if fenced else stripped
+    try:
+        payload = json.loads(candidate)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return answer
+    if not isinstance(payload, dict):
+        return answer
+    tool_calls = payload.get("tool_calls")
+    if not isinstance(tool_calls, list):
+        return answer
+    for call in tool_calls:
+        function = call.get("function") if isinstance(call, dict) else None
+        if not isinstance(function, dict) or function.get("name") != "submit_analysis":
+            continue
+        arguments = function.get("arguments")
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+        if not isinstance(arguments, dict):
+            continue
+        content = arguments.get("content") or arguments.get("answer")
+        if isinstance(content, str) and content.strip():
+            return content.strip()
+        conclusion = arguments.get("conclusion")
+        if isinstance(conclusion, str) and conclusion.strip():
+            return conclusion.strip()
+    return answer
+
+
+def _has_knowledge_fallback_disclosure(answer: str) -> bool:
+    compact = re.sub(r"\s+", "", answer).lower()
+    return bool(
+        "个人知识库" in compact
+        and "工厂知识库" in compact
+        and any(term in compact for term in ("未检索到", "没有检索到", "无可用"))
+        and any(term in compact for term in ("模型通用知识", "通用知识", "仅供参考"))
+    )
+
+
+async def _prefetch_general_knowledge(
+    question: str,
+    run_id: str,
+    loop_guard: ToolLoopGuard,
+    observations: list[EvidenceObservation],
+    trace: list[dict[str, Any]],
+    sources: dict[str, dict[str, Any]],
+    progress: ProgressCallback | None,
+) -> RetrievalDecision:
+    attempts: list[dict[str, Any]] = []
+    scopes = required_scopes(question)
+    rewrite = rewrite_query(question)
+    queries = [("original", question)]
+    if rewrite.changed:
+        queries.append(("rewritten", rewrite.query))
+
+    for query_variant, query in queries:
+        loop_guard.begin_round()
+        for scope in scopes:
+            arguments = {"query": query, "limit": 10, "source_types": [scope]}
+            tool_started = time.perf_counter()
+            await _notify(progress, {
+                "event": "tool_started",
+                "tool": "search_knowledge",
+                "arguments": arguments,
+                "scope": scope,
+                "query_variant": query_variant,
+            })
+            emit(
+                "tool_call_started",
+                run_id,
+                tool="search_knowledge",
+                tool_call_id=f"prefetch-{query_variant}-{scope}",
+                retrieval_scope=scope,
+                query_variant=query_variant,
+                **({"arguments": arguments} if CONTENT_MODE == "full" else {}),
+            )
+            guard_decision = loop_guard.check_call("search_knowledge", arguments)
+            if not guard_decision.allowed:
+                duration_ms = round((time.perf_counter() - tool_started) * 1000, 1)
+                attempt = {
+                    "scope": scope,
+                    "query_variant": query_variant,
+                    "query": query,
+                    "status": "blocked",
+                    "raw_count": 0,
+                    "usable_count": 0,
+                    "error_code": guard_decision.reason_code,
+                }
+                attempts.append(attempt)
+                observations.append(EvidenceObservation(
+                    "search_knowledge", arguments, "blocked", error=guard_decision.message
+                ))
+                item = {
+                    "tool": "search_knowledge",
+                    "arguments": arguments,
+                    "status": "blocked",
+                    "rows": 0,
+                    "error_code": guard_decision.reason_code,
+                    "error": guard_decision.message,
+                    "duration_ms": duration_ms,
+                    "retrieval_scope": scope,
+                    "query_variant": query_variant,
+                }
+                trace.append(item)
+                await _notify(progress, {"event": "tool_finished", **item})
+                continue
+
+            try:
+                result = TOOL_HANDLERS["search_knowledge"](**arguments)
+                raw_count = len(result) if isinstance(result, list) else 0
+                usable = [
+                    item for item in result
+                    if isinstance(item, dict) and _usable_knowledge_result(query, item)
+                ] if isinstance(result, list) else []
+                for source in usable:
+                    sources[str(source["reference_id"])] = source
+                loop_guard.record_result("search_knowledge", usable, True)
+                observations.append(EvidenceObservation("search_knowledge", arguments, "success", usable))
+                duration_ms = round((time.perf_counter() - tool_started) * 1000, 1)
+                attempts.append({
+                    "scope": scope,
+                    "query_variant": query_variant,
+                    "query": query,
+                    "status": "success",
+                    "raw_count": raw_count,
+                    "usable_count": len(usable),
+                    "reference_ids": [str(item.get("reference_id")) for item in usable],
+                })
+                trace_item = {
+                    "tool": "search_knowledge",
+                    "arguments": arguments,
+                    "status": "ok",
+                    "rows": len(usable),
+                    "raw_rows": raw_count,
+                    "duration_ms": duration_ms,
+                    "retrieval_scope": scope,
+                    "query_variant": query_variant,
+                }
+                trace.append(trace_item)
+                await _notify(progress, {"event": "tool_finished", **trace_item})
+                emit(
+                    "tool_call_finished",
+                    run_id,
+                    status="success",
+                    tool="search_knowledge",
+                    duration_ms=duration_ms,
+                    retrieval_scope=scope,
+                    query_variant=query_variant,
+                    raw_rows=raw_count,
+                    rows=len(usable),
+                    **({"result": usable} if CONTENT_MODE == "full" else {}),
+                )
+            except Exception as exc:
+                loop_guard.record_result("search_knowledge", None, False)
+                observations.append(EvidenceObservation("search_knowledge", arguments, "error", error=str(exc)))
+                duration_ms = round((time.perf_counter() - tool_started) * 1000, 1)
+                attempts.append({
+                    "scope": scope,
+                    "query_variant": query_variant,
+                    "query": query,
+                    "status": "error",
+                    "raw_count": 0,
+                    "usable_count": 0,
+                    "error_type": type(exc).__name__,
+                })
+                trace_item = {
+                    "tool": "search_knowledge",
+                    "arguments": arguments,
+                    "status": "error",
+                    "rows": 0,
+                    "error": str(exc),
+                    "duration_ms": duration_ms,
+                    "retrieval_scope": scope,
+                    "query_variant": query_variant,
+                }
+                trace.append(trace_item)
+                await _notify(progress, {"event": "tool_finished", **trace_item})
+                emit(
+                    "tool_call_finished",
+                    run_id,
+                    status="error",
+                    tool="search_knowledge",
+                    duration_ms=duration_ms,
+                    retrieval_scope=scope,
+                    query_variant=query_variant,
+                    error_type=type(exc).__name__,
+                    **({"error_message": str(exc)} if CONTENT_MODE == "full" else {}),
+                )
+        loop_guard.finish_round()
+
+    decision = assess_retrieval(attempts, list(sources.values()), rewrite)
+    decision_payload = decision.to_dict()
+    emit(
+        "knowledge_retrieval_decided",
+        run_id,
+        state=decision.state,
+        reason=decision.reason,
+        attempted_scopes=list(decision.attempted_scopes),
+        source_counts=decision.source_counts,
+        rewritten=bool(decision.rewritten_query),
+        model_knowledge_allowed=decision.model_knowledge_allowed,
+        **({"retrieval_decision": decision_payload} if CONTENT_MODE == "full" else {}),
+    )
+    await _notify(progress, {
+        "event": "stage",
+        "stage": "knowledge_retrieval",
+        "message": (
+            f"知识检索完成 · 个人 {decision.source_counts['personal']} · "
+            f"工厂 {decision.source_counts['knowledge']} · 案例 {decision.source_counts['case']}"
+        ),
+        "retrieval_decision": decision_payload,
+    })
+    return decision
 
 
 async def _stream_completion(
@@ -378,7 +586,7 @@ async def _stream_completion(
     headers: dict,
     request_payload: dict,
     progress: ProgressCallback | None,
-    stream_state: dict[str, bool] | None = None,
+    stream_state: dict[str, Any] | None = None,
 ) -> tuple[dict, dict, str | None]:
     stream_state = stream_state if stream_state is not None else {}
     payload = {**request_payload, "stream": True, "stream_options": {"include_usage": True}}
@@ -391,6 +599,13 @@ async def _stream_completion(
     usage: dict = {}
     finish_reason: str | None = None
     response_id: str | None = None
+
+    def suppress_pending_content() -> bool:
+        if not stream_state.get("suppress_embedded_tool_json"):
+            return False
+        pending = "".join(pending_answer_parts).lstrip().lower()
+        return pending.startswith("```json") or pending.startswith("{")
+
     async with client.stream("POST", endpoint, headers=headers, json=payload) as response:
         response.raise_for_status()
         async for raw_line in response.aiter_lines():
@@ -420,6 +635,16 @@ async def _stream_completion(
                     pending_answer_parts.append(content)
                     pending_answer_length += len(content)
                     if pending_answer_length >= 64:
+                        if suppress_pending_content():
+                            continue
+                        required_disclosure = str(stream_state.get("required_disclosure") or "")
+                        pending_text = "".join(pending_answer_parts)
+                        if required_disclosure and not _has_knowledge_fallback_disclosure(pending_text):
+                            await _notify(progress, {
+                                "event": "answer_delta",
+                                "delta": f"> {required_disclosure}\n\n",
+                            })
+                            stream_state["disclosure_emitted"] = True
                         answer_started = True
                         stream_state["answer_emitted"] = True
                         for part in pending_answer_parts:
@@ -440,8 +665,16 @@ async def _stream_completion(
     assistant = {"role": "assistant", "content": "".join(content_parts)}
     if tool_parts:
         assistant["tool_calls"] = [tool_parts[index] for index in sorted(tool_parts)]
-    elif not answer_started:
+    elif not answer_started and not suppress_pending_content():
         if pending_answer_parts:
+            required_disclosure = str(stream_state.get("required_disclosure") or "")
+            pending_text = "".join(pending_answer_parts)
+            if required_disclosure and not _has_knowledge_fallback_disclosure(pending_text):
+                await _notify(progress, {
+                    "event": "answer_delta",
+                    "delta": f"> {required_disclosure}\n\n",
+                })
+                stream_state["disclosure_emitted"] = True
             stream_state["answer_emitted"] = True
         for part in pending_answer_parts:
             await _notify(progress, {"event": "answer_delta", "delta": part})
@@ -661,12 +894,79 @@ async def _run_agent_impl(
     applied_synthesis_reason: str | None = None
     knowledge_fallback = {"used": False, "reason": None, "disclosure": None}
     fallback_announced = False
+    retrieval_decision_payload: dict[str, Any] = {
+        "state": "NOT_APPLICABLE",
+        "reason": None,
+        "attempted_scopes": [],
+        "attempts": [],
+        "selected_reference_ids": [],
+        "source_counts": {"personal": 0, "knowledge": 0, "case": 0},
+        "rewritten_query": None,
+        "assumptions": [],
+        "model_knowledge_allowed": False,
+        "disclosure": None,
+    }
+
+    if intent_route.intent == "general_knowledge":
+        retrieval_decision = await _prefetch_general_knowledge(
+            analysis_question,
+            run_id,
+            loop_guard,
+            evidence_observations,
+            trace,
+            sources,
+            progress,
+        )
+        retrieval_decision_payload = retrieval_decision.to_dict()
+        knowledge_fallback = {
+            "used": retrieval_decision.model_knowledge_allowed,
+            "reason": retrieval_decision.reason if retrieval_decision.model_knowledge_allowed else None,
+            "disclosure": retrieval_decision.disclosure,
+        }
+        evidence_validation = validate_evidence(execution_plan, selected_playbook, evidence_observations)
+        answer_contract = create_answer_contract(
+            evidence_validation,
+            list(sources.values()),
+            allow_model_knowledge_fallback=retrieval_decision.model_knowledge_allowed,
+        )
+        messages.extend([
+            {"role": "system", "content": retrieval_system_message(retrieval_decision, list(sources.values()))},
+            {"role": "system", "content": synthesizer_system_message(answer_contract)},
+            {
+                "role": "system",
+                "content": (
+                    "当前是知识型问题的最终回答阶段。只输出面向用户的中文 Markdown 正文；"
+                    "不得输出 JSON、tool_calls、函数参数或 submit_analysis，且不得请求生产范围。"
+                ),
+            },
+        ])
+        if knowledge_fallback["used"]:
+            fallback_announced = True
+            emit(
+                "knowledge_fallback_enabled",
+                run_id,
+                reason=knowledge_fallback["reason"],
+                model=settings.deepseek_model,
+                retrieval_state=retrieval_decision.state,
+            )
+            await _notify(progress, {
+                "event": "stage",
+                "stage": "knowledge_fallback",
+                "message": (
+                    "知识库仅覆盖部分内容，正在使用模型通用知识补充"
+                    if retrieval_decision.state == "HYBRID_GENERAL_SUPPLEMENT"
+                    else "个人知识库和工厂知识库均未检索到可用内容，正在使用模型通用知识回答"
+                ),
+                "knowledge_fallback": knowledge_fallback,
+            })
 
     def build_result(answer: str, synthesis_report: AnswerSynthesisReport) -> dict:
         cited_knowledge_refs = {
             reference for reference in synthesis_report.source_refs
             if not reference.startswith("TOOL:")
         }
+        if intent_route.intent == "general_knowledge":
+            cited_knowledge_refs.update(retrieval_decision_payload["selected_reference_ids"])
         return {
             "answer": answer,
             "tool_trace": trace,
@@ -686,6 +986,7 @@ async def _run_agent_impl(
             "answer_synthesis": synthesis_report.to_dict(),
             "context_resolution": context_resolution.to_dict(),
             "knowledge_fallback": knowledge_fallback,
+            "retrieval_decision": retrieval_decision_payload,
         }
 
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
@@ -711,10 +1012,17 @@ async def _run_agent_impl(
             request_payload = {
                 "model": settings.deepseek_model,
                 "messages": messages,
-                "tools": [SUBMIT_ANALYSIS_TOOL] if synthesis_only and answer_contract.status == "required" else TOOLS,
-                "tool_choice": "none" if synthesis_only and answer_contract.status != "required" else "auto",
                 "temperature": 0.15,
             }
+            if intent_route.intent != "general_knowledge":
+                request_payload["tools"] = (
+                    [SUBMIT_ANALYSIS_TOOL]
+                    if synthesis_only and answer_contract.status == "required"
+                    else TOOLS
+                )
+                request_payload["tool_choice"] = (
+                    "none" if synthesis_only and answer_contract.status != "required" else "auto"
+                )
             for attempt in range(1, settings.model_max_retries + 2):
                 model_started = time.perf_counter()
                 emit(
@@ -726,7 +1034,11 @@ async def _run_agent_impl(
                     message_count=len(messages),
                     **({"request": request_payload} if CONTENT_MODE == "full" else {}),
                 )
-                stream_state = {"answer_emitted": False}
+                stream_state = {
+                    "answer_emitted": False,
+                    "suppress_embedded_tool_json": intent_route.intent == "general_knowledge",
+                    "required_disclosure": knowledge_fallback.get("disclosure") or "",
+                }
                 try:
                     assistant, usage, response_id = await _stream_completion(
                         client,
@@ -800,9 +1112,25 @@ async def _run_agent_impl(
                     if loop_guard.force_synthesis
                     else "分析完成，但模型没有返回文字。"
                 )
+                if intent_route.intent == "general_knowledge":
+                    raw_answer = _normalize_general_knowledge_answer(raw_answer)
+                disclosure = knowledge_fallback.get("disclosure")
+                if (
+                    knowledge_fallback["used"]
+                    and disclosure
+                    and not _has_knowledge_fallback_disclosure(raw_answer)
+                ):
+                    raw_answer = f"> {disclosure}\n\n{raw_answer}"
                 synthesis = synthesize_legacy_answer(raw_answer, answer_contract, list(sources.values()))
                 _emit_answer_synthesis(run_id, synthesis.report)
-                if answer_contract.status == "required" or not assistant.get("content"):
+                if (
+                    answer_contract.status == "required"
+                    or (
+                        intent_route.intent == "general_knowledge"
+                        and not stream_state.get("answer_emitted")
+                    )
+                    or not assistant.get("content")
+                ):
                     await _notify(progress, {"event": "stage", "stage": "synthesis", "message": "正在按证据等级整理结构化答案"})
                     await _stream_answer(progress, synthesis.answer)
                 return build_result(synthesis.answer, synthesis.report)
@@ -976,7 +1304,8 @@ async def _run_agent_impl(
 
             loop_guard.finish_round()
             evidence_validation = validate_evidence(execution_plan, selected_playbook, evidence_observations)
-            knowledge_fallback = _knowledge_fallback_state(intent_route, evidence_observations, sources)
+            if intent_route.intent != "general_knowledge":
+                knowledge_fallback = _knowledge_fallback_state(intent_route, evidence_observations, sources)
             answer_contract = create_answer_contract(
                 evidence_validation,
                 list(sources.values()),

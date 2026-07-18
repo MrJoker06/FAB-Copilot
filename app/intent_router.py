@@ -18,6 +18,7 @@ IntentName = Literal[
     "defect_analysis",
     "fab_overview",
     "enterprise_data",
+    "general_knowledge",
     "ambiguous",
     "unknown",
 ]
@@ -33,6 +34,7 @@ INTENT_LABELS: dict[str, str] = {
     "defect_analysis": "缺陷分析",
     "fab_overview": "工厂总览",
     "enterprise_data": "企业模拟数据查询",
+    "general_knowledge": "通用知识问答",
     "ambiguous": "多意图问题",
     "unknown": "未知意图",
 }
@@ -110,6 +112,7 @@ _DATA_REQUIREMENTS: dict[str, tuple[str, ...]] = {
         "get_enterprise_fab_summary",
         "query_enterprise_data",
     ),
+    "general_knowledge": ("search_knowledge",),
 }
 
 _INTENT_PRIORITY = tuple(_INTENT_RULES)
@@ -126,6 +129,14 @@ _RELATIVE_RANGE_PATTERN = re.compile(
     r"(?:最近|近|过去)\s*(\d{1,3}|[一二三四五六七八九十两]{1,3})\s*(天|日|周|星期|个月|月)"
 )
 _CONJUNCTION_PATTERN = re.compile(r"(?:和|与|以及|同时|并且|、|\band\b)", re.IGNORECASE)
+_GENERAL_QUESTION_PATTERN = re.compile(
+    r"(?:什么是|是什么|为什么|为何|区别|差别|异同|优缺点|原理|概念|定义|含义|"
+    r"作用|用途|介绍|解释|如何理解|对比|比较|你是谁|能做什么|你好)"
+)
+_CONTEXT_DEPENDENT_PATTERN = re.compile(
+    r"^(?:最后|第.+(?:点|项)|(?:请)?(?:继续|接着|往下)|(?:为什么|怎么|为何)(?:还)?没有继续|"
+    r"(?:不涉及|不需要|无需).{0,12}(?:具体工艺|具体制程|生产数据|厂内数据|设备数据))"
+)
 
 
 @dataclass(frozen=True)
@@ -172,6 +183,13 @@ def _intent_scores(normalized: str) -> dict[str, int]:
     if _LOT_PATTERN.search(normalized):
         scores["lot_trace"] += 5
     return scores
+
+
+def _looks_like_general_question(normalized: str) -> bool:
+    return bool(
+        not _CONTEXT_DEPENDENT_PATTERN.search(normalized)
+        and _GENERAL_QUESTION_PATTERN.search(normalized)
+    )
 
 
 def _process_steps(normalized: str, equipment_ids: tuple[str, ...]) -> tuple[str, ...]:
@@ -254,10 +272,15 @@ def route_question(question: str, current_date: date | None = None) -> IntentRou
 
     clarification_questions: list[str] = []
     if not positive:
-        intent: IntentName = "unknown"
-        candidate_intents: tuple[str, ...] = ()
-        confidence = 0.0
-        clarification_questions.append("请说明要分析的指标或目标，例如 Cpk、良率、设备故障、批次追踪或 SOP。")
+        if _looks_like_general_question(normalized):
+            intent = "general_knowledge"
+            candidate_intents = ("general_knowledge",)
+            confidence = 0.8
+        else:
+            intent = "unknown"
+            candidate_intents = ()
+            confidence = 0.0
+            clarification_questions.append("请说明要分析的指标或目标，例如 Cpk、良率、设备故障、批次追踪或 SOP。")
     else:
         top, second = positive[0], positive[1] if len(positive) > 1 else None
         close_multi_intent = bool(
@@ -310,6 +333,8 @@ def route_question(question: str, current_date: date | None = None) -> IntentRou
 def routing_system_message(route: IntentRoute) -> str:
     return (
         "以下是确定性 Intent Router 生成的结构化分析上下文，不是制造事实或证据。"
+        "intent=general_knowledge 时必须先检索当前用户个人知识和工厂知识，再由检索决策决定是否允许模型补充；"
+        "不得调用制造数据工具。若术语含糊，只澄清术语本身，不得索要制程、设备、批次或时间范围。"
         "优先使用 data_requirements 中的工具收集证据，并将 process_steps、equipment_ids 和 time_range 作为参数范围。"
         "若 clarification_needed=true，应先澄清关键歧义，避免无范围的广泛查询。"
         "risk_level=high 时只能提供待复核建议，不得直接要求执行高风险动作。\n"

@@ -199,15 +199,11 @@ def create_answer_contract(
         if check.status in {"covered", "partial"} and check.row_count > 0
         for tool in check.matched_tools
     }
-    source_refs = (
-        {
-            str(source.get("reference_id"))
-            for source in sources or []
-            if source.get("reference_id")
-        }
-        if "search_knowledge" in matched_tools
-        else set()
-    )
+    source_refs = {
+        str(source.get("reference_id"))
+        for source in sources or []
+        if source.get("reference_id")
+    }
     permitted_items = {*(f"TOOL:{tool}" for tool in matched_tools), *source_refs}
     if allow_model_knowledge_fallback:
         permitted_items.add(MODEL_KNOWLEDGE_REF)
@@ -588,6 +584,10 @@ def synthesize_legacy_answer(
     sources: list[dict[str, Any]] | None = None,
 ) -> SynthesizedAnswer:
     if contract.status == "not_applicable":
+        permitted = {item.upper() for item in contract.permitted_source_refs}
+        refs = tuple(dict.fromkeys(
+            item for item in _embedded_refs(answer) if item.upper() in permitted
+        ))
         return SynthesizedAnswer(answer, AnswerSynthesisReport(
             schema_version="1.0",
             synthesizer_version=contract.synthesizer_version,
@@ -595,7 +595,7 @@ def synthesize_legacy_answer(
             status="not_applicable",
             allowed_conclusion_strength=contract.allowed_conclusion_strength,
             sections=(),
-            source_refs=(),
+            source_refs=refs,
             invalid_source_refs=(),
             moved_claims=0,
             wording_adjustments=(),
