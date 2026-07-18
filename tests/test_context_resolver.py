@@ -228,6 +228,20 @@ class ContextResolverTests(unittest.TestCase):
         progress_events: list[dict] = []
         requests: list[dict] = []
         round_number = 0
+        irrelevant_result = {
+            "reference_id": "KB-IRRELEVANT-001",
+            "source_type": "knowledge",
+            "title": "设备健康与停机管理 SOP",
+            "source": "Equipment_health_SOP.md",
+            "section": "恢复生产",
+            "excerpt": "非计划停机恢复后需要完成安全联锁检查。",
+            "process_steps": "EQUIPMENT",
+            "retrieval": {
+                "confidence": "medium",
+                "final_score": 2.2,
+                "filters": {"process_step": None, "equipment_id": None, "defect_type": None},
+            },
+        }
 
         async def progress(event: dict) -> None:
             progress_events.append(event)
@@ -290,7 +304,11 @@ class ContextResolverTests(unittest.TestCase):
         with (
             patch("app.agent.get_settings", return_value=_settings()),
             patch("app.agent._stream_completion", new=fake_stream),
-            patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": lambda **_: []}),
+            patch.dict(agent_module.TOOL_HANDLERS, {
+                "search_knowledge": lambda **arguments: (
+                    [irrelevant_result] if arguments.get("source_types") == ["personal", "knowledge"] else []
+                ),
+            }),
         ):
             result = asyncio.run(
                 agent_module._run_agent_impl("最后一点", history, "run-knowledge-fallback-test", progress)

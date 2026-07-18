@@ -4,6 +4,7 @@ import asyncio
 import inspect
 import json
 import random
+import re
 import time
 import traceback
 import uuid
@@ -321,6 +322,54 @@ def _knowledge_fallback_state(
         else "知识库检索未获得可用内容。以下回答使用模型通用知识，仅供参考，不代表厂内 SOP、规格或当前生产事实。"
     )
     return {"used": True, "reason": reason, "disclosure": disclosure}
+
+
+_GENERIC_KNOWLEDGE_TERMS = {
+    "sop", "规范", "知识", "案例", "查询", "检索", "分析", "说明", "介绍",
+    "工艺", "技术", "器件", "差异", "原理", "基础", "相关", "资料", "文档",
+}
+
+
+def _knowledge_anchor_terms(query: str) -> tuple[str, ...]:
+    terms: list[str] = []
+    for token in re.findall(r"[A-Za-z0-9_-]+|[\u4e00-\u9fff]{2,}", query.lower()):
+        candidates = (
+            [token[index:index + 3] for index in range(len(token) - 2)]
+            if re.fullmatch(r"[\u4e00-\u9fff]+", token) and len(token) > 4
+            else [token]
+        )
+        terms.extend(
+            item for item in candidates
+            if len(item) >= 2 and item not in _GENERIC_KNOWLEDGE_TERMS
+        )
+    return tuple(dict.fromkeys(terms))
+
+
+def _usable_knowledge_result(query: str, result: dict[str, Any]) -> bool:
+    retrieval = result.get("retrieval") or {}
+    confidence = str(retrieval.get("confidence") or "").lower()
+    if confidence == "low":
+        return False
+    if confidence == "high" or not confidence:
+        return True
+
+    filters = retrieval.get("filters") or {}
+    process_step = str(filters.get("process_step") or "").upper()
+    candidate_steps = result.get("process_steps") or result.get("process_step") or []
+    if isinstance(candidate_steps, str):
+        candidate_steps = re.split(r"[,|\s]+", candidate_steps.upper())
+    if process_step and process_step in set(candidate_steps):
+        return True
+
+    searchable = " ".join(
+        str(result.get(field) or "")
+        for field in (
+            "title", "source", "section", "content", "excerpt", "tags",
+            "problem", "solution", "result", "summary",
+        )
+    ).lower()
+    anchors = _knowledge_anchor_terms(query)
+    return bool(anchors and any(term in searchable for term in anchors))
 
 
 async def _stream_completion(
@@ -863,6 +912,20 @@ async def _run_agent_impl(
                         raise ValueError(f"未知工具: {name}")
                     result = handler(**arguments)
                     if name == "search_knowledge":
+                        raw_count = len(result) if isinstance(result, list) else 0
+                        result = [
+                            item for item in result
+                            if isinstance(item, dict)
+                            and _usable_knowledge_result(str(arguments.get("query") or ""), item)
+                        ] if isinstance(result, list) else []
+                        if len(result) != raw_count:
+                            emit(
+                                "knowledge_results_filtered",
+                                run_id,
+                                raw_count=raw_count,
+                                usable_count=len(result),
+                                filtered_count=raw_count - len(result),
+                            )
                         for source in result:
                             sources[source["reference_id"]] = source
                     loop_guard.record_result(name, result, True)
