@@ -94,6 +94,19 @@ export interface HistoricalCase {
   recurrence_status: string
 }
 
+export interface HistoricalCaseDetail extends HistoricalCase {
+  solution: string | null
+  result: string | null
+  tags: string | null
+  equipment_family: string | null
+  defect_type: string | null
+  symptoms: string | null
+  root_cause: string | null
+  validation_method: string | null
+  approved_by: string | null
+  case_status: string
+}
+
 export interface SessionSummary {
   session_id: string
   title: string

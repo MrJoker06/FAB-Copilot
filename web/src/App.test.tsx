@@ -30,6 +30,8 @@ beforeEach(() => {
       chunks: [{ chunk_id: 1, title: 'CVD 控制计划', source: 'CP-CVD-01', section: '膜厚控制', content: '膜厚漂移时应先核对腔体状态。' }],
     })
     if (path.includes('/api/v1/knowledge/documents')) return jsonResponse([{ title: 'CVD 控制计划', source: 'CP-CVD-01', doc_type: 'Control Plan', version: '2.1', owner: 'Process Engineering', authority: 'Controlled', effective_date: '2026-01-01', section_count: 1, sections: '膜厚控制', first_chunk_id: 1 }])
+    if (path.includes('/api/v1/cases/CASE-1')) return jsonResponse({ case_id: 'CASE-1', title: 'CVD 腔体漂移', process_step: 'CVD', equipment_id: 'CVD-02', occurred_date: '2026-06-01', severity: 'High', problem: '膜厚持续漂移', solution: '清洁腔体并重新校准', result: '膜厚恢复受控', summary: '已验证的腔体污染案例', tags: 'cvd,drift', equipment_family: 'CVD family', defect_type: 'Particle', symptoms: '膜厚升高且颗粒增加', root_cause: '腔体污染', root_cause_confidence: 'High', validation_method: 'Split lot', recurrence_status: 'No recurrence', approved_by: 'QE', case_status: 'Validated' })
+    if (path.endsWith('/api/v1/cases')) return jsonResponse([{ case_id: 'CASE-1', title: 'CVD 腔体漂移', process_step: 'CVD', equipment_id: 'CVD-02', occurred_date: '2026-06-01', severity: 'High', problem: '膜厚持续漂移', summary: '已验证的腔体污染案例', root_cause_confidence: 'High', recurrence_status: 'No recurrence' }])
     if (path.includes('/api/v1/chat') && init?.method === 'POST') return jsonResponse({ answer: '已完成分析。', mode: 'deterministic-mcp', session_id: 'session-active', message_id: 3, tool_trace: [], sources: [] })
     if (path.endsWith('/api/v1/sessions') && init?.method === 'POST') return jsonResponse({ session_id: 'session-new', title: '新会话' })
     if (path.includes('/api/v1/sessions/session-new')) return jsonResponse({ ...sessions[0], session_id: 'session-new', title: '新会话', messages: [] })
@@ -108,4 +110,13 @@ test('previews governed knowledge document content', async () => {
   fireEvent.click(await screen.findByRole('button', { name: /CVD 控制计划/ }))
   expect(await screen.findByRole('heading', { name: '膜厚控制' })).toBeInTheDocument()
   expect(await screen.findByText('膜厚漂移时应先核对腔体状态。')).toBeInTheDocument()
+})
+
+test('opens a historical case and displays its validated details', async () => {
+  renderApp('/cases')
+  fireEvent.click(await screen.findByRole('button', { name: 'CVD 腔体漂移' }))
+  expect(await screen.findByRole('heading', { name: '已验证根因' })).toBeInTheDocument()
+  expect(await screen.findByText('腔体污染')).toBeInTheDocument()
+  expect(await screen.findByText('清洁腔体并重新校准')).toBeInTheDocument()
+  expect(fetch).toHaveBeenCalledWith('/api/v1/cases/CASE-1', expect.anything())
 })

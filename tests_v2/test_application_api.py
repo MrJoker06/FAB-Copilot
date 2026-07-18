@@ -102,12 +102,15 @@ async def test_application_routes_keep_knowledge_sessions_and_mcp_tools_separate
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         documents = await client.get("/api/v1/knowledge/documents")
         cases = await client.get("/api/v1/cases")
+        case = await client.get("/api/v1/cases/CASE-1")
         chat = await client.post("/api/v1/chat", json={"message": "请概览当前工厂情况"})
         session_id = chat.json()["data"]["session_id"]
         session = await client.get(f"/api/v1/sessions/{session_id}")
 
     assert documents.json()["data"][0]["source"] == "CP-CVD-01"
     assert cases.json()["data"][0]["case_id"] == "CASE-1"
+    assert case.json()["data"]["root_cause"] == "Chamber contamination"
+    assert case.json()["data"]["solution"] == "Clean chamber"
     assert [call[0] for call in gateway.calls] == ["get_fab_overview", "get_recent_excursions"]
     assert session.json()["data"]["messages"][0]["role"] == "user"
     assert session.json()["data"]["messages"][1]["metadata"]["mode"] == "deterministic-mcp"
