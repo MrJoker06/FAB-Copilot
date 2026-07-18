@@ -5,7 +5,7 @@ import json
 import unittest
 from datetime import date
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from app import agent as agent_module
 from app.intent_router import route_question
@@ -96,6 +96,44 @@ class IntentRouterTests(unittest.TestCase):
         self.assertEqual(route.data_requirements, ("search_knowledge",))
         self.assertEqual(route.risk_level, "low")
         self.assertFalse(route.clarification_needed)
+
+    def test_educational_advantage_question_routes_to_general_knowledge(self):
+        route = route_question(
+            "为我科普一下GAN器件在做电源的时候相较Si的优势",
+            current_date=date(2026, 7, 18),
+        )
+
+        self.assertEqual(route.intent, "general_knowledge")
+        self.assertEqual(route.data_requirements, ("search_knowledge",))
+        self.assertFalse(route.clarification_needed)
+
+    def test_self_introduction_is_deterministic_conversation_without_rag(self):
+        route = route_question("介绍一下你自己", current_date=date(2026, 7, 18))
+        self.assertEqual(route.intent, "conversation")
+        self.assertEqual(route.data_requirements, ())
+        self.assertFalse(route.clarification_needed)
+
+        model_call = AsyncMock(side_effect=AssertionError("conversation must not call model"))
+        with (
+            patch("app.agent.get_settings", return_value=SimpleNamespace(
+                deepseek_api_key="test-key",
+                deepseek_base_url="https://example.test",
+                deepseek_model="test-model",
+                api_timeout_seconds=5,
+                model_max_retries=0,
+                model_retry_base_seconds=0.05,
+            )),
+            patch("app.agent._stream_completion", model_call),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "介绍一下你自己", [], "run-conversation-test",
+            ))
+
+        model_call.assert_not_awaited()
+        self.assertEqual(result["mode"], "deterministic")
+        self.assertEqual(result["tool_trace"], [])
+        self.assertIn("Fab Copilot", result["answer"])
+        self.assertNotIn("未检索到", result["answer"])
 
     def test_general_agent_path_searches_private_and_factory_before_model(self):
         captured: dict = {}

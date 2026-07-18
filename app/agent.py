@@ -80,6 +80,7 @@ SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的�
 18. 对已选择 Domain Playbook 的问题，最终答案必须调用 submit_analysis 提交面向用户的结构化内容；不要输出隐藏思维链。事实必须有合法证据引用，推断、假设、建议和限制必须分开提交。
 19. search_knowledge 已执行但没有返回可用内容时，可以用模型通用知识回答一般性技术问题，但必须明确告知用户知识库无结果；不得把模型通用知识表述为厂内 SOP、配方、规格、历史案例或当前生产事实。
 20. intent_route.intent=general_knowledge 时，服务端会先分别检索个人知识与工厂知识并提供 knowledge_retrieval 判定。必须遵守该判定：优先使用可用来源，只有明确允许时才补充模型通用知识；不得索要无关的制程、设备、批次或时间范围。
+21. intent_route.intent=conversation 时只回答助手身份、能力或问候，不调用知识库、制造数据或模型工具，也不附加知识库无结果声明。
 
 数据库字段提示：
 - lots: lot_id, product, technology_nm, route, priority, start_time, complete_time, status, wafer_count, good_wafers, yield_rate(0-1), cycle_time_hours, hold_hours
@@ -177,6 +178,30 @@ def _offline_answer(
     execution_plan: ExecutionPlan,
     loop_guard: ToolLoopGuard,
 ) -> dict:
+    if intent_route.intent == "conversation":
+        validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, [])
+        contract = create_answer_contract(validation)
+        synthesis = synthesize_legacy_answer(
+            "我是 Fab Copilot，面向半导体制造场景的分析助手。"
+            "我可以查询制造报表与模拟数据、检索当前用户的个人知识和工厂知识、引用历史案例，"
+            "并把事实、推断、建议和证据限制分开说明。对于一般技术问题，我会先检索可用知识，"
+            "证据不足时才明确标注并使用模型通用知识补充。",
+            contract,
+        )
+        return {
+            "answer": synthesis.answer,
+            "tool_trace": [],
+            "sources": [],
+            "mode": "deterministic",
+            "intent_route": intent_route.to_dict(),
+            "domain_playbook": playbook_selection.to_dict(),
+            "execution_plan": execution_plan.to_dict(),
+            "loop_guard": loop_guard.summary(),
+            "evidence_validation": validation.to_dict(),
+            "answer_contract": contract.to_dict(),
+            "answer_synthesis": synthesis.report.to_dict(),
+        }
+
     if execution_plan.status == "clarification_required":
         questions = (
             (
@@ -294,6 +319,8 @@ def _routing_progress_message(route: IntentRoute) -> str:
         return "识别到多个分析目标，正在确认优先路径"
     if route.intent == "general_knowledge":
         return "已识别为知识问题，正在检索个人知识与工厂知识"
+    if route.intent == "conversation":
+        return "已识别为助手对话，正在直接回答"
     scope = "、".join(route.equipment_ids or route.process_steps)
     scope_text = f" · {scope}" if scope else ""
     return f"已识别为{route.intent_label}{scope_text}，正在限定数据范围"
@@ -833,6 +860,31 @@ async def _run_agent_impl(
         )
         await _stream_answer(progress, result["answer"])
         return result
+    if intent_route.intent == "conversation":
+        result = _offline_answer(
+            analysis_question,
+            intent_route,
+            playbook_selection,
+            execution_plan,
+            loop_guard,
+        )
+        result["model"] = "deterministic-router"
+        result["usage"] = {}
+        result["context_resolution"] = context_resolution.to_dict()
+        _emit_evidence_validation(run_id, 1, result["evidence_validation"])
+        emit(
+            "answer_synthesis_completed",
+            run_id,
+            plan_id=result["answer_synthesis"]["plan_id"],
+            status=result["answer_synthesis"]["status"],
+            allowed_conclusion_strength=result["answer_synthesis"]["allowed_conclusion_strength"],
+            source_count=0,
+            invalid_source_count=0,
+            moved_claims=0,
+            wording_adjustment_count=0,
+        )
+        await _stream_answer(progress, result["answer"])
+        return result
     if not settings.deepseek_api_key:
         await _notify(progress, {"event": "stage", "stage": "planning", "message": "正在使用本地规则规划分析路径"})
         result = _offline_answer(analysis_question, intent_route, playbook_selection, execution_plan, loop_guard)
@@ -1014,7 +1066,7 @@ async def _run_agent_impl(
                 "messages": messages,
                 "temperature": 0.15,
             }
-            if intent_route.intent != "general_knowledge":
+            if intent_route.intent not in {"general_knowledge", "conversation"}:
                 request_payload["tools"] = (
                     [SUBMIT_ANALYSIS_TOOL]
                     if synthesis_only and answer_contract.status == "required"

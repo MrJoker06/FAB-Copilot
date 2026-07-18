@@ -84,6 +84,38 @@ class ContextResolverTests(unittest.TestCase):
         self.assertIn("GAN器件和S器件的差别", resolution.resolved_question)
         self.assertEqual(route_question(resolution.resolved_question).intent, "general_knowledge")
 
+    def test_educational_scope_correction_restores_original_question(self):
+        original = "为我科普一下GAN器件在做电源的时候相较Si的优势"
+        resolution = resolve_question_context(
+            "仅仅是用于科普，不涉及具体制造",
+            [
+                {"role": "user", "content": original},
+                {"role": "assistant", "content": "请补充生产范围。"},
+            ],
+        )
+
+        self.assertTrue(resolution.applied)
+        self.assertEqual(resolution.strategy, "general_scope_correction")
+        self.assertIn(original, resolution.resolved_question)
+        self.assertEqual(route_question(resolution.resolved_question).intent, "general_knowledge")
+
+    def test_direct_answer_skips_previous_scope_correction_when_restoring_topic(self):
+        original = "为我科普一下GAN器件在做电源的时候相较Si的优势"
+        resolution = resolve_question_context(
+            "直接回答",
+            [
+                {"role": "user", "content": original},
+                {"role": "assistant", "content": "请补充生产范围。"},
+                {"role": "user", "content": "仅仅是用于科普，不涉及具体制造"},
+                {"role": "assistant", "content": "请继续补充范围。"},
+            ],
+        )
+
+        self.assertTrue(resolution.applied)
+        self.assertIn(original, resolution.resolved_question)
+        self.assertNotIn("仅仅是用于科普", resolution.resolved_question)
+        self.assertEqual(route_question(resolution.resolved_question).intent, "general_knowledge")
+
     def test_agent_does_not_override_explicit_current_intent_with_history(self):
         history = [
             {"role": "user", "content": INITIAL_QUESTION},

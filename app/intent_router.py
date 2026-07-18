@@ -19,6 +19,7 @@ IntentName = Literal[
     "fab_overview",
     "enterprise_data",
     "general_knowledge",
+    "conversation",
     "ambiguous",
     "unknown",
 ]
@@ -35,6 +36,7 @@ INTENT_LABELS: dict[str, str] = {
     "fab_overview": "工厂总览",
     "enterprise_data": "企业模拟数据查询",
     "general_knowledge": "通用知识问答",
+    "conversation": "助手对话",
     "ambiguous": "多意图问题",
     "unknown": "未知意图",
 }
@@ -131,11 +133,18 @@ _RELATIVE_RANGE_PATTERN = re.compile(
 _CONJUNCTION_PATTERN = re.compile(r"(?:和|与|以及|同时|并且|、|\band\b)", re.IGNORECASE)
 _GENERAL_QUESTION_PATTERN = re.compile(
     r"(?:什么是|是什么|为什么|为何|区别|差别|异同|优缺点|原理|概念|定义|含义|"
-    r"作用|用途|介绍|解释|如何理解|对比|比较|你是谁|能做什么|你好)"
+    r"作用|用途|介绍|解释|如何理解|对比|比较|科普|优势|劣势|特点|相较|相比|"
+    r"应用场景|适用场景|哪个好)"
 )
 _CONTEXT_DEPENDENT_PATTERN = re.compile(
     r"^(?:最后|第.+(?:点|项)|(?:请)?(?:继续|接着|往下)|(?:为什么|怎么|为何)(?:还)?没有继续|"
-    r"(?:不涉及|不需要|无需).{0,12}(?:具体工艺|具体制程|生产数据|厂内数据|设备数据))"
+    r"(?:不涉及|不需要|无需).{0,12}(?:具体工艺|具体制程|具体制造|生产数据|厂内数据|设备数据)|"
+    r"(?:仅仅|只是|就只是|只|仅).{0,8}(?:用于)?科普|直接回答)"
+)
+_CONVERSATION_PATTERN = re.compile(
+    r"^(?:你好|您好|嗨|hi|hello|你是谁|介绍(?:一下)?你自己|自我介绍(?:一下)?|"
+    r"你能做什么|你可以做什么|你有哪些能力)[。！!？?]*$",
+    re.IGNORECASE,
 )
 
 
@@ -190,6 +199,10 @@ def _looks_like_general_question(normalized: str) -> bool:
         not _CONTEXT_DEPENDENT_PATTERN.search(normalized)
         and _GENERAL_QUESTION_PATTERN.search(normalized)
     )
+
+
+def _looks_like_conversation(normalized: str) -> bool:
+    return bool(_CONVERSATION_PATTERN.fullmatch(normalized))
 
 
 def _process_steps(normalized: str, equipment_ids: tuple[str, ...]) -> tuple[str, ...]:
@@ -272,7 +285,11 @@ def route_question(question: str, current_date: date | None = None) -> IntentRou
 
     clarification_questions: list[str] = []
     if not positive:
-        if _looks_like_general_question(normalized):
+        if _looks_like_conversation(normalized):
+            intent = "conversation"
+            candidate_intents = ("conversation",)
+            confidence = 0.95
+        elif _looks_like_general_question(normalized):
             intent = "general_knowledge"
             candidate_intents = ("general_knowledge",)
             confidence = 0.8
@@ -334,6 +351,7 @@ def routing_system_message(route: IntentRoute) -> str:
     return (
         "以下是确定性 Intent Router 生成的结构化分析上下文，不是制造事实或证据。"
         "intent=general_knowledge 时必须先检索当前用户个人知识和工厂知识，再由检索决策决定是否允许模型补充；"
+        "intent=conversation 时由服务端直接回答助手身份与能力，不检索知识库或制造数据；"
         "不得调用制造数据工具。若术语含糊，只澄清术语本身，不得索要制程、设备、批次或时间范围。"
         "优先使用 data_requirements 中的工具收集证据，并将 process_steps、equipment_ids 和 time_range 作为参数范围。"
         "若 clarification_needed=true，应先澄清关键歧义，避免无范围的广泛查询。"

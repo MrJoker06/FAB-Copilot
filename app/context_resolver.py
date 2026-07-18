@@ -37,8 +37,9 @@ _CONTINUATION_PATTERN = re.compile(
 )
 _ACTION_PATTERN = re.compile(r"(?:调用|查询|查找|检索|分析|执行|开始|继续|接下来|我先)")
 _GENERAL_SCOPE_PATTERN = re.compile(
-    r"(?:不涉及|不需要|无需).{0,12}(?:具体工艺|具体制程|生产数据|厂内数据|设备数据)|"
-    r"(?:只|仅).{0,8}(?:通用问题|通用知识|概念|原理)"
+    r"(?:不涉及|不需要|无需).{0,12}(?:具体工艺|具体制程|具体制造|制造分析|生产数据|厂内数据|设备数据)|"
+    r"(?:只|仅).{0,8}(?:通用问题|通用知识|概念|原理)|"
+    r"(?:仅仅|只是|就只是|只|仅).{0,8}(?:用于)?科普|直接回答|直接解释"
 )
 _MARKDOWN_PATTERN = re.compile(r"[*_`#]+")
 
@@ -77,7 +78,12 @@ def _base_user_question(history: list[dict], before: int | None = None) -> str:
         if item.get("role") != "user":
             continue
         content = _plain(str(item.get("content") or ""), 600)
-        if content and not _CONTINUATION_PATTERN.fullmatch(content) and not _LAST_PATTERN.search(content):
+        if (
+            content
+            and not _CONTINUATION_PATTERN.fullmatch(content)
+            and not _LAST_PATTERN.search(content)
+            and not _GENERAL_SCOPE_PATTERN.search(content)
+        ):
             return content
     return ""
 
@@ -130,7 +136,7 @@ def _resolve_general_scope(question: str, history: list[dict]) -> ContextResolut
     base = _base_user_question(history)
     if not base:
         return None
-    selected = "不查询或推断厂内生产数据，先检索个人知识和工厂知识后回答"
+    selected = "直接回答原知识问题，不查询或推断厂内生产数据，并先检索个人知识和工厂知识"
     return ContextResolution(
         question,
         f"{base}；用户明确要求{selected}。",
