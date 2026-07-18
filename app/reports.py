@@ -165,13 +165,17 @@ def sensor_summary(
     return rows_to_dicts(rows)
 
 
-def process_capability(start: str | None = None, end: str | None = None, process_step: str = "CVD") -> list[dict]:
+def process_capability(start: str | None = None, end: str | None = None, process_step: str | None = None) -> list[dict]:
     start, end_exclusive = timestamp_bounds(start, end)
-    process_step = process_step.upper()
+    clauses = ["run_time >= ?", "run_time < ?", "measurement_value IS NOT NULL"]
+    params: list[object] = [start, end_exclusive]
+    if process_step:
+        clauses.append("process_step = ?")
+        params.append(process_step.upper())
     with db_session() as connection:
         rows = connection.execute(
-            """WITH stats AS (
-                   SELECT equipment_id, COUNT(measurement_value) AS samples,
+            f"""WITH stats AS (
+                   SELECT process_step, equipment_id, COUNT(measurement_value) AS samples,
                           AVG(measurement_value) AS mean_value,
                           SQRT(AVG(measurement_value * measurement_value) - AVG(measurement_value) * AVG(measurement_value)) AS sigma,
                           MIN(measurement_value) AS min_value,
@@ -181,11 +185,10 @@ def process_capability(start: str | None = None, end: str | None = None, process
                           MIN(spec_lsl) AS spec_lsl,
                           MAX(spec_usl) AS spec_usl
                    FROM process_runs
-                   WHERE process_step = ? AND run_time >= ? AND run_time < ?
-                         AND measurement_value IS NOT NULL
-                   GROUP BY equipment_id
+                   WHERE {' AND '.join(clauses)}
+                   GROUP BY process_step, equipment_id
                )
-               SELECT equipment_id, samples,
+               SELECT process_step, equipment_id, samples,
                       ROUND(mean_value, 3) AS mean_value,
                       ROUND(sigma, 3) AS sigma,
                       ROUND(min_value, 3) AS min_value,
@@ -197,8 +200,8 @@ def process_capability(start: str | None = None, end: str | None = None, process
                                  (mean_value - spec_lsl) / (3.0 * NULLIF(sigma, 0)))
                       END, 2) AS cpk,
                       metric_name, metric_unit, spec_lsl, spec_usl
-               FROM stats ORDER BY cpk""",
-            (process_step, start, end_exclusive),
+               FROM stats ORDER BY cpk, process_step, equipment_id""",
+            params,
         ).fetchall()
     return rows_to_dicts(rows)
 

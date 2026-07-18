@@ -12,6 +12,7 @@ from app.domain_playbooks import select_playbook
 from app.evidence_validator import EvidenceObservation, validate_evidence, validator_system_message
 from app.intent_router import route_question
 from app.planner import create_execution_plan
+from app.processes import MANUFACTURING_STEPS
 
 
 def _context(question: str):
@@ -47,11 +48,15 @@ class EvidenceValidatorTests(unittest.TestCase):
         ]
 
         validation = validate_evidence(plan, selection.selected_playbook, observations)
+        capability_rows = next(
+            item.result for item in observations if item.tool == "get_process_capability"
+        )
 
         self.assertEqual(validation.coverage["required_total"], 4)
         self.assertEqual(validation.coverage["required_covered"], 4)
         self.assertEqual(validation.coverage["required_coverage_pct"], 100.0)
         self.assertNotIn(validation.allowed_conclusion_strength, {"insufficient", "hypothesis_only"})
+        self.assertEqual({item["process_step"] for item in capability_rows}, set(MANUFACTURING_STEPS))
 
     def test_complete_required_yield_evidence_allows_supported_conclusion(self):
         selection, plan = _context("最近四周良率下降")

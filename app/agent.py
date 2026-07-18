@@ -1075,6 +1075,12 @@ async def _run_agent_impl(
                 request_payload["tool_choice"] = (
                     "none" if synthesis_only and answer_contract.status != "required" else "auto"
                 )
+                if synthesis_only and answer_contract.status == "required":
+                    request_payload["tool_choice"] = {
+                        "type": "function",
+                        "function": {"name": "submit_analysis"},
+                    }
+                    request_payload["max_tokens"] = 8192
             for attempt in range(1, settings.model_max_retries + 2):
                 model_started = time.perf_counter()
                 emit(
@@ -1189,12 +1195,36 @@ async def _run_agent_impl(
 
             if len(tool_calls) == 1 and tool_calls[0].get("function", {}).get("name") == "submit_analysis":
                 raw_arguments = tool_calls[0].get("function", {}).get("arguments") or "{}"
+                submission_error: str | None = None
                 try:
                     submission = json.loads(raw_arguments)
                     if not isinstance(submission, dict):
                         raise ValueError("结构化答案必须是 JSON 对象")
-                except Exception:
+                except Exception as exc:
                     submission = {}
+                    submission_error = str(exc)
+                if submission_error and iteration < loop_guard.max_model_iterations - 1:
+                    emit(
+                        "answer_submission_rejected",
+                        run_id,
+                        iteration=iteration + 1,
+                        error_type="invalid_json",
+                        error_message=submission_error,
+                    )
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_calls[0].get("id") or "submit-analysis-invalid",
+                        "content": json.dumps({
+                            "ok": False,
+                            "error": "submit_analysis 参数不是完整 JSON，请缩短内容并重新提交。",
+                        }, ensure_ascii=False),
+                    })
+                    await _notify(progress, {
+                        "event": "stage",
+                        "stage": "synthesis",
+                        "message": "结构化答案不完整，正在精简并重新提交",
+                    })
+                    continue
                 synthesis = synthesize_submission(
                     submission,
                     answer_contract,
@@ -1356,6 +1386,16 @@ async def _run_agent_impl(
 
             loop_guard.finish_round()
             evidence_validation = validate_evidence(execution_plan, selected_playbook, evidence_observations)
+            coverage = evidence_validation.coverage
+            if (
+                execution_plan.status == "ready"
+                and coverage["required_total"] > 0
+                and coverage["required_covered"] == coverage["required_total"]
+            ):
+                loop_guard.enter_synthesis(
+                    "required_evidence_complete",
+                    f"执行计划的 {coverage['required_total']} 组必需证据已全部覆盖。",
+                )
             if intent_route.intent != "general_knowledge":
                 knowledge_fallback = _knowledge_fallback_state(intent_route, evidence_observations, sources)
             answer_contract = create_answer_contract(

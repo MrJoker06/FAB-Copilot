@@ -35,9 +35,10 @@ SUBMIT_ANALYSIS_TOOL = {
         "parameters": {
             "type": "object",
             "properties": {
-                "conclusion": {"type": "string"},
+                "conclusion": {"type": "string", "maxLength": 600},
                 "facts": {
                     "type": "array",
+                    "maxItems": 8,
                     "items": {
                         "type": "object",
                         "properties": {
@@ -50,6 +51,7 @@ SUBMIT_ANALYSIS_TOOL = {
                 },
                 "inferences": {
                     "type": "array",
+                    "maxItems": 5,
                     "items": {
                         "type": "object",
                         "properties": {
@@ -62,6 +64,7 @@ SUBMIT_ANALYSIS_TOOL = {
                 },
                 "hypotheses": {
                     "type": "array",
+                    "maxItems": 5,
                     "items": {
                         "type": "object",
                         "properties": {
@@ -75,6 +78,7 @@ SUBMIT_ANALYSIS_TOOL = {
                 },
                 "recommendations": {
                     "type": "array",
+                    "maxItems": 5,
                     "items": {
                         "type": "object",
                         "properties": {
@@ -86,8 +90,8 @@ SUBMIT_ANALYSIS_TOOL = {
                         "additionalProperties": False,
                     },
                 },
-                "limitations": {"type": "array", "items": {"type": "string"}},
-                "source_refs": {"type": "array", "items": {"type": "string"}},
+                "limitations": {"type": "array", "maxItems": 5, "items": {"type": "string"}},
+                "source_refs": {"type": "array", "maxItems": 20, "items": {"type": "string"}},
             },
             "required": [
                 "conclusion",
@@ -248,6 +252,7 @@ def synthesizer_system_message(contract: AnswerContract) -> str:
         "最终回答必须通过 submit_analysis 提交，不要直接输出最终正文。"
         "facts 只放工具结果直接支持的事实且必须填写 permitted_source_refs；"
         "inferences 是基于事实的解释，hypotheses 必须包含验证方法，recommendations 必须说明依据与复核要求。"
+        "保持精炼：只保留对决策最重要的条目，不要逐行复述工具结果或穷举全部设备。"
         + (
             f"知识库检索没有返回可用内容，允许使用 {MODEL_KNOWLEDGE_REF} 作为模型通用知识标识。"
             "应直接回答用户的一般性技术问题，将通用知识放入 inferences；"

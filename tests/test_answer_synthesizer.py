@@ -270,6 +270,68 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertIn("## 已确认事实", result["answer"])
         self.assertIn("submit_analysis", {tool["function"]["name"] for tool in requests[0]["tools"]})
 
+    def test_agent_retries_incomplete_structured_submission(self):
+        requests: list[dict] = []
+        events: list[dict] = []
+        round_number = 0
+
+        async def fake_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            nonlocal round_number
+            round_number += 1
+            requests.append(request_payload)
+            if round_number == 1:
+                arguments = '{"conclusion":"被截断的结构化回答"'
+            else:
+                arguments = json.dumps({
+                    "conclusion": "当前证据不足，需补充制造数据。",
+                    "facts": [],
+                    "inferences": [],
+                    "hypotheses": [{
+                        "statement": "CMP 能力异常仍待验证。",
+                        "evidence_refs": [],
+                        "verification": "查询同时间范围的能力与异常数据。",
+                    }],
+                    "recommendations": [],
+                    "limitations": ["尚未执行制造数据工具。"],
+                    "source_refs": [],
+                }, ensure_ascii=False)
+            return ({
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{
+                    "id": f"submit-{round_number}",
+                    "type": "function",
+                    "function": {"name": "submit_analysis", "arguments": arguments},
+                }],
+            }, {"total_tokens": 8}, f"response-{round_number}")
+
+        async def progress(event: dict) -> None:
+            events.append(event)
+
+        settings = SimpleNamespace(
+            deepseek_api_key="test-key",
+            deepseek_base_url="https://example.test",
+            deepseek_model="test-model",
+            api_timeout_seconds=5,
+            model_max_retries=0,
+            model_retry_base_seconds=0.05,
+        )
+        with (
+            patch("app.agent.get_settings", return_value=settings),
+            patch("app.agent._stream_completion", new=fake_stream),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "分析 CMP-03 最近7天 Cpk 不合格", [], "run-submit-retry-test", progress,
+            ))
+
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(result["answer_synthesis"]["status"], "structured")
+        self.assertTrue(any(
+            str(event.get("message") or "").startswith("结构化答案不完整")
+            for event in events
+        ))
+        self.assertNotIn("当前没有额外的待验证假设", result["answer"])
+
 
 if __name__ == "__main__":
     unittest.main()

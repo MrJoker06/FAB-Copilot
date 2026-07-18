@@ -339,7 +339,7 @@ FAB_DIAGNOSTIC_PLAYBOOK = DomainPlaybook(
             purpose="按设备和关键量测比较样本量、均值、波动、规格与 Cpk，定位能力改善优先级。",
             source_tools=("get_process_capability",),
             required_fields=(
-                "equipment_id", "samples", "mean_value", "sigma", "cpk",
+                "process_step", "equipment_id", "samples", "mean_value", "sigma", "cpk",
                 "metric_name", "metric_unit", "spec_lsl", "spec_usl",
             ),
             acceptance_criteria=(

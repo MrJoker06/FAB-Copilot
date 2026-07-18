@@ -93,6 +93,13 @@ class ToolLoopGuard:
             )
             return self._blocked("total_tool_budget_exhausted", self.stop_message or "工具总预算已用尽。", signature_hash)
 
+        if self.plan.status == "ready" and tool not in budget.per_tool_limits:
+            return self._blocked(
+                "unplanned_tool",
+                f"{tool} 不在当前 Domain Playbook 的确定性执行计划中。",
+                signature_hash,
+            )
+
         tool_limit = budget.per_tool_limits.get(tool, budget.per_tool_limits.get("*", budget.max_tool_calls))
         if self.tool_calls[tool] >= tool_limit:
             return self._blocked(

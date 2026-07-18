@@ -52,6 +52,18 @@ class ToolLoopGuardTests(unittest.TestCase):
         self.assertEqual(blocked.reason_code, "total_tool_budget_exhausted")
         self.assertTrue(total_guard.force_synthesis)
 
+    def test_ready_plan_blocks_unplanned_tools_but_generic_plan_allows_them(self):
+        ready_guard = ToolLoopGuard(_plan("关于目前的制造数据你有什么改进建议"))
+
+        blocked = ready_guard.check_call("search_knowledge", {"query": "改善建议"})
+
+        self.assertFalse(blocked.allowed)
+        self.assertEqual(blocked.reason_code, "unplanned_tool")
+        self.assertEqual(ready_guard.total_calls, 0)
+
+        generic_guard = ToolLoopGuard(_plan("分析 CMP 划伤缺陷 Pareto"))
+        self.assertTrue(generic_guard.check_call("search_knowledge", {"query": "CMP 划伤"}).allowed)
+
     def test_repeated_evidence_triggers_no_progress_synthesis(self):
         guard = ToolLoopGuard(_plan("分析 CMP 划伤缺陷 Pareto"))
 
@@ -163,7 +175,12 @@ class ToolLoopGuardTests(unittest.TestCase):
         self.assertEqual(result["loop_guard"]["stop_reason"], "no_progress")
         self.assertEqual(result["loop_guard"]["total_calls"], 1)
         self.assertEqual(result["loop_guard"]["blocked_calls"], 2)
-        self.assertEqual([request["tool_choice"] for request in requests], ["auto", "auto", "auto", "auto"])
+        self.assertEqual([request["tool_choice"] for request in requests[:3]], ["auto", "auto", "auto"])
+        self.assertEqual(
+            requests[-1]["tool_choice"],
+            {"type": "function", "function": {"name": "submit_analysis"}},
+        )
+        self.assertEqual(requests[-1]["max_tokens"], 8192)
         self.assertEqual(
             [tool["function"]["name"] for tool in requests[-1]["tools"]],
             ["submit_analysis"],
