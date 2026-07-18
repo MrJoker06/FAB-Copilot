@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 from app import agent as agent_module
 from app.answer_synthesizer import (
+    MODEL_KNOWLEDGE_DISCLOSURE,
+    MODEL_KNOWLEDGE_REF,
     REQUIRED_SECTIONS,
     create_answer_contract,
     synthesize_legacy_answer,
@@ -121,6 +123,36 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertNotIn("## 已确认事实\n- CMP-03", result.answer)
         self.assertGreaterEqual(result.report.moved_claims, 1)
         self.assertTrue(result.report.wording_adjustments)
+
+    def test_empty_knowledge_search_allows_disclosed_model_knowledge(self):
+        selection, plan = _context("查询 GaN 与 Si 器件工艺差异 SOP")
+        empty_search = _observation(plan, "search_knowledge", [])
+        validation = validate_evidence(plan, selection.selected_playbook, [empty_search])
+        contract = create_answer_contract(
+            validation,
+            allow_model_knowledge_fallback=True,
+        )
+        payload = {
+            "conclusion": "GaN 与 Si 器件的主要差异来自材料特性和器件结构。",
+            "facts": [],
+            "inferences": [{
+                "statement": "GaN 的宽禁带和高击穿场强通常更适合高压、高频功率器件。",
+                "evidence_refs": [MODEL_KNOWLEDGE_REF],
+            }],
+            "hypotheses": [],
+            "recommendations": [],
+            "limitations": [],
+            "source_refs": [MODEL_KNOWLEDGE_REF],
+        }
+
+        result = synthesize_submission(payload, contract)
+
+        self.assertTrue(contract.model_knowledge_fallback)
+        self.assertIn(MODEL_KNOWLEDGE_DISCLOSURE, result.answer)
+        self.assertIn("GaN 的宽禁带", result.answer)
+        self.assertIn("[模型通用知识]", result.answer)
+        self.assertIn("模型通用知识：当前模型生成", result.answer)
+        self.assertNotIn("不能形成诊断性结论", result.answer)
 
     def test_invalid_source_is_removed_and_reported(self):
         contract, sources = _supported_yield_contract()

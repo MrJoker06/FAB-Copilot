@@ -20,6 +20,12 @@ REQUIRED_SECTIONS = (
     "来源",
 )
 
+MODEL_KNOWLEDGE_REF = "MODEL_GENERAL_KNOWLEDGE"
+MODEL_KNOWLEDGE_DISCLOSURE = (
+    "知识库未检索到相关内容。以下回答使用模型通用知识，仅供参考，"
+    "不代表厂内 SOP、规格或当前生产事实。"
+)
+
 SUBMIT_ANALYSIS_TOOL = {
     "type": "function",
     "function": {
@@ -113,6 +119,7 @@ class AnswerContract:
     required_sections: tuple[str, ...]
     permitted_source_refs: tuple[str, ...]
     mandatory_limitations: tuple[str, ...]
+    model_knowledge_fallback: bool
     submission_tool: str = "submit_analysis"
 
     def to_dict(self) -> dict[str, Any]:
@@ -182,11 +189,13 @@ def _validation_limitations(validation: EvidenceValidation) -> tuple[str, ...]:
 def create_answer_contract(
     validation: EvidenceValidation,
     sources: list[dict[str, Any]] | None = None,
+    *,
+    allow_model_knowledge_fallback: bool = False,
 ) -> AnswerContract:
     matched_tools = {
         tool
         for check in validation.evidence_checks
-        if check.status in {"covered", "partial"}
+        if check.status in {"covered", "partial"} and check.row_count > 0
         for tool in check.matched_tools
     }
     source_refs = (
@@ -198,7 +207,13 @@ def create_answer_contract(
         if "search_knowledge" in matched_tools
         else set()
     )
-    permitted = tuple(sorted({*(f"TOOL:{tool}" for tool in matched_tools), *source_refs}))
+    permitted_items = {*(f"TOOL:{tool}" for tool in matched_tools), *source_refs}
+    if allow_model_knowledge_fallback:
+        permitted_items.add(MODEL_KNOWLEDGE_REF)
+    permitted = tuple(sorted(permitted_items))
+    limitations = list(_validation_limitations(validation))
+    if allow_model_knowledge_fallback:
+        limitations.append(MODEL_KNOWLEDGE_DISCLOSURE)
     required = validation.status == "validated"
     return AnswerContract(
         schema_version="1.0",
@@ -209,7 +224,8 @@ def create_answer_contract(
         causal_claims_allowed=validation.causal_claims_allowed,
         required_sections=REQUIRED_SECTIONS if required else (),
         permitted_source_refs=permitted,
-        mandatory_limitations=_validation_limitations(validation),
+        mandatory_limitations=tuple(dict.fromkeys(limitations)),
+        model_knowledge_fallback=allow_model_knowledge_fallback,
     )
 
 
@@ -224,7 +240,14 @@ def synthesizer_system_message(contract: AnswerContract) -> str:
         "最终回答必须通过 submit_analysis 提交，不要直接输出最终正文。"
         "facts 只放工具结果直接支持的事实且必须填写 permitted_source_refs；"
         "inferences 是基于事实的解释，hypotheses 必须包含验证方法，recommendations 必须说明依据与复核要求。"
-        "不得提交隐藏思维链、逐 token 推理或未在 permitted_source_refs 中的来源。"
+        + (
+            f"知识库检索没有返回可用内容，允许使用 {MODEL_KNOWLEDGE_REF} 作为模型通用知识标识。"
+            "应直接回答用户的一般性技术问题，将通用知识放入 inferences；"
+            "不得把它写成厂内 SOP、配方、规格或当前生产事实，并必须明确披露知识库无结果。"
+            if contract.model_knowledge_fallback
+            else ""
+        )
+        + "不得提交隐藏思维链、逐 token 推理或未在 permitted_source_refs 中的来源。"
         "结论不得超过 allowed_conclusion_strength，causal_claims_allowed=false 时不得声称已证明因果。\n"
         f"answer_contract={contract.to_prompt()}"
     )
@@ -297,7 +320,11 @@ def _overclaim(statement: str, strength: str, causal_allowed: bool) -> bool:
 
 def _claim_line(claim: _Claim) -> str:
     references = " ".join(
-        f"[数据 {item[5:]}]" if item.startswith("TOOL:") else f"[来源 {item}]"
+        "[模型通用知识]"
+        if item == MODEL_KNOWLEDGE_REF
+        else f"[数据 {item[5:]}]"
+        if item.startswith("TOOL:")
+        else f"[来源 {item}]"
         for item in claim.evidence_refs
     )
     return f"{claim.statement}{(' ' + references) if references else ''}"
@@ -313,6 +340,9 @@ def _source_lines(refs: tuple[str, ...], sources: list[dict[str, Any]]) -> list[
     by_ref = {str(source.get("reference_id")): source for source in sources if source.get("reference_id")}
     lines: list[str] = []
     for reference in refs:
+        if reference == MODEL_KNOWLEDGE_REF:
+            lines.append("模型通用知识：当前模型生成，未从工厂或个人知识库检索到可引用内容。")
+            continue
         if reference.startswith("TOOL:"):
             lines.append(f"数据工具：`{reference[5:]}`")
             continue
@@ -357,7 +387,17 @@ def synthesize_submission(
 
     verified_facts: list[_Claim] = []
     for claim in facts:
-        if not claim.evidence_refs or _overclaim(
+        uses_model_knowledge = contract.model_knowledge_fallback and (
+            not claim.evidence_refs or set(claim.evidence_refs) == {MODEL_KNOWLEDGE_REF}
+        )
+        if uses_model_knowledge and not _overclaim(
+            claim.statement,
+            contract.allowed_conclusion_strength,
+            contract.causal_claims_allowed,
+        ):
+            inferences.append(_Claim(claim.statement, (MODEL_KNOWLEDGE_REF,)))
+            moved += 1
+        elif not claim.evidence_refs or _overclaim(
             claim.statement,
             contract.allowed_conclusion_strength,
             contract.causal_claims_allowed,
@@ -370,7 +410,16 @@ def synthesize_submission(
 
     retained_inferences: list[_Claim] = []
     for claim in inferences:
-        if contract.allowed_conclusion_strength in {"insufficient", "hypothesis_only"} or _overclaim(
+        uses_model_knowledge = contract.model_knowledge_fallback and (
+            not claim.evidence_refs or set(claim.evidence_refs) == {MODEL_KNOWLEDGE_REF}
+        )
+        if uses_model_knowledge and not _overclaim(
+            claim.statement,
+            contract.allowed_conclusion_strength,
+            contract.causal_claims_allowed,
+        ):
+            retained_inferences.append(_Claim(claim.statement, (MODEL_KNOWLEDGE_REF,)))
+        elif contract.allowed_conclusion_strength in {"insufficient", "hypothesis_only"} or _overclaim(
             claim.statement,
             contract.allowed_conclusion_strength,
             contract.causal_claims_allowed,
@@ -388,7 +437,22 @@ def synthesize_submission(
         adjustments.append(f"将 {moved} 条超出证据等级或缺少引用的声明降级为待验证假设。")
 
     submitted_conclusion = _clean_text(payload.get("conclusion"))
-    if contract.allowed_conclusion_strength == "insufficient":
+    if contract.model_knowledge_fallback:
+        safe_conclusion = (
+            submitted_conclusion
+            if submitted_conclusion and not _overclaim(
+                submitted_conclusion,
+                contract.allowed_conclusion_strength,
+                contract.causal_claims_allowed,
+            )
+            else "可以提供一般性技术说明，但不能据此确认厂内实际情况。"
+        )
+        conclusion = f"> {MODEL_KNOWLEDGE_DISCLOSURE}\n\n{safe_conclusion}"
+        if submitted_conclusion and safe_conclusion != submitted_conclusion:
+            hypotheses.append(_Claim(submitted_conclusion, (), "使用厂内文档或制造数据复核。"))
+            moved += 1
+            adjustments.append("将模型通用知识中的确定性结论降级为待验证假设。")
+    elif contract.allowed_conclusion_strength == "insufficient":
         conclusion = "当前必需证据不足，不能形成诊断性结论。"
         if submitted_conclusion:
             hypotheses.append(_Claim(submitted_conclusion, (), "补齐必需证据后重新评估。"))
@@ -489,13 +553,19 @@ def synthesize_legacy_answer(
     refs = [item for item in _embedded_refs(answer) if item.upper() in {
         allowed.upper() for allowed in contract.permitted_source_refs
     }]
+    if contract.model_knowledge_fallback:
+        refs = [MODEL_KNOWLEDGE_REF]
     claim = {"statement": _SOURCE_PATTERN.sub("", answer), "evidence_refs": refs}
     low_strength = contract.allowed_conclusion_strength in {"insufficient", "hypothesis_only"}
     payload = {
-        "conclusion": "",
+        "conclusion": "基于模型通用知识提供一般性技术说明。" if contract.model_knowledge_fallback else "",
         "facts": [],
-        "inferences": [] if low_strength else [claim],
-        "hypotheses": [{**claim, "verification": "按证据限制补充验证。"}] if low_strength else [],
+        "inferences": [claim] if contract.model_knowledge_fallback or not low_strength else [],
+        "hypotheses": (
+            [{**claim, "verification": "按证据限制补充验证。"}]
+            if low_strength and not contract.model_knowledge_fallback
+            else []
+        ),
         "recommendations": [],
         "limitations": ["模型未使用结构化提交，服务端已执行安全降级。"],
         "source_refs": refs,

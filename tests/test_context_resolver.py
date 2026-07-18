@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from app import agent as agent_module
+from app.answer_synthesizer import MODEL_KNOWLEDGE_REF
 from app.context_resolver import resolve_question_context
 from app.intent_router import route_question
 
@@ -218,6 +219,96 @@ class ContextResolverTests(unittest.TestCase):
         self.assertTrue(follow_up.applied)
         self.assertEqual(route_question(follow_up.resolved_question).intent, "sop_lookup")
         self.assertTrue(any(item.get("stage") == "clarification" for item in progress_events))
+
+    def test_empty_knowledge_results_fall_back_to_disclosed_model_knowledge(self):
+        history = [
+            {"role": "user", "content": INITIAL_QUESTION},
+            {"role": "assistant", "content": CLARIFICATION},
+        ]
+        progress_events: list[dict] = []
+        requests: list[dict] = []
+        round_number = 0
+
+        async def progress(event: dict) -> None:
+            progress_events.append(event)
+
+        async def fake_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            nonlocal round_number
+            round_number += 1
+            requests.append(request_payload)
+            if round_number <= 2:
+                source_types = ["personal", "knowledge"] if round_number == 1 else ["case"]
+                return (
+                    {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [{
+                            "id": f"empty-search-{round_number}",
+                            "type": "function",
+                            "function": {
+                                "name": "search_knowledge",
+                                "arguments": json.dumps({
+                                    "query": INITIAL_QUESTION,
+                                    "limit": 10,
+                                    "source_types": source_types,
+                                }, ensure_ascii=False),
+                            },
+                        }],
+                    },
+                    {"total_tokens": 5},
+                    f"empty-search-response-{round_number}",
+                )
+            submission = {
+                "conclusion": "GaN 与 Si 器件的差异主要来自材料特性和器件结构。",
+                "facts": [],
+                "inferences": [{
+                    "statement": "GaN 的宽禁带和高击穿场强通常适合高压与高频功率场景。",
+                    "evidence_refs": [MODEL_KNOWLEDGE_REF],
+                }],
+                "hypotheses": [],
+                "recommendations": [],
+                "limitations": [],
+                "source_refs": [MODEL_KNOWLEDGE_REF],
+            }
+            return (
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{
+                        "id": "fallback-submit",
+                        "type": "function",
+                        "function": {
+                            "name": "submit_analysis",
+                            "arguments": json.dumps(submission, ensure_ascii=False),
+                        },
+                    }],
+                },
+                {"total_tokens": 8},
+                "fallback-submit-response",
+            )
+
+        with (
+            patch("app.agent.get_settings", return_value=_settings()),
+            patch("app.agent._stream_completion", new=fake_stream),
+            patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": lambda **_: []}),
+        ):
+            result = asyncio.run(
+                agent_module._run_agent_impl("最后一点", history, "run-knowledge-fallback-test", progress)
+            )
+
+        self.assertTrue(result["knowledge_fallback"]["used"])
+        self.assertEqual(result["knowledge_fallback"]["reason"], "search_empty")
+        self.assertEqual(len(result["tool_trace"]), 2)
+        self.assertTrue(all(item["rows"] == 0 for item in result["tool_trace"]))
+        self.assertIn("知识库未检索到相关内容", result["answer"])
+        self.assertIn("GaN 的宽禁带", result["answer"])
+        final_prompt = "\n".join(
+            item.get("content", "")
+            for item in requests[-1]["messages"]
+            if item.get("role") == "system"
+        )
+        self.assertIn(MODEL_KNOWLEDGE_REF, final_prompt)
+        self.assertTrue(any(item.get("stage") == "knowledge_fallback" for item in progress_events))
 
 
 if __name__ == "__main__":

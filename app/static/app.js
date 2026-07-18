@@ -673,12 +673,9 @@ function renderToolTrace(trace, runId) {
   const items = trace.map((item, index) => {
     const status = item.status === 'error' ? '失败' : (item.status === 'blocked' ? '已拦截' : (item.status === 'local' ? '本地' : (item.status === 'running' ? '进行中' : '成功')));
     const result = item.rows == null ? status : `${status} · ${item.rows} 条结果`;
-    const argumentsText = item.arguments && Object.keys(item.arguments).length
-      ? Object.entries(item.arguments).map(([key, value]) => `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}`).join(' · ')
-      : '使用默认参数';
     const error = item.error ? `<p class="trace-error">${escapeHtml(item.error)}</p>` : '';
     const statusClass = item.status === 'error' ? 'error' : (item.status === 'blocked' ? 'blocked' : (item.status === 'running' ? 'running' : 'ok'));
-    return `<li><div class="trace-step-heading"><span>${index + 1}. ${escapeHtml(item.label || toolLabels[item.tool] || item.tool || '未知工具')}</span><small class="trace-status-${statusClass}">${result}</small></div><code>${escapeHtml(argumentsText)}</code>${error}</li>`;
+    return `<li><div class="trace-step-heading"><span>${index + 1}. ${escapeHtml(item.label || toolLabels[item.tool] || item.tool || '未知工具')}</span><small class="trace-status-${statusClass}">${result}</small></div>${error}</li>`;
   }).join('');
   const failed = trace.some(item => item.status === 'error');
   const blocked = trace.some(item => item.status === 'blocked');
@@ -1051,11 +1048,8 @@ function renderLiveAnalysis(live) {
   live.el.querySelector('ol').innerHTML = live.steps.map((item, index) => {
     const status = item.status === 'error' ? '失败' : (item.status === 'blocked' ? '已拦截' : (item.status === 'running' ? '进行中' : '完成'));
     const statusClass = item.status === 'error' ? 'error' : (item.status === 'blocked' ? 'blocked' : (item.status === 'running' ? 'running' : 'ok'));
-    const argumentsText = item.arguments && Object.keys(item.arguments).length
-      ? Object.entries(item.arguments).map(([key, value]) => `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}`).join(' · ')
-      : '';
     const result = item.rows == null ? status : `${status} · ${item.rows} 条结果`;
-    return `<li><div class="trace-step-heading"><span>${index + 1}. ${escapeHtml(item.label)}</span><small class="trace-status-${statusClass}">${result}</small></div>${argumentsText ? `<code>${escapeHtml(argumentsText)}</code>` : ''}${item.error ? `<p class="trace-error">${escapeHtml(item.error)}</p>` : ''}</li>`;
+    return `<li><div class="trace-step-heading"><span>${index + 1}. ${escapeHtml(item.label)}</span><small class="trace-status-${statusClass}">${result}</small></div>${item.error ? `<p class="trace-error">${escapeHtml(item.error)}</p>` : ''}</li>`;
   }).join('');
   live.el.querySelector('.live-run-id').textContent = live.runId ? `运行 ${live.runId.slice(0, 8)}` : '';
   const container = $('#chatMessages');
@@ -1097,7 +1091,7 @@ function updateLiveAnalysis(live, event) {
     live.steps.push({label:event.message || '规划下一步', status:'running'});
   } else if (event.event === 'tool_started') {
     const previous = live.steps.at(-1); if (previous?.status === 'running') previous.status = 'ok';
-    live.steps.push({tool:event.tool, label:toolLabels[event.tool] || event.tool, arguments:event.arguments || {}, status:'running'});
+    live.steps.push({tool:event.tool, label:toolLabels[event.tool] || event.tool, status:'running'});
   } else if (event.event === 'tool_finished') {
     const item = [...live.steps].reverse().find(step => step.tool === event.tool && step.status === 'running');
     if (item) Object.assign(item, {status:event.status || 'ok', rows:event.rows, error:event.error});

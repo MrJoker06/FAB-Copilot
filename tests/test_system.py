@@ -88,6 +88,9 @@ class FabInsightTests(unittest.TestCase):
         self.assertIn("$('#chatForm').requestSubmit()", script)
         self.assertIn("item.status === 'blocked'", script)
         self.assertIn("执行路径受限", script)
+        self.assertNotIn("item.arguments", script)
+        self.assertNotIn("event.arguments", script)
+        self.assertNotIn("argumentsText", script)
         self.assertIn(".trace-status-blocked", styles)
 
     def test_admin_frontend_is_separate_from_user_workspace(self):

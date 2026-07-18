@@ -13,6 +13,7 @@ from typing import Any, Callable
 import httpx
 
 from .answer_synthesizer import (
+    MODEL_KNOWLEDGE_DISCLOSURE,
     SUBMIT_ANALYSIS_TOOL,
     AnswerSynthesisReport,
     create_answer_contract,
@@ -68,6 +69,7 @@ SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的�
 16. runtime_guard 会强制限制总工具数、单工具次数、相同参数重复调用和无进展轮次。进入仅综合模式后不得继续调用工具，必须基于已有证据作答并说明证据缺口。
 17. evidence_validation 是对实际工具证据的确定性校验结果。最终措辞不得超过 allowed_conclusion_strength，必须披露缺失、部分覆盖、样本风险、时间或范围偏差、低置信度来源和事实冲突。
 18. 对已选择 Domain Playbook 的问题，最终答案必须调用 submit_analysis 提交面向用户的结构化内容；不要输出隐藏思维链。事实必须有合法证据引用，推断、假设、建议和限制必须分开提交。
+19. search_knowledge 已执行但没有返回可用内容时，可以用模型通用知识回答一般性技术问题，但必须明确告知用户知识库无结果；不得把模型通用知识表述为厂内 SOP、配方、规格、历史案例或当前生产事实。
 
 数据库字段提示：
 - lots: lot_id, product, technology_nm, route, priority, start_time, complete_time, status, wafer_count, good_wafers, yield_rate(0-1), cycle_time_hours, hold_hours
@@ -295,6 +297,30 @@ def _emit_evidence_validation(run_id: str, iteration: int, validation: dict[str,
         conflict_count=len(validation["conflicts"]),
         allowed_conclusion_strength=validation["allowed_conclusion_strength"],
     )
+
+
+def _knowledge_fallback_state(
+    intent_route: IntentRoute,
+    observations: list[EvidenceObservation],
+    sources: dict[str, dict],
+) -> dict[str, Any]:
+    if intent_route.intent != "sop_lookup" or sources:
+        return {"used": False, "reason": None, "disclosure": None}
+    attempts = [item for item in observations if item.tool == "search_knowledge"]
+    completed_attempts = [item for item in attempts if item.status in {"success", "error"}]
+    if not completed_attempts:
+        return {"used": False, "reason": None, "disclosure": None}
+    successful_empty = any(
+        item.status == "success" and item.result in (None, [])
+        for item in completed_attempts
+    )
+    reason = "search_empty" if successful_empty else "search_unavailable"
+    disclosure = (
+        MODEL_KNOWLEDGE_DISCLOSURE
+        if successful_empty
+        else "知识库检索未获得可用内容。以下回答使用模型通用知识，仅供参考，不代表厂内 SOP、规格或当前生产事实。"
+    )
+    return {"used": True, "reason": reason, "disclosure": disclosure}
 
 
 async def _stream_completion(
@@ -584,6 +610,8 @@ async def _run_agent_impl(
     endpoint = f"{settings.deepseek_base_url}/chat/completions"
     total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     applied_synthesis_reason: str | None = None
+    knowledge_fallback = {"used": False, "reason": None, "disclosure": None}
+    fallback_announced = False
 
     def build_result(answer: str, synthesis_report: AnswerSynthesisReport) -> dict:
         cited_knowledge_refs = {
@@ -608,6 +636,7 @@ async def _run_agent_impl(
             "answer_contract": answer_contract.to_dict(),
             "answer_synthesis": synthesis_report.to_dict(),
             "context_resolution": context_resolution.to_dict(),
+            "knowledge_fallback": knowledge_fallback,
         }
 
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
@@ -884,7 +913,12 @@ async def _run_agent_impl(
 
             loop_guard.finish_round()
             evidence_validation = validate_evidence(execution_plan, selected_playbook, evidence_observations)
-            answer_contract = create_answer_contract(evidence_validation, list(sources.values()))
+            knowledge_fallback = _knowledge_fallback_state(intent_route, evidence_observations, sources)
+            answer_contract = create_answer_contract(
+                evidence_validation,
+                list(sources.values()),
+                allow_model_knowledge_fallback=knowledge_fallback["used"],
+            )
             messages.append({"role": "system", "content": validator_system_message(evidence_validation)})
             messages.append({"role": "system", "content": synthesizer_system_message(answer_contract)})
             await _notify(progress, {
@@ -899,6 +933,20 @@ async def _run_agent_impl(
                 "validation": evidence_validation.to_dict(),
             })
             _emit_evidence_validation(run_id, iteration + 1, evidence_validation.to_dict())
+            if knowledge_fallback["used"] and not fallback_announced:
+                fallback_announced = True
+                emit(
+                    "knowledge_fallback_enabled",
+                    run_id,
+                    reason=knowledge_fallback["reason"],
+                    model=settings.deepseek_model,
+                )
+                await _notify(progress, {
+                    "event": "stage",
+                    "stage": "knowledge_fallback",
+                    "message": "知识库未检索到相关内容，正在使用模型通用知识补充回答",
+                    "knowledge_fallback": knowledge_fallback,
+                })
             guard_summary = loop_guard.summary()
             emit(
                 "loop_guard_round_finished",
