@@ -320,6 +320,8 @@ class ContextResolverTests(unittest.TestCase):
         self.assertTrue(all(item["rows"] == 0 for item in result["tool_trace"]))
         self.assertIn("知识库未检索到相关内容", result["answer"])
         self.assertIn("GaN 的宽禁带", result["answer"])
+        self.assertIn("## 模型通用知识", result["answer"])
+        self.assertNotIn("缺少字段", result["answer"])
         final_prompt = "\n".join(
             item.get("content", "")
             for item in requests[-1]["messages"]

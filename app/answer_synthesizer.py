@@ -19,6 +19,7 @@ REQUIRED_SECTIONS = (
     "证据限制",
     "来源",
 )
+MODEL_KNOWLEDGE_SECTIONS = ("结论", "模型通用知识", "待验证内容", "建议", "使用限制", "来源")
 
 MODEL_KNOWLEDGE_REF = "MODEL_GENERAL_KNOWLEDGE"
 MODEL_KNOWLEDGE_DISCLOSURE = (
@@ -211,9 +212,14 @@ def create_answer_contract(
     if allow_model_knowledge_fallback:
         permitted_items.add(MODEL_KNOWLEDGE_REF)
     permitted = tuple(sorted(permitted_items))
-    limitations = list(_validation_limitations(validation))
     if allow_model_knowledge_fallback:
-        limitations.append(MODEL_KNOWLEDGE_DISCLOSURE)
+        limitations = [
+            "知识库检索未获得可用内容，未找到可引用的厂内知识或历史案例。",
+            MODEL_KNOWLEDGE_DISCLOSURE,
+            "模型通用知识不能替代厂内 SOP、配方、规格或生产数据。",
+        ]
+    else:
+        limitations = list(_validation_limitations(validation))
     required = validation.status == "validated"
     return AnswerContract(
         schema_version="1.0",
@@ -222,7 +228,13 @@ def create_answer_contract(
         status="required" if required else "not_applicable",
         allowed_conclusion_strength=validation.allowed_conclusion_strength,
         causal_claims_allowed=validation.causal_claims_allowed,
-        required_sections=REQUIRED_SECTIONS if required else (),
+        required_sections=(
+            MODEL_KNOWLEDGE_SECTIONS
+            if required and allow_model_knowledge_fallback
+            else REQUIRED_SECTIONS
+            if required
+            else ()
+        ),
         permitted_source_refs=permitted,
         mandatory_limitations=tuple(dict.fromkeys(limitations)),
         model_knowledge_fallback=allow_model_knowledge_fallback,
@@ -243,6 +255,7 @@ def synthesizer_system_message(contract: AnswerContract) -> str:
         + (
             f"知识库检索没有返回可用内容，允许使用 {MODEL_KNOWLEDGE_REF} 作为模型通用知识标识。"
             "应直接回答用户的一般性技术问题，将通用知识放入 inferences；"
+            "conclusion 直接概括技术回答，不要重复知识库无结果声明，服务端会统一添加；"
             "不得把它写成厂内 SOP、配方、规格或当前生产事实，并必须明确披露知识库无结果。"
             if contract.model_knowledge_fallback
             else ""
@@ -408,6 +421,21 @@ def synthesize_submission(
             verified_facts.append(claim)
     facts = verified_facts
 
+    if contract.model_knowledge_fallback:
+        retained_hypotheses: list[_Claim] = []
+        for claim in hypotheses:
+            uses_model_knowledge = not claim.evidence_refs or set(claim.evidence_refs) == {MODEL_KNOWLEDGE_REF}
+            if uses_model_knowledge and not _overclaim(
+                claim.statement,
+                contract.allowed_conclusion_strength,
+                contract.causal_claims_allowed,
+            ):
+                inferences.append(_Claim(claim.statement, (MODEL_KNOWLEDGE_REF,)))
+                moved += 1
+            else:
+                retained_hypotheses.append(claim)
+        hypotheses = retained_hypotheses
+
     retained_inferences: list[_Claim] = []
     for claim in inferences:
         uses_model_knowledge = contract.model_knowledge_fallback and (
@@ -434,7 +462,11 @@ def synthesize_submission(
             retained_inferences.append(claim)
     inferences = retained_inferences
     if moved:
-        adjustments.append(f"将 {moved} 条超出证据等级或缺少引用的声明降级为待验证假设。")
+        adjustments.append(
+            f"将 {moved} 条模型声明归类为模型通用知识或待验证内容。"
+            if contract.model_knowledge_fallback
+            else f"将 {moved} 条超出证据等级或缺少引用的声明降级为待验证假设。"
+        )
 
     submitted_conclusion = _clean_text(payload.get("conclusion"))
     if contract.model_knowledge_fallback:
@@ -477,10 +509,16 @@ def synthesize_submission(
             moved += 1
             adjustments.append("移除结论中的因果性措辞并转入待验证假设。")
 
-    submitted_limitations = [
-        _clean_text(item, 1600) for item in payload.get("limitations", [])
-        if _clean_text(item, 1600)
-    ] if isinstance(payload.get("limitations"), list) else []
+    submitted_limitations = (
+        []
+        if contract.model_knowledge_fallback
+        else [
+            _clean_text(item, 1600) for item in payload.get("limitations", [])
+            if _clean_text(item, 1600)
+        ]
+        if isinstance(payload.get("limitations"), list)
+        else []
+    )
     limitations = list(dict.fromkeys([*contract.mandatory_limitations, *submitted_limitations]))
     supplied_sources = payload.get("source_refs") if isinstance(payload.get("source_refs"), list) else []
     used_refs = {
@@ -508,22 +546,34 @@ def synthesize_submission(
         for item in recommendations
     ]
     source_lines = _source_lines(ordered_refs, sources or [])
-    answer = "\n\n".join((
-        f"## 结论\n{conclusion}",
-        _render_section("已确认事实", fact_lines, "当前没有可通过有效引用独立确认的事实。"),
-        _render_section("分析推断", inference_lines, "当前没有在证据等级内保留的分析推断。"),
-        _render_section("待验证假设", hypothesis_lines, "当前没有额外的待验证假设。"),
-        _render_section("建议", recommendation_lines, "先补齐证据缺口，再决定后续处置。"),
-        _render_section("证据限制", limitations, "未识别到额外证据限制。"),
-        _render_section("来源", source_lines, "本次结构化提交未引用可核验来源。"),
-    ))
+    if contract.model_knowledge_fallback:
+        sections = MODEL_KNOWLEDGE_SECTIONS
+        answer = "\n\n".join((
+            f"## 结论\n{conclusion}",
+            _render_section("模型通用知识", inference_lines, "模型没有返回可展示的通用知识内容。"),
+            _render_section("待验证内容", hypothesis_lines, "没有额外待验证内容。"),
+            _render_section("建议", recommendation_lines, "如需厂内结论，请补充或上传相关正式文档。"),
+            _render_section("使用限制", limitations, MODEL_KNOWLEDGE_DISCLOSURE),
+            _render_section("来源", source_lines, "模型通用知识，未引用厂内知识库。"),
+        ))
+    else:
+        sections = REQUIRED_SECTIONS
+        answer = "\n\n".join((
+            f"## 结论\n{conclusion}",
+            _render_section("已确认事实", fact_lines, "当前没有可通过有效引用独立确认的事实。"),
+            _render_section("分析推断", inference_lines, "当前没有在证据等级内保留的分析推断。"),
+            _render_section("待验证假设", hypothesis_lines, "当前没有额外的待验证假设。"),
+            _render_section("建议", recommendation_lines, "先补齐证据缺口，再决定后续处置。"),
+            _render_section("证据限制", limitations, "未识别到额外证据限制。"),
+            _render_section("来源", source_lines, "本次结构化提交未引用可核验来源。"),
+        ))
     report = AnswerSynthesisReport(
         schema_version="1.0",
         synthesizer_version=contract.synthesizer_version,
         plan_id=contract.plan_id,
         status=status,
         allowed_conclusion_strength=contract.allowed_conclusion_strength,
-        sections=REQUIRED_SECTIONS,
+        sections=sections,
         source_refs=ordered_refs,
         invalid_source_refs=tuple(sorted(invalid)),
         moved_claims=moved,

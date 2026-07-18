@@ -150,9 +150,11 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertTrue(contract.model_knowledge_fallback)
         self.assertIn(MODEL_KNOWLEDGE_DISCLOSURE, result.answer)
         self.assertIn("GaN 的宽禁带", result.answer)
+        self.assertIn("## 模型通用知识", result.answer)
         self.assertIn("[模型通用知识]", result.answer)
         self.assertIn("模型通用知识：当前模型生成", result.answer)
         self.assertNotIn("不能形成诊断性结论", result.answer)
+        self.assertNotIn("缺少字段", result.answer)
 
     def test_invalid_source_is_removed_and_reported(self):
         contract, sources = _supported_yield_contract()
