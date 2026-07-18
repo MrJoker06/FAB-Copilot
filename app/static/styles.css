@@ -258,7 +258,7 @@ tbody tr:hover { background: #f8fbfa; }
 .analysis-trace ol { margin: 0; padding: 0 9px 8px; list-style: none; border-top: 1px solid #e5ecea; }
 .analysis-trace li { padding: 8px 0; border-bottom: 1px solid #edf1f0; }.analysis-trace li:last-child { border-bottom: 0; }
 .trace-step-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-weight: 700; }.trace-step-heading small { white-space: nowrap; font-size: 8px; font-weight: 500; }
-.trace-status-ok { color: #27745f; }.trace-status-error, .trace-error { color: var(--coral); }
+.trace-status-ok { color: #27745f; }.trace-status-error, .trace-error { color: var(--coral); }.trace-status-blocked { color: #9a6a11; }
 .analysis-trace code { display: block; margin-top: 4px; color: #697671; background: transparent; white-space: normal; overflow-wrap: anywhere; font-size: 8px; }
 .trace-error { margin: 4px 0 0; }.trace-footer { display: flex; justify-content: space-between; gap: 8px; padding: 7px 9px; border-top: 1px solid #e5ecea; color: #89938f; font-size: 8px; }
 .trace-status-running { color: var(--amber); }

@@ -17,6 +17,7 @@ from .config import get_settings
 from .domain_playbooks import PlaybookSelection, playbook_system_message, select_playbook
 from .enterprise_data import enterprise_data_manifest, enterprise_fab_summary, query_enterprise_data
 from .intent_router import IntentRoute, route_question, routing_system_message
+from .loop_guard import ToolLoopGuard
 from .model_registry import effective_agent_settings
 from .planner import ExecutionPlan, create_execution_plan, planner_system_message
 from .processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS
@@ -54,6 +55,7 @@ SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的�
 13. 系统会在用户问题前提供 intent_route。它只用于限定分析范围和推荐取证工具，不是制造事实；若标记需要澄清，不得用无范围的工具调用代替澄清。
 14. domain_playbook 定义当前领域的证据与回答契约。必须优先覆盖 required=true 的证据；缺失时明确降级结论，不得宣称模板本身就是证据。
 15. execution_plan 是当前问题的结构化取证计划。按 depends_on 处理步骤依赖，使用给定参数并覆盖 required=true 的步骤；计划或预算本身不代表工具已经执行成功。
+16. runtime_guard 会强制限制总工具数、单工具次数、相同参数重复调用和无进展轮次。进入仅综合模式后不得继续调用工具，必须基于已有证据作答并说明证据缺口。
 
 数据库字段提示：
 - lots: lot_id, product, technology_nm, route, priority, start_time, complete_time, status, wafer_count, good_wafers, yield_rate(0-1), cycle_time_hours, hold_hours
@@ -126,29 +128,66 @@ def _offline_answer(
     intent_route: IntentRoute,
     playbook_selection: PlaybookSelection,
     execution_plan: ExecutionPlan,
+    loop_guard: ToolLoopGuard,
 ) -> dict:
-    overview = fab_overview()
-    equipment = equipment_health()
-    risky = equipment[:3]
-    lines = [
-        "当前未配置可用的 DeepSeek API，因此返回本地规则分析。",
-        f"最近90天共完成 {overview['lots']} 个批次，综合良率 {overview['yield_pct']}%，平均周期 {overview['avg_cycle_hours']} 小时。",
-    ]
+    if execution_plan.status == "clarification_required":
+        questions = execution_plan.clarification_questions or ("请补充要分析的制程、设备或时间范围。",)
+        return {
+            "answer": "为了生成可执行的分析路径，请先补充以下信息：\n\n" + "\n".join(
+                f"{index}. {item}" for index, item in enumerate(questions, start=1)
+            ),
+            "tool_trace": [],
+            "sources": [],
+            "mode": "offline",
+            "intent_route": intent_route.to_dict(),
+            "domain_playbook": playbook_selection.to_dict(),
+            "execution_plan": execution_plan.to_dict(),
+            "loop_guard": loop_guard.summary(),
+        }
+
+    local_trace: list[dict] = []
+
+    def run_local_tool(name: str, handler: Callable[[], Any]) -> Any:
+        decision = loop_guard.check_call(name, {})
+        if not decision.allowed:
+            local_trace.append({
+                "tool": name,
+                "status": "blocked",
+                "error_code": decision.reason_code,
+                "error": decision.message,
+            })
+            return None
+        result = handler()
+        loop_guard.record_result(name, result, True)
+        local_trace.append({"tool": name, "status": "local"})
+        return result
+
+    loop_guard.begin_round()
+    overview = run_local_tool("get_fab_overview", fab_overview)
+    equipment = run_local_tool("get_equipment_health", equipment_health)
+    loop_guard.finish_round()
+    risky = (equipment or [])[:3]
+    lines = ["当前未配置可用的 DeepSeek API，因此返回本地规则分析。"]
+    if overview is not None:
+        lines.append(
+            f"最近90天共完成 {overview['lots']} 个批次，综合良率 {overview['yield_pct']}%，"
+            f"平均周期 {overview['avg_cycle_hours']} 小时。"
+        )
+    else:
+        lines.append("运行时预算未允许查询工厂总览，因此当前没有可用于汇总的制造数据。")
     if risky:
         names = "、".join(f"{row['equipment_id']}（{row['health']}，{row['excursions']}次异常）" for row in risky)
         lines.append(f"优先关注设备：{names}。")
     lines.append("配置根目录 .env 的 DEEPSEEK_API_KEY 后，可获得针对问题的多轮工具分析。")
     return {
         "answer": "\n\n".join(lines),
-        "tool_trace": [
-            {"tool": "get_fab_overview", "status": "local"},
-            {"tool": "get_equipment_health", "status": "local"},
-        ],
+        "tool_trace": local_trace,
         "sources": [],
         "mode": "offline",
         "intent_route": intent_route.to_dict(),
         "domain_playbook": playbook_selection.to_dict(),
         "execution_plan": execution_plan.to_dict(),
+        "loop_guard": loop_guard.summary(),
     }
 
 
@@ -340,10 +379,21 @@ async def _run_agent_impl(
         "message": _plan_progress_message(execution_plan),
         "plan": plan_payload,
     })
+    loop_guard = ToolLoopGuard(execution_plan)
+    emit(
+        "loop_guard_initialized",
+        run_id,
+        plan_id=execution_plan.plan_id,
+        max_tool_calls=execution_plan.budget.max_tool_calls,
+        max_model_iterations=execution_plan.budget.max_model_iterations,
+        per_tool_limits=execution_plan.budget.per_tool_limits,
+        max_identical_parameter_calls=execution_plan.budget.max_identical_parameter_calls,
+        max_no_progress_rounds=execution_plan.budget.max_no_progress_rounds,
+    )
     settings = effective_agent_settings(get_settings())
     if not settings.deepseek_api_key:
         await _notify(progress, {"event": "stage", "stage": "planning", "message": "正在使用本地规则规划分析路径"})
-        result = _offline_answer(question, intent_route, playbook_selection, execution_plan)
+        result = _offline_answer(question, intent_route, playbook_selection, execution_plan, loop_guard)
         for item in result["tool_trace"]:
             await _notify(progress, {"event": "tool_started", "tool": item["tool"], "arguments": {}})
             await _notify(progress, {"event": "tool_finished", **item})
@@ -369,20 +419,47 @@ async def _run_agent_impl(
     sources: dict[str, dict] = {}
     endpoint = f"{settings.deepseek_base_url}/chat/completions"
     total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    applied_synthesis_reason: str | None = None
+
+    def build_result(answer: str) -> dict:
+        return {
+            "answer": answer,
+            "tool_trace": trace,
+            "sources": list(sources.values()),
+            "mode": "deepseek",
+            "model": settings.deepseek_model,
+            "usage": total_usage,
+            "intent_route": route_payload,
+            "domain_playbook": playbook_payload,
+            "execution_plan": plan_payload,
+            "loop_guard": loop_guard.summary(),
+        }
 
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
-        for iteration in range(6):
+        for iteration in range(loop_guard.max_model_iterations):
+            if iteration == loop_guard.max_model_iterations - 1 and loop_guard.total_calls > 0:
+                loop_guard.reserve_final_iteration()
+            synthesis_only = loop_guard.force_synthesis
+            if synthesis_only and applied_synthesis_reason != loop_guard.stop_reason:
+                messages.append({"role": "system", "content": loop_guard.synthesis_instruction()})
+                applied_synthesis_reason = loop_guard.stop_reason
             await _notify(progress, {
                 "event": "stage",
-                "stage": "planning",
+                "stage": "synthesis" if synthesis_only else "planning",
                 "iteration": iteration + 1,
-                "message": "正在理解问题并规划分析路径" if iteration == 0 else "正在结合工具结果判断是否继续，并组织结论",
+                "message": (
+                    f"工具执行已停止，正在基于现有证据组织结论 · {loop_guard.stop_message}"
+                    if synthesis_only
+                    else "正在理解问题并规划分析路径"
+                    if iteration == 0
+                    else "正在结合工具结果判断是否继续，并组织结论"
+                ),
             })
             request_payload = {
                 "model": settings.deepseek_model,
                 "messages": messages,
                 "tools": TOOLS,
-                "tool_choice": "auto",
+                "tool_choice": "none" if synthesis_only else "auto",
                 "temperature": 0.15,
             }
             for attempt in range(1, settings.model_max_retries + 2):
@@ -465,32 +542,79 @@ async def _run_agent_impl(
             messages.append(assistant)
             tool_calls = assistant.get("tool_calls") or []
             if not tool_calls:
-                return {
-                    "answer": assistant.get("content") or "分析完成，但模型没有返回文字。",
-                    "tool_trace": trace,
-                    "sources": list(sources.values()),
-                    "mode": "deepseek",
-                    "model": settings.deepseek_model,
-                    "usage": total_usage,
-                    "intent_route": route_payload,
-                    "domain_playbook": playbook_payload,
-                    "execution_plan": plan_payload,
-                }
+                answer = assistant.get("content") or (
+                    loop_guard.termination_answer()
+                    if loop_guard.force_synthesis
+                    else "分析完成，但模型没有返回文字。"
+                )
+                if not assistant.get("content"):
+                    await _notify(progress, {"event": "answer_delta", "delta": answer})
+                return build_result(answer)
 
+            loop_guard.begin_round()
             for call in tool_calls:
                 function = call.get("function", {})
                 name = function.get("name", "")
                 tool_started = time.perf_counter()
+                raw_arguments = function.get("arguments") or "{}"
+                parse_error: Exception | None = None
                 try:
-                    arguments = json.loads(function.get("arguments") or "{}")
-                    await _notify(progress, {"event": "tool_started", "tool": name, "arguments": arguments})
+                    arguments = json.loads(raw_arguments)
+                    if not isinstance(arguments, dict):
+                        raise ValueError("工具参数必须是 JSON 对象")
+                except Exception as exc:
+                    parse_error = exc
+                    arguments = {"_raw": str(raw_arguments)[:1000]}
+
+                await _notify(progress, {"event": "tool_started", "tool": name, "arguments": arguments})
+                emit(
+                    "tool_call_started",
+                    run_id,
+                    tool=name or "unknown",
+                    tool_call_id=call.get("id"),
+                    **({"arguments": arguments} if CONTENT_MODE == "full" else {}),
+                )
+                decision = loop_guard.check_call(name or "unknown", arguments)
+                if not decision.allowed:
+                    tool_duration_ms = round((time.perf_counter() - tool_started) * 1000, 1)
+                    blocked_item = {
+                        "tool": name or "unknown",
+                        "arguments": arguments,
+                        "status": "blocked",
+                        "error_code": decision.reason_code,
+                        "error": decision.message,
+                        "duration_ms": tool_duration_ms,
+                    }
+                    trace.append(blocked_item)
+                    await _notify(progress, {"event": "tool_finished", **blocked_item})
                     emit(
-                        "tool_call_started",
+                        "tool_call_blocked",
                         run_id,
                         tool=name or "unknown",
                         tool_call_id=call.get("id"),
-                        **({"arguments": arguments} if CONTENT_MODE == "full" else {}),
+                        reason_code=decision.reason_code,
+                        signature_hash=decision.signature_hash,
+                        duration_ms=tool_duration_ms,
+                        **({"arguments": arguments, "message": decision.message} if CONTENT_MODE == "full" else {}),
                     )
+                    emit(
+                        "tool_call_finished",
+                        run_id,
+                        status="blocked",
+                        tool=name or "unknown",
+                        duration_ms=tool_duration_ms,
+                        error_code=decision.reason_code,
+                    )
+                    content = json.dumps(
+                        {"ok": False, "error_code": decision.reason_code, "error": decision.message},
+                        ensure_ascii=False,
+                    )
+                    messages.append({"role": "tool", "tool_call_id": call.get("id") or decision.signature_hash, "content": content})
+                    continue
+
+                try:
+                    if parse_error is not None:
+                        raise ValueError(f"工具参数不是有效 JSON 对象: {parse_error}")
                     handler = TOOL_HANDLERS.get(name)
                     if handler is None:
                         raise ValueError(f"未知工具: {name}")
@@ -498,6 +622,7 @@ async def _run_agent_impl(
                     if name == "search_knowledge":
                         for source in result:
                             sources[source["reference_id"]] = source
+                    loop_guard.record_result(name, result, True)
                     row_count = len(result) if isinstance(result, list) else 1
                     tool_duration_ms = round((time.perf_counter() - tool_started) * 1000, 1)
                     trace.append({"tool": name, "arguments": arguments, "status": "ok", "rows": row_count, "duration_ms": tool_duration_ms})
@@ -520,10 +645,12 @@ async def _run_agent_impl(
                     )
                     content = json.dumps({"ok": True, "data": result}, ensure_ascii=False, default=str)
                 except Exception as exc:
-                    trace.append({"tool": name, "status": "error", "error": str(exc)})
+                    loop_guard.record_result(name or "unknown", None, False)
+                    trace.append({"tool": name or "unknown", "arguments": arguments, "status": "error", "error": str(exc)})
                     await _notify(progress, {
                         "event": "tool_finished",
-                        "tool": name,
+                        "tool": name or "unknown",
+                        "arguments": arguments,
                         "status": "error",
                         "error": str(exc),
                     })
@@ -537,21 +664,29 @@ async def _run_agent_impl(
                         **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
                     )
                     content = json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
-                messages.append({"role": "tool", "tool_call_id": call["id"], "content": content})
+                messages.append({"role": "tool", "tool_call_id": call.get("id") or decision.signature_hash, "content": content})
 
-    answer = "工具调用达到上限。请缩小问题范围后重试。"
+            loop_guard.finish_round()
+            guard_summary = loop_guard.summary()
+            emit(
+                "loop_guard_round_finished",
+                run_id,
+                iteration=iteration + 1,
+                total_calls=guard_summary["total_calls"],
+                unique_evidence_results=guard_summary["unique_evidence_results"],
+                blocked_calls=guard_summary["blocked_calls"],
+                consecutive_no_progress_rounds=guard_summary["consecutive_no_progress_rounds"],
+                force_synthesis=guard_summary["force_synthesis"],
+                stop_reason=guard_summary["stop_reason"],
+            )
+
+    loop_guard.enter_synthesis(
+        "model_iteration_limit",
+        f"模型已达到 {loop_guard.max_model_iterations} 轮执行上限。",
+    )
+    answer = loop_guard.termination_answer()
     await _notify(progress, {"event": "answer_delta", "delta": answer})
-    return {
-        "answer": answer,
-        "tool_trace": trace,
-        "sources": list(sources.values()),
-        "mode": "deepseek",
-        "model": settings.deepseek_model,
-        "usage": total_usage,
-        "intent_route": route_payload,
-        "domain_playbook": playbook_payload,
-        "execution_plan": plan_payload,
-    }
+    return build_result(answer)
 
 
 async def run_agent(
@@ -600,10 +735,15 @@ async def run_agent(
             playbook_version=(result.get("domain_playbook", {}).get("selected_playbook") or {}).get("playbook_version"),
             plan_id=result.get("execution_plan", {}).get("plan_id"),
             plan_status=result.get("execution_plan", {}).get("status"),
+            guard_stop_reason=result.get("loop_guard", {}).get("stop_reason"),
+            guard_total_calls=result.get("loop_guard", {}).get("total_calls", 0),
+            guard_blocked_calls=result.get("loop_guard", {}).get("blocked_calls", 0),
+            guard_unique_evidence_results=result.get("loop_guard", {}).get("unique_evidence_results", 0),
             **({
                 "answer": result.get("answer"),
                 "tool_trace": result.get("tool_trace", []),
                 "sources": result.get("sources", []),
+                "loop_guard": result.get("loop_guard", {}),
             } if CONTENT_MODE == "full" else {}),
         )
         return result

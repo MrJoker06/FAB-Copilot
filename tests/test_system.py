@@ -70,7 +70,7 @@ class FabInsightTests(unittest.TestCase):
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("/static/app.js?v=20260717-5", page)
+        self.assertIn("/static/app.js?v=20260718-1", page)
         self.assertNotIn('id="monitorView"', page)
         self.assertNotIn('id="apiKeyInput"', page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")
@@ -79,6 +79,9 @@ class FabInsightTests(unittest.TestCase):
         self.assertIn("data-personal-chunk", script)
         self.assertIn("event.key !== 'Enter' || event.shiftKey || event.isComposing || event.keyCode === 229", script)
         self.assertIn("$('#chatForm').requestSubmit()", script)
+        self.assertIn("item.status === 'blocked'", script)
+        self.assertIn("执行路径受限", script)
+        self.assertIn(".trace-status-blocked", styles)
 
     def test_admin_frontend_is_separate_from_user_workspace(self):
         with TestClient(app) as client:
@@ -93,7 +96,7 @@ class FabInsightTests(unittest.TestCase):
         ):
             self.assertIn(f'id="{element_id}"', response.text)
         self.assertIn('<div id="adminWorkspace" class="admin-workspace" hidden>', response.text)
-        self.assertIn("/static/admin.js?v=20260717-5", response.text)
+        self.assertIn("/static/admin.js?v=20260718-1", response.text)
         script = (Path(__file__).parents[1] / "app" / "static" / "admin.js").read_text(encoding="utf-8")
         self.assertIn("/api/admin/overview", script)
         self.assertIn("/api/admin/models", script)

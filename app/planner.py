@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import date, timedelta
 from typing import Any, Literal
@@ -20,7 +21,10 @@ class PlanBudget:
     max_tool_calls: int
     max_model_iterations: int
     max_rows_per_call: int
-    enforcement: Literal["advisory"] = "advisory"
+    per_tool_limits: dict[str, int]
+    max_identical_parameter_calls: int
+    max_no_progress_rounds: int
+    enforcement: Literal["runtime"] = "runtime"
 
 
 @dataclass(frozen=True)
@@ -357,8 +361,23 @@ def _empty_budget() -> PlanBudget:
     return PlanBudget(
         planned_tool_calls=0,
         max_tool_calls=0,
-        max_model_iterations=0,
+        max_model_iterations=1,
         max_rows_per_call=100,
+        per_tool_limits={},
+        max_identical_parameter_calls=0,
+        max_no_progress_rounds=1,
+    )
+
+
+def _generic_budget() -> PlanBudget:
+    return PlanBudget(
+        planned_tool_calls=0,
+        max_tool_calls=10,
+        max_model_iterations=6,
+        max_rows_per_call=100,
+        per_tool_limits={"*": 3, "query_manufacturing_data": 5},
+        max_identical_parameter_calls=1,
+        max_no_progress_rounds=2,
     )
 
 
@@ -401,7 +420,7 @@ def create_execution_plan(
             playbook_version=None,
             required_evidence_ids=(),
             steps=(),
-            budget=_empty_budget(),
+            budget=_generic_budget(),
             missing_inputs=(),
             clarification_questions=route.clarification_questions,
         )
@@ -439,6 +458,7 @@ def create_execution_plan(
 
     steps = _ready_steps(question, route, playbook, resolved)
     planned_calls = len(steps)
+    planned_per_tool = Counter(step.tool for step in steps)
     return ExecutionPlan(
         plan_id=plan_id,
         schema_version="1.0",
@@ -457,6 +477,9 @@ def create_execution_plan(
             max_tool_calls=min(16, planned_calls + 2),
             max_model_iterations=6,
             max_rows_per_call=100,
+            per_tool_limits={tool: count + 1 for tool, count in planned_per_tool.items()},
+            max_identical_parameter_calls=1,
+            max_no_progress_rounds=2,
         ),
         missing_inputs=(),
         clarification_questions=(),
@@ -468,7 +491,7 @@ def planner_system_message(plan: ExecutionPlan) -> str:
         "以下 execution_plan 是 Router 与 Domain Playbook 的确定性实例化结果，不是已执行证据。"
         "status=ready 时按 depends_on 满足依赖，优先完成 required=true 的步骤，并使用给定参数。"
         "任一步无法满足 success_criteria 时必须报告证据缺口。"
-        "budget 当前为声明式上限，后续运行时治理会强制执行；本轮也不得主动超过 max_tool_calls。"
+        "budget 由运行时守卫强制执行，不得超过总调用、单工具、相同参数和无进展轮次限制。"
         "status=clarification_required 时先提出 clarification_questions，不调用工具。"
         "status=unsupported 时继续遵守通用 Agent 规则。\n"
         f"execution_plan={plan.to_prompt()}"

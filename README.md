@@ -271,7 +271,7 @@ python3 scripts/evaluate_rag.py
 
 Router 之后会为制程能力异常、良率下降、设备故障、批次追踪和 SOP 查询选择版本化 Domain Playbook。接口结果中的 `domain_playbook` 保存模板编号、Schema 版本、Playbook 版本、必需/可选证据、字段契约、验收条件、分析问题、答案结构和安全约束。歧义问题只返回候选模板，澄清前不会混合执行；未覆盖意图继续使用通用 Agent 规则。
 
-结构化 Planner 再将路由范围和已选 Playbook 实例化为 `execution_plan`。计划包含稳定的 `plan_id`、工具步骤、参数及其来源、证据编号、步骤依赖、验收条件和调用预算；相同问题、路由和 Playbook 版本会生成相同计划。当前预算为声明式约束，运行时强制、重复调用拦截和无进展终止由后续 Loop 治理实现。歧义、未知意图或缺少制程/批次编号时生成零工具步骤并要求澄清。
+结构化 Planner 再将路由范围和已选 Playbook 实例化为 `execution_plan`。计划包含稳定的 `plan_id`、工具步骤、参数及其来源、证据编号、步骤依赖、验收条件和调用预算；相同问题、路由和 Playbook 版本会生成相同计划。`ToolLoopGuard` 在运行时强制总调用数、单工具次数和相同工具参数次数；重复结果或失败调用连续两轮没有产生新证据时，Loop 会进入仅综合模式，并保留最后一个模型轮次组织答案和说明证据缺口。歧义、未知意图或缺少制程/批次编号时生成零工具步骤并要求澄清。
 
 ## Agent 日志与监控
 
@@ -292,9 +292,12 @@ GET /api/monitor/events?limit=100
 - `intent_routed`：结构化意图、制程、设备、时间范围、数据需求和风险等级
 - `playbook_selected`：模板选择状态、Playbook 编号、版本和歧义候选
 - `execution_plan_created`：计划编号、Planner 版本、步骤数、证据数、预算和缺失输入
+- `loop_guard_initialized`：总预算、单工具预算、重复参数限制和无进展轮次限制
 - `model_call_finished`：模型、延迟、Token 和状态
 - `model_call_retry_scheduled`：重试原因、次数和退避时间
+- `tool_call_blocked`：被重复参数、总预算、单工具预算或仅综合模式拦截的调用
 - `tool_call_finished`：工具名、延迟、返回行数和状态
+- `loop_guard_round_finished`：每轮调用、唯一证据、拦截数、无进展计数和停止原因
 - `agent_run_finished`：总耗时、模式、工具数、来源数和最终状态
 
 默认不记录 API Key、Authorization、完整问题、工具参数、SQL、模型回答或工具返回值。日志目录已加入 `.gitignore`。生产部署时应限制监控 API 权限，并将日志发送到 Loki、ELK、OpenTelemetry Collector 等集中系统。
@@ -315,7 +318,8 @@ app/
   agent.py      DeepSeek 工具调用循环与系统约束
   intent_router.py  确定性问题分类、范围抽取与风险路由
   domain_playbooks.py  五类版本化领域证据与回答契约
-  planner.py    结构化工具计划、参数绑定、依赖与声明式预算
+  planner.py    结构化工具计划、参数绑定、依赖与运行时预算策略
+  loop_guard.py 工具预算、重复调用检测、证据进展与可解释终止
   reports.py    制造报表及只读 SQL 保护
   rag.py        FTS5 trigram 知识与案例联合检索
   audit.py      脱敏结构化日志、轮转和监控汇总

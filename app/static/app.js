@@ -671,18 +671,19 @@ async function copyText(text) {
 function renderToolTrace(trace, runId) {
   if (!trace?.length) return '';
   const items = trace.map((item, index) => {
-    const status = item.status === 'error' ? '失败' : (item.status === 'local' ? '本地' : (item.status === 'running' ? '进行中' : '成功'));
+    const status = item.status === 'error' ? '失败' : (item.status === 'blocked' ? '已拦截' : (item.status === 'local' ? '本地' : (item.status === 'running' ? '进行中' : '成功')));
     const result = item.rows == null ? status : `${status} · ${item.rows} 条结果`;
     const argumentsText = item.arguments && Object.keys(item.arguments).length
       ? Object.entries(item.arguments).map(([key, value]) => `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}`).join(' · ')
       : '使用默认参数';
     const error = item.error ? `<p class="trace-error">${escapeHtml(item.error)}</p>` : '';
-    const statusClass = item.status === 'error' ? 'error' : (item.status === 'running' ? 'running' : 'ok');
+    const statusClass = item.status === 'error' ? 'error' : (item.status === 'blocked' ? 'blocked' : (item.status === 'running' ? 'running' : 'ok'));
     return `<li><div class="trace-step-heading"><span>${index + 1}. ${escapeHtml(item.label || toolLabels[item.tool] || item.tool || '未知工具')}</span><small class="trace-status-${statusClass}">${result}</small></div><code>${escapeHtml(argumentsText)}</code>${error}</li>`;
   }).join('');
   const failed = trace.some(item => item.status === 'error');
+  const blocked = trace.some(item => item.status === 'blocked');
   const duration = trace.reduce((sum, item) => sum + Number(item.duration_ms || 0), 0);
-  const summary = failed ? `执行路径异常 · ${trace.length} 个工具` : `执行路径已完成 · ${trace.length} 个工具${duration ? ` · ${formatDuration(duration)}` : ''}`;
+  const summary = failed ? `执行路径异常 · ${trace.length} 个工具` : (blocked ? `执行路径受限 · ${trace.length} 个工具` : `执行路径已完成 · ${trace.length} 个工具${duration ? ` · ${formatDuration(duration)}` : ''}`);
   const runLabel = runId ? `<span title="${escapeHtml(runId)}">运行 ${escapeHtml(runId.slice(0, 8))}</span>` : '';
   return `<details class="analysis-trace" ${failed ? 'open' : ''}><summary><span>${summary}</span><small>可展开</small></summary><ol>${items}</ol><div class="trace-footer"><span>可审计工具路径，不包含模型内部草稿</span>${runLabel}</div></details>`;
 }
@@ -1048,8 +1049,8 @@ function renderLiveAnalysis(live) {
   live.el.querySelector('.live-path-title').textContent = live.steps.at(-1)?.label || '正在建立分析路径';
   live.el.querySelector('.live-path-count').textContent = `${live.steps.length} 步`;
   live.el.querySelector('ol').innerHTML = live.steps.map((item, index) => {
-    const status = item.status === 'error' ? '失败' : (item.status === 'running' ? '进行中' : '完成');
-    const statusClass = item.status === 'error' ? 'error' : (item.status === 'running' ? 'running' : 'ok');
+    const status = item.status === 'error' ? '失败' : (item.status === 'blocked' ? '已拦截' : (item.status === 'running' ? '进行中' : '完成'));
+    const statusClass = item.status === 'error' ? 'error' : (item.status === 'blocked' ? 'blocked' : (item.status === 'running' ? 'running' : 'ok'));
     const argumentsText = item.arguments && Object.keys(item.arguments).length
       ? Object.entries(item.arguments).map(([key, value]) => `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}`).join(' · ')
       : '';
@@ -1071,7 +1072,9 @@ function appendLiveAnswer(live, delta) {
     const running = live.steps.at(-1); if (running?.status === 'running') running.status = 'ok';
     const path = live.el.querySelector('.live-path');
     path.open = false;
-    live.el.querySelector('.live-path-title').textContent = `执行路径已完成 · ${live.steps.filter(step => step.tool).length} 个工具`;
+    const toolSteps = live.steps.filter(step => step.tool);
+    const pathLabel = toolSteps.some(step => step.status === 'error') ? '执行路径异常' : (toolSteps.some(step => step.status === 'blocked') ? '执行路径受限' : '执行路径已完成');
+    live.el.querySelector('.live-path-title').textContent = `${pathLabel} · ${toolSteps.length} 个工具`;
     live.el.querySelector('.live-path-count').textContent = '可展开';
     live.el.querySelector('.streaming-answer').hidden = false;
     live.el.classList.add('answer-streaming');

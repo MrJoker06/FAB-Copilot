@@ -37,7 +37,10 @@ class StructuredPlannerTests(unittest.TestCase):
                 self.assertEqual(plan.budget.planned_tool_calls, len(plan.steps))
                 self.assertGreaterEqual(plan.budget.max_tool_calls, len(plan.steps))
                 self.assertEqual(plan.budget.max_model_iterations, 6)
-                self.assertEqual(plan.budget.enforcement, "advisory")
+                self.assertEqual(plan.budget.enforcement, "runtime")
+                self.assertEqual(plan.budget.max_identical_parameter_calls, 1)
+                self.assertEqual(plan.budget.max_no_progress_rounds, 2)
+                self.assertTrue(plan.budget.per_tool_limits)
                 json.dumps(plan.to_dict(), ensure_ascii=False)
 
     def test_plan_id_and_steps_are_deterministic(self):
@@ -142,6 +145,7 @@ class StructuredPlannerTests(unittest.TestCase):
                 self.assertEqual(plan.status, "clarification_required")
                 self.assertEqual(plan.steps, ())
                 self.assertEqual(plan.budget.max_tool_calls, 0)
+                self.assertEqual(plan.budget.max_model_iterations, 1)
                 self.assertIn(missing_input, plan.missing_inputs)
                 self.assertTrue(plan.clarification_questions)
 
@@ -151,6 +155,8 @@ class StructuredPlannerTests(unittest.TestCase):
         self.assertEqual(plan.status, "unsupported")
         self.assertEqual(plan.steps, ())
         self.assertEqual(plan.budget.planned_tool_calls, 0)
+        self.assertEqual(plan.budget.max_tool_calls, 10)
+        self.assertEqual(plan.budget.per_tool_limits["*"], 3)
 
     def test_agent_loop_injects_plan_and_returns_same_plan(self):
         captured: dict = {}
