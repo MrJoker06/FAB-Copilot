@@ -24,8 +24,8 @@ def _load_env(path: Path) -> None:
             os.environ.setdefault(key, value)
 
 
-_load_env(WORKSPACE_DIR / ".env")
-_load_env(PROJECT_DIR / ".env")
+_load_env(Path(os.getenv("FAB_WORKSPACE_ENV_FILE", WORKSPACE_DIR / ".env")))
+_load_env(Path(os.getenv("FAB_PROJECT_ENV_FILE", PROJECT_DIR / ".env")))
 
 ALLOWED_MODELS = ("deepseekv4-flash", "deepseekv4-pro")
 MODEL_API_NAMES = {

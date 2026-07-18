@@ -305,6 +305,7 @@ def health() -> dict:
         "instance": {
             "id": os.getenv("FAB_INSTANCE_ID", "unisolated"),
             "root": os.getenv("FAB_INSTANCE_ROOT", str(PROJECT_DIR)),
+            "source_root": os.getenv("FAB_SOURCE_ROOT", str(PROJECT_DIR)),
         },
         "reference_data": {"knowledge_chunks": knowledge_chunks, "historical_cases": historical_cases},
         "enterprise": enterprise,

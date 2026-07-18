@@ -5,6 +5,7 @@ import json
 import logging
 import logging.handlers
 import os
+import re
 import subprocess
 import threading
 from collections import Counter
@@ -32,6 +33,9 @@ _request_id: ContextVar[str | None] = ContextVar("fab_insight_request_id", defau
 
 
 def _git_commit() -> str:
+    configured = os.getenv("FAB_GIT_COMMIT", "").strip()
+    if re.fullmatch(r"[0-9a-f]{7,40}|unversioned", configured, re.IGNORECASE):
+        return configured
     try:
         result = subprocess.run(
             ["git", "-C", str(PROJECT_DIR), "rev-parse", "--short=12", "HEAD"],

@@ -70,6 +70,7 @@ class FabInsightTests(unittest.TestCase):
         self.assertIn("instance", payload)
         self.assertTrue(payload["instance"]["id"])
         self.assertTrue(payload["instance"]["root"])
+        self.assertTrue(payload["instance"]["source_root"])
 
     def test_frontend_exposes_personal_knowledge_upload_workflow(self):
         with TestClient(app) as client:

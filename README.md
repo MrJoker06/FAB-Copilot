@@ -87,7 +87,7 @@ conda run -n fab-insight-agent python -m pip install -r requirements.txt
 
 `run.sh` 默认始终通过 Conda 环境 `fab-insight-agent` 启动，不向 `base` 安装项目依赖。需要使用其他环境名时设置 `FAB_CONDA_ENV`。
 
-`run.sh` 还会按 `worktree-Git提交-端口` 生成实例 ID。每个实例在 `runtime/<instance_id>/` 下保存独立的制造数据库、AI 运营库、个人知识文件和日志，并持有独立进程锁；不同提交或端口不会共享会话和运行状态。可通过 `FAB_INSTANCE_ID` 与 `FAB_INSTANCE_ROOT` 显式命名实例，但两个并行服务不得指向同一实例目录。实际实例信息可在 `/api/health` 的 `instance` 字段中核对。
+`run.sh` 还会按 `worktree-Git提交-端口` 生成实例 ID。每个实例在 `runtime/<instance_id>/` 下保存独立的 Git 源码快照、制造数据库、AI 运营库、个人知识文件和日志，并持有独立进程锁；服务从实例源码快照启动，后续修改当前 worktree 不会改变已运行版本的后端或静态资源。不同提交或端口不会共享会话和运行状态。可通过 `FAB_INSTANCE_ID` 与 `FAB_INSTANCE_ROOT` 显式命名实例，但两个并行服务不得指向同一实例目录。实际运行目录和源码快照可在 `/api/health` 的 `instance.root` 与 `instance.source_root` 中核对。
 
 在 Windows 中运行：
 
