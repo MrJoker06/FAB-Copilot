@@ -1039,7 +1039,7 @@ function createLiveAnalysis() {
   const el = document.createElement('div'); el.className = 'message assistant live-analysis';
   el.innerHTML = '<div class="message-meta"><div class="message-label">FAB COPILOT · 分析中</div><span class="live-indicator">运行中</span></div><details class="live-path" open><summary><span class="live-path-title">正在建立分析路径</span><small class="live-path-count">准备中</small></summary><div class="live-path-body"><ol></ol><div class="trace-footer"><span>工具调用会在执行时实时更新</span><span class="live-run-id"></span></div></div></details><div class="message-content markdown-content streaming-answer" hidden></div>';
   $('#chatMessages').appendChild(el); $('#chatMessages').scrollTop = $('#chatMessages').scrollHeight;
-  return {el, steps: [], runId: null, answer: '', renderTimer: null, firstToken: false};
+  return {el, steps: [], runId: null, buffer: new FabSmoothTextBuffer(), renderTimer: null, drainResolvers: [], firstToken: false, cancelled: false};
 }
 
 function renderLiveAnalysis(live) {
@@ -1056,30 +1056,68 @@ function renderLiveAnalysis(live) {
   if (container.scrollHeight - container.scrollTop - container.clientHeight < 120) container.scrollTop = container.scrollHeight;
 }
 
-function appendLiveAnswer(live, delta) {
-  if (!delta) return;
+function startLiveAnswer(live) {
+  if (live.firstToken) return;
+  live.firstToken = true;
+  live.el.querySelector('.live-indicator').textContent = '生成中';
+  const running = live.steps.at(-1); if (running?.status === 'running') running.status = 'ok';
+  const path = live.el.querySelector('.live-path');
+  path.open = false;
+  const toolSteps = live.steps.filter(step => step.tool);
+  const pathLabel = toolSteps.some(step => step.status === 'error') ? '执行路径异常' : (toolSteps.some(step => step.status === 'blocked') ? '执行路径受限' : '执行路径已完成');
+  live.el.querySelector('.live-path-title').textContent = `${pathLabel} · ${toolSteps.length} 个工具`;
+  live.el.querySelector('.live-path-count').textContent = '可展开';
+  live.el.querySelector('.streaming-answer').hidden = false;
+  live.el.classList.add('answer-streaming');
+}
+
+function resolveLiveAnswerDrain(live) {
+  if (!live.buffer.done) return;
+  for (const resolve of live.drainResolvers.splice(0)) resolve();
+}
+
+function renderLiveAnswerFrame(live) {
+  live.renderTimer = null;
+  if (live.cancelled) return;
   const container = $('#chatMessages');
   const follow = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
-  live.answer += delta;
-  if (!live.firstToken) {
-    live.firstToken = true;
-    const running = live.steps.at(-1); if (running?.status === 'running') running.status = 'ok';
-    const path = live.el.querySelector('.live-path');
-    path.open = false;
-    const toolSteps = live.steps.filter(step => step.tool);
-    const pathLabel = toolSteps.some(step => step.status === 'error') ? '执行路径异常' : (toolSteps.some(step => step.status === 'blocked') ? '执行路径受限' : '执行路径已完成');
-    live.el.querySelector('.live-path-title').textContent = `${pathLabel} · ${toolSteps.length} 个工具`;
-    live.el.querySelector('.live-path-count').textContent = '可展开';
-    live.el.querySelector('.streaming-answer').hidden = false;
-    live.el.classList.add('answer-streaming');
+  const answer = live.el.querySelector('.streaming-answer');
+  answer.innerHTML = renderMarkdown(live.buffer.takeNext());
+  if (follow) container.scrollTop = container.scrollHeight;
+  if (live.buffer.pendingLength) {
+    live.renderTimer = window.setTimeout(() => renderLiveAnswerFrame(live), live.buffer.pendingLength > 240 ? 24 : 32);
+  } else {
+    resolveLiveAnswerDrain(live);
   }
-  if (live.renderTimer) return;
-  live.renderTimer = window.setTimeout(() => {
-    live.renderTimer = null;
-    const answer = live.el.querySelector('.streaming-answer');
-    answer.innerHTML = renderMarkdown(live.answer);
-    if (follow) container.scrollTop = container.scrollHeight;
-  }, 45);
+}
+
+function scheduleLiveAnswerFrame(live) {
+  if (live.cancelled || live.renderTimer || !live.buffer.pendingLength) return;
+  live.renderTimer = window.setTimeout(() => renderLiveAnswerFrame(live), 24);
+}
+
+function appendLiveAnswer(live, delta) {
+  if (!delta || live.cancelled) return;
+  live.buffer.append(delta);
+  if (!live.firstToken) {
+    startLiveAnswer(live);
+  }
+  scheduleLiveAnswerFrame(live);
+}
+
+async function finishLiveAnswer(live, finalAnswer) {
+  live.buffer.finish(finalAnswer);
+  if (live.buffer.received && !live.firstToken) startLiveAnswer(live);
+  live.el.querySelector('.live-indicator').textContent = live.buffer.done ? '完成' : '输出中';
+  scheduleLiveAnswerFrame(live);
+  if (!live.buffer.done) await new Promise(resolve => live.drainResolvers.push(resolve));
+}
+
+function cancelLiveAnswer(live) {
+  live.cancelled = true;
+  if (live.renderTimer) window.clearTimeout(live.renderTimer);
+  live.renderTimer = null;
+  for (const resolve of live.drainResolvers.splice(0)) resolve();
 }
 
 function updateLiveAnalysis(live, event) {
@@ -1198,6 +1236,7 @@ function renderAgentRequestError(live, error, retry) {
   const title = labels[error.code] || '分析请求未完成';
   const technical = [error.code, error.requestId ? `请求 ${error.requestId}` : ''].filter(Boolean).join(' · ');
   const answer = live.el.querySelector('.streaming-answer');
+  live.el.classList.remove('answer-streaming');
   answer.hidden = false;
   answer.innerHTML = `<div class="request-error"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(error.message)}</span><div class="request-error-actions">${error.retryable ? '<button type="button" class="retry-request">重试</button>' : ''}<details><summary>错误详情</summary><code>${escapeHtml(technical || '无请求编号')}</code></details></div></div>`;
   answer.querySelector('.retry-request')?.addEventListener('click', retry);
@@ -1217,11 +1256,12 @@ async function sendChat(message, {clientMessageId = newClientMessageId(), isRetr
   const live = createLiveAnalysis();
   try {
     const result = await streamAgent(text, clientMessageId, event => updateLiveAnalysis(live, event));
-    if (live.renderTimer) { window.clearTimeout(live.renderTimer); live.renderTimer = null; }
+    await finishLiveAnswer(live, result.answer);
     renderAssistantInto(live.el, result.answer, result);
     state.history.push({role:'assistant', content:result.answer});
     $('#agentMode').textContent = result.mode === 'deepseek' ? `${state.modelConfig?.model || 'DeepSeek'} · 工具分析` : '本地规则分析';
   } catch (error) {
+    cancelLiveAnswer(live);
     updateLiveAnalysis(live, {event:'run_failed', message:error.message});
     renderAgentRequestError(live, error, () => {
       live.el.remove();
