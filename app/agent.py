@@ -15,6 +15,7 @@ import httpx
 from .audit import CONTENT_MODE, content_fingerprint, emit
 from .config import get_settings
 from .domain_playbooks import PlaybookSelection, playbook_system_message, select_playbook
+from .evidence_validator import EvidenceObservation, validate_evidence, validator_system_message
 from .enterprise_data import enterprise_data_manifest, enterprise_fab_summary, query_enterprise_data
 from .intent_router import IntentRoute, route_question, routing_system_message
 from .loop_guard import ToolLoopGuard
@@ -56,6 +57,7 @@ SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的�
 14. domain_playbook 定义当前领域的证据与回答契约。必须优先覆盖 required=true 的证据；缺失时明确降级结论，不得宣称模板本身就是证据。
 15. execution_plan 是当前问题的结构化取证计划。按 depends_on 处理步骤依赖，使用给定参数并覆盖 required=true 的步骤；计划或预算本身不代表工具已经执行成功。
 16. runtime_guard 会强制限制总工具数、单工具次数、相同参数重复调用和无进展轮次。进入仅综合模式后不得继续调用工具，必须基于已有证据作答并说明证据缺口。
+17. evidence_validation 是对实际工具证据的确定性校验结果。最终措辞不得超过 allowed_conclusion_strength，必须披露缺失、部分覆盖、样本风险、时间或范围偏差、低置信度来源和事实冲突。
 
 数据库字段提示：
 - lots: lot_id, product, technology_nm, route, priority, start_time, complete_time, status, wafer_count, good_wafers, yield_rate(0-1), cycle_time_hours, hold_hours
@@ -132,6 +134,7 @@ def _offline_answer(
 ) -> dict:
     if execution_plan.status == "clarification_required":
         questions = execution_plan.clarification_questions or ("请补充要分析的制程、设备或时间范围。",)
+        validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, [])
         return {
             "answer": "为了生成可执行的分析路径，请先补充以下信息：\n\n" + "\n".join(
                 f"{index}. {item}" for index, item in enumerate(questions, start=1)
@@ -143,9 +146,11 @@ def _offline_answer(
             "domain_playbook": playbook_selection.to_dict(),
             "execution_plan": execution_plan.to_dict(),
             "loop_guard": loop_guard.summary(),
+            "evidence_validation": validation.to_dict(),
         }
 
     local_trace: list[dict] = []
+    observations: list[EvidenceObservation] = []
 
     def run_local_tool(name: str, handler: Callable[[], Any]) -> Any:
         decision = loop_guard.check_call(name, {})
@@ -159,6 +164,7 @@ def _offline_answer(
             return None
         result = handler()
         loop_guard.record_result(name, result, True)
+        observations.append(EvidenceObservation(name, {}, "success", result))
         local_trace.append({"tool": name, "status": "local"})
         return result
 
@@ -179,6 +185,7 @@ def _offline_answer(
         names = "、".join(f"{row['equipment_id']}（{row['health']}，{row['excursions']}次异常）" for row in risky)
         lines.append(f"优先关注设备：{names}。")
     lines.append("配置根目录 .env 的 DEEPSEEK_API_KEY 后，可获得针对问题的多轮工具分析。")
+    validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, observations)
     return {
         "answer": "\n\n".join(lines),
         "tool_trace": local_trace,
@@ -188,6 +195,7 @@ def _offline_answer(
         "domain_playbook": playbook_selection.to_dict(),
         "execution_plan": execution_plan.to_dict(),
         "loop_guard": loop_guard.summary(),
+        "evidence_validation": validation.to_dict(),
     }
 
 
@@ -216,6 +224,22 @@ def _plan_progress_message(plan: ExecutionPlan) -> str:
     if plan.status == "clarification_required":
         return "执行计划等待补充必要范围"
     return "当前问题不使用领域执行计划"
+
+
+def _emit_evidence_validation(run_id: str, iteration: int, validation: dict[str, Any]) -> None:
+    coverage = validation["coverage"]
+    emit(
+        "evidence_validation_completed",
+        run_id,
+        iteration=iteration,
+        plan_id=validation["plan_id"],
+        required_total=coverage["required_total"],
+        required_covered=coverage["required_covered"],
+        required_coverage_pct=coverage["required_coverage_pct"],
+        risk_count=len(validation["risks"]),
+        conflict_count=len(validation["conflicts"]),
+        allowed_conclusion_strength=validation["allowed_conclusion_strength"],
+    )
 
 
 async def _stream_completion(
@@ -380,6 +404,8 @@ async def _run_agent_impl(
         "plan": plan_payload,
     })
     loop_guard = ToolLoopGuard(execution_plan)
+    evidence_observations: list[EvidenceObservation] = []
+    evidence_validation = validate_evidence(execution_plan, selected_playbook, evidence_observations)
     emit(
         "loop_guard_initialized",
         run_id,
@@ -394,20 +420,35 @@ async def _run_agent_impl(
     if not settings.deepseek_api_key:
         await _notify(progress, {"event": "stage", "stage": "planning", "message": "正在使用本地规则规划分析路径"})
         result = _offline_answer(question, intent_route, playbook_selection, execution_plan, loop_guard)
+        _emit_evidence_validation(run_id, 1, result["evidence_validation"])
         for item in result["tool_trace"]:
             await _notify(progress, {"event": "tool_started", "tool": item["tool"], "arguments": {}})
             await _notify(progress, {"event": "tool_finished", **item})
+        await _notify(progress, {
+            "event": "stage",
+            "stage": "validation",
+            "message": (
+                "证据校验完成 · "
+                f"必需证据 {result['evidence_validation']['coverage']['required_covered']}/"
+                f"{result['evidence_validation']['coverage']['required_total']} · "
+                f"结论强度 {result['evidence_validation']['allowed_conclusion_strength']}"
+            ),
+            "validation": result["evidence_validation"],
+        })
         await _notify(progress, {"event": "stage", "stage": "synthesis", "message": "正在汇总本地分析结果"})
         await _notify(progress, {"event": "answer_delta", "delta": result["answer"]})
         result["model"] = "local-rules"
         result["usage"] = {}
         return result
 
+    _emit_evidence_validation(run_id, 0, evidence_validation.to_dict())
+
     messages: list[dict] = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "system", "content": routing_system_message(intent_route)},
         {"role": "system", "content": playbook_system_message(playbook_selection)},
         {"role": "system", "content": planner_system_message(execution_plan)},
+        {"role": "system", "content": validator_system_message(evidence_validation)},
     ]
     for item in (history or [])[-8:]:
         role = item.get("role")
@@ -433,6 +474,7 @@ async def _run_agent_impl(
             "domain_playbook": playbook_payload,
             "execution_plan": plan_payload,
             "loop_guard": loop_guard.summary(),
+            "evidence_validation": evidence_validation.to_dict(),
         }
 
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
@@ -586,6 +628,12 @@ async def _run_agent_impl(
                         "duration_ms": tool_duration_ms,
                     }
                     trace.append(blocked_item)
+                    evidence_observations.append(EvidenceObservation(
+                        name or "unknown",
+                        arguments,
+                        "blocked",
+                        error=decision.message,
+                    ))
                     await _notify(progress, {"event": "tool_finished", **blocked_item})
                     emit(
                         "tool_call_blocked",
@@ -623,6 +671,7 @@ async def _run_agent_impl(
                         for source in result:
                             sources[source["reference_id"]] = source
                     loop_guard.record_result(name, result, True)
+                    evidence_observations.append(EvidenceObservation(name, arguments, "success", result))
                     row_count = len(result) if isinstance(result, list) else 1
                     tool_duration_ms = round((time.perf_counter() - tool_started) * 1000, 1)
                     trace.append({"tool": name, "arguments": arguments, "status": "ok", "rows": row_count, "duration_ms": tool_duration_ms})
@@ -646,6 +695,7 @@ async def _run_agent_impl(
                     content = json.dumps({"ok": True, "data": result}, ensure_ascii=False, default=str)
                 except Exception as exc:
                     loop_guard.record_result(name or "unknown", None, False)
+                    evidence_observations.append(EvidenceObservation(name or "unknown", arguments, "error", error=str(exc)))
                     trace.append({"tool": name or "unknown", "arguments": arguments, "status": "error", "error": str(exc)})
                     await _notify(progress, {
                         "event": "tool_finished",
@@ -667,6 +717,20 @@ async def _run_agent_impl(
                 messages.append({"role": "tool", "tool_call_id": call.get("id") or decision.signature_hash, "content": content})
 
             loop_guard.finish_round()
+            evidence_validation = validate_evidence(execution_plan, selected_playbook, evidence_observations)
+            messages.append({"role": "system", "content": validator_system_message(evidence_validation)})
+            await _notify(progress, {
+                "event": "stage",
+                "stage": "validation",
+                "message": (
+                    "证据校验完成 · "
+                    f"必需证据 {evidence_validation.coverage['required_covered']}/"
+                    f"{evidence_validation.coverage['required_total']} · "
+                    f"结论强度 {evidence_validation.allowed_conclusion_strength}"
+                ),
+                "validation": evidence_validation.to_dict(),
+            })
+            _emit_evidence_validation(run_id, iteration + 1, evidence_validation.to_dict())
             guard_summary = loop_guard.summary()
             emit(
                 "loop_guard_round_finished",
@@ -739,11 +803,16 @@ async def run_agent(
             guard_total_calls=result.get("loop_guard", {}).get("total_calls", 0),
             guard_blocked_calls=result.get("loop_guard", {}).get("blocked_calls", 0),
             guard_unique_evidence_results=result.get("loop_guard", {}).get("unique_evidence_results", 0),
+            evidence_required_coverage_pct=result.get("evidence_validation", {}).get("coverage", {}).get("required_coverage_pct", 0),
+            evidence_risk_count=len(result.get("evidence_validation", {}).get("risks", [])),
+            evidence_conflict_count=len(result.get("evidence_validation", {}).get("conflicts", [])),
+            allowed_conclusion_strength=result.get("evidence_validation", {}).get("allowed_conclusion_strength"),
             **({
                 "answer": result.get("answer"),
                 "tool_trace": result.get("tool_trace", []),
                 "sources": result.get("sources", []),
                 "loop_guard": result.get("loop_guard", {}),
+                "evidence_validation": result.get("evidence_validation", {}),
             } if CONTENT_MODE == "full" else {}),
         )
         return result

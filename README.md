@@ -274,6 +274,8 @@ Router 之后会为制程能力异常、良率下降、设备故障、批次追�
 
 结构化 Planner 再将路由范围和已选 Playbook 实例化为 `execution_plan`。计划包含稳定的 `plan_id`、工具步骤、参数及其来源、证据编号、步骤依赖、验收条件和调用预算；相同问题、路由和 Playbook 版本会生成相同计划。`ToolLoopGuard` 在运行时强制总调用数、单工具次数和相同工具参数次数；重复结果或失败调用连续两轮没有产生新证据时，Loop 会进入仅综合模式，并保留最后一个模型轮次组织答案和说明证据缺口。歧义、未知意图或缺少制程/批次编号时生成零工具步骤并要求澄清。
 
+每轮工具执行后，确定性 Evidence Validator 会将实际参数和结果与计划证据契约匹配，并在接口结果的 `evidence_validation` 中返回必需证据覆盖率、字段覆盖、缺失或部分证据、空结果、小样本、结果截断、时间或范围偏差、低置信度来源、规格或文档事实冲突，以及 `allowed_conclusion_strength`。结论强度依次为 `insufficient`、`hypothesis_only`、`supported_with_limits` 和 `supported`；未使用领域 Playbook 时为 `not_applicable`。最新报告会在下一轮综合前注入模型上下文，且所有等级均不允许把相关性表述为已证明因果。
+
 ## Agent 日志与监控
 
 前端“Agent 监控”页面每 30 秒刷新一次，也可直接查询：
@@ -294,6 +296,7 @@ GET /api/monitor/events?limit=100
 - `playbook_selected`：模板选择状态、Playbook 编号、版本和歧义候选
 - `execution_plan_created`：计划编号、Planner 版本、步骤数、证据数、预算和缺失输入
 - `loop_guard_initialized`：总预算、单工具预算、重复参数限制和无进展轮次限制
+- `evidence_validation_completed`：必需证据覆盖率、风险数、冲突数和允许的结论强度
 - `model_call_finished`：模型、延迟、Token 和状态
 - `model_call_retry_scheduled`：重试原因、次数和退避时间
 - `tool_call_blocked`：被重复参数、总预算、单工具预算或仅综合模式拦截的调用
