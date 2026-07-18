@@ -22,6 +22,7 @@ from .answer_synthesizer import (
 )
 from .audit import CONTENT_MODE, content_fingerprint, emit
 from .config import get_settings
+from .context_resolver import context_system_message, resolve_question_context
 from .domain_playbooks import PlaybookSelection, playbook_system_message, select_playbook
 from .evidence_validator import EvidenceObservation, validate_evidence, validator_system_message
 from .enterprise_data import enterprise_data_manifest, enterprise_fab_summary, query_enterprise_data
@@ -165,7 +166,18 @@ def _offline_answer(
     loop_guard: ToolLoopGuard,
 ) -> dict:
     if execution_plan.status == "clarification_required":
-        questions = execution_plan.clarification_questions or ("请补充要分析的制程、设备或时间范围。",)
+        questions = (
+            (
+                "分析制程能力或 Cpk，请同时指定制程站点。",
+                "分析良率、缺陷或趋势，请说明关注的产品或时间范围。",
+                "分析设备故障、报警或停机，请提供设备编号。",
+                "追踪批次、晶圆或 Hold，请提供完整批次编号。",
+                "查询 SOP、正式知识、历史案例或基础工艺解释。",
+            )
+            if intent_route.intent == "unknown"
+            else execution_plan.clarification_questions
+            or ("请补充要分析的制程、设备或时间范围。",)
+        )
         validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, [])
         contract = create_answer_contract(validation)
         synthesis = synthesize_legacy_answer(
@@ -386,7 +398,28 @@ async def _run_agent_impl(
     run_id: str,
     progress: ProgressCallback | None = None,
 ) -> dict:
-    intent_route = route_question(question)
+    direct_route = route_question(question)
+    context_resolution = (
+        resolve_question_context(question, history)
+        if direct_route.intent == "unknown"
+        else resolve_question_context(question)
+    )
+    analysis_question = context_resolution.resolved_question
+    if context_resolution.applied:
+        emit(
+            "question_context_resolved",
+            run_id,
+            strategy=context_resolution.strategy,
+            original_length=len(question),
+            resolved_length=len(analysis_question),
+        )
+        await _notify(progress, {
+            "event": "stage",
+            "stage": "context",
+            "message": "已结合上文恢复当前追问的分析目标",
+            "context_resolution": context_resolution.to_dict(),
+        })
+    intent_route = route_question(analysis_question) if context_resolution.applied else direct_route
     route_payload = intent_route.to_dict()
     emit(
         "intent_routed",
@@ -424,7 +457,7 @@ async def _run_agent_impl(
         "message": _playbook_progress_message(playbook_selection),
         "playbook": playbook_payload,
     })
-    execution_plan = create_execution_plan(question, intent_route, playbook_selection)
+    execution_plan = create_execution_plan(analysis_question, intent_route, playbook_selection)
     plan_payload = execution_plan.to_dict()
     emit(
         "execution_plan_created",
@@ -461,9 +494,40 @@ async def _run_agent_impl(
         max_no_progress_rounds=execution_plan.budget.max_no_progress_rounds,
     )
     settings = effective_agent_settings(get_settings())
+    if execution_plan.status == "clarification_required":
+        await _notify(progress, {
+            "event": "stage",
+            "stage": "clarification",
+            "message": "当前分析目标仍不明确，正在整理需要补充的信息",
+        })
+        result = _offline_answer(
+            analysis_question,
+            intent_route,
+            playbook_selection,
+            execution_plan,
+            loop_guard,
+        )
+        result["mode"] = "clarification"
+        result["model"] = "deterministic-router"
+        result["usage"] = {}
+        result["context_resolution"] = context_resolution.to_dict()
+        _emit_evidence_validation(run_id, 1, result["evidence_validation"])
+        emit(
+            "answer_synthesis_completed",
+            run_id,
+            plan_id=result["answer_synthesis"]["plan_id"],
+            status=result["answer_synthesis"]["status"],
+            allowed_conclusion_strength=result["answer_synthesis"]["allowed_conclusion_strength"],
+            source_count=0,
+            invalid_source_count=0,
+            moved_claims=0,
+            wording_adjustment_count=0,
+        )
+        await _stream_answer(progress, result["answer"])
+        return result
     if not settings.deepseek_api_key:
         await _notify(progress, {"event": "stage", "stage": "planning", "message": "正在使用本地规则规划分析路径"})
-        result = _offline_answer(question, intent_route, playbook_selection, execution_plan, loop_guard)
+        result = _offline_answer(analysis_question, intent_route, playbook_selection, execution_plan, loop_guard)
         _emit_evidence_validation(run_id, 1, result["evidence_validation"])
         emit(
             "answer_synthesis_completed",
@@ -494,18 +558,21 @@ async def _run_agent_impl(
         await _stream_answer(progress, result["answer"])
         result["model"] = "local-rules"
         result["usage"] = {}
+        result["context_resolution"] = context_resolution.to_dict()
         return result
 
     _emit_evidence_validation(run_id, 0, evidence_validation.to_dict())
 
-    messages: list[dict] = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+    messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
+    if context_resolution.applied:
+        messages.append({"role": "system", "content": context_system_message(context_resolution)})
+    messages.extend([
         {"role": "system", "content": routing_system_message(intent_route)},
         {"role": "system", "content": playbook_system_message(playbook_selection)},
         {"role": "system", "content": planner_system_message(execution_plan)},
         {"role": "system", "content": validator_system_message(evidence_validation)},
         {"role": "system", "content": synthesizer_system_message(answer_contract)},
-    ]
+    ])
     for item in (history or [])[-8:]:
         role = item.get("role")
         content = str(item.get("content", ""))[:4000]
@@ -540,6 +607,7 @@ async def _run_agent_impl(
             "evidence_validation": evidence_validation.to_dict(),
             "answer_contract": answer_contract.to_dict(),
             "answer_synthesis": synthesis_report.to_dict(),
+            "context_resolution": context_resolution.to_dict(),
         }
 
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:

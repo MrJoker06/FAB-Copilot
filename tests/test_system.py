@@ -829,7 +829,7 @@ class FabInsightTests(unittest.TestCase):
                     return ({"role": "assistant", "content": "模型作用域验证完成"}, {"total_tokens": 3}, "response-model-scope")
 
                 with patch("app.agent._stream_completion", new=fake_model_stream):
-                    chat_response = client.post("/api/chat", headers=user_a, json={"message": "验证当前模型"})
+                    chat_response = client.post("/api/chat", headers=user_a, json={"message": "查看工厂总览"})
                 self.assertEqual(chat_response.status_code, 200, chat_response.text)
                 self.assertEqual(captured["payload"]["model"], "enterprise-test-v1")
                 self.assertEqual(captured["endpoint"], "https://models.example.test/v1/chat/completions")
@@ -1211,7 +1211,7 @@ class FabInsightTests(unittest.TestCase):
             patch("app.agent._stream_completion", new=fake_stream),
             patch("app.agent.asyncio.sleep", new=AsyncMock()),
         ):
-            result = asyncio.run(agent_module._run_agent_impl("回复 OK", [], "run-retry-test", progress))
+            result = asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-retry-test", progress))
         self.assertEqual(result["answer"], "OK")
         self.assertEqual(attempts, 2)
         self.assertTrue(any(item.get("stage") == "retrying" for item in progress_events))
@@ -1245,7 +1245,7 @@ class FabInsightTests(unittest.TestCase):
             patch("app.agent.asyncio.sleep", new=AsyncMock()),
         ):
             with self.assertRaises(httpx.HTTPStatusError):
-                asyncio.run(agent_module._run_agent_impl("回复 OK", [], "run-no-retry-test"))
+                asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-no-retry-test"))
         self.assertEqual(attempts, 1)
 
     def test_stream_error_is_structured_and_audited(self):
