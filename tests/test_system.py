@@ -63,6 +63,14 @@ class FabInsightTests(unittest.TestCase):
         self.assertEqual(len(defect_types), len(set(defect_types)))
         self.assertTrue(all("process_steps" in row for row in dashboard["defects"]))
 
+    def test_health_exposes_runtime_instance_identity(self):
+        with TestClient(app) as client:
+            payload = client.get("/api/health").json()
+
+        self.assertIn("instance", payload)
+        self.assertTrue(payload["instance"]["id"])
+        self.assertTrue(payload["instance"]["root"])
+
     def test_frontend_exposes_personal_knowledge_upload_workflow(self):
         with TestClient(app) as client:
             response = client.get("/")

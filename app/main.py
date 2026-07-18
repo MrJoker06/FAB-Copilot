@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import secrets
 import traceback
 import uuid
@@ -301,6 +302,10 @@ def health() -> dict:
         "model": model_config["provider_model"],
         "agent_configured": model_config["api_key_configured"],
         "build": {"version": APP_VERSION, "git_commit": GIT_COMMIT},
+        "instance": {
+            "id": os.getenv("FAB_INSTANCE_ID", "unisolated"),
+            "root": os.getenv("FAB_INSTANCE_ROOT", str(PROJECT_DIR)),
+        },
         "reference_data": {"knowledge_chunks": knowledge_chunks, "historical_cases": historical_cases},
         "enterprise": enterprise,
     }
@@ -308,7 +313,11 @@ def health() -> dict:
 
 @app.get("/api/version")
 def version() -> dict:
-    return {"version": APP_VERSION, "git_commit": GIT_COMMIT}
+    return {
+        "version": APP_VERSION,
+        "git_commit": GIT_COMMIT,
+        "instance_id": os.getenv("FAB_INSTANCE_ID", "unisolated"),
+    }
 
 
 @app.get("/api/enterprise/context")
