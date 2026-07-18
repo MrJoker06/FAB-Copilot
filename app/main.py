@@ -699,7 +699,7 @@ def rag_search(
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest) -> dict:
-    session_id, history, cached = _prepare_chat(request)
+    session_id, history, cached, user_message = _prepare_chat(request)
     if cached:
         cached["session_id"] = session_id
         cached["request_id"] = current_request_id()
@@ -713,7 +713,13 @@ async def chat(request: ChatRequest) -> dict:
         result["request_id"] = current_request_id()
         result["client_message_id"] = request.client_message_id
         message = append_message(session_id, "assistant", result["answer"], result)
-        record_agent_result(session_id, message["message_id"], result)
+        record_agent_result(
+            session_id,
+            message["message_id"],
+            result,
+            user_message_id=user_message["message_id"] if user_message else None,
+            question=request.message,
+        )
         finish_agent_run(principal, "success", str(result.get("run_id") or ""), str(result.get("model") or selected_model))
         return result
     except httpx.HTTPStatusError as exc:
@@ -791,7 +797,7 @@ def _stream_line(event_type: str, **payload) -> bytes:
     return (json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str) + "\n").encode("utf-8")
 
 
-def _prepare_chat(request: ChatRequest) -> tuple[str, list[dict], dict | None]:
+def _prepare_chat(request: ChatRequest) -> tuple[str, list[dict], dict | None, dict | None]:
     try:
         session = create_session(request.message[:50]) if not request.session_id else get_session(request.session_id)
     except ValueError as exc:
@@ -802,7 +808,7 @@ def _prepare_chat(request: ChatRequest) -> tuple[str, list[dict], dict | None]:
         raise http_problem(409, "IDEMPOTENCY_CONFLICT", "同一客户端消息编号不能用于不同内容", False)
     cached = cached_agent_result(session_id, request.client_message_id)
     if cached:
-        return session_id, [], cached
+        return session_id, [], cached, None
     history = session_history(session_id)
     user_message = append_message(
         session_id,
@@ -812,7 +818,7 @@ def _prepare_chat(request: ChatRequest) -> tuple[str, list[dict], dict | None]:
     )
     if user_message.get("duplicate") and history and history[-1].get("role") == "user" and history[-1].get("content") == request.message:
         history = history[:-1]
-    return session_id, history, None
+    return session_id, history, None, user_message
 
 
 def _model_status_error(exc: httpx.HTTPStatusError) -> tuple[str, bool]:
@@ -829,7 +835,7 @@ def _model_status_error(exc: httpx.HTTPStatusError) -> tuple[str, bool]:
 
 @app.post("/api/chat/stream")
 async def chat_stream(request: ChatRequest) -> StreamingResponse:
-    session_id, history, cached = _prepare_chat(request)
+    session_id, history, cached, user_message = _prepare_chat(request)
     principal = current_principal()
     selected_model = public_user_model_config(principal)["model"]
 
@@ -861,7 +867,13 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             result["request_id"] = current_request_id()
             result["client_message_id"] = request.client_message_id
             message = append_message(session_id, "assistant", result["answer"], result)
-            record_agent_result(session_id, message["message_id"], result)
+            record_agent_result(
+                session_id,
+                message["message_id"],
+                result,
+                user_message_id=user_message["message_id"] if user_message else None,
+                question=request.message,
+            )
             finish_agent_run(principal, "success", str(result.get("run_id") or ""), str(result.get("model") or selected_model))
             activity_finished = True
             yield _stream_line("result", result=result)

@@ -6,6 +6,7 @@ import io
 import json
 import os
 import shutil
+import sqlite3
 import tempfile
 import unittest
 from datetime import date, timedelta
@@ -70,7 +71,7 @@ class FabInsightTests(unittest.TestCase):
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("/static/app.js?v=20260718-1", page)
+        self.assertIn("/static/app.js?v=20260718-2", page)
         self.assertNotIn('id="monitorView"', page)
         self.assertNotIn('id="apiKeyInput"', page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")
@@ -96,12 +97,15 @@ class FabInsightTests(unittest.TestCase):
         ):
             self.assertIn(f'id="{element_id}"', response.text)
         self.assertIn('<div id="adminWorkspace" class="admin-workspace" hidden>', response.text)
-        self.assertIn("/static/admin.js?v=20260718-1", response.text)
+        self.assertIn("/static/admin.js?v=20260718-2", response.text)
         script = (Path(__file__).parents[1] / "app" / "static" / "admin.js").read_text(encoding="utf-8")
         self.assertIn("/api/admin/overview", script)
         self.assertIn("/api/admin/models", script)
         self.assertIn("$('#adminWorkspace').hidden = true", script)
         self.assertIn("$('#adminWorkspace').hidden = false", script)
+        self.assertIn("run.question_preview", script)
+        self.assertIn("run.session_id", script)
+        self.assertIn("问题 / Session", response.text)
 
     def test_seeded_cvd_drift_is_detectable(self):
         capability = process_capability(process_step="CVD")
@@ -181,6 +185,58 @@ class FabInsightTests(unittest.TestCase):
             self.assertEqual(sqlite_journal_mode(Path("/tmp/fab.db")), "WAL")
         with patch.dict(os.environ, {"FAB_SQLITE_JOURNAL_MODE": "TRUNCATE"}):
             self.assertEqual(sqlite_journal_mode(Path("/mnt/d/fab.db")), "TRUNCATE")
+
+    def test_agent_run_migration_backfills_question_and_user_message(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database_path = Path(directory) / "legacy-agent.db"
+            connection = sqlite3.connect(database_path)
+            connection.executescript(
+                """CREATE TABLE chat_sessions (
+                       session_id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL DEFAULT 'demo-fab',
+                       owner_user_id TEXT NOT NULL DEFAULT 'local-user', title TEXT NOT NULL,
+                       created_at TEXT NOT NULL, updated_at TEXT NOT NULL, model TEXT NOT NULL DEFAULT '',
+                       archived_at TEXT, last_message_preview TEXT NOT NULL DEFAULT ''
+                   );
+                   CREATE TABLE chat_messages (
+                       message_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                       session_id TEXT NOT NULL REFERENCES chat_sessions(session_id) ON DELETE CASCADE,
+                       role TEXT NOT NULL, content TEXT NOT NULL, metadata_json TEXT NOT NULL DEFAULT '{}',
+                       client_message_id TEXT, created_at TEXT NOT NULL
+                   );
+                   CREATE TABLE agent_runs (
+                       run_id TEXT PRIMARY KEY,
+                       session_id TEXT NOT NULL REFERENCES chat_sessions(session_id) ON DELETE CASCADE,
+                       assistant_message_id INTEGER REFERENCES chat_messages(message_id) ON DELETE SET NULL,
+                       model TEXT NOT NULL, mode TEXT NOT NULL, status TEXT NOT NULL,
+                       started_at TEXT NOT NULL, completed_at TEXT NOT NULL,
+                       first_token_ms REAL, duration_ms REAL,
+                       input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0,
+                       error_message TEXT
+                   );
+                   INSERT INTO chat_sessions(session_id, title, created_at, updated_at)
+                   VALUES ('legacy-session', '用户修改后的名称', '2026-07-17', '2026-07-17');
+                   INSERT INTO chat_messages(session_id, role, content, created_at)
+                   VALUES ('legacy-session', 'user', '分析 ETCH-04 最近三天故障', '2026-07-17T01:00:00Z');
+                   INSERT INTO chat_messages(session_id, role, content, created_at)
+                   VALUES ('legacy-session', 'assistant', '分析结果', '2026-07-17T01:01:00Z');
+                   INSERT INTO agent_runs(
+                       run_id, session_id, assistant_message_id, model, mode, status, started_at, completed_at
+                   ) VALUES ('legacy-run', 'legacy-session', 2, 'test-model', 'test', 'success',
+                             '2026-07-17T01:00:00Z', '2026-07-17T01:01:00Z');"""
+            )
+            connection.commit()
+            connection.close()
+
+            initialize(database_path)
+            connection = sqlite3.connect(database_path)
+            row = connection.execute(
+                "SELECT user_message_id, question_preview FROM agent_runs WHERE run_id = 'legacy-run'"
+            ).fetchone()
+            columns = {item[1] for item in connection.execute("PRAGMA table_info(agent_runs)")}
+            connection.close()
+
+        self.assertEqual(row, (1, "分析 ETCH-04 最近三天故障"))
+        self.assertTrue({"user_message_id", "question_preview"}.issubset(columns))
 
     def test_recent_excursions_supports_process_filter(self):
         rows = recent_excursions(process_step="CMP", limit=20)
@@ -948,6 +1004,12 @@ class FabInsightTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200, response.text)
             events = [json.loads(line) for line in response.text.splitlines() if line]
             session_id = next(item["session_id"] for item in events if item["type"] == "session")
+            renamed = client.patch(
+                f"/api/sessions/{session_id}",
+                headers=user_headers,
+                json={"title": "用户自定义的设备调查会话"},
+            )
+            self.assertEqual(renamed.status_code, 200, renamed.text)
             overview = client.get(
                 "/api/admin/overview?hours=24",
                 headers={"Authorization": f"Bearer {admin_token}"},
@@ -961,7 +1023,22 @@ class FabInsightTests(unittest.TestCase):
             self.assertEqual(user["active_runs"], 0)
             self.assertEqual(user["model"], "runtime-test-model")
             self.assertGreaterEqual(user["run_count"], 1)
-            self.assertTrue(any(item["run_id"] == "run-admin-runtime" for item in overview.json()["recent_runs"]))
+            recent_run = next(
+                item for item in overview.json()["recent_runs"]
+                if item["run_id"] == "run-admin-runtime"
+            )
+            self.assertEqual(recent_run["question_preview"], "检查运行状态")
+            self.assertEqual(recent_run["session_id"], session_id)
+            self.assertEqual(recent_run["session_title"], "用户自定义的设备调查会话")
+            self.assertIsInstance(recent_run["user_message_id"], int)
+            with db_session() as connection:
+                persisted = connection.execute(
+                    """SELECT r.question_preview, m.content, m.role
+                       FROM agent_runs r JOIN chat_messages m ON m.message_id = r.user_message_id
+                       WHERE r.run_id = ?""",
+                    ("run-admin-runtime",),
+                ).fetchone()
+            self.assertEqual(tuple(persisted), ("检查运行状态", "检查运行状态", "user"))
             client.delete(f"/api/sessions/{session_id}/permanent", headers=user_headers)
 
     def test_stream_retry_with_same_client_message_id_is_idempotent(self):

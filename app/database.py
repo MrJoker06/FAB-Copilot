@@ -247,7 +247,9 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE TABLE IF NOT EXISTS agent_runs (
     run_id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL REFERENCES chat_sessions(session_id) ON DELETE CASCADE,
+    user_message_id INTEGER REFERENCES chat_messages(message_id) ON DELETE SET NULL,
     assistant_message_id INTEGER REFERENCES chat_messages(message_id) ON DELETE SET NULL,
+    question_preview TEXT NOT NULL DEFAULT '',
     model TEXT NOT NULL,
     mode TEXT NOT NULL,
     status TEXT NOT NULL,
@@ -342,6 +344,39 @@ CHAT_SESSION_COLUMNS = {
 CHAT_MESSAGE_COLUMNS = {
     "client_message_id": "TEXT",
 }
+
+AGENT_RUN_COLUMNS = {
+    "user_message_id": "INTEGER REFERENCES chat_messages(message_id) ON DELETE SET NULL",
+    "question_preview": "TEXT NOT NULL DEFAULT ''",
+}
+
+
+def _migrate_agent_runs(connection: sqlite3.Connection) -> None:
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(agent_runs)")}
+    for name, definition in AGENT_RUN_COLUMNS.items():
+        if name not in columns:
+            connection.execute(f"ALTER TABLE agent_runs ADD COLUMN {name} {definition}")
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_agent_runs_user_message ON agent_runs(user_message_id)"
+    )
+    connection.execute(
+        """UPDATE agent_runs
+           SET user_message_id = (
+               SELECT m.message_id FROM chat_messages m
+               WHERE m.session_id = agent_runs.session_id AND m.role = 'user'
+                 AND (agent_runs.assistant_message_id IS NULL OR m.message_id < agent_runs.assistant_message_id)
+               ORDER BY m.message_id DESC LIMIT 1
+           )
+           WHERE user_message_id IS NULL"""
+    )
+    connection.execute(
+        """UPDATE agent_runs
+           SET question_preview = COALESCE((
+               SELECT substr(trim(replace(replace(m.content, char(10), ' '), char(13), ' ')), 1, 240)
+               FROM chat_messages m WHERE m.message_id = agent_runs.user_message_id
+           ), '')
+           WHERE question_preview = ''"""
+    )
 
 
 # Bootstrap data for a fresh database. Runtime matching reads the database tables,
@@ -451,6 +486,7 @@ def _initialize_legacy(path: Path) -> None:
         for name, definition in CHAT_MESSAGE_COLUMNS.items():
             if name not in message_columns:
                 connection.execute(f"ALTER TABLE chat_messages ADD COLUMN {name} {definition}")
+        _migrate_agent_runs(connection)
         connection.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_messages_client_id "
             "ON chat_messages(session_id, client_message_id) "
@@ -479,6 +515,7 @@ def _initialize_departments() -> None:
                 for name, definition in CHAT_MESSAGE_COLUMNS.items():
                     if name not in message_columns:
                         connection.execute(f"ALTER TABLE chat_messages ADD COLUMN {name} {definition}")
+                _migrate_agent_runs(connection)
                 connection.execute(
                     "CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_messages_client_id "
                     "ON chat_messages(session_id, client_message_id) "

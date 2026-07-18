@@ -319,7 +319,14 @@ def append_message(
     }
 
 
-def record_agent_result(session_id: str, assistant_message_id: int, result: dict) -> None:
+def record_agent_result(
+    session_id: str,
+    assistant_message_id: int,
+    result: dict,
+    *,
+    user_message_id: int | None = None,
+    question: str = "",
+) -> None:
     run_id = str(result.get("run_id") or "")
     if not run_id:
         return
@@ -335,14 +342,33 @@ def record_agent_result(session_id: str, assistant_message_id: int, result: dict
         ).fetchone()
         if owned is None:
             raise ValueError("会话不存在")
+        if user_message_id is None:
+            user_message = connection.execute(
+                """SELECT message_id, content FROM chat_messages
+                   WHERE session_id = ? AND role = 'user' AND message_id < ?
+                   ORDER BY message_id DESC LIMIT 1""",
+                (session_id, assistant_message_id),
+            ).fetchone()
+        else:
+            user_message = connection.execute(
+                """SELECT message_id, content FROM chat_messages
+                   WHERE message_id = ? AND session_id = ? AND role = 'user'""",
+                (user_message_id, session_id),
+            ).fetchone()
+            if user_message is None:
+                raise ValueError("Agent Run 对应的用户消息不存在")
+        resolved_user_message_id = user_message["message_id"] if user_message is not None else None
+        question_preview = " ".join((question or (user_message["content"] if user_message else "")).strip().split())[:240]
         connection.execute(
             """INSERT OR REPLACE INTO agent.agent_runs(
-                   run_id, session_id, assistant_message_id, model, mode, status,
+                   run_id, session_id, user_message_id, assistant_message_id, question_preview,
+                   model, mode, status,
                    started_at, completed_at, first_token_ms, duration_ms,
                    input_tokens, output_tokens, error_message
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                run_id, session_id, assistant_message_id, str(result.get("model") or ""),
+                run_id, session_id, resolved_user_message_id, assistant_message_id, question_preview,
+                str(result.get("model") or ""),
                 str(result.get("mode") or "unknown"), str(result.get("status") or "success"),
                 started_at, completed_at, result.get("first_token_ms"), result.get("duration_ms"),
                 int(usage.get("prompt_tokens", 0) or 0), int(usage.get("completion_tokens", 0) or 0),

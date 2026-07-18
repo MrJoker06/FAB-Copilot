@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 SCHEMA_METADATA = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -351,7 +351,9 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE TABLE IF NOT EXISTS agent_runs (
     run_id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL REFERENCES chat_sessions(session_id) ON DELETE CASCADE,
+    user_message_id INTEGER REFERENCES chat_messages(message_id) ON DELETE SET NULL,
     assistant_message_id INTEGER REFERENCES chat_messages(message_id) ON DELETE SET NULL,
+    question_preview TEXT NOT NULL DEFAULT '',
     model TEXT NOT NULL,
     mode TEXT NOT NULL,
     status TEXT NOT NULL,

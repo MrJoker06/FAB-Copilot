@@ -104,11 +104,14 @@ def admin_runtime_overview(hours: int = 24, recent_limit: int = 30) -> dict:
         ).fetchall()
         recent = connection.execute(
             """SELECT r.run_id, s.tenant_id, s.owner_user_id AS user_id,
-                      s.session_id, s.title AS session_title, r.model, r.mode, r.status,
+                      s.session_id, s.title AS session_title, r.user_message_id,
+                      COALESCE(NULLIF(r.question_preview, ''), substr(q.content, 1, 240), '') AS question_preview,
+                      r.model, r.mode, r.status,
                       r.started_at, r.completed_at, r.duration_ms,
                       r.input_tokens, r.output_tokens, r.error_message
                FROM agent_runs r
                JOIN chat_sessions s ON s.session_id = r.session_id
+               LEFT JOIN chat_messages q ON q.message_id = r.user_message_id
                WHERE r.completed_at >= ?
                ORDER BY r.completed_at DESC
                LIMIT ?""",

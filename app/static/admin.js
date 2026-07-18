@@ -69,6 +69,13 @@ function successRate(user) {
   return runs ? `${((Number(user.success_runs) || 0) * 100 / runs).toFixed(1)}%` : '—';
 }
 
+function runContext(run) {
+  const question = run.question_preview || '未记录该次问题';
+  const sessionTitle = run.session_title || '未命名会话';
+  const sessionId = run.session_id || 'unknown';
+  return `<div class="run-context-cell"><strong title="${escapeHtml(question)}">${escapeHtml(question)}</strong><span title="${escapeHtml(sessionTitle)}">会话：${escapeHtml(sessionTitle)}</span><code title="Session ID">${escapeHtml(sessionId)}</code></div>`;
+}
+
 function renderOverview(data) {
   const summary = data.summary || {};
   const agent = data.agent || {};
@@ -82,7 +89,7 @@ function renderOverview(data) {
   ];
   $('#runtimeKpis').innerHTML = kpis.map(([label, value, meta]) => `<div class="admin-kpi"><span>${escapeHtml(label)}</span><strong>${formatNumber(value)}</strong><small>${escapeHtml(meta)}</small></div>`).join('');
   $('#userStatusBody').innerHTML = (data.users || []).map(user => `<tr><td><div class="identity-cell"><strong>${escapeHtml(user.tenant_id)} / ${escapeHtml(user.user_id)}</strong><span>${escapeHtml(user.question_preview || user.session_id || '')}</span></div></td><td>${statusChip(user.status)}</td><td>${escapeHtml(user.model || '—')}</td><td>${formatNumber(user.session_count)}</td><td>${formatNumber(user.run_count)}</td><td>${successRate(user)}</td><td>${formatNumber((Number(user.input_tokens)||0) + (Number(user.output_tokens)||0))}</td><td>${formatDate(user.last_seen_at)}</td></tr>`).join('') || '<tr><td class="empty-row" colspan="8">当前窗口没有用户活动</td></tr>';
-  $('#recentAdminRuns').innerHTML = (data.recent_runs || []).map(run => `<tr><td>${formatDate(run.completed_at)}</td><td><div class="identity-cell"><strong>${escapeHtml(run.tenant_id)} / ${escapeHtml(run.user_id)}</strong><span>${escapeHtml(run.run_id)}</span></div></td><td>${escapeHtml(run.session_title || run.session_id)}</td><td>${escapeHtml(run.model || '—')}</td><td>${statusChip(run.status)}</td><td>${run.duration_ms == null ? '—' : `${formatNumber(Math.round(run.duration_ms))} ms`}</td><td>${formatNumber((Number(run.input_tokens)||0) + (Number(run.output_tokens)||0))}</td></tr>`).join('') || '<tr><td class="empty-row" colspan="7">当前窗口没有运行记录</td></tr>';
+  $('#recentAdminRuns').innerHTML = (data.recent_runs || []).map(run => `<tr><td>${formatDate(run.completed_at)}</td><td><div class="identity-cell"><strong>${escapeHtml(run.tenant_id)} / ${escapeHtml(run.user_id)}</strong><span>${escapeHtml(run.run_id)}</span></div></td><td>${runContext(run)}</td><td>${escapeHtml(run.model || '—')}</td><td>${statusChip(run.status)}</td><td>${run.duration_ms == null ? '—' : `${formatNumber(Math.round(run.duration_ms))} ms`}</td><td>${formatNumber((Number(run.input_tokens)||0) + (Number(run.output_tokens)||0))}</td></tr>`).join('') || '<tr><td class="empty-row" colspan="7">当前窗口没有运行记录</td></tr>';
   $('#runtimeWindow').textContent = `最近 ${data.window_hours} 小时 · 10 秒刷新`;
   $('#runtimeUpdated').textContent = `更新于 ${new Date(data.generated_at).toLocaleTimeString('zh-CN',{hour12:false})}`;
   $('#adminBuild').textContent = `${data.build?.version || 'unknown'} · ${data.build?.git_commit || ''}`;
