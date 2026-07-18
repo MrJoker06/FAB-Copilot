@@ -122,7 +122,9 @@ _LOT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _EXPLICIT_DATE_PATTERN = re.compile(r"(?<!\d)(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})日?(?!\d)")
-_RELATIVE_RANGE_PATTERN = re.compile(r"(?:最近|近|过去)\s*(\d{1,3})\s*(天|日|周|星期|个月|月)")
+_RELATIVE_RANGE_PATTERN = re.compile(
+    r"(?:最近|近|过去)\s*(\d{1,3}|[一二三四五六七八九十两]{1,3})\s*(天|日|周|星期|个月|月)"
+)
 _CONJUNCTION_PATTERN = re.compile(r"(?:和|与|以及|同时|并且|、|\band\b)", re.IGNORECASE)
 
 
@@ -193,6 +195,16 @@ def _parse_explicit_dates(question: str) -> tuple[date, ...]:
     return tuple(parsed)
 
 
+def _range_amount(value: str) -> int:
+    if value.isdigit():
+        return max(1, int(value))
+    digits = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+    if "十" not in value:
+        return max(1, digits.get(value, 1))
+    tens, _, ones = value.partition("十")
+    return max(1, (digits.get(tens, 1) * 10) + digits.get(ones, 0))
+
+
 def _time_range(question: str, current_date: date) -> RoutedTimeRange:
     explicit_dates = _parse_explicit_dates(question)
     if explicit_dates:
@@ -202,7 +214,7 @@ def _time_range(question: str, current_date: date) -> RoutedTimeRange:
 
     match = _RELATIVE_RANGE_PATTERN.search(question)
     if match:
-        amount = max(1, int(match.group(1)))
+        amount = _range_amount(match.group(1))
         unit = match.group(2)
         days = amount if unit in {"天", "日"} else amount * (7 if unit in {"周", "星期"} else 30)
         start = current_date - timedelta(days=days - 1)

@@ -66,6 +66,10 @@ class IntentRouterTests(unittest.TestCase):
         self.assertEqual(route.time_range.end, "2026-07-18")
         self.assertEqual(route.time_range.source, "relative")
 
+        chinese_amount = route_question("最近四周良率下降", current_date=date(2026, 7, 18))
+        self.assertEqual(chinese_amount.time_range.start, "2026-06-21")
+        self.assertEqual(chinese_amount.time_range.end, "2026-07-18")
+
     def test_marks_close_conjoined_intents_as_ambiguous(self):
         route = route_question("比较设备健康和良率趋势", current_date=date(2026, 7, 18))
 
