@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 SCHEMA_METADATA = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -376,6 +376,54 @@ CREATE TABLE IF NOT EXISTS agent_tool_events (
     row_count INTEGER,
     duration_ms REAL,
     error_message TEXT,
+    plan_step_id TEXT,
+    started_at TEXT,
+    completed_at TEXT,
+    UNIQUE(run_id, sequence_no)
+);
+
+CREATE TABLE IF NOT EXISTS agent_execution_plans (
+    run_id TEXT PRIMARY KEY REFERENCES agent_runs(run_id) ON DELETE CASCADE,
+    plan_id TEXT NOT NULL,
+    schema_version TEXT NOT NULL,
+    planner_version TEXT NOT NULL,
+    definition_status TEXT NOT NULL,
+    execution_status TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
+    route_intent TEXT NOT NULL DEFAULT 'unknown',
+    playbook_id TEXT,
+    playbook_version TEXT,
+    required_evidence_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(required_evidence_json)),
+    budget_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(budget_json)),
+    missing_inputs_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(missing_inputs_json)),
+    clarification_questions_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(clarification_questions_json)),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    completed_at TEXT,
+    interruption_reason TEXT
+);
+
+CREATE TABLE IF NOT EXISTS agent_plan_steps (
+    run_id TEXT NOT NULL REFERENCES agent_execution_plans(run_id) ON DELETE CASCADE,
+    step_id TEXT NOT NULL,
+    sequence_no INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    tool_name TEXT NOT NULL,
+    parameters_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(parameters_json)),
+    parameter_sources_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(parameter_sources_json)),
+    evidence_ids_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(evidence_ids_json)),
+    depends_on_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(depends_on_json)),
+    required INTEGER NOT NULL DEFAULT 0 CHECK(required IN (0, 1)),
+    success_criteria_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(success_criteria_json)),
+    estimated_result_limit INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    row_count INTEGER,
+    duration_ms REAL,
+    error_message TEXT,
+    started_at TEXT,
+    completed_at TEXT,
+    PRIMARY KEY(run_id, step_id),
     UNIQUE(run_id, sequence_no)
 );
 
@@ -398,6 +446,9 @@ CREATE INDEX IF NOT EXISTS idx_chat_sessions_owner_updated ON chat_sessions(tena
 CREATE INDEX IF NOT EXISTS idx_agent_runs_session ON agent_runs(session_id, completed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_runs_message ON agent_runs(assistant_message_id);
 CREATE INDEX IF NOT EXISTS idx_tool_events_run ON agent_tool_events(run_id, sequence_no);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_tool_events_sequence ON agent_tool_events(run_id, sequence_no);
+CREATE INDEX IF NOT EXISTS idx_execution_plans_status ON agent_execution_plans(execution_status, updated_at);
+CREATE INDEX IF NOT EXISTS idx_plan_steps_run_status ON agent_plan_steps(run_id, status, sequence_no);
 CREATE INDEX IF NOT EXISTS idx_message_sources_message ON message_sources(message_id);
 """
 
@@ -433,6 +484,8 @@ TABLE_DEPARTMENTS = {
     "chat_messages": "agent",
     "agent_runs": "agent",
     "agent_tool_events": "agent",
+    "agent_execution_plans": "agent",
+    "agent_plan_steps": "agent",
     "message_sources": "agent",
 }
 

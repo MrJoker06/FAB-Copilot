@@ -21,6 +21,7 @@ from .audit import CONTENT_MODE, GIT_COMMIT, current_request_id, emit, monitorin
 from .config import APP_VERSION, PROJECT_DIR, get_settings
 from .database import db_session, department_paths, ensure_department_databases
 from .enterprise_data import EnterpriseDataError, get_enterprise_provider
+from .execution_store import RunExecutionRecorder, get_run_audit, recover_interrupted_executions
 from .identity import PrincipalContextMiddleware, current_principal
 from .model_registry import (
     ensure_model_catalog,
@@ -79,6 +80,7 @@ from .sessions import (
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     ensure_department_databases()
+    recover_interrupted_executions()
     ensure_model_catalog()
     with db_session() as connection:
         populated_steps = {
@@ -706,9 +708,20 @@ async def chat(request: ChatRequest) -> dict:
         return cached
     principal = current_principal()
     selected_model = public_user_model_config(principal)["model"]
+    recorder = RunExecutionRecorder(
+        session_id,
+        user_message["message_id"] if user_message else None,
+        request.message,
+        selected_model,
+    )
     begin_agent_run(principal, session_id, request.message, selected_model)
     try:
-        result = await run_agent(request.message, history or [item.model_dump() for item in request.history])
+        result = await run_agent(
+            request.message,
+            history or [item.model_dump() for item in request.history],
+            recorder.observe,
+        )
+        recorder.complete(result)
         result["session_id"] = session_id
         result["request_id"] = current_request_id()
         result["client_message_id"] = request.client_message_id
@@ -723,13 +736,16 @@ async def chat(request: ChatRequest) -> dict:
         finish_agent_run(principal, "success", str(result.get("run_id") or ""), str(result.get("model") or selected_model))
         return result
     except httpx.HTTPStatusError as exc:
+        recorder.fail(str(exc))
         finish_agent_run(principal, "error", model=selected_model, error=str(exc))
         detail, retryable = _model_status_error(exc)
         raise http_problem(502, "MODEL_UPSTREAM_ERROR", detail, retryable) from exc
     except httpx.RequestError as exc:
+        recorder.fail(str(exc))
         finish_agent_run(principal, "error", model=selected_model, error=str(exc))
         raise http_problem(502, "MODEL_NETWORK_ERROR", f"无法连接 DeepSeek API: {exc}", True) from exc
     except Exception as exc:
+        recorder.fail(str(exc))
         finish_agent_run(principal, "error", model=selected_model, error=str(exc))
         raise
 
@@ -793,6 +809,14 @@ def read_session(session_id: str) -> dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@app.get("/api/agent-runs/{run_id}/audit")
+def read_agent_run_audit(run_id: str) -> dict:
+    try:
+        return get_run_audit(run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 def _stream_line(event_type: str, **payload) -> bytes:
     return (json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str) + "\n").encode("utf-8")
 
@@ -838,6 +862,12 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
     session_id, history, cached, user_message = _prepare_chat(request)
     principal = current_principal()
     selected_model = public_user_model_config(principal)["model"]
+    recorder = RunExecutionRecorder(
+        session_id,
+        user_message["message_id"] if user_message else None,
+        request.message,
+        selected_model,
+    )
 
     async def event_stream():
         yield _stream_line("session", session_id=session_id)
@@ -851,6 +881,7 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
         queue: asyncio.Queue[dict] = asyncio.Queue()
 
         async def progress(event: dict) -> None:
+            await recorder.observe(event)
             await queue.put(event)
             await asyncio.sleep(0)
 
@@ -863,6 +894,7 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                     continue
                 yield _stream_line("progress", **event)
             result = await task
+            recorder.complete(result)
             result["session_id"] = session_id
             result["request_id"] = current_request_id()
             result["client_message_id"] = request.client_message_id
@@ -879,10 +911,12 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             yield _stream_line("result", result=result)
         except asyncio.CancelledError:
             task.cancel()
+            recorder.fail("客户端已断开连接", interrupted=True)
             finish_agent_run(principal, "error", model=selected_model, error="客户端已断开连接")
             activity_finished = True
             raise
         except httpx.HTTPStatusError as exc:
+            recorder.fail(str(exc))
             finish_agent_run(principal, "error", model=selected_model, error=str(exc))
             activity_finished = True
             detail, retryable = _model_status_error(exc)
@@ -890,12 +924,14 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             emit("api_stream_error", current_request_id() or session_id, status="error", error_type="MODEL_UPSTREAM_ERROR", session_id=session_id, retryable=retryable)
             yield _stream_line("error", detail=detail, error=problem)
         except httpx.RequestError as exc:
+            recorder.fail(str(exc))
             finish_agent_run(principal, "error", model=selected_model, error=str(exc))
             activity_finished = True
             detail = f"无法连接 DeepSeek API: {exc}"
             emit("api_stream_error", current_request_id() or session_id, status="error", error_type="MODEL_NETWORK_ERROR", session_id=session_id, retryable=True)
             yield _stream_line("error", detail=detail, error=error_payload("MODEL_NETWORK_ERROR", detail, True))
         except Exception as exc:
+            recorder.fail(str(exc))
             finish_agent_run(principal, "error", model=selected_model, error=str(exc))
             activity_finished = True
             detail = f"分析失败: {exc}"

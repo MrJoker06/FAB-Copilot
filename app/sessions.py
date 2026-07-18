@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime, timezone
 
 from .database import db_session
+from .execution_store import executions_for_session
 from .identity import current_principal
 
 
@@ -48,6 +49,7 @@ def get_session(session_id: str) -> dict:
                FROM chat_messages WHERE session_id = ? ORDER BY message_id""",
             (session_id,),
         ).fetchall()
+        executions = executions_for_session(connection, session_id)
     messages = []
     for row in rows:
         item = dict(row)
@@ -55,6 +57,8 @@ def get_session(session_id: str) -> dict:
             item["metadata"] = json.loads(item.pop("metadata_json") or "{}")
         except json.JSONDecodeError:
             item["metadata"] = {}
+        if item["role"] == "assistant" and item["message_id"] in executions:
+            item["metadata"]["execution"] = executions[item["message_id"]]
         messages.append(item)
     result = dict(session)
     result["messages"] = messages
@@ -331,7 +335,7 @@ def record_agent_result(
     if not run_id:
         return
     completed_at = str(result.get("completed_at") or _now())
-    started_at = str(result.get("started_at") or completed_at)
+    result_started_at = result.get("started_at")
     usage = result.get("usage") or {}
     tenant_id, owner_user_id = _scope()
     with db_session() as connection:
@@ -342,6 +346,15 @@ def record_agent_result(
         ).fetchone()
         if owned is None:
             raise ValueError("会话不存在")
+        existing_run = connection.execute(
+            "SELECT started_at FROM agent_runs WHERE run_id = ?",
+            (run_id,),
+        ).fetchone()
+        started_at = str(
+            result_started_at
+            or (existing_run["started_at"] if existing_run is not None else "")
+            or completed_at
+        )
         if user_message_id is None:
             user_message = connection.execute(
                 """SELECT message_id, content FROM chat_messages
@@ -360,12 +373,27 @@ def record_agent_result(
         resolved_user_message_id = user_message["message_id"] if user_message is not None else None
         question_preview = " ".join((question or (user_message["content"] if user_message else "")).strip().split())[:240]
         connection.execute(
-            """INSERT OR REPLACE INTO agent.agent_runs(
+            """INSERT INTO agent.agent_runs(
                    run_id, session_id, user_message_id, assistant_message_id, question_preview,
                    model, mode, status,
                    started_at, completed_at, first_token_ms, duration_ms,
                    input_tokens, output_tokens, error_message
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(run_id) DO UPDATE SET
+                   session_id = excluded.session_id,
+                   user_message_id = excluded.user_message_id,
+                   assistant_message_id = excluded.assistant_message_id,
+                   question_preview = excluded.question_preview,
+                   model = CASE WHEN excluded.model = '' THEN agent_runs.model ELSE excluded.model END,
+                   mode = excluded.mode,
+                   status = excluded.status,
+                   started_at = excluded.started_at,
+                   completed_at = excluded.completed_at,
+                   first_token_ms = excluded.first_token_ms,
+                   duration_ms = excluded.duration_ms,
+                   input_tokens = excluded.input_tokens,
+                   output_tokens = excluded.output_tokens,
+                   error_message = excluded.error_message""",
             (
                 run_id, session_id, resolved_user_message_id, assistant_message_id, question_preview,
                 str(result.get("model") or ""),
@@ -375,20 +403,32 @@ def record_agent_result(
                 result.get("error_message"),
             ),
         )
-        connection.execute("DELETE FROM agent.agent_tool_events WHERE run_id = ?", (run_id,))
-        for sequence_no, item in enumerate(result.get("tool_trace") or [], start=1):
+        trace = result.get("tool_trace") or []
+        for sequence_no, item in enumerate(trace, start=1):
             connection.execute(
                 """INSERT INTO agent.agent_tool_events(
                        run_id, sequence_no, tool_name, arguments_json, status,
-                       row_count, duration_ms, error_message
-                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                       row_count, duration_ms, error_message, completed_at
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(run_id, sequence_no) DO UPDATE SET
+                       tool_name = excluded.tool_name,
+                       arguments_json = excluded.arguments_json,
+                       status = excluded.status,
+                       row_count = excluded.row_count,
+                       duration_ms = excluded.duration_ms,
+                       error_message = excluded.error_message,
+                       completed_at = COALESCE(agent_tool_events.completed_at, excluded.completed_at)""",
                 (
                     run_id, sequence_no, str(item.get("tool") or "unknown"),
                     json.dumps(item.get("arguments") or {}, ensure_ascii=False, default=str),
                     str(item.get("status") or "unknown"), item.get("rows"),
-                    item.get("duration_ms"), item.get("error"),
+                    item.get("duration_ms"), item.get("error"), completed_at,
                 ),
             )
+        connection.execute(
+            "DELETE FROM agent.agent_tool_events WHERE run_id = ? AND sequence_no > ?",
+            (run_id, len(trace)),
+        )
         connection.execute("DELETE FROM agent.message_sources WHERE message_id = ?", (assistant_message_id,))
         for source in result.get("sources") or []:
             locator = str(source.get("case_id") or source.get("chunk_id") or source.get("source") or "")

@@ -271,7 +271,54 @@ CREATE TABLE IF NOT EXISTS agent_tool_events (
     status TEXT NOT NULL,
     row_count INTEGER,
     duration_ms REAL,
-    error_message TEXT
+    error_message TEXT,
+    plan_step_id TEXT,
+    started_at TEXT,
+    completed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS agent_execution_plans (
+    run_id TEXT PRIMARY KEY REFERENCES agent_runs(run_id) ON DELETE CASCADE,
+    plan_id TEXT NOT NULL,
+    schema_version TEXT NOT NULL,
+    planner_version TEXT NOT NULL,
+    definition_status TEXT NOT NULL,
+    execution_status TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
+    route_intent TEXT NOT NULL DEFAULT 'unknown',
+    playbook_id TEXT,
+    playbook_version TEXT,
+    required_evidence_json TEXT NOT NULL DEFAULT '[]',
+    budget_json TEXT NOT NULL DEFAULT '{}',
+    missing_inputs_json TEXT NOT NULL DEFAULT '[]',
+    clarification_questions_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    completed_at TEXT,
+    interruption_reason TEXT
+);
+
+CREATE TABLE IF NOT EXISTS agent_plan_steps (
+    run_id TEXT NOT NULL REFERENCES agent_execution_plans(run_id) ON DELETE CASCADE,
+    step_id TEXT NOT NULL,
+    sequence_no INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    tool_name TEXT NOT NULL,
+    parameters_json TEXT NOT NULL DEFAULT '{}',
+    parameter_sources_json TEXT NOT NULL DEFAULT '{}',
+    evidence_ids_json TEXT NOT NULL DEFAULT '[]',
+    depends_on_json TEXT NOT NULL DEFAULT '[]',
+    required INTEGER NOT NULL DEFAULT 0,
+    success_criteria_json TEXT NOT NULL DEFAULT '[]',
+    estimated_result_limit INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    row_count INTEGER,
+    duration_ms REAL,
+    error_message TEXT,
+    started_at TEXT,
+    completed_at TEXT,
+    PRIMARY KEY(run_id, step_id)
 );
 
 CREATE TABLE IF NOT EXISTS message_sources (
@@ -304,6 +351,9 @@ CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated ON chat_sessions(updated_at
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_owner_updated ON chat_sessions(tenant_id, owner_user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_runs_session ON agent_runs(session_id, completed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tool_events_run ON agent_tool_events(run_id, sequence_no);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_tool_events_sequence ON agent_tool_events(run_id, sequence_no);
+CREATE INDEX IF NOT EXISTS idx_execution_plans_status ON agent_execution_plans(execution_status, updated_at);
+CREATE INDEX IF NOT EXISTS idx_plan_steps_run_status ON agent_plan_steps(run_id, status, sequence_no);
 CREATE INDEX IF NOT EXISTS idx_message_sources_message ON message_sources(message_id);
 """
 
@@ -350,6 +400,12 @@ AGENT_RUN_COLUMNS = {
     "question_preview": "TEXT NOT NULL DEFAULT ''",
 }
 
+AGENT_TOOL_EVENT_COLUMNS = {
+    "plan_step_id": "TEXT",
+    "started_at": "TEXT",
+    "completed_at": "TEXT",
+}
+
 
 def _migrate_agent_runs(connection: sqlite3.Connection) -> None:
     columns = {row[1] for row in connection.execute("PRAGMA table_info(agent_runs)")}
@@ -376,6 +432,17 @@ def _migrate_agent_runs(connection: sqlite3.Connection) -> None:
                FROM chat_messages m WHERE m.message_id = agent_runs.user_message_id
            ), '')
            WHERE question_preview = ''"""
+    )
+
+
+def _migrate_agent_tool_events(connection: sqlite3.Connection) -> None:
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(agent_tool_events)")}
+    for name, definition in AGENT_TOOL_EVENT_COLUMNS.items():
+        if name not in columns:
+            connection.execute(f"ALTER TABLE agent_tool_events ADD COLUMN {name} {definition}")
+    connection.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_tool_events_sequence "
+        "ON agent_tool_events(run_id, sequence_no)"
     )
 
 
@@ -487,6 +554,7 @@ def _initialize_legacy(path: Path) -> None:
             if name not in message_columns:
                 connection.execute(f"ALTER TABLE chat_messages ADD COLUMN {name} {definition}")
         _migrate_agent_runs(connection)
+        _migrate_agent_tool_events(connection)
         connection.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_messages_client_id "
             "ON chat_messages(session_id, client_message_id) "
@@ -516,6 +584,7 @@ def _initialize_departments() -> None:
                     if name not in message_columns:
                         connection.execute(f"ALTER TABLE chat_messages ADD COLUMN {name} {definition}")
                 _migrate_agent_runs(connection)
+                _migrate_agent_tool_events(connection)
                 connection.execute(
                     "CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_messages_client_id "
                     "ON chat_messages(session_id, client_message_id) "

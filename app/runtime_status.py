@@ -91,7 +91,7 @@ def admin_runtime_overview(hours: int = 24, recent_limit: int = 30) -> dict:
                       MAX(s.updated_at) AS last_session_at,
                       COUNT(r.run_id) AS run_count,
                       SUM(CASE WHEN r.status = 'success' THEN 1 ELSE 0 END) AS success_runs,
-                      SUM(CASE WHEN r.status <> 'success' THEN 1 ELSE 0 END) AS failed_runs,
+                      SUM(CASE WHEN r.status IN ('error', 'interrupted') THEN 1 ELSE 0 END) AS failed_runs,
                       ROUND(AVG(r.duration_ms), 1) AS avg_duration_ms,
                       COALESCE(SUM(r.input_tokens), 0) AS input_tokens,
                       COALESCE(SUM(r.output_tokens), 0) AS output_tokens,

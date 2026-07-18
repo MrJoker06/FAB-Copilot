@@ -35,6 +35,12 @@ from app.database import (
     replace_defect_type_aliases,
     sqlite_journal_mode,
 )
+from app.execution_store import (
+    persist_execution_plan,
+    recover_interrupted_executions,
+    start_run_record,
+    start_tool_event,
+)
 from app.main import app
 from app.processes import MANUFACTURING_STEPS
 from app.rag import _infer_filters, search_knowledge
@@ -177,7 +183,13 @@ class FabInsightTests(unittest.TestCase):
         self.assertTrue(all(path.exists() for path in paths.values()))
         with db_session() as connection:
             attached = {row[1] for row in connection.execute("PRAGMA database_list")}
+            plan_columns = {row[1] for row in connection.execute("PRAGMA agent.table_info(agent_execution_plans)")}
+            step_columns = {row[1] for row in connection.execute("PRAGMA agent.table_info(agent_plan_steps)")}
+            tool_columns = {row[1] for row in connection.execute("PRAGMA agent.table_info(agent_tool_events)")}
         self.assertTrue({"main", "equipment", "quality", "knowledge", "agent"}.issubset(attached))
+        self.assertTrue({"plan_id", "definition_status", "execution_status"}.issubset(plan_columns))
+        self.assertTrue({"step_id", "status", "attempt_count"}.issubset(step_columns))
+        self.assertTrue({"plan_step_id", "started_at", "completed_at"}.issubset(tool_columns))
 
     def test_sqlite_journal_mode_is_safe_for_wsl_mounted_databases(self):
         with patch.dict(os.environ, {"FAB_SQLITE_JOURNAL_MODE": "auto"}):
@@ -947,9 +959,36 @@ class FabInsightTests(unittest.TestCase):
             client.delete(f"/api/sessions/{untouched['session_id']}/permanent")
 
     def test_streaming_chat_emits_progress_before_result_and_persists(self):
+        plan = {
+            "plan_id": "plan-stream-test",
+            "schema_version": "1.0",
+            "planner_version": "1.0.0",
+            "status": "ready",
+            "reason": "测试计划",
+            "route_intent": "capability_excursion",
+            "playbook_id": "PB-CAPABILITY-001",
+            "playbook_version": "1.0.0",
+            "required_evidence_ids": ["CAP-01"],
+            "budget": {"planned_tool_calls": 1, "max_tool_calls": 2},
+            "missing_inputs": [],
+            "clarification_questions": [],
+            "steps": [{
+                "step_id": "S01",
+                "title": "制程能力",
+                "tool": "get_process_capability",
+                "parameters": {"process_step": "CMP"},
+                "parameter_sources": {"process_step": "intent_route.process_steps[0]"},
+                "evidence_ids": ["CAP-01"],
+                "depends_on": [],
+                "required": True,
+                "success_criteria": ["返回设备能力指标"],
+                "estimated_result_limit": 100,
+            }],
+        }
+
         async def fake_agent(question, history, progress=None):
             await progress({"event": "run_started", "run_id": "run-test", "message": "分析任务已创建"})
-            await progress({"event": "stage", "stage": "planning", "message": "正在规划分析路径"})
+            await progress({"event": "stage", "stage": "plan", "message": "执行计划已生成", "plan": plan})
             await progress({"event": "tool_started", "tool": "get_process_capability", "arguments": {"process_step": "CMP"}})
             await progress({"event": "tool_finished", "tool": "get_process_capability", "arguments": {"process_step": "CMP"}, "status": "ok", "rows": 3})
             await progress({"event": "stage", "stage": "synthesis", "message": "正在汇总结论"})
@@ -978,7 +1017,70 @@ class FabInsightTests(unittest.TestCase):
             restored = client.get(f"/api/sessions/{created['session_id']}").json()
             self.assertEqual([item["role"] for item in restored["messages"]], ["user", "assistant"])
             self.assertEqual(restored["messages"][1]["metadata"]["run_id"], "run-test")
+            execution = restored["messages"][1]["metadata"]["execution"]
+            self.assertEqual(execution["execution_status"], "completed")
+            self.assertEqual(execution["steps"][0]["status"], "succeeded")
+            progress_tools = [item for item in events if item.get("event") in {"tool_started", "tool_finished"}]
+            self.assertEqual({item.get("step_id") for item in progress_tools}, {"S01"})
+            audit = client.get("/api/agent-runs/run-test/audit")
+            self.assertEqual(audit.status_code, 200, audit.text)
+            self.assertEqual(audit.json()["tool_events"][0]["plan_step_id"], "S01")
+            self.assertTrue(audit.json()["tool_events"][0]["started_at"])
+            timeline = audit.json()["timeline"]
+            self.assertEqual([item["replay_sequence"] for item in timeline], list(range(1, len(timeline) + 1)))
+            self.assertEqual(timeline[0]["event"], "run_started")
+            self.assertEqual(timeline[-1]["event"], "run_finished")
+            self.assertTrue({"plan_created", "step_started", "tool_finished", "step_finished"}.issubset(
+                {item["event"] for item in timeline}
+            ))
+            denied = client.get(
+                "/api/agent-runs/run-test/audit",
+                headers={"X-Tenant-ID": "demo-fab", "X-User-ID": "other-user"},
+            )
+            self.assertEqual(denied.status_code, 404)
             client.delete(f"/api/sessions/{created['session_id']}")
+
+    def test_interrupted_plan_is_recovered_with_resume_boundary(self):
+        with TestClient(app) as client:
+            session = client.post("/api/sessions").json()
+            user_message = append_message(session["session_id"], "user", "分析 CMP 中断恢复")
+            run_id = "run-interruption-recovery-test"
+            start_run_record(run_id, session["session_id"], user_message["message_id"], "分析 CMP 中断恢复", "test-model")
+            persist_execution_plan(run_id, {
+                "plan_id": "plan-interruption-recovery-test",
+                "schema_version": "1.0",
+                "planner_version": "1.0.0",
+                "status": "ready",
+                "route_intent": "capability_excursion",
+                "required_evidence_ids": ["CAP-01", "CAP-02"],
+                "steps": [
+                    {
+                        "step_id": "S01", "title": "能力", "tool": "get_process_capability",
+                        "parameters": {"process_step": "CMP"}, "evidence_ids": ["CAP-01"],
+                        "required": True,
+                    },
+                    {
+                        "step_id": "S02", "title": "异常", "tool": "get_recent_excursions",
+                        "parameters": {"process_step": "CMP"}, "evidence_ids": ["CAP-02"],
+                        "depends_on": ["S01"], "required": True,
+                    },
+                ],
+            })
+            start_tool_event(run_id, "get_process_capability", {"process_step": "CMP"})
+
+            recovered = recover_interrupted_executions("测试进程重启")
+            self.assertGreaterEqual(recovered, 1)
+            audit = client.get(f"/api/agent-runs/{run_id}/audit")
+            self.assertEqual(audit.status_code, 200, audit.text)
+            payload = audit.json()
+            self.assertEqual(payload["run"]["status"], "interrupted")
+            self.assertEqual(payload["execution"]["execution_status"], "interrupted")
+            self.assertEqual(payload["execution"]["steps"][0]["status"], "interrupted")
+            self.assertEqual(payload["execution"]["steps"][1]["status"], "pending")
+            self.assertTrue(payload["execution"]["recovery"]["resumable"])
+            self.assertEqual(payload["execution"]["recovery"]["resume_from_step_ids"], ["S01", "S02"])
+            self.assertEqual(payload["tool_events"][0]["status"], "interrupted")
+            client.delete(f"/api/sessions/{session['session_id']}/permanent")
 
     def test_admin_overview_tracks_user_agent_runtime(self):
         async def fake_agent(question, history, progress=None):

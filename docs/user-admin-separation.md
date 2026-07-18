@@ -54,6 +54,8 @@ GET   /api/monitor/events
 
 管理端把内存实时状态与 AI 运营库中的会话、Agent Runs、耗时和 Token 统计合并。进程重启后实时状态会清空，但已完成运行仍可从数据库恢复；生产多实例部署时应把实时状态迁移到 Redis 或事件流。
 
+用户侧 Run 在开始时先写入占位记录，执行计划、步骤和工具状态随后实时更新。异常退出遗留的运行会在下次启动时收口为 `interrupted`，已完成步骤不会丢失，审计读取会返回 `resume_from_step_ids` 作为恢复边界。`GET /api/agent-runs/{run_id}/audit` 仅允许 Run 所属租户和用户访问，并返回按 `replay_sequence` 排序的 Run、Plan、Step 和 Tool 时间线。
+
 最近运行以该 Run 对应的用户问题作为主标识，同时展示用户可编辑的会话标题和完整 `session_id`。`agent_runs.user_message_id` 显式关联触发运行的用户消息，`question_preview` 保存后台列表摘要；用户重命名历史会话只更新 `chat_sessions.title`，不会改变历史 Run 的问题或归属关系。旧数据库升级时会根据同一 Session 中位于回答之前的最近用户消息自动回填这两个字段。
 
 ## 5. 任务跟踪
