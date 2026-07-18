@@ -77,7 +77,7 @@ class FabInsightTests(unittest.TestCase):
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("/static/app.js?v=20260718-2", page)
+        self.assertIn("/static/app.js?v=20260718-3", page)
         self.assertNotIn('id="monitorView"', page)
         self.assertNotIn('id="apiKeyInput"', page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")
@@ -106,7 +106,7 @@ class FabInsightTests(unittest.TestCase):
         ):
             self.assertIn(f'id="{element_id}"', response.text)
         self.assertIn('<div id="adminWorkspace" class="admin-workspace" hidden>', response.text)
-        self.assertIn("/static/admin.js?v=20260718-2", response.text)
+        self.assertIn("/static/admin.js?v=20260718-3", response.text)
         script = (Path(__file__).parents[1] / "app" / "static" / "admin.js").read_text(encoding="utf-8")
         self.assertIn("/api/admin/overview", script)
         self.assertIn("/api/admin/models", script)
