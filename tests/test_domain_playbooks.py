@@ -12,10 +12,10 @@ from app.intent_router import route_question
 
 
 class DomainPlaybookTests(unittest.TestCase):
-    def test_registry_contains_five_versioned_playbooks(self):
+    def test_registry_contains_six_versioned_playbooks(self):
         self.assertEqual(
             set(DOMAIN_PLAYBOOKS),
-            {"capability_excursion", "yield_decline", "equipment_fault", "lot_trace", "sop_lookup"},
+            {"capability_excursion", "yield_decline", "equipment_fault", "lot_trace", "sop_lookup", "fab_diagnostic"},
         )
         playbook_ids: set[str] = set()
         for intent, playbook in DOMAIN_PLAYBOOKS.items():
@@ -58,6 +58,7 @@ class DomainPlaybookTests(unittest.TestCase):
             "equipment_fault": {"EQP-01", "EQP-02", "EQP-03", "EQP-04", "EQP-05"},
             "lot_trace": {"LOT-01", "LOT-02", "LOT-03", "LOT-04"},
             "sop_lookup": {"SOP-01", "SOP-02"},
+            "fab_diagnostic": {"FAB-01", "FAB-02", "FAB-03", "FAB-04"},
         }
         for intent, required_ids in expected_required.items():
             actual = {
@@ -74,6 +75,7 @@ class DomainPlaybookTests(unittest.TestCase):
             ("检查 ETCH-04 故障报警", "PB-EQUIPMENT-001"),
             ("追踪批次 L260708-02460", "PB-LOT-001"),
             ("查询 CMP 恢复量产 SOP", "PB-SOP-001"),
+            ("关于目前的制造数据你有什么改进建议", "PB-FAB-001"),
         )
         for question, expected_id in cases:
             with self.subTest(question=question):
@@ -84,7 +86,7 @@ class DomainPlaybookTests(unittest.TestCase):
                 self.assertEqual(len(selection.candidate_playbooks), 1)
 
     def test_ambiguous_route_requires_clarification_without_selecting_template(self):
-        selection = select_playbook(route_question("比较设备健康和良率趋势"))
+        selection = select_playbook(route_question("设备健康和良率趋势"))
 
         self.assertEqual(selection.status, "clarification_required")
         self.assertIsNone(selection.selected_playbook)

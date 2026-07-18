@@ -11,6 +11,7 @@ ResolutionStrategy = Literal[
     "ordinal_selection",
     "continue_previous_action",
     "general_scope_correction",
+    "diagnostic_followup",
 ]
 
 
@@ -40,6 +41,13 @@ _GENERAL_SCOPE_PATTERN = re.compile(
     r"(?:不涉及|不需要|无需).{0,12}(?:具体工艺|具体制程|具体制造|制造分析|生产数据|厂内数据|设备数据)|"
     r"(?:只|仅).{0,8}(?:通用问题|通用知识|概念|原理)|"
     r"(?:仅仅|只是|就只是|只|仅).{0,8}(?:用于)?科普|直接回答|直接解释"
+)
+_DIAGNOSTIC_FOLLOWUP_PATTERN = re.compile(
+    r"^(?:(?:基于|结合)(?:这些|上述|上面)?(?:数据|结果|分析))?"
+    r"(?:请|再|还|能否|可以)?.{0,6}(?:给出|提供|说说)?"
+    r"(?:什么|哪些)?.{0,4}(?:改进|改善|优化|提升)(?:建议|方向|机会|空间|优先级)?[。！!？?]*$|"
+    r"^(?:还有|有|存在|请指出)?.{0,4}(?:什么|哪些)(?:风险|问题|异常|瓶颈|短板)"
+    r"(?:(?:和|与|及|、)(?:风险|问题|异常|瓶颈|短板))?[。！!？?]*$"
 )
 _MARKDOWN_PATTERN = re.compile(r"[*_`#]+")
 
@@ -83,6 +91,7 @@ def _base_user_question(history: list[dict], before: int | None = None) -> str:
             and not _CONTINUATION_PATTERN.fullmatch(content)
             and not _LAST_PATTERN.search(content)
             and not _GENERAL_SCOPE_PATTERN.search(content)
+            and not _DIAGNOSTIC_FOLLOWUP_PATTERN.fullmatch(content)
         ):
             return content
     return ""
@@ -146,6 +155,23 @@ def _resolve_general_scope(question: str, history: list[dict]) -> ContextResolut
     )
 
 
+def _resolve_diagnostic_followup(question: str, history: list[dict]) -> ContextResolution | None:
+    normalized = _plain(question, 200)
+    if not _DIAGNOSTIC_FOLLOWUP_PATTERN.fullmatch(normalized):
+        return None
+    base = _base_user_question(history)
+    if not base:
+        return None
+    selected = "基于上一问题对应的制造数据识别风险、瓶颈和改善优先级"
+    return ContextResolution(
+        question,
+        f"{base}；用户继续要求{selected}。",
+        True,
+        "diagnostic_followup",
+        selected,
+    )
+
+
 def resolve_question_context(question: str, history: list[dict] | None = None) -> ContextResolution:
     normalized = _plain(question, 4000)
     items = list(history or [])
@@ -153,6 +179,7 @@ def resolve_question_context(question: str, history: list[dict] | None = None) -
         _resolve_ordinal(normalized, items)
         or _resolve_continuation(normalized, items)
         or _resolve_general_scope(normalized, items)
+        or _resolve_diagnostic_followup(normalized, items)
     )
     return resolution or ContextResolution(question, question, False, "none", "")
 

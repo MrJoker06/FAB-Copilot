@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from app import agent as agent_module
-from app.intent_router import route_question
+from app.intent_router import route_question, routing_system_message
 
 
 class IntentRouterTests(unittest.TestCase):
@@ -59,6 +59,58 @@ class IntentRouterTests(unittest.TestCase):
                 self.assertEqual(route.intent, expected_intent)
                 self.assertIn(expected_requirement, route.data_requirements)
 
+    def test_routes_open_manufacturing_diagnostics_without_clarification(self):
+        questions = (
+            "关于目前的制造数据你有什么改进建议",
+            "帮我看看最近生产情况怎么样，有哪些风险点",
+            "对当前工厂运行做一次健康检查",
+            "全厂有哪些薄弱环节值得优先改善",
+            "基于近期制造表现给出优化方向",
+            "比较各站点表现并排出改善优先级",
+            "总结一下产线瓶颈和提升机会",
+            "比较设备健康和良率趋势",
+            "Cpk 最差的设备有什么改进建议",
+        )
+        expected_tools = {
+            "get_fab_overview", "get_yield_trend", "get_process_capability",
+            "get_equipment_health", "get_equipment_productivity",
+            "get_defect_pareto", "get_recent_excursions",
+        }
+
+        for question in questions:
+            with self.subTest(question=question):
+                route = route_question(question, current_date=date(2026, 7, 18))
+                self.assertEqual(route.intent, "fab_diagnostic")
+                self.assertFalse(route.clarification_needed)
+                self.assertEqual(set(route.data_requirements), expected_tools)
+
+    def test_diagnostic_routing_message_allows_required_manufacturing_tools(self):
+        route = route_question(
+            "关于目前的制造数据你有什么改进建议",
+            current_date=date(2026, 7, 18),
+        )
+
+        message = routing_system_message(route)
+
+        self.assertIn("其他制造意图应优先使用 data_requirements", message)
+        self.assertNotIn("conversation 时由服务端直接回答助手身份与能力，不检索知识库或制造数据；不得调用", message)
+
+    def test_diagnostic_language_preserves_single_domain_intents(self):
+        cases = (
+            ("CMP 良率下降有什么改善建议", "yield_decline"),
+            ("ETCH-04 哪些设备风险需要优先处理", "equipment_fault"),
+            ("分析 CVD 颗粒缺陷并给改善建议", "defect_analysis"),
+            ("追踪批次 L260708-02460 并给出处置建议", "lot_trace"),
+            ("工厂良率有什么改善建议", "yield_decline"),
+            ("全厂设备风险有哪些", "equipment_fault"),
+        )
+
+        for question, expected in cases:
+            with self.subTest(question=question):
+                route = route_question(question, current_date=date(2026, 7, 18))
+                self.assertEqual(route.intent, expected)
+                self.assertFalse(route.clarification_needed)
+
     def test_relative_range_is_inclusive(self):
         route = route_question("最近7天 CMP-03 Cpk", current_date=date(2026, 7, 18))
 
@@ -70,8 +122,8 @@ class IntentRouterTests(unittest.TestCase):
         self.assertEqual(chinese_amount.time_range.start, "2026-06-21")
         self.assertEqual(chinese_amount.time_range.end, "2026-07-18")
 
-    def test_marks_close_conjoined_intents_as_ambiguous(self):
-        route = route_question("比较设备健康和良率趋势", current_date=date(2026, 7, 18))
+    def test_marks_close_conjoined_intents_without_diagnostic_goal_as_ambiguous(self):
+        route = route_question("设备健康和良率趋势", current_date=date(2026, 7, 18))
 
         self.assertEqual(route.intent, "ambiguous")
         self.assertEqual(set(route.candidate_intents[:2]), {"yield_decline", "equipment_fault"})

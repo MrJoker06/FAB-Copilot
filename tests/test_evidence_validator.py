@@ -31,6 +31,28 @@ def _observation(plan, tool: str, result, *, occurrence: int = 0, arguments: dic
 
 
 class EvidenceValidatorTests(unittest.TestCase):
+    def test_fab_diagnostic_real_reports_cover_all_required_evidence(self):
+        question = "关于目前的制造数据你有什么改进建议"
+        route = route_question(question, current_date=date(2026, 7, 18))
+        selection = select_playbook(route)
+        plan = create_execution_plan(question, route, selection)
+        observations = [
+            EvidenceObservation(
+                step.tool,
+                step.parameters,
+                "success",
+                agent_module.TOOL_HANDLERS[step.tool](**step.parameters),
+            )
+            for step in plan.steps
+        ]
+
+        validation = validate_evidence(plan, selection.selected_playbook, observations)
+
+        self.assertEqual(validation.coverage["required_total"], 4)
+        self.assertEqual(validation.coverage["required_covered"], 4)
+        self.assertEqual(validation.coverage["required_coverage_pct"], 100.0)
+        self.assertNotIn(validation.allowed_conclusion_strength, {"insufficient", "hypothesis_only"})
+
     def test_complete_required_yield_evidence_allows_supported_conclusion(self):
         selection, plan = _context("最近四周良率下降")
         observations = [

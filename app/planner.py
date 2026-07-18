@@ -414,7 +414,7 @@ def create_execution_plan(
             schema_version="1.0",
             planner_version="1.0.0",
             status="unsupported",
-            reason="当前 Planner 仅实例化五类 Domain Playbook；该问题继续使用通用 Agent 路径。",
+            reason="当前 Planner 仅实例化六类 Domain Playbook；该问题继续使用通用 Agent 路径。",
             route_intent=route.intent,
             playbook_id=None,
             playbook_version=None,

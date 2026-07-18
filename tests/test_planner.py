@@ -19,13 +19,14 @@ def _plan(question: str, current_date: date = date(2026, 7, 18)):
 
 
 class StructuredPlannerTests(unittest.TestCase):
-    def test_five_playbooks_create_ready_serializable_plans(self):
+    def test_six_playbooks_create_ready_serializable_plans(self):
         cases = (
             ("分析 CMP-03 最近7天 Cpk 不合格", "PB-CAPABILITY-001", {"CAP-01", "CAP-02", "CAP-04"}),
             ("最近四周良率下降", "PB-YIELD-001", {"YLD-01", "YLD-02", "YLD-03"}),
             ("检查 ETCH-04 故障报警", "PB-EQUIPMENT-001", {"EQP-01", "EQP-02", "EQP-03", "EQP-04", "EQP-05"}),
             ("追踪批次 L260708-02460", "PB-LOT-001", {"LOT-01", "LOT-02", "LOT-03", "LOT-04"}),
             ("查询 CMP 恢复量产 SOP", "PB-SOP-001", {"SOP-01", "SOP-02"}),
+            ("关于目前的制造数据你有什么改进建议", "PB-FAB-001", {"FAB-01", "FAB-02", "FAB-03", "FAB-04"}),
         )
         for question, playbook_id, evidence_ids in cases:
             with self.subTest(question=question):
@@ -59,6 +60,7 @@ class StructuredPlannerTests(unittest.TestCase):
             "检查 ETCH-04 故障报警",
             "追踪批次 L260708-02460",
             "查询 CMP 恢复量产 SOP",
+            "关于目前的制造数据你有什么改进建议",
         )
         for question in questions:
             plan = _plan(question)
@@ -132,11 +134,33 @@ class StructuredPlannerTests(unittest.TestCase):
         self.assertEqual(case.parameters["source_types"], ["case"])
         self.assertEqual(case.depends_on, (formal.step_id,))
 
+    def test_fab_diagnostic_plan_covers_all_improvement_dimensions(self):
+        plan = _plan("关于目前的制造数据你有什么改进建议")
+        by_tool = {step.tool: step for step in plan.steps}
+        expected_tools = {
+            "get_fab_overview", "get_yield_trend", "get_process_capability",
+            "get_equipment_health", "get_equipment_productivity",
+            "get_defect_pareto", "get_recent_excursions",
+        }
+
+        self.assertEqual(plan.status, "ready")
+        self.assertEqual(plan.playbook_id, "PB-FAB-001")
+        self.assertEqual(set(by_tool), expected_tools)
+        self.assertEqual(plan.budget.planned_tool_calls, 7)
+        self.assertEqual(plan.budget.max_tool_calls, 9)
+        self.assertEqual(
+            by_tool["get_process_capability"].parameters,
+            {"start": "2026-04-20", "end": "2026-07-18"},
+        )
+        self.assertEqual(set(by_tool["get_fab_overview"].evidence_ids), {"FAB-01"})
+        self.assertEqual(set(by_tool["get_equipment_health"].evidence_ids), {"FAB-03"})
+        self.assertEqual(set(by_tool["get_defect_pareto"].evidence_ids), {"FAB-04"})
+
     def test_missing_ambiguous_and_unknown_inputs_create_no_tool_steps(self):
         cases = (
             ("分析 Cpk 不合格", "process_step"),
             ("追踪这个批次", "lot_id"),
-            ("比较设备健康和良率趋势", "primary_intent"),
+            ("设备健康和良率趋势", "primary_intent"),
             ("帮我看看这个情况", "primary_intent"),
         )
         for question, missing_input in cases:

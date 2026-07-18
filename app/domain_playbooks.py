@@ -13,6 +13,7 @@ PlaybookIntent = Literal[
     "equipment_fault",
     "lot_trace",
     "sop_lookup",
+    "fab_diagnostic",
 ]
 SelectionStatus = Literal["selected", "clarification_required", "unsupported"]
 
@@ -308,6 +309,87 @@ EQUIPMENT_FAULT_PLAYBOOK = DomainPlaybook(
 )
 
 
+FAB_DIAGNOSTIC_PLAYBOOK = DomainPlaybook(
+    playbook_id="PB-FAB-001",
+    schema_version="1.0",
+    playbook_version="1.0.0",
+    released_at="2026-07-18",
+    intent="fab_diagnostic",
+    title="制造综合诊断与改善优先级",
+    objective="从产出、良率、周期、Hold、能力、设备损失、缺陷和异常多个维度识别当前制造短板，并形成有证据边界的改善优先级。",
+    required_inputs=("time_range",),
+    evidence_requirements=(
+        EvidenceRequirement(
+            evidence_id="FAB-01",
+            name="制造基线与趋势",
+            purpose="确认分析时间、样本规模、良率、周期、Hold、异常总量及其周度变化。",
+            source_tools=("get_fab_overview", "get_yield_trend"),
+            required_fields=(
+                "start", "end", "lots", "wafers", "yield_pct", "avg_cycle_hours",
+                "avg_hold_hours", "held_lots", "excursions", "period", "week_start", "cycle_hours",
+            ),
+            acceptance_criteria=(
+                "必须报告起止日期、批次和晶圆样本量。",
+                "当前总体值必须与周度趋势结合，不得仅凭单点指标判断改善方向。",
+            ),
+        ),
+        EvidenceRequirement(
+            evidence_id="FAB-02",
+            name="全站点制程能力短板",
+            purpose="按设备和关键量测比较样本量、均值、波动、规格与 Cpk，定位能力改善优先级。",
+            source_tools=("get_process_capability",),
+            required_fields=(
+                "equipment_id", "samples", "mean_value", "sigma", "cpk",
+                "metric_name", "metric_unit", "spec_lsl", "spec_usl",
+            ),
+            acceptance_criteria=(
+                "覆盖全部可用制造站点，并保留各站点自身量测与规格口径。",
+                "优先级同时考虑 Cpk、样本量、均值偏移和 sigma，不得只按单一最低值排序。",
+            ),
+        ),
+        EvidenceRequirement(
+            evidence_id="FAB-03",
+            name="设备健康与生产率损失",
+            purpose="连接运行、异常、缺陷密度、停机、健康等级和 SEMI E10 状态，识别设备侧损失。",
+            source_tools=("get_equipment_health", "get_equipment_productivity"),
+            required_fields=(
+                "equipment_id", "runs", "excursions", "avg_defect_density", "pass_pct",
+                "events", "downtime_minutes", "health", "recorded_minutes", "productive_minutes",
+                "productive_pct", "unscheduled_down_minutes", "scheduled_down_minutes",
+            ),
+            acceptance_criteria=(
+                "设备健康和生产率使用一致时间范围，并区分计划与非计划停机。",
+                "设备风险排序同时报告底层计数、时长和覆盖时间，不得仅引用健康标签。",
+            ),
+        ),
+        EvidenceRequirement(
+            evidence_id="FAB-04",
+            name="质量损失与近期异常集中度",
+            purpose="结合缺陷 Pareto、受影响批次和近期超规记录，定位质量改善候选制程。",
+            source_tools=("get_defect_pareto", "get_recent_excursions"),
+            required_fields=(
+                "defect_type", "process_steps", "defect_count", "affected_lots", "share_pct",
+                "run_time", "lot_id", "process_step", "equipment_id", "excursion_code",
+                "measurement_name", "measurement_value", "measurement_unit", "spec_lsl", "spec_usl",
+            ),
+            acceptance_criteria=(
+                "缺陷频次、占比和受影响批次数必须同时报告。",
+                "近期异常只用于定位验证方向，不得与缺陷或良率建立未经验证的因果关系。",
+            ),
+        ),
+    ),
+    analysis_questions=(
+        "当前良率、周期、Hold 和异常相对近期趋势的主要偏离是什么？",
+        "哪些站点和设备同时存在低 Cpk、均值偏移或波动扩大？",
+        "哪些设备的非计划停机、低生产率和产品异常风险同时较高？",
+        "缺陷 Pareto 与近期异常分别集中在哪些制程，二者有哪些待验证的交集？",
+        "按影响、证据强度、实施风险和验证成本排序后，前三项改善机会是什么？",
+    ),
+    answer_sections=("执行摘要", "制造基线与趋势", "能力和设备风险排序", "质量损失集中度", "改善优先级", "证据限制与验证计划"),
+    safety_constraints=_COMMON_SAFETY_CONSTRAINTS,
+)
+
+
 LOT_TRACE_PLAYBOOK = DomainPlaybook(
     playbook_id="PB-LOT-001",
     schema_version="1.0",
@@ -446,6 +528,7 @@ DOMAIN_PLAYBOOKS: dict[str, DomainPlaybook] = {
         CAPABILITY_EXCURSION_PLAYBOOK,
         YIELD_DECLINE_PLAYBOOK,
         EQUIPMENT_FAULT_PLAYBOOK,
+        FAB_DIAGNOSTIC_PLAYBOOK,
         LOT_TRACE_PLAYBOOK,
         SOP_LOOKUP_PLAYBOOK,
     )
@@ -492,7 +575,7 @@ def select_playbook(route: IntentRoute) -> PlaybookSelection:
         route_intent=route.intent,
         selected_playbook=None,
         candidate_playbooks=(),
-        reason="当前五类 Domain Playbook 不覆盖该意图，继续使用通用 Agent 规则。",
+        reason="当前六类 Domain Playbook 不覆盖该意图，继续使用通用 Agent 规则。",
     )
 
 

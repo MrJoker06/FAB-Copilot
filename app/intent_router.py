@@ -16,6 +16,7 @@ IntentName = Literal[
     "lot_trace",
     "sop_lookup",
     "defect_analysis",
+    "fab_diagnostic",
     "fab_overview",
     "enterprise_data",
     "general_knowledge",
@@ -33,6 +34,7 @@ INTENT_LABELS: dict[str, str] = {
     "lot_trace": "批次追踪",
     "sop_lookup": "SOP 与知识查询",
     "defect_analysis": "缺陷分析",
+    "fab_diagnostic": "制造综合诊断",
     "fab_overview": "工厂总览",
     "enterprise_data": "企业模拟数据查询",
     "general_knowledge": "通用知识问答",
@@ -53,7 +55,7 @@ _INTENT_RULES: dict[str, tuple[tuple[str, int], ...]] = {
     "equipment_fault": (
         ("设备", 2), ("故障", 4), ("报警", 3), ("alarm", 3),
         ("宕机", 4), ("停机", 3), ("健康", 3), ("稼动", 3),
-        ("oee", 3), ("维护", 2), ("pm", 2),
+        ("oee", 3), ("维护", 2), ("pm", 2), ("设备风险", 4),
     ),
     "lot_trace": (
         ("批次", 4), ("lot", 4), ("晶圆", 2), ("wafer", 2),
@@ -69,6 +71,10 @@ _INTENT_RULES: dict[str, tuple[tuple[str, int], ...]] = {
         ("缺陷", 4), ("defect", 4), ("划伤", 4), ("scratch", 4),
         ("颗粒", 3), ("particle", 3), ("cd shift", 4), ("残留", 3),
         ("倒塌", 3), ("wafer map", 4), ("晶圆图", 4), ("pareto", 3),
+    ),
+    "fab_diagnostic": (
+        ("制造综合诊断", 8), ("生产综合诊断", 8), ("全厂诊断", 7),
+        ("运营诊断", 7), ("fab diagnostic", 7),
     ),
     "fab_overview": (
         ("工厂总览", 6), ("fab 总览", 6), ("整体概况", 5),
@@ -108,6 +114,15 @@ _DATA_REQUIREMENTS: dict[str, tuple[str, ...]] = {
         "query_manufacturing_data",
         "search_knowledge",
     ),
+    "fab_diagnostic": (
+        "get_fab_overview",
+        "get_yield_trend",
+        "get_process_capability",
+        "get_equipment_health",
+        "get_equipment_productivity",
+        "get_defect_pareto",
+        "get_recent_excursions",
+    ),
     "fab_overview": ("get_fab_overview", "get_yield_trend", "get_equipment_health"),
     "enterprise_data": (
         "get_enterprise_data_manifest",
@@ -146,6 +161,34 @@ _CONVERSATION_PATTERN = re.compile(
     r"你能做什么|你可以做什么|你有哪些能力)[。！!？?]*$",
     re.IGNORECASE,
 )
+_FAB_SCOPE_PATTERN = re.compile(
+    r"(?:制造数据|生产数据|制造运营|生产运营|工厂|fab|全厂|产线|生产线|站点|"
+    r"生产情况|生产状况|制造现状|生产现状|制造表现|生产表现|整体生产)",
+    re.IGNORECASE,
+)
+_DIAGNOSTIC_GOAL_PATTERN = re.compile(
+    r"(?:改进|改善|优化|提升|建议|风险|瓶颈|薄弱|短板|健康检查|诊断|"
+    r"优先级|优先顺序|改善空间|提升机会|问题点|异常点|怎么样|怎么看|"
+    r"现状分析|表现评估|比较|对比|排序|排名|综合分析|总结)",
+    re.IGNORECASE,
+)
+_CROSS_DOMAIN_GOAL_PATTERN = re.compile(
+    r"(?:比较|对比|关联|综合|整体|一起|同时|排序|排名|优先级|优先顺序)",
+    re.IGNORECASE,
+)
+_CAPABILITY_PORTFOLIO_PATTERN = re.compile(
+    r"(?:(?:各|所有|全厂).{0,8}(?:站点|制程|设备|机台)|"
+    r"(?:哪些|哪个|最差|最低).{0,8}(?:站点|制程|设备|机台)|"
+    r"(?:站点|制程|设备|机台).{0,8}(?:排名|排序|对比|比较))"
+)
+_SPECIALIZED_SCOPE_PATTERNS: dict[str, re.Pattern] = {
+    "capability_excursion": re.compile(r"(?:cpk|制程能力|过程能力|能力不足|超规|规格限)", re.IGNORECASE),
+    "yield_decline": re.compile(r"(?:良率|yield|直通率|报废率)", re.IGNORECASE),
+    "equipment_fault": re.compile(r"(?:设备|机台|故障|报警|alarm|宕机|停机|oee|稼动|维护|pm)", re.IGNORECASE),
+    "lot_trace": re.compile(r"(?:批次|lot|晶圆|wafer|追踪|追溯|hold|wip)", re.IGNORECASE),
+    "sop_lookup": re.compile(r"(?:sop|规范|作业指导|控制计划|知识库|文档|标准流程)", re.IGNORECASE),
+    "defect_analysis": re.compile(r"(?:缺陷|defect|划伤|scratch|颗粒|particle|残留|wafer map|晶圆图|pareto)", re.IGNORECASE),
+}
 
 
 @dataclass(frozen=True)
@@ -203,6 +246,33 @@ def _looks_like_general_question(normalized: str) -> bool:
 
 def _looks_like_conversation(normalized: str) -> bool:
     return bool(_CONVERSATION_PATTERN.fullmatch(normalized))
+
+
+def _looks_like_fab_diagnostic(
+    normalized: str,
+    process_steps: tuple[str, ...],
+    scores: dict[str, int],
+) -> bool:
+    if not _DIAGNOSTIC_GOAL_PATTERN.search(normalized):
+        return False
+    specialized = tuple(
+        intent for intent, pattern in _SPECIALIZED_SCOPE_PATTERNS.items()
+        if pattern.search(normalized)
+    )
+    strong_specialized = tuple(intent for intent in specialized if scores.get(intent, 0) >= 4)
+    if len(strong_specialized) >= 2:
+        return True
+    if len(specialized) >= 2 and _CROSS_DOMAIN_GOAL_PATTERN.search(normalized):
+        return True
+    if (
+        strong_specialized == ("capability_excursion",)
+        and not process_steps
+        and _CAPABILITY_PORTFOLIO_PATTERN.search(normalized)
+    ):
+        return True
+    if strong_specialized or specialized:
+        return False
+    return bool(process_steps or _FAB_SCOPE_PATTERN.search(normalized))
 
 
 def _process_steps(normalized: str, equipment_ids: tuple[str, ...]) -> tuple[str, ...]:
@@ -282,9 +352,14 @@ def route_question(question: str, current_date: date | None = None) -> IntentRou
     scores = _intent_scores(normalized)
     ranked = sorted(scores, key=lambda name: (-scores[name], _INTENT_PRIORITY.index(name)))
     positive = [name for name in ranked if scores[name] > 0]
+    fab_diagnostic = _looks_like_fab_diagnostic(normalized, process_steps, scores)
 
     clarification_questions: list[str] = []
-    if not positive:
+    if fab_diagnostic:
+        intent = "fab_diagnostic"
+        candidate_intents = ("fab_diagnostic",)
+        confidence = 0.9
+    elif not positive:
         if _looks_like_conversation(normalized):
             intent = "conversation"
             candidate_intents = ("conversation",)
@@ -352,8 +427,9 @@ def routing_system_message(route: IntentRoute) -> str:
         "以下是确定性 Intent Router 生成的结构化分析上下文，不是制造事实或证据。"
         "intent=general_knowledge 时必须先检索当前用户个人知识和工厂知识，再由检索决策决定是否允许模型补充；"
         "intent=conversation 时由服务端直接回答助手身份与能力，不检索知识库或制造数据；"
-        "不得调用制造数据工具。若术语含糊，只澄清术语本身，不得索要制程、设备、批次或时间范围。"
-        "优先使用 data_requirements 中的工具收集证据，并将 process_steps、equipment_ids 和 time_range 作为参数范围。"
+        "仅 intent=general_knowledge 或 conversation 时不得调用制造数据工具。"
+        "其他制造意图应优先使用 data_requirements 中的工具收集证据，并将 process_steps、equipment_ids 和 time_range 作为参数范围。"
+        "通用问题若术语含糊，只澄清术语本身，不得索要制程、设备、批次或时间范围。"
         "若 clarification_needed=true，应先澄清关键歧义，避免无范围的广泛查询。"
         "risk_level=high 时只能提供待复核建议，不得直接要求执行高风险动作。\n"
         f"intent_route={route.to_prompt()}"

@@ -116,6 +116,45 @@ class ContextResolverTests(unittest.TestCase):
         self.assertNotIn("仅仅是用于科普", resolution.resolved_question)
         self.assertEqual(route_question(resolution.resolved_question).intent, "general_knowledge")
 
+    def test_diagnostic_followup_restores_fab_overview_as_comprehensive_analysis(self):
+        resolution = resolve_question_context(
+            "有什么改进建议",
+            [
+                {"role": "user", "content": "查看工厂总览和生产概况"},
+                {"role": "assistant", "content": "已展示当前工厂总览。"},
+            ],
+        )
+
+        self.assertTrue(resolution.applied)
+        self.assertEqual(resolution.strategy, "diagnostic_followup")
+        self.assertIn("查看工厂总览和生产概况", resolution.resolved_question)
+        self.assertEqual(route_question(resolution.resolved_question).intent, "fab_diagnostic")
+
+    def test_diagnostic_followup_preserves_specific_yield_scope(self):
+        resolution = resolve_question_context(
+            "还有哪些改善方向",
+            [
+                {"role": "user", "content": "分析 CMP 最近四周良率下降"},
+                {"role": "assistant", "content": "已完成良率趋势分析。"},
+            ],
+        )
+
+        self.assertTrue(resolution.applied)
+        self.assertEqual(route_question(resolution.resolved_question).intent, "yield_decline")
+
+    def test_risk_followup_restores_previous_manufacturing_topic(self):
+        resolution = resolve_question_context(
+            "有哪些风险和瓶颈",
+            [
+                {"role": "user", "content": "查看当前生产情况"},
+                {"role": "assistant", "content": "已展示当前数据。"},
+            ],
+        )
+
+        self.assertTrue(resolution.applied)
+        self.assertEqual(resolution.strategy, "diagnostic_followup")
+        self.assertEqual(route_question(resolution.resolved_question).intent, "fab_diagnostic")
+
     def test_agent_does_not_override_explicit_current_intent_with_history(self):
         history = [
             {"role": "user", "content": INITIAL_QUESTION},
