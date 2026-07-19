@@ -12,6 +12,7 @@
 
 ## 待做
 
+- [ ] `OBS-015` 定位流式输出中途停滞的责任阶段，记录模型首 Token、相邻 Token 最大间隔、服务端 `answer_delta` 入队与 SSE 发送、浏览器读取、平滑缓冲积压和 Markdown 渲染耗时。诊断必须区分上游模型停顿、服务端队列、网络/SSE 分帧和浏览器主线程阻塞，并提供固定问题与长答案的可复现实验报告；metadata 模式只保存聚合时延，不记录回答正文。
 - [ ] `OBS-008` 使用 Redis 或事件流聚合多实例实时运行状态。
 - [ ] `OBS-009` 接入 OpenTelemetry Trace、Metric 和 Log，并统一关联 request_id、run_id 和 session_id。
 - [ ] `OBS-010` 将日志发送到 Loki、ELK 或 OpenTelemetry Collector。
