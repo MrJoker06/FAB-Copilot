@@ -153,6 +153,39 @@ class IntentRouterTests(unittest.TestCase):
         self.assertEqual(manufacturing.intent, "unknown")
         self.assertTrue(manufacturing.clarification_needed)
 
+    def test_semantic_followup_hint_can_correct_source_driven_sop_route(self):
+        route = route_question("优先使用我的个人知识库继续介绍光刻")
+        self.assertEqual(route.intent, "sop_lookup")
+
+        standalone = apply_semantic_intent_hint(
+            route,
+            "general_knowledge",
+            0.94,
+            context_applied=False,
+        )
+        followup = apply_semantic_intent_hint(
+            route,
+            "general_knowledge",
+            0.94,
+            context_applied=True,
+        )
+
+        self.assertEqual(standalone.intent, "sop_lookup")
+        self.assertEqual(followup.intent, "general_knowledge")
+        self.assertEqual(followup.data_requirements, ("search_knowledge",))
+        self.assertFalse(followup.clarification_needed)
+
+    def test_semantic_general_hint_never_overrides_manufacturing_route(self):
+        route = route_question("分析最近四周良率")
+        corrected = apply_semantic_intent_hint(
+            route,
+            "general_knowledge",
+            0.99,
+            context_applied=True,
+        )
+
+        self.assertEqual(corrected.intent, "yield_decline")
+
     def test_general_comparison_does_not_request_production_scope(self):
         route = route_question("GAN器件和S器件的差别", current_date=date(2026, 7, 18))
 

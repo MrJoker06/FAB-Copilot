@@ -214,7 +214,17 @@ class ContextResolverTests(unittest.TestCase):
             {"role": "assistant", "content": CLARIFICATION},
         ]
         captured: dict = {}
+        calls = 0
         async def fake_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return _context_response(
+                    "correction",
+                    "分析最近四周良率",
+                    INITIAL_QUESTION,
+                    intent_hint="manufacturing_analysis",
+                )
             captured.update(request_payload)
             return ({"role": "assistant", "content": "良率分析完成"}, {"total_tokens": 3}, "explicit-route")
 
@@ -230,10 +240,52 @@ class ContextResolverTests(unittest.TestCase):
                 )
             )
 
-        self.assertFalse(result["context_resolution"]["applied"])
-        self.assertEqual(result["context_resolution"]["source"], "none")
+        self.assertEqual(calls, 2)
+        self.assertTrue(result["context_resolution"]["applied"])
+        self.assertEqual(result["context_resolution"]["source"], "model")
         self.assertEqual(result["intent_route"]["intent"], "yield_decline")
-        self.assertNotIn("context_resolution=", "\n".join(item["content"] for item in captured["messages"]))
+        self.assertIn("context_resolution=", "\n".join(item["content"] for item in captured["messages"]))
+
+    def test_agent_model_resolves_personal_knowledge_preference_as_general_followup(self):
+        history = [
+            {"role": "user", "content": "为我简单介绍一下光刻"},
+            {"role": "assistant", "content": "知识库没有检索到可用内容，以下使用模型通用知识介绍光刻。"},
+        ]
+        calls = 0
+
+        async def fake_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return _context_response(
+                    "correction",
+                    "优先检索我的个人知识库，并继续介绍光刻的基本原理和工艺流程",
+                    "介绍光刻",
+                    confidence=0.94,
+                    intent_hint="general_knowledge",
+                )
+            return (
+                {"role": "assistant", "content": "已根据个人知识继续介绍光刻。"},
+                {"total_tokens": 5},
+                "personal-knowledge-answer",
+            )
+
+        with (
+            patch("app.agent.get_settings", return_value=_settings()),
+            patch("app.agent._stream_completion", new=fake_stream),
+            patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": lambda **_: []}),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "我知识库里有相关知识啊",
+                history,
+                "run-personal-knowledge-followup-test",
+            ))
+
+        self.assertEqual(calls, 2)
+        self.assertEqual(result["context_resolution"]["strategy"], "semantic_correction")
+        self.assertIn("继续介绍光刻", result["context_resolution"]["resolved_question"])
+        self.assertEqual(result["intent_route"]["intent"], "general_knowledge")
+        self.assertIsNone(result["domain_playbook"]["selected_playbook"])
 
     def test_context_model_protocol_failure_falls_back_without_binding_history(self):
         async def invalid_stream(client, endpoint, headers, request_payload, progress, stream_state):

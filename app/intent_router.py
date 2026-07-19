@@ -426,9 +426,14 @@ def apply_semantic_intent_hint(
     route: IntentRoute,
     intent_hint: str,
     confidence: float,
+    *,
+    context_applied: bool = False,
 ) -> IntentRoute:
-    """Use a constrained model hint only when deterministic routing found no intent."""
-    if route.intent != "unknown" or intent_hint != "general_knowledge" or confidence < 0.65:
+    """Use a high-confidence semantic hint without overriding manufacturing routes."""
+    eligible_intents = {"unknown"}
+    if context_applied:
+        eligible_intents.add("sop_lookup")
+    if route.intent not in eligible_intents or intent_hint != "general_knowledge" or confidence < 0.65:
         return route
     return replace(
         route,

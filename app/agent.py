@@ -779,12 +779,6 @@ async def _resolve_conversation_turn(
         return deterministic, {}
     if not history and (direct_route is None or direct_route.intent != "unknown"):
         return deterministic, {}
-    if (
-        direct_route
-        and direct_route.intent not in {"unknown", "ambiguous", "general_knowledge"}
-        and not direct_route.clarification_needed
-    ):
-        return deterministic, {}
 
     await _notify(progress, {
         "event": "stage",
@@ -946,7 +940,18 @@ async def _run_agent_impl(
         base_route,
         context_resolution.intent_hint,
         context_resolution.confidence,
+        context_applied=context_resolution.applied,
     )
+    if intent_route.intent != base_route.intent:
+        emit(
+            "semantic_intent_hint_applied",
+            run_id,
+            from_intent=base_route.intent,
+            to_intent=intent_route.intent,
+            intent_hint=context_resolution.intent_hint,
+            confidence=context_resolution.confidence,
+            relation=context_resolution.relation,
+        )
     route_payload = intent_route.to_dict()
     emit(
         "intent_routed",
