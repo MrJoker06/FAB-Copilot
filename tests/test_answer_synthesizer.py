@@ -98,6 +98,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
             self.assertIn(f"## {section}", result.answer)
         self.assertIn("[数据 get_fab_overview]", result.answer)
         self.assertIn("[来源 KB-1]", result.answer)
+        self.assertNotIn("## 来源", result.answer)
         self.assertEqual(result.report.status, "structured")
         self.assertEqual(result.report.invalid_source_refs, ())
         self.assertEqual(result.report.moved_claims, 0)
@@ -152,7 +153,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertIn("GaN 的宽禁带", result.answer)
         self.assertIn("## 模型通用知识", result.answer)
         self.assertIn("[模型通用知识]", result.answer)
-        self.assertIn("模型通用知识：当前模型生成", result.answer)
+        self.assertNotIn("## 来源", result.answer)
         self.assertNotIn("不能形成诊断性结论", result.answer)
         self.assertNotIn("缺少字段", result.answer)
 

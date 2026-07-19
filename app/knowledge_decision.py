@@ -204,6 +204,7 @@ def retrieval_system_message(decision: RetrievalDecision, sources: list[dict[str
         "以下是服务端确定性知识检索与降级判定，不是隐藏思维链。"
         "个人知识已按当前用户隔离检索，工厂知识单独检索。"
         "有来源时应优先基于来源回答并使用 [来源 reference_id] 引用；"
+        "引用只放在支撑对应内容的位置，不要在答案末尾另列来源、文档清单或来源总结，客户端会统一展示。"
         "只有 model_knowledge_allowed=true 时才可补充模型通用知识，并必须遵守 disclosure。"
         "若 assumptions 非空，在答案开头简短说明假设并允许用户纠正；不得索要无关的设备、批次或日期。\n"
         f"knowledge_retrieval={json.dumps(payload, ensure_ascii=False, default=str)}"

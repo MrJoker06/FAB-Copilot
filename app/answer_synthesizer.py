@@ -17,9 +17,8 @@ REQUIRED_SECTIONS = (
     "待验证假设",
     "建议",
     "证据限制",
-    "来源",
 )
-MODEL_KNOWLEDGE_SECTIONS = ("结论", "模型通用知识", "待验证内容", "建议", "使用限制", "来源")
+MODEL_KNOWLEDGE_SECTIONS = ("结论", "模型通用知识", "待验证内容", "建议", "使用限制")
 
 MODEL_KNOWLEDGE_REF = "MODEL_GENERAL_KNOWLEDGE"
 MODEL_KNOWLEDGE_DISCLOSURE = (
@@ -350,24 +349,6 @@ def _render_section(title: str, items: list[str], empty: str) -> str:
     return "\n".join(lines)
 
 
-def _source_lines(refs: tuple[str, ...], sources: list[dict[str, Any]]) -> list[str]:
-    by_ref = {str(source.get("reference_id")): source for source in sources if source.get("reference_id")}
-    lines: list[str] = []
-    for reference in refs:
-        if reference == MODEL_KNOWLEDGE_REF:
-            lines.append("模型通用知识：当前模型生成，未从工厂或个人知识库检索到可引用内容。")
-            continue
-        if reference.startswith("TOOL:"):
-            lines.append(f"数据工具：`{reference[5:]}`")
-            continue
-        source = by_ref.get(reference, {})
-        description = " · ".join(
-            str(value) for value in (source.get("source"), source.get("section")) if value
-        )
-        lines.append(f"[来源 {reference}]{(' ' + description) if description else ''}")
-    return lines
-
-
 def synthesize_submission(
     payload: dict[str, Any],
     contract: AnswerContract,
@@ -546,7 +527,6 @@ def synthesize_submission(
         f"{'；需工程与制造人员复核' if item.requires_review else ''}"
         for item in recommendations
     ]
-    source_lines = _source_lines(ordered_refs, sources or [])
     if contract.model_knowledge_fallback:
         sections = MODEL_KNOWLEDGE_SECTIONS
         answer = "\n\n".join((
@@ -555,7 +535,6 @@ def synthesize_submission(
             _render_section("待验证内容", hypothesis_lines, "没有额外待验证内容。"),
             _render_section("建议", recommendation_lines, "如需厂内结论，请补充或上传相关正式文档。"),
             _render_section("使用限制", limitations, MODEL_KNOWLEDGE_DISCLOSURE),
-            _render_section("来源", source_lines, "模型通用知识，未引用厂内知识库。"),
         ))
     else:
         sections = REQUIRED_SECTIONS
@@ -566,7 +545,6 @@ def synthesize_submission(
             _render_section("待验证假设", hypothesis_lines, "当前没有额外的待验证假设。"),
             _render_section("建议", recommendation_lines, "先补齐证据缺口，再决定后续处置。"),
             _render_section("证据限制", limitations, "未识别到额外证据限制。"),
-            _render_section("来源", source_lines, "本次结构化提交未引用可核验来源。"),
         ))
     report = AnswerSynthesisReport(
         schema_version="1.0",

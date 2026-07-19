@@ -86,14 +86,18 @@ class FabInsightTests(unittest.TestCase):
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("/static/stream_buffer.js?v=20260718-4", page)
-        self.assertIn("/static/app.js?v=20260718-4", page)
+        self.assertIn("/static/stream_buffer.js?v=20260719-1", page)
+        self.assertIn("/static/source_presenter.js?v=20260719-1", page)
+        self.assertIn("/static/app.js?v=20260719-1", page)
         self.assertNotIn('id="monitorView"', page)
         self.assertNotIn('id="apiKeyInput"', page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")
         self.assertIn("scrollbar-gutter: stable", styles)
         script = (Path(__file__).parents[1] / "app" / "static" / "app.js").read_text(encoding="utf-8")
         self.assertIn("data-personal-chunk", script)
+        self.assertIn("renderSourcePanel(messageSources)", script)
+        self.assertIn("sourcePresenter.stripSourceAppendix(content)", script)
+        self.assertIn("sourcePresenter.replaceReferenceIds(content, sources)", script)
         self.assertIn("event.key !== 'Enter' || event.shiftKey || event.isComposing || event.keyCode === 229", script)
         self.assertIn("$('#chatForm').requestSubmit()", script)
         self.assertIn("item.status === 'blocked'", script)
@@ -104,6 +108,7 @@ class FabInsightTests(unittest.TestCase):
         self.assertNotIn("event.arguments", script)
         self.assertNotIn("argumentsText", script)
         self.assertIn(".trace-status-blocked", styles)
+        self.assertIn(".source-list[open] summary::before", styles)
 
     def test_admin_frontend_is_separate_from_user_workspace(self):
         with TestClient(app) as client:

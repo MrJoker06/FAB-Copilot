@@ -9,6 +9,7 @@ const AGENT_MAX_WIDTH = 620;
 const APP_VERSION = document.querySelector('meta[name="app-version"]')?.content || 'unknown';
 const processLabels = { LITHO: '光刻', ETCH: '刻蚀', CVD: '化学气相沉积', PVD: '物理气相沉积', DIFFUSION: '扩散/炉管', IMPLANT: '离子注入', CMP: '化学机械研磨', CLEAN: '湿法清洗', METROLOGY: '量测' };
 const toolLabels = { get_enterprise_data_manifest: '查询企业数据目录', get_enterprise_fab_summary: '聚合企业模拟数据', query_enterprise_data: '抽取企业模拟数据', get_fab_overview: '查询工厂总览', get_yield_trend: '查询良率趋势', get_equipment_health: '查询设备健康', get_equipment_productivity: '查询设备生产状态', get_process_capability: '查询制程能力', get_defect_pareto: '查询缺陷 Pareto', get_recent_excursions: '查询近期异常', get_sensor_summary: '查询传感器摘要', search_knowledge: '检索知识与案例', query_manufacturing_data: '执行制造数据查询' };
+const sourcePresenter = globalThis.FabSourcePresenter;
 
 function isoDate(date) { return date.toISOString().slice(0, 10); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
@@ -102,10 +103,35 @@ function showToast(message, {actionLabel = '', onAction = null, tone = 'default'
   state.toastTimer = window.setTimeout(dismissToast, duration);
 }
 
-function sourceLink(source, label) {
-  if (source.source_type === 'case' || source.case_id) return `<button class="citation-link" data-case-id="${escapeHtml(source.case_id)}">${escapeHtml(label)}</button>`;
-  if (source.source_type === 'personal') return `<button class="citation-link" data-personal-chunk="${escapeHtml(source.chunk_id)}">${escapeHtml(label)}</button>`;
-  return `<button class="citation-link" data-knowledge-chunk="${Number(source.chunk_id)}">${escapeHtml(label)}</button>`;
+function sourceNavigationAttributes(source) {
+  const documentAttribute = source.document_id ? ` data-source-document-id="${escapeHtml(source.document_id)}"` : '';
+  if (source.source_type === 'case' || source.case_id) return `data-case-id="${escapeHtml(source.case_id)}"${documentAttribute}`;
+  if (source.source_type === 'personal') return `data-personal-chunk="${escapeHtml(source.chunk_id)}"${documentAttribute}`;
+  return `data-knowledge-chunk="${Number(source.chunk_id)}"${documentAttribute}`;
+}
+
+function sourceLink(source, label = '') {
+  const attributes = sourceNavigationAttributes(source);
+  if (label) return `<button type="button" class="source-link" ${attributes}>${escapeHtml(label)}</button>`;
+  const name = sourcePresenter.displayName(source);
+  const location = sourcePresenter.locationLabel(source);
+  const documentAttribute = source.document_id ? ` data-source-document-id="${escapeHtml(source.document_id)}"` : '';
+  return `<button type="button" class="citation-link" ${attributes}>[来源：<span class="source-document-name"${documentAttribute}>${escapeHtml(name)}</span>${location ? ` · ${escapeHtml(location)}` : ''}]</button>`;
+}
+
+function sourceReferenceMap(sources = []) {
+  return sourcePresenter.referenceMap(sources);
+}
+
+function renderSourcePanel(sources = []) {
+  const groups = sourcePresenter.groupSources(sources);
+  if (!groups.length) return '';
+  const body = groups.map(group => {
+    const documentAttribute = group.documentId ? ` data-source-document-id="${escapeHtml(group.documentId)}"` : '';
+    const links = group.items.map(source => sourceLink(source, sourcePresenter.locationLabel(source) || '打开来源')).join('');
+    return `<section class="source-group"><div class="source-group-heading"><strong class="source-document-name"${documentAttribute}>${escapeHtml(group.name)}</strong><span>${escapeHtml(group.type)}</span></div><div class="source-locations">${links}</div></section>`;
+  }).join('');
+  return `<details class="source-list"><summary><span>知识来源</span><small>${groups.length} 份资料 · ${sources.length} 处引用</small></summary><div class="source-list-body">${body}</div></details>`;
 }
 
 function inlineMarkdown(value, sourceReferences = new Map()) {
@@ -115,7 +141,7 @@ function inlineMarkdown(value, sourceReferences = new Map()) {
   text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
   text = text.replace(/\[来源(?:\s+chunk_id\s*:)?\s*([A-Za-z0-9,，、\-\s]+)\]/gi, (match, ids) => {
     const references = ids.split(/[,，、\s]+/).filter(Boolean).map(id => sourceReferences.get(id) || sourceReferences.get(`KB-${id}`)).filter(Boolean);
-    return references.length ? references.map(source => sourceLink(source, `[来源 ${source.reference_id || `KB-${source.chunk_id}`}]`)).join(' ') : match;
+    return references.length ? references.map(source => sourceLink(source)).join(' ') : match;
   });
   return text;
 }
@@ -816,16 +842,12 @@ function renderSessionLibraryPreview(session) {
   $('#continueLibrarySession').textContent = session.archived_at ? '恢复并继续' : '在助手中继续';
   $('#sessionLibraryMessages').innerHTML = session.messages.map(item => {
     const assistant = item.role === 'assistant';
-    const sourceReferences = new Map();
-    for (const source of (item.metadata?.sources || [])) {
-      if (source.reference_id) sourceReferences.set(source.reference_id, source);
-      if (source.chunk_id) sourceReferences.set(String(source.chunk_id), source);
-    }
-    const content = assistant ? renderMarkdown(item.content, sourceReferences) : escapeHtml(item.content).replace(/\n/g, '<br>');
+    const messageSources = item.metadata?.sources || [];
+    const content = assistant
+      ? renderMarkdown(sourcePresenter.stripSourceAppendix(item.content), sourceReferenceMap(messageSources))
+      : escapeHtml(item.content).replace(/\n/g, '<br>');
     const timestamp = new Date(item.created_at).toLocaleString('zh-CN', {hour12:false});
-    const sources = assistant && item.metadata?.sources?.length
-      ? `<div class="source-list"><strong>知识来源</strong>${item.metadata.sources.map(source => sourceLink(source, `[来源 ${source.reference_id || `KB-${source.chunk_id}`}] ${source.source || ''} · ${source.section || ''}`)).join('')}</div>`
-      : '';
+    const sources = assistant ? renderSourcePanel(messageSources) : '';
     return `<section class="session-transcript-item ${assistant ? 'assistant' : 'user'}"><div class="session-transcript-heading"><strong>${assistant ? 'FAB COPILOT' : '使用者'}</strong><time>${timestamp}</time></div><div class="session-transcript-content markdown-content">${content}${sources}</div></section>`;
   }).join('') || '<p class="empty">该会话尚无消息。</p>';
 }
@@ -1177,19 +1199,15 @@ async function streamAgent(message, clientMessageId, onProgress) {
 }
 
 function renderAssistantInto(el, content, extra = {}) {
-  const sourceReferences = new Map();
-  for (const source of (extra.sources || [])) {
-    if (source.reference_id) sourceReferences.set(source.reference_id, source);
-    if (source.chunk_id) sourceReferences.set(String(source.chunk_id), source);
-  }
-  const renderedContent = renderMarkdown(content, sourceReferences);
+  const sources = extra.sources || [];
+  const renderedContent = renderMarkdown(sourcePresenter.stripSourceAppendix(content), sourceReferenceMap(sources));
   const copyButton = '<button type="button" class="copy-answer" title="复制回答" aria-label="复制回答"><span aria-hidden="true">⧉</span><span>复制</span></button>';
   el.className = 'message assistant';
-  el.innerHTML = `<div class="message-meta"><div class="message-label">FAB COPILOT</div></div>${renderToolTrace(extra.tool_trace, extra.run_id)}<div class="message-content markdown-content">${renderedContent}</div><div class="message-actions">${copyButton}</div>`;
+  el.innerHTML = `<div class="message-meta"><div class="message-label">FAB COPILOT</div></div>${renderToolTrace(extra.tool_trace, extra.run_id)}<div class="message-content markdown-content">${renderedContent}${renderSourcePanel(sources)}</div><div class="message-actions">${copyButton}</div>`;
   const copyAnswer = el.querySelector('.copy-answer');
   copyAnswer.addEventListener('click', async () => {
     try {
-      await copyText(content);
+      await copyText(sourcePresenter.replaceReferenceIds(content, sources));
       copyAnswer.innerHTML = '<span aria-hidden="true">✓</span><span>已复制</span>'; copyAnswer.classList.add('copied'); copyAnswer.title = '已复制';
       window.setTimeout(() => { copyAnswer.innerHTML = '<span aria-hidden="true">⧉</span><span>复制</span>'; copyAnswer.classList.remove('copied'); copyAnswer.title = '复制回答'; }, 1600);
     } catch (error) {
@@ -1197,20 +1215,6 @@ function renderAssistantInto(el, content, extra = {}) {
       window.setTimeout(() => copyAnswer.classList.remove('copy-error'), 1600);
     }
   });
-  if (extra.sources?.length) {
-    const sourceHtml = extra.sources.map(source => {
-      const referenceId = source.reference_id || `KB-${source.chunk_id}`;
-      const attribute = source.source_type === 'case'
-        ? `data-case-id="${escapeHtml(source.case_id)}"`
-        : source.source_type === 'personal'
-          ? `data-personal-chunk="${escapeHtml(source.chunk_id)}"`
-          : `data-knowledge-chunk="${Number(source.chunk_id)}"`;
-      const retrieval = source.retrieval || {};
-      const scoreTitle = retrieval.final_score != null ? `${retrieval.confidence} · score ${retrieval.final_score} · ${(retrieval.selection_reason || []).join(' · ')}` : '';
-      return `<button type="button" class="source-link" ${attribute} title="${escapeHtml(scoreTitle)}">[来源 ${escapeHtml(referenceId)}] ${escapeHtml(source.source)} · ${escapeHtml(source.section)}</button>`;
-    }).join('');
-    el.querySelector('.message-content').insertAdjacentHTML('beforeend', `<div class="source-list"><strong>知识来源</strong>${sourceHtml}</div>`);
-  }
 }
 
 function addMessage(role, content, extra = {}) {
