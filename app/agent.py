@@ -36,7 +36,12 @@ from .context_resolver import (
 from .domain_playbooks import PlaybookSelection, playbook_system_message, select_playbook
 from .evidence_validator import EvidenceObservation, validate_evidence, validator_system_message
 from .enterprise_data import enterprise_data_manifest, enterprise_fab_summary, query_enterprise_data
-from .intent_router import IntentRoute, route_question, routing_system_message
+from .intent_router import (
+    IntentRoute,
+    apply_semantic_intent_hint,
+    route_question,
+    routing_system_message,
+)
 from .knowledge_decision import (
     RetrievalDecision,
     assess_retrieval,
@@ -764,7 +769,9 @@ async def _resolve_conversation_turn(
     direct_route: IntentRoute | None = None,
 ) -> tuple[ContextResolution, dict]:
     deterministic = resolve_question_context(question, history)
-    if deterministic.applied or not history or not settings.deepseek_api_key:
+    if deterministic.applied or not settings.deepseek_api_key:
+        return deterministic, {}
+    if not history and (direct_route is None or direct_route.intent != "unknown"):
         return deterministic, {}
     if (
         direct_route
@@ -817,7 +824,7 @@ async def _resolve_conversation_turn(
                     _context_tool_arguments(assistant),
                 )
             except Exception as exc:
-                retryable = _retryable_model_error(exc)
+                retryable = _retryable_model_error(exc) or isinstance(exc, ValueError)
                 will_retry = retryable and attempt <= settings.model_max_retries
                 emit(
                     "model_call_finished",
@@ -923,12 +930,17 @@ async def _run_agent_impl(
                 "message": "已根据上条回答中的选项恢复分析目标",
                 "context_resolution": context_resolution.to_dict(),
             })
-    intent_route = (
+    base_route = (
         route_question("介绍一下你自己")
         if context_resolution.strategy == "semantic_recall"
         else route_question(analysis_question)
         if context_resolution.applied
         else direct_route
+    )
+    intent_route = apply_semantic_intent_hint(
+        base_route,
+        context_resolution.intent_hint,
+        context_resolution.confidence,
     )
     route_payload = intent_route.to_dict()
     emit(

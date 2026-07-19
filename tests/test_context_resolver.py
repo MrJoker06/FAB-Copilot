@@ -41,6 +41,7 @@ def _context_response(
     resolved_question: str,
     topic_anchor: str = "",
     confidence: float = 0.95,
+    intent_hint: str = "unclear",
 ) -> tuple[dict, dict, str]:
     return (
         {
@@ -56,6 +57,7 @@ def _context_response(
                         "resolved_question": resolved_question,
                         "topic_anchor": topic_anchor,
                         "confidence": confidence,
+                        "intent_hint": intent_hint,
                     }, ensure_ascii=False),
                 },
             }],
@@ -105,6 +107,7 @@ class ContextResolverTests(unittest.TestCase):
                 "resolved_question": "比较 GaN 功率器件相对于 SiC 功率器件的优势、限制和适用场景",
                 "topic_anchor": "GaN 功率器件相对于 Si 的优势",
                 "confidence": 0.96,
+                "intent_hint": "general_knowledge",
             },
         )
 
@@ -120,6 +123,7 @@ class ContextResolverTests(unittest.TestCase):
                 "resolved_question": "继续讨论 GaN",
                 "topic_anchor": "GaN",
                 "confidence": 0.4,
+                "intent_hint": "unclear",
             },
         )
 
@@ -259,6 +263,40 @@ class ContextResolverTests(unittest.TestCase):
         self.assertEqual(resolution.resolved_question, "这个怎么处理")
         self.assertEqual(usage, {})
 
+    def test_context_model_retries_one_protocol_failure(self):
+        calls = 0
+        settings = _settings()
+        settings.model_max_retries = 1
+
+        async def flaky_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return ({"role": "assistant", "content": "格式错误"}, {}, "invalid-context")
+            return _context_response(
+                "correction",
+                "当前主流的半导体制程大概有哪些",
+                "当前主流的制程",
+                intent_hint="general_knowledge",
+            )
+
+        with patch("app.agent._stream_completion", new=flaky_stream):
+            resolution, usage = asyncio.run(agent_module._resolve_conversation_turn(
+                "不涉及厂内数据",
+                [
+                    {"role": "user", "content": "当前主流的制程大概有哪些"},
+                    {"role": "assistant", "content": "请补充生产范围。"},
+                ],
+                settings,
+                "run-context-protocol-retry-test",
+                None,
+            ))
+
+        self.assertEqual(calls, 2)
+        self.assertTrue(resolution.applied)
+        self.assertEqual(resolution.intent_hint, "general_knowledge")
+        self.assertEqual(usage["total_tokens"], 12)
+
     def test_agent_executes_knowledge_tool_for_selected_last_option(self):
         history = [
             {"role": "user", "content": INITIAL_QUESTION},
@@ -349,8 +387,13 @@ class ContextResolverTests(unittest.TestCase):
         self.assertEqual(result["tool_trace"][0]["status"], "ok")
         self.assertIn("KB-CONTEXT-001", {item["reference_id"] for item in result["sources"]})
 
-    def test_unresolved_clarification_never_calls_model(self):
-        model_call = AsyncMock(side_effect=AssertionError("clarification path must not call model"))
+    def test_unresolved_semantic_intent_still_requests_clarification(self):
+        model_call = AsyncMock(return_value=_context_response(
+            "standalone",
+            "帮我看看这个情况",
+            confidence=0.9,
+            intent_hint="unclear",
+        ))
         progress_events: list[dict] = []
 
         async def progress(event: dict) -> None:
@@ -364,9 +407,9 @@ class ContextResolverTests(unittest.TestCase):
                 agent_module._run_agent_impl("帮我看看这个情况", [], "run-context-clarification-test", progress)
             )
 
-        model_call.assert_not_awaited()
+        model_call.assert_awaited_once()
         self.assertEqual(result["mode"], "clarification")
-        self.assertEqual(result["model"], "deterministic-router")
+        self.assertEqual(result["model"], "test-model")
         self.assertEqual(result["tool_trace"], [])
         self.assertEqual(result["execution_plan"]["status"], "clarification_required")
         self.assertNotIn("```json", result["answer"])
@@ -381,6 +424,41 @@ class ContextResolverTests(unittest.TestCase):
         self.assertTrue(follow_up.applied)
         self.assertEqual(route_question(follow_up.resolved_question).intent, "sop_lookup")
         self.assertTrue(any(item.get("stage") == "clarification" for item in progress_events))
+
+    def test_unknown_first_turn_uses_semantic_general_knowledge_hint(self):
+        calls = 0
+
+        async def fake_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return _context_response(
+                    "standalone",
+                    "当前主流的半导体制程大概有哪些",
+                    confidence=0.94,
+                    intent_hint="general_knowledge",
+                )
+            return (
+                {"role": "assistant", "content": "主流半导体制程包括光刻、刻蚀、薄膜沉积等。"},
+                {"total_tokens": 5},
+                "general-answer",
+            )
+
+        with (
+            patch("app.agent.get_settings", return_value=_settings()),
+            patch("app.agent._stream_completion", new=fake_stream),
+            patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": lambda **_: []}),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "当前主流的制程大概有哪些",
+                [],
+                "run-semantic-general-hint-test",
+            ))
+
+        self.assertEqual(calls, 2)
+        self.assertEqual(result["intent_route"]["intent"], "general_knowledge")
+        self.assertFalse(result["intent_route"]["clarification_needed"])
+        self.assertEqual(result["context_resolution"]["intent_hint"], "general_knowledge")
 
     def test_empty_knowledge_results_fall_back_to_disclosed_model_knowledge(self):
         history = [

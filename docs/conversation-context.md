@@ -9,7 +9,7 @@
 1. 从 Session 读取最近 20 条消息。
 2. 对“第 N 项、最后一项”这类结构明确的界面选择做确定性解析。
 3. 未知、歧义、通用知识或仍缺少必要范围的消息进入独立 `contextualization` 模型阶段；已经能完整路由的制造任务直接进入主循环。
-4. 模型通过 `resolve_conversation_turn` 返回结构化关系、完整问题、主题锚点和置信度。
+4. 模型通过 `resolve_conversation_turn` 返回结构化关系、完整问题、主题锚点、置信度和受限的意图提示。
 5. 只有置信度不低于 0.65 的追问、纠正或回忆才允许改写当前问题。
 6. 完整问题再进入 Intent Router、Playbook、Planner、工具循环和证据校验。
 
@@ -33,11 +33,14 @@ Session history + current turn
   "relation": "standalone | followup | correction | recall",
   "resolved_question": "可独立理解并进入路由的完整问题",
   "topic_anchor": "本轮引用的历史主题；独立问题为空",
-  "confidence": 0.0
+  "confidence": 0.0,
+  "intent_hint": "general_knowledge | manufacturing_analysis | unclear"
 }
 ```
 
 `standalone` 不改写输入。`followup` 补全省略对象或动作，`correction` 应用用户最新修改并移除被否定要求，`recall` 只恢复用户要求回忆的历史内容。
+
+当确定性 Router 返回 `unknown` 时，只有置信度不低于 0.65 的 `general_knowledge` 提示可以进入通用知识检索路径。`manufacturing_analysis` 和 `unclear` 仍保留澄清要求，模型提示不能直接触发制造数据工具。
 
 ## 上下文窗口
 
@@ -49,7 +52,7 @@ Session history + current turn
 
 ## 失败与安全边界
 
-- 模型未返回指定函数、参数不是合法 JSON、关系类型非法或置信度过低时，不绑定历史，按当前输入独立路由。
+- 模型未返回指定函数或参数不是合法 JSON 时，在现有模型重试上限内重试；仍失败、关系类型非法或置信度过低时，不绑定历史，按当前输入独立路由。
 - 上下文阶段不得调用制造数据或知识库工具。
 - `resolved_question` 不是证据，后续制造事实仍必须经过正常工具与 Evidence Validator。
 - 日志记录关系、置信度、耗时、Token 和结构化结果；不记录或展示隐藏思维链。

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import date, timedelta
 from typing import Literal
 
@@ -419,6 +419,28 @@ def route_question(question: str, current_date: date | None = None) -> IntentRou
         risk_reasons=risk_reasons,
         clarification_needed=bool(clarification_questions),
         clarification_questions=tuple(clarification_questions),
+    )
+
+
+def apply_semantic_intent_hint(
+    route: IntentRoute,
+    intent_hint: str,
+    confidence: float,
+) -> IntentRoute:
+    """Use a constrained model hint only when deterministic routing found no intent."""
+    if route.intent != "unknown" or intent_hint != "general_knowledge" or confidence < 0.65:
+        return route
+    return replace(
+        route,
+        intent="general_knowledge",
+        intent_label=INTENT_LABELS["general_knowledge"],
+        confidence=round(min(confidence, 0.85), 2),
+        candidate_intents=("general_knowledge",),
+        data_requirements=_DATA_REQUIREMENTS["general_knowledge"],
+        risk_level="low",
+        risk_reasons=(),
+        clarification_needed=False,
+        clarification_questions=(),
     )
 
 

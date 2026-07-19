@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from app import agent as agent_module
-from app.intent_router import route_question, routing_system_message
+from app.intent_router import apply_semantic_intent_hint, route_question, routing_system_message
 
 
 class IntentRouterTests(unittest.TestCase):
@@ -140,6 +140,18 @@ class IntentRouterTests(unittest.TestCase):
         self.assertEqual(route.data_requirements, ())
         self.assertTrue(route.clarification_needed)
         self.assertEqual(route.risk_level, "medium")
+
+    def test_semantic_hint_only_promotes_unknown_general_knowledge(self):
+        route = route_question("当前主流制程有哪些", current_date=date(2026, 7, 18))
+
+        general = apply_semantic_intent_hint(route, "general_knowledge", 0.92)
+        manufacturing = apply_semantic_intent_hint(route, "manufacturing_analysis", 0.99)
+
+        self.assertEqual(general.intent, "general_knowledge")
+        self.assertFalse(general.clarification_needed)
+        self.assertEqual(general.data_requirements, ("search_knowledge",))
+        self.assertEqual(manufacturing.intent, "unknown")
+        self.assertTrue(manufacturing.clarification_needed)
 
     def test_general_comparison_does_not_request_production_scope(self):
         route = route_question("GAN器件和S器件的差别", current_date=date(2026, 7, 18))

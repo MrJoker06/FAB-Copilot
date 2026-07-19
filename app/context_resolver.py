@@ -15,6 +15,7 @@ ResolutionStrategy = Literal[
 ]
 ContextRelation = Literal["standalone", "followup", "correction", "recall"]
 ResolutionSource = Literal["none", "deterministic", "model", "fallback"]
+IntentHint = Literal["general_knowledge", "manufacturing_analysis", "unclear"]
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,7 @@ class ContextResolution:
     relation: ContextRelation = "standalone"
     confidence: float = 1.0
     source: ResolutionSource = "none"
+    intent_hint: IntentHint = "unclear"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -70,8 +72,13 @@ CONTEXTUALIZE_TURN_TOOL = {
                     "maximum": 1,
                     "description": "关系判断的置信度。",
                 },
+                "intent_hint": {
+                    "type": "string",
+                    "enum": ["general_knowledge", "manufacturing_analysis", "unclear"],
+                    "description": "通用知识、厂内制造分析或仍无法判断。",
+                },
             },
-            "required": ["relation", "resolved_question", "topic_anchor", "confidence"],
+            "required": ["relation", "resolved_question", "topic_anchor", "confidence", "intent_hint"],
             "additionalProperties": False,
         },
     },
@@ -86,7 +93,9 @@ CONTEXTUALIZER_PROMPT = """你是 Agent Loop 的会话上下文解析器，不�
 4. recall：用户询问此前说过或问过什么，topic_anchor 填写被询问的历史内容。
 5. resolved_question 必须是可直接进入意图路由的完整任务，保留用户当前比较对象、范围和目标。
 6. 只能恢复会话指代，禁止添加历史中不存在的制造事实、参数、结论或证据。
-7. 不输出分析过程、解释或答案，只调用指定函数。"""
+7. 只有主题、范围、对象、否定条件或回答方式，而没有独立信息请求的输入，不是 standalone；应与最近尚未完成的用户目标组合为 followup 或 correction。助手重复索要范围不代表用户已经放弃原目标。
+8. intent_hint=general_knowledge 表示概念、原理、分类、比较或行业常识，不需要当前厂内数据；manufacturing_analysis 表示需要当前生产、设备、批次、指标或异常数据；无法可靠判断时使用 unclear。
+9. 不输出分析过程、解释或答案，只调用指定函数。"""
 
 
 def _plain(value: str, limit: int = 1200) -> str:
@@ -155,6 +164,7 @@ def _resolve_ordinal(question: str, history: list[dict]) -> ContextResolution | 
             relation="followup",
             confidence=1.0,
             source="deterministic",
+            intent_hint="unclear",
         )
     return None
 
@@ -208,6 +218,9 @@ def semantic_context_resolution(question: str, arguments: dict) -> ContextResolu
         return unresolved_context(question, "fallback")
     resolved = _plain(str(arguments.get("resolved_question") or ""), 4000)
     topic_anchor = _plain(str(arguments.get("topic_anchor") or ""), 1200)
+    intent_hint = str(arguments.get("intent_hint") or "").strip()
+    if intent_hint not in {"general_knowledge", "manufacturing_analysis", "unclear"}:
+        return unresolved_context(question, "fallback")
     if relation == "standalone" or confidence < 0.65:
         return ContextResolution(
             question,
@@ -218,6 +231,7 @@ def semantic_context_resolution(question: str, arguments: dict) -> ContextResolu
             relation="standalone" if relation == "standalone" else relation,
             confidence=confidence,
             source="model",
+            intent_hint=intent_hint,
         )
     if not resolved or (relation == "recall" and not topic_anchor):
         return unresolved_context(question, "fallback")
@@ -235,6 +249,7 @@ def semantic_context_resolution(question: str, arguments: dict) -> ContextResolu
         relation=relation,
         confidence=confidence,
         source="model",
+        intent_hint=intent_hint,
     )
 
 
