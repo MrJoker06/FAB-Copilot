@@ -44,7 +44,16 @@ from app.execution_store import (
 from app.main import app
 from app.processes import MANUFACTURING_STEPS
 from app.rag import _infer_filters, search_knowledge
-from app.reports import process_capability, recent_excursions, report_bundle, safe_select, timestamp_bounds
+from app.reports import (
+    defect_pareto,
+    equipment_health,
+    equipment_productivity,
+    process_capability,
+    recent_excursions,
+    report_bundle,
+    safe_select,
+    timestamp_bounds,
+)
 from app.seed import seed_reference_data
 from app.sessions import append_message, record_agent_result
 
@@ -62,6 +71,22 @@ class FabInsightTests(unittest.TestCase):
         defect_types = [row["defect_type"] for row in dashboard["defects"]]
         self.assertEqual(len(defect_types), len(set(defect_types)))
         self.assertTrue(all("process_steps" in row for row in dashboard["defects"]))
+
+    def test_operational_reports_keep_every_process_scope_isolated(self):
+        start = (date.today() - timedelta(days=90)).isoformat()
+        end = (date.today() + timedelta(days=1)).isoformat()
+
+        for process_step in MANUFACTURING_STEPS:
+            with self.subTest(process_step=process_step):
+                health = equipment_health(start, end, process_step)
+                productivity = equipment_productivity(start, end, process_step)
+                defects = defect_pareto(start, end, 25, process_step)
+
+                self.assertTrue(health)
+                self.assertTrue(productivity)
+                self.assertTrue(all(row["equipment_id"].startswith(f"{process_step}-") for row in health))
+                self.assertTrue(all(row["equipment_id"].startswith(f"{process_step}-") for row in productivity))
+                self.assertTrue(all(row["process_steps"] == process_step for row in defects))
 
     def test_health_exposes_runtime_instance_identity(self):
         with TestClient(app) as client:
@@ -88,9 +113,9 @@ class FabInsightTests(unittest.TestCase):
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("/static/stream_buffer.js?v=20260719-2", page)
-        self.assertIn("/static/source_presenter.js?v=20260719-2", page)
-        self.assertIn("/static/app.js?v=20260719-2", page)
+        self.assertIn("/static/stream_buffer.js?v=20260719-3", page)
+        self.assertIn("/static/source_presenter.js?v=20260719-3", page)
+        self.assertIn("/static/app.js?v=20260719-3", page)
         self.assertNotIn('id="monitorView"', page)
         self.assertNotIn('id="apiKeyInput"', page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")

@@ -156,6 +156,38 @@ class StructuredPlannerTests(unittest.TestCase):
         self.assertEqual(set(by_tool["get_equipment_health"].evidence_ids), {"FAB-03"})
         self.assertEqual(set(by_tool["get_defect_pareto"].evidence_ids), {"FAB-04"})
 
+    def test_process_area_overview_scopes_supported_tools(self):
+        cases = (
+            ("分析最近一周光刻机台状况", "LITHO"),
+            ("为我分析一下最近一周刻蚀机台的情况", "ETCH"),
+            ("评估近两周CVD生产表现", "CVD"),
+            ("盘点最近一周溅射设备现状", "PVD"),
+            ("总结近7天炉管运行状态", "DIFFUSION"),
+            ("分析最近一周离子注入生产状况", "IMPLANT"),
+            ("评估过去7天CMP机台表现", "CMP"),
+            ("查看近两周清洗设备情况", "CLEAN"),
+            ("分析最近一周量测机台状况", "METROLOGY"),
+        )
+        scoped_tools = (
+            "get_process_capability",
+            "get_equipment_health",
+            "get_equipment_productivity",
+            "get_defect_pareto",
+            "get_recent_excursions",
+        )
+
+        for question, process_step in cases:
+            with self.subTest(question=question):
+                plan = _plan(question)
+                by_tool = {step.tool: step for step in plan.steps}
+
+                self.assertEqual(plan.status, "ready")
+                self.assertEqual(plan.playbook_id, "PB-FAB-001")
+                self.assertEqual(
+                    {tool: by_tool[tool].parameters.get("process_step") for tool in scoped_tools},
+                    {tool: process_step for tool in scoped_tools},
+                )
+
     def test_missing_ambiguous_and_unknown_inputs_create_no_tool_steps(self):
         cases = (
             ("分析 Cpk 不合格", "process_step"),

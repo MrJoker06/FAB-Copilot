@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, patch
 
 from app import agent as agent_module
 from app.intent_router import apply_semantic_intent_hint, route_question, routing_system_message
+from app.processes import PROCESS_ALIASES
 
 
 class IntentRouterTests(unittest.TestCase):
@@ -70,6 +71,10 @@ class IntentRouterTests(unittest.TestCase):
             "总结一下产线瓶颈和提升机会",
             "比较设备健康和良率趋势",
             "Cpk 最差的设备有什么改进建议",
+            "为我分析一下最近一周ETCH几台的情况",
+            "为我分析一下最近一周刻蚀几台的情况",
+            "为我分析一下最近一周刻蚀机台的情况",
+            "分析一下最近一周的生产状况",
         )
         expected_tools = {
             "get_fab_overview", "get_yield_trend", "get_process_capability",
@@ -83,6 +88,45 @@ class IntentRouterTests(unittest.TestCase):
                 self.assertEqual(route.intent, "fab_diagnostic")
                 self.assertFalse(route.clarification_needed)
                 self.assertEqual(set(route.data_requirements), expected_tools)
+
+    def test_open_manufacturing_scope_does_not_capture_knowledge_or_scope_free_requests(self):
+        knowledge = route_question("为我介绍一下光刻原理", current_date=date(2026, 7, 18))
+        unclear = route_question("帮我看看这个情况", current_date=date(2026, 7, 18))
+
+        self.assertEqual(knowledge.intent, "general_knowledge")
+        self.assertFalse(knowledge.clarification_needed)
+        self.assertEqual(unclear.intent, "unknown")
+        self.assertTrue(unclear.clarification_needed)
+
+    def test_routes_operational_reviews_for_every_manufacturing_process_family(self):
+        cases = (
+            ("分析最近一周光刻机台状况", "LITHO"),
+            ("查看过去7天刻蚀设备运行情况", "ETCH"),
+            ("评估近两周CVD生产表现", "CVD"),
+            ("盘点最近一周溅射设备现状", "PVD"),
+            ("总结近7天炉管运行状态", "DIFFUSION"),
+            ("分析最近一周离子注入生产状况", "IMPLANT"),
+            ("评估过去7天CMP机台表现", "CMP"),
+            ("查看近两周清洗设备情况", "CLEAN"),
+            ("分析最近一周量测机台状况", "METROLOGY"),
+        )
+
+        for question, process_step in cases:
+            with self.subTest(question=question):
+                route = route_question(question, current_date=date(2026, 7, 18))
+                self.assertEqual(route.intent, "fab_diagnostic")
+                self.assertEqual(route.process_steps, (process_step,))
+                self.assertFalse(route.clarification_needed)
+                self.assertEqual(len(route.data_requirements), 7)
+
+        for process_step, aliases in PROCESS_ALIASES.items():
+            for alias in (process_step, *aliases):
+                question = f"分析最近一周{alias}设备运行情况"
+                with self.subTest(process_step=process_step, alias=alias):
+                    route = route_question(question, current_date=date(2026, 7, 18))
+                    self.assertEqual(route.intent, "fab_diagnostic")
+                    self.assertEqual(route.process_steps, (process_step,))
+                    self.assertFalse(route.clarification_needed)
 
     def test_diagnostic_routing_message_allows_required_manufacturing_tools(self):
         route = route_question(

@@ -331,6 +331,7 @@ FAB_DIAGNOSTIC_PLAYBOOK = DomainPlaybook(
             acceptance_criteria=(
                 "必须报告起止日期、批次和晶圆样本量。",
                 "当前总体值必须与周度趋势结合，不得仅凭单点指标判断改善方向。",
+                "制程级请求中的整厂基线只作为背景，不得表述为该制程自身的良率、周期或 Hold 指标。",
             ),
         ),
         EvidenceRequirement(
@@ -343,7 +344,7 @@ FAB_DIAGNOSTIC_PLAYBOOK = DomainPlaybook(
                 "metric_name", "metric_unit", "spec_lsl", "spec_usl",
             ),
             acceptance_criteria=(
-                "覆盖全部可用制造站点，并保留各站点自身量测与规格口径。",
+                "覆盖用户请求的制程范围；整厂请求覆盖全部可用站点，制程级请求只比较该制程设备。",
                 "优先级同时考虑 Cpk、样本量、均值偏移和 sigma，不得只按单一最低值排序。",
             ),
         ),

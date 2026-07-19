@@ -232,7 +232,14 @@ def _base_parameters(
     if tool in _DATE_TOOLS:
         parameters.update({"start": route.time_range.start, "end": route.time_range.end})
         sources.update({"start": "intent_route.time_range", "end": "intent_route.time_range"})
-    if tool in {"get_process_capability", "get_recent_excursions", "get_sensor_summary"} and route.process_steps:
+    if tool in {
+        "get_process_capability",
+        "get_recent_excursions",
+        "get_sensor_summary",
+        "get_equipment_health",
+        "get_equipment_productivity",
+        "get_defect_pareto",
+    } and route.process_steps:
         parameters["process_step"] = route.process_steps[0]
         sources["process_step"] = "intent_route.process_steps[0]"
     if tool == "get_sensor_summary" and route.equipment_ids:

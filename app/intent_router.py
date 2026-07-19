@@ -172,6 +172,14 @@ _DIAGNOSTIC_GOAL_PATTERN = re.compile(
     r"现状分析|表现评估|比较|对比|排序|排名|综合分析|总结)",
     re.IGNORECASE,
 )
+_MANUFACTURING_REVIEW_PATTERN = re.compile(
+    r"(?:分析|查看|检查|评估|盘点|总结|概览|概况|情况|状况|表现|运行状态|运营状态)",
+    re.IGNORECASE,
+)
+_PROCESS_OPERATION_PATTERN = re.compile(
+    r"(?:机台|设备|生产|制造|运营|运行|数据|情况|状况|表现|现状|指标|异常|产出|效率)",
+    re.IGNORECASE,
+)
 _CROSS_DOMAIN_GOAL_PATTERN = re.compile(
     r"(?:比较|对比|关联|综合|整体|一起|同时|排序|排名|优先级|优先顺序)",
     re.IGNORECASE,
@@ -184,7 +192,7 @@ _CAPABILITY_PORTFOLIO_PATTERN = re.compile(
 _SPECIALIZED_SCOPE_PATTERNS: dict[str, re.Pattern] = {
     "capability_excursion": re.compile(r"(?:cpk|制程能力|过程能力|能力不足|超规|规格限)", re.IGNORECASE),
     "yield_decline": re.compile(r"(?:良率|yield|直通率|报废率)", re.IGNORECASE),
-    "equipment_fault": re.compile(r"(?:设备|机台|故障|报警|alarm|宕机|停机|oee|稼动|维护|pm)", re.IGNORECASE),
+    "equipment_fault": re.compile(r"(?:设备风险|健康|故障|报警|alarm|宕机|停机|oee|稼动|维护|pm)", re.IGNORECASE),
     "lot_trace": re.compile(r"(?:批次|lot|晶圆|wafer|追踪|追溯|hold|wip)", re.IGNORECASE),
     "sop_lookup": re.compile(r"(?:sop|规范|作业指导|控制计划|知识库|文档|标准流程)", re.IGNORECASE),
     "defect_analysis": re.compile(r"(?:缺陷|defect|划伤|scratch|颗粒|particle|残留|wafer map|晶圆图|pareto)", re.IGNORECASE),
@@ -253,7 +261,17 @@ def _looks_like_fab_diagnostic(
     process_steps: tuple[str, ...],
     scores: dict[str, int],
 ) -> bool:
-    if not _DIAGNOSTIC_GOAL_PATTERN.search(normalized):
+    explicit_diagnostic = bool(_DIAGNOSTIC_GOAL_PATTERN.search(normalized))
+    scoped_review = bool(
+        _MANUFACTURING_REVIEW_PATTERN.search(normalized)
+        and (
+            _FAB_SCOPE_PATTERN.search(normalized)
+            or (process_steps and _PROCESS_OPERATION_PATTERN.search(normalized))
+        )
+    )
+    if not explicit_diagnostic and not scoped_review:
+        return False
+    if not explicit_diagnostic and scores.get("fab_overview", 0) >= 4:
         return False
     specialized = tuple(
         intent for intent, pattern in _SPECIALIZED_SCOPE_PATTERNS.items()
@@ -270,7 +288,9 @@ def _looks_like_fab_diagnostic(
         and _CAPABILITY_PORTFOLIO_PATTERN.search(normalized)
     ):
         return True
-    if strong_specialized or specialized:
+    if strong_specialized:
+        return False
+    if specialized and not (explicit_diagnostic and _FAB_SCOPE_PATTERN.search(normalized)):
         return False
     return bool(process_steps or _FAB_SCOPE_PATTERN.search(normalized))
 

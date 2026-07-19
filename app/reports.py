@@ -83,20 +83,31 @@ def yield_trend(start: str | None = None, end: str | None = None, product: str |
     return rows_to_dicts(rows)
 
 
-def equipment_health(start: str | None = None, end: str | None = None) -> list[dict]:
+def equipment_health(
+    start: str | None = None,
+    end: str | None = None,
+    process_step: str | None = None,
+) -> list[dict]:
     start, end = timestamp_bounds(start, end)
+    run_scope = "AND process_step = ?" if process_step else ""
+    event_scope = "AND equipment_id LIKE ?" if process_step else ""
+    params: list[Any] = [start, end]
+    event_params: list[Any] = [start, end]
+    if process_step:
+        params.append(process_step.upper())
+        event_params.append(f"{process_step.upper()}-%")
     with db_session() as connection:
         rows = connection.execute(
-            """WITH run_stats AS (
+            f"""WITH run_stats AS (
                    SELECT equipment_id, COUNT(*) AS runs,
                           SUM(CASE WHEN excursion_code IS NOT NULL THEN 1 ELSE 0 END) AS excursions,
                           ROUND(AVG(defect_density), 3) AS avg_defect_density,
                           ROUND(100.0 * AVG(pass_flag), 2) AS pass_pct
-                   FROM process_runs WHERE run_time >= ? AND run_time < ? GROUP BY equipment_id
+                   FROM process_runs WHERE run_time >= ? AND run_time < ? {run_scope} GROUP BY equipment_id
                ), event_stats AS (
                    SELECT equipment_id, COUNT(*) AS events,
                           ROUND(SUM(duration_minutes), 1) AS downtime_minutes
-                   FROM equipment_events WHERE event_time >= ? AND event_time < ? GROUP BY equipment_id
+                   FROM equipment_events WHERE event_time >= ? AND event_time < ? {event_scope} GROUP BY equipment_id
                )
                SELECT r.equipment_id, r.runs, r.excursions, r.avg_defect_density, r.pass_pct,
                       COALESCE(e.events, 0) AS events, COALESCE(e.downtime_minutes, 0) AS downtime_minutes,
@@ -107,16 +118,24 @@ def equipment_health(start: str | None = None, end: str | None = None) -> list[d
                FROM run_stats r LEFT JOIN event_stats e USING(equipment_id)
                ORDER BY CASE health WHEN 'Critical' THEN 0 WHEN 'Watch' THEN 1 ELSE 2 END,
                         r.excursions DESC, downtime_minutes DESC""",
-            (start, end, start, end),
+            [*params, *event_params],
         ).fetchall()
     return rows_to_dicts(rows)
 
 
-def equipment_productivity(start: str | None = None, end: str | None = None) -> list[dict]:
+def equipment_productivity(
+    start: str | None = None,
+    end: str | None = None,
+    process_step: str | None = None,
+) -> list[dict]:
     start, end = timestamp_bounds(start, end)
+    process_scope = "AND equipment_id LIKE ?" if process_step else ""
+    params: list[Any] = [start, end]
+    if process_step:
+        params.append(f"{process_step.upper()}-%")
     with db_session() as connection:
         rows = connection.execute(
-            """SELECT equipment_id,
+            f"""SELECT equipment_id,
                       ROUND(SUM(duration_minutes), 1) AS recorded_minutes,
                       ROUND(SUM(CASE WHEN semi_e10_state = 'Productive' THEN duration_minutes ELSE 0 END), 1) AS productive_minutes,
                       ROUND(100.0 * SUM(CASE WHEN semi_e10_state = 'Productive' THEN duration_minutes ELSE 0 END)
@@ -124,10 +143,10 @@ def equipment_productivity(start: str | None = None, end: str | None = None) -> 
                       ROUND(SUM(CASE WHEN semi_e10_state = 'Unscheduled Downtime' THEN duration_minutes ELSE 0 END), 1) AS unscheduled_down_minutes,
                       ROUND(SUM(CASE WHEN semi_e10_state = 'Scheduled Downtime' THEN duration_minutes ELSE 0 END), 1) AS scheduled_down_minutes
                FROM equipment_state_intervals
-               WHERE start_time >= ? AND start_time < ?
+               WHERE start_time >= ? AND start_time < ? {process_scope}
                GROUP BY equipment_id
                ORDER BY productive_pct, unscheduled_down_minutes DESC""",
-            (start, end),
+            params,
         ).fetchall()
     return rows_to_dicts(rows)
 
@@ -206,18 +225,28 @@ def process_capability(start: str | None = None, end: str | None = None, process
     return rows_to_dicts(rows)
 
 
-def defect_pareto(start: str | None = None, end: str | None = None, limit: int = 10) -> list[dict]:
+def defect_pareto(
+    start: str | None = None,
+    end: str | None = None,
+    limit: int = 10,
+    process_step: str | None = None,
+) -> list[dict]:
     start, end = timestamp_bounds(start, end)
+    process_scope = "AND process_step = ?" if process_step else ""
+    params: list[Any] = [start, end]
+    if process_step:
+        params.append(process_step.upper())
+    params.append(max(1, min(limit, 25)))
     with db_session() as connection:
         rows = connection.execute(
-            """SELECT defect_type,
+            f"""SELECT defect_type,
                       GROUP_CONCAT(DISTINCT process_step) AS process_steps,
                       SUM(count) AS defect_count,
                       COUNT(DISTINCT lot_id) AS affected_lots,
                       ROUND(100.0 * SUM(count) / SUM(SUM(count)) OVER (), 2) AS share_pct
-               FROM defect_records WHERE detected_time >= ? AND detected_time < ?
+               FROM defect_records WHERE detected_time >= ? AND detected_time < ? {process_scope}
                GROUP BY defect_type ORDER BY defect_count DESC LIMIT ?""",
-            (start, end, max(1, min(limit, 25))),
+            params,
         ).fetchall()
     return rows_to_dicts(rows)
 

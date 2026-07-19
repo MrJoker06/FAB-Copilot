@@ -59,6 +59,10 @@ Session history + current turn
 - `resolved_question` 不是证据，后续制造事实仍必须经过正常工具与 Evidence Validator。
 - 日志记录关系、置信度、耗时、Token 和结构化结果；不记录或展示隐藏思维链。
 
+## 制造运营概览边界
+
+Router 将带有运营审视动作且能解析出整厂或具体制程范围的问题交给制造综合诊断 Playbook。该规则适用于全部制程族及其别名，不依赖某个站点或固定问句；具体制程会下推到能力、设备健康、设备效率、缺陷和异常报表，避免回答混入其他站点数据。制程级回答可以引用整厂良率与周期作为背景，但不得将其表述为该制程自身指标。明确的良率、设备故障、缺陷、批次追踪和 SOP 请求仍由专用意图处理，原理介绍等通用知识问题不会因出现制程名称而进入生产分析。
+
 ## 参考实现
 
 - [OpenAI Agents SDK Sessions](https://openai.github.io/openai-agents-python/sessions/)：每次运行前合并 Session 历史和新输入，并支持限制历史、输入过滤与长会话压缩。
