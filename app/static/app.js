@@ -1,4 +1,4 @@
-const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, selectedSessionIds: new Set(), sessionBatchMode: false, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionIds: [], toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', modelConfig: null, enterpriseContext: null, knowledgeMode: 'factory', knowledgeDocuments: [], knowledgeIndexPromise: null, personalKnowledgeDocuments: [], selectedPersonalDocumentId: null, selectedPersonalDocument: null, personalKnowledgeRequestId: 0, personalKnowledgePollTimer: null, pendingPersonalDeleteId: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
+const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, selectedSessionIds: new Set(), sessionBatchMode: false, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionIds: [], toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', modelConfig: null, enterpriseContext: null, knowledgeMode: 'factory', knowledgeDocuments: [], knowledgeIndexPromise: null, personalKnowledgeDocuments: [], selectedPersonalDocumentId: null, selectedPersonalDocument: null, personalKnowledgeRequestId: 0, personalKnowledgePollTimer: null, pendingPersonalRenameId: null, pendingPersonalDeleteId: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
 const $ = (selector) => document.querySelector(selector);
 const AGENT_WIDTH_KEY = 'fabInsightAgentWidth';
 const CHAT_DRAFT_KEY = 'fabInsightChatDraft';
@@ -296,6 +296,7 @@ async function openPersonalKnowledgeDocument(documentId, {scroll = true} = {}) {
     $('#knowledgeMeta').innerHTML = personalKnowledgeMeta(personalDocument);
     $('#knowledgeContent').innerHTML = renderPersonalKnowledgeContent(personalDocument);
     $('#personalKnowledgeActions').hidden = false;
+    $('#renamePersonalKnowledge').disabled = personalDocument.status === 'deleting';
     $('#downloadPersonalKnowledge').disabled = personalDocument.status === 'deleting';
     $('#deletePersonalKnowledge').disabled = personalDocument.status === 'deleting';
     $('#retryPersonalKnowledge').hidden = personalDocument.status !== 'failed' || personalDocument.error_code === 'DELETE_FAILED';
@@ -421,6 +422,61 @@ async function retrySelectedPersonalKnowledge() {
   } catch (error) {
     showToast(`重新处理失败：${error.message}`, {tone:'error'});
   } finally { $('#retryPersonalKnowledge').disabled = false; }
+}
+
+function updatePersonalKnowledgeRenameCount() {
+  $('#personalKnowledgeRenameCount').textContent = `${$('#personalKnowledgeRenameInput').value.length} / 200`;
+}
+
+function openPersonalKnowledgeRenameDialog() {
+  if (!state.selectedPersonalDocumentId || !state.selectedPersonalDocument) return;
+  state.pendingPersonalRenameId = state.selectedPersonalDocumentId;
+  $('#personalKnowledgeRenameInput').value = state.selectedPersonalDocument.title;
+  $('#personalKnowledgeRenameMessage').hidden = true;
+  updatePersonalKnowledgeRenameCount();
+  $('#personalKnowledgeRenameDialog').showModal();
+  requestAnimationFrame(() => $('#personalKnowledgeRenameInput').select());
+}
+
+function refreshRenderedPersonalSourceName(documentId, title) {
+  document.querySelectorAll('.source-document-name[data-source-document-id]').forEach(element => {
+    if (element.dataset.sourceDocumentId === documentId) element.textContent = title;
+  });
+}
+
+async function renameSelectedPersonalKnowledge(event) {
+  event.preventDefault();
+  const documentId = state.pendingPersonalRenameId;
+  const title = $('#personalKnowledgeRenameInput').value.trim();
+  const message = $('#personalKnowledgeRenameMessage');
+  if (!documentId || !title) {
+    message.textContent = '知识名称不能为空。';
+    message.hidden = false;
+    return;
+  }
+  const button = $('#confirmPersonalKnowledgeRename');
+  button.disabled = true;
+  try {
+    const updated = await api(`/api/knowledge/personal/documents/${encodeURIComponent(documentId)}`, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({title}),
+    });
+    state.personalKnowledgeDocuments = state.personalKnowledgeDocuments.map(document => document.document_id === documentId ? {...document, ...updated} : document);
+    if (state.selectedPersonalDocumentId === documentId) {
+      state.selectedPersonalDocument = {...state.selectedPersonalDocument, ...updated};
+      $('#knowledgeTitle').textContent = updated.title;
+    }
+    renderPersonalKnowledgeDocuments();
+    refreshRenderedPersonalSourceName(documentId, updated.title);
+    $('#personalKnowledgeRenameDialog').close();
+    showToast('个人知识名称已更新');
+  } catch (error) {
+    message.textContent = error.message;
+    message.hidden = false;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function openPersonalKnowledgeDeleteDialog() {
@@ -1465,12 +1521,18 @@ async function init() {
   $('#cancelKnowledgeUpload').addEventListener('click', () => $('#knowledgeUploadDialog').close());
   $('#knowledgeUploadDialog').addEventListener('close', resetKnowledgeUploadForm);
   $('#downloadPersonalKnowledge').addEventListener('click', downloadSelectedPersonalKnowledge);
+  $('#renamePersonalKnowledge').addEventListener('click', openPersonalKnowledgeRenameDialog);
   $('#retryPersonalKnowledge').addEventListener('click', retrySelectedPersonalKnowledge);
   $('#deletePersonalKnowledge').addEventListener('click', openPersonalKnowledgeDeleteDialog);
   $('#personalKnowledgeDeleteForm').addEventListener('submit', deleteSelectedPersonalKnowledge);
   $('#closePersonalKnowledgeDeleteDialog').addEventListener('click', () => $('#personalKnowledgeDeleteDialog').close());
   $('#cancelPersonalKnowledgeDelete').addEventListener('click', () => $('#personalKnowledgeDeleteDialog').close());
   $('#personalKnowledgeDeleteDialog').addEventListener('close', () => { state.pendingPersonalDeleteId = null; });
+  $('#personalKnowledgeRenameForm').addEventListener('submit', renameSelectedPersonalKnowledge);
+  $('#personalKnowledgeRenameInput').addEventListener('input', () => { updatePersonalKnowledgeRenameCount(); $('#personalKnowledgeRenameMessage').hidden = true; });
+  $('#closePersonalKnowledgeRenameDialog').addEventListener('click', () => $('#personalKnowledgeRenameDialog').close());
+  $('#cancelPersonalKnowledgeRename').addEventListener('click', () => $('#personalKnowledgeRenameDialog').close());
+  $('#personalKnowledgeRenameDialog').addEventListener('close', () => { state.pendingPersonalRenameId = null; $('#personalKnowledgeRenameMessage').hidden = true; });
   $('#caseFilter').addEventListener('input', renderCaseList);
   $('#caseStepFilter').addEventListener('change', renderCaseList);
   $('#caseList').addEventListener('click', event => { const target=event.target.closest('[data-case-id]'); if (target) openHistoricalCase(target.dataset.caseId); });

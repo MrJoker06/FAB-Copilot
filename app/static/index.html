@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="半导体制造报表与数据分析 Agent">
-  <meta name="app-version" content="20260719-1">
+  <meta name="app-version" content="20260719-2">
   <title>Fab Insight</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20260719-1">
+  <link rel="stylesheet" href="/static/styles.css?v=20260719-2">
 </head>
 <body>
   <header class="topbar">
@@ -105,6 +105,7 @@
             <div class="knowledge-reader-heading">
               <div><p id="knowledgeSource" class="eyebrow">KNOWLEDGE BASE</p><h2 id="knowledgeTitle">选择一份知识文档</h2><div id="knowledgeMeta" class="knowledge-meta"></div></div>
               <div id="personalKnowledgeActions" class="knowledge-reader-actions" hidden>
+                <button id="renamePersonalKnowledge" type="button" class="secondary-btn">重命名</button>
                 <button id="downloadPersonalKnowledge" type="button" class="secondary-btn">下载原文</button>
                 <button id="retryPersonalKnowledge" type="button" class="secondary-btn" hidden>重新处理</button>
                 <button id="deletePersonalKnowledge" type="button" class="danger-btn">删除</button>
@@ -246,6 +247,19 @@
     </form>
   </dialog>
 
+  <dialog id="personalKnowledgeRenameDialog" class="settings-dialog session-rename-dialog">
+    <form id="personalKnowledgeRenameForm">
+      <div class="dialog-heading"><div><p class="eyebrow">RENAME PRIVATE KNOWLEDGE</p><h2>重命名个人知识</h2></div><button id="closePersonalKnowledgeRenameDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="dialog-body">
+        <label class="field-label" for="personalKnowledgeRenameInput">知识名称</label>
+        <input id="personalKnowledgeRenameInput" class="dialog-text-input" type="text" maxlength="200" autocomplete="off" aria-describedby="personalKnowledgeRenameCount personalKnowledgeRenameMessage" required>
+        <div class="field-meta"><span id="personalKnowledgeRenameCount">0 / 200</span></div>
+        <div id="personalKnowledgeRenameMessage" class="settings-message error" role="alert" hidden></div>
+      </div>
+      <div class="dialog-actions"><button id="cancelPersonalKnowledgeRename" type="button" class="secondary-btn">取消</button><button id="confirmPersonalKnowledgeRename" type="submit" class="primary-btn">保存</button></div>
+    </form>
+  </dialog>
+
   <dialog id="modelDialog" class="settings-dialog">
     <form id="modelSettingsForm">
       <div class="dialog-heading"><div><p class="eyebrow">MODEL CATALOG</p><h2>模型设置</h2></div><button id="closeModelDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
@@ -257,8 +271,8 @@
       <div class="dialog-actions"><button id="cancelModelSettings" type="button" class="secondary-btn">取消</button><button id="saveModelSettings" type="submit" class="primary-btn">应用设置</button></div>
     </form>
   </dialog>
-  <script src="/static/stream_buffer.js?v=20260719-1" defer></script>
-  <script src="/static/source_presenter.js?v=20260719-1" defer></script>
-  <script src="/static/app.js?v=20260719-1" defer></script>
+  <script src="/static/stream_buffer.js?v=20260719-2" defer></script>
+  <script src="/static/source_presenter.js?v=20260719-2" defer></script>
+  <script src="/static/app.js?v=20260719-2" defer></script>
 </body>
 </html>

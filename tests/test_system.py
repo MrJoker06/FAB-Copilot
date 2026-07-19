@@ -83,12 +83,14 @@ class FabInsightTests(unittest.TestCase):
             "knowledgeUploadDialog",
             "knowledgeUploadFile",
             "personalKnowledgeActions",
+            "renamePersonalKnowledge",
+            "personalKnowledgeRenameDialog",
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("/static/stream_buffer.js?v=20260719-1", page)
-        self.assertIn("/static/source_presenter.js?v=20260719-1", page)
-        self.assertIn("/static/app.js?v=20260719-1", page)
+        self.assertIn("/static/stream_buffer.js?v=20260719-2", page)
+        self.assertIn("/static/source_presenter.js?v=20260719-2", page)
+        self.assertIn("/static/app.js?v=20260719-2", page)
         self.assertNotIn('id="monitorView"', page)
         self.assertNotIn('id="apiKeyInput"', page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")
@@ -98,6 +100,8 @@ class FabInsightTests(unittest.TestCase):
         self.assertIn("renderSourcePanel(messageSources)", script)
         self.assertIn("sourcePresenter.stripSourceAppendix(content)", script)
         self.assertIn("sourcePresenter.replaceReferenceIds(content, sources)", script)
+        self.assertIn("method: 'PATCH'", script)
+        self.assertIn("refreshRenderedPersonalSourceName(documentId, updated.title)", script)
         self.assertIn("event.key !== 'Enter' || event.shiftKey || event.isComposing || event.keyCode === 229", script)
         self.assertIn("$('#chatForm').requestSubmit()", script)
         self.assertIn("item.status === 'blocked'", script)
@@ -475,6 +479,18 @@ class FabInsightTests(unittest.TestCase):
                 self.assertEqual(results[0]["source"], "个人知识库")
                 self.assertEqual(results[0]["process_steps"], ["LITHO"])
                 self.assertTrue(results[0]["reference_id"].startswith("PERSONAL-"))
+                renamed = client.patch(
+                    f"/api/knowledge/personal/documents/{document_id}",
+                    json={"title": "我的光刻培训资料"},
+                )
+                self.assertEqual(renamed.status_code, 200, renamed.text)
+                self.assertEqual(renamed.json()["title"], "我的光刻培训资料")
+                renamed_results = agent_module.search_agent_knowledge(
+                    "请介绍光刻技术原理",
+                    limit=6,
+                    source_types=["personal"],
+                )
+                self.assertEqual(renamed_results[0]["title"], "我的光刻培训资料")
                 self.assertNotIn(
                     "personal",
                     {item["source_type"] for item in search_knowledge("请介绍光刻技术原理", limit=6)},
