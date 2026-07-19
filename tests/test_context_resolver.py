@@ -8,7 +8,11 @@ from unittest.mock import AsyncMock, patch
 
 from app import agent as agent_module
 from app.answer_synthesizer import MODEL_KNOWLEDGE_REF
-from app.context_resolver import resolve_question_context
+from app.context_resolver import (
+    build_contextualizer_messages,
+    resolve_question_context,
+    semantic_context_resolution,
+)
 from app.intent_router import route_question
 
 
@@ -32,6 +36,35 @@ def _settings():
     )
 
 
+def _context_response(
+    relation: str,
+    resolved_question: str,
+    topic_anchor: str = "",
+    confidence: float = 0.95,
+) -> tuple[dict, dict, str]:
+    return (
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{
+                "id": "resolve-context",
+                "type": "function",
+                "function": {
+                    "name": "resolve_conversation_turn",
+                    "arguments": json.dumps({
+                        "relation": relation,
+                        "resolved_question": resolved_question,
+                        "topic_anchor": topic_anchor,
+                        "confidence": confidence,
+                    }, ensure_ascii=False),
+                },
+            }],
+        },
+        {"prompt_tokens": 8, "completion_tokens": 4, "total_tokens": 12},
+        "context-response",
+    )
+
+
 class ContextResolverTests(unittest.TestCase):
     def test_last_option_resolves_against_previous_clarification(self):
         resolution = resolve_question_context(
@@ -48,181 +81,81 @@ class ContextResolverTests(unittest.TestCase):
         self.assertIn("基本工艺路线差异", resolution.selected_context)
         self.assertEqual(route_question(resolution.resolved_question).intent, "sop_lookup")
 
-    def test_continue_resolves_previous_declared_action(self):
-        resolution = resolve_question_context(
-            "为什么没有继续",
-            [
-                {"role": "user", "content": INITIAL_QUESTION},
-                {"role": "assistant", "content": CLARIFICATION},
-                {"role": "user", "content": "最后一点"},
-                {"role": "assistant", "content": "好的，我先调用知识库查找 GaN 与 Si 的基本工艺路线差异。"},
-            ],
-        )
-
-        self.assertTrue(resolution.applied)
-        self.assertEqual(resolution.strategy, "continue_previous_action")
-        self.assertIn("调用知识库", resolution.selected_context)
-        self.assertEqual(route_question(resolution.resolved_question).intent, "sop_lookup")
-
     def test_context_dependent_phrase_without_history_is_not_guessed(self):
         resolution = resolve_question_context("最后一点", [])
 
         self.assertFalse(resolution.applied)
         self.assertEqual(resolution.resolved_question, "最后一点")
 
-    def test_general_scope_correction_restores_previous_question(self):
-        resolution = resolve_question_context(
-            "不涉及具体工艺",
-            [
-                {"role": "user", "content": "GAN器件和S器件的差别"},
-                {"role": "assistant", "content": "请补充生产范围。"},
-            ],
-        )
-
-        self.assertTrue(resolution.applied)
-        self.assertEqual(resolution.strategy, "general_scope_correction")
-        self.assertIn("GAN器件和S器件的差别", resolution.resolved_question)
-        self.assertEqual(route_question(resolution.resolved_question).intent, "general_knowledge")
-
-    def test_educational_scope_correction_restores_original_question(self):
-        original = "为我科普一下GAN器件在做电源的时候相较Si的优势"
-        resolution = resolve_question_context(
-            "仅仅是用于科普，不涉及具体制造",
-            [
-                {"role": "user", "content": original},
-                {"role": "assistant", "content": "请补充生产范围。"},
-            ],
-        )
-
-        self.assertTrue(resolution.applied)
-        self.assertEqual(resolution.strategy, "general_scope_correction")
-        self.assertIn(original, resolution.resolved_question)
-        self.assertEqual(route_question(resolution.resolved_question).intent, "general_knowledge")
-
-    def test_direct_answer_skips_previous_scope_correction_when_restoring_topic(self):
-        original = "为我科普一下GAN器件在做电源的时候相较Si的优势"
-        resolution = resolve_question_context(
-            "直接回答",
-            [
-                {"role": "user", "content": original},
-                {"role": "assistant", "content": "请补充生产范围。"},
-                {"role": "user", "content": "仅仅是用于科普，不涉及具体制造"},
-                {"role": "assistant", "content": "请继续补充范围。"},
-            ],
-        )
-
-        self.assertTrue(resolution.applied)
-        self.assertIn(original, resolution.resolved_question)
-        self.assertNotIn("仅仅是用于科普", resolution.resolved_question)
-        self.assertEqual(route_question(resolution.resolved_question).intent, "general_knowledge")
-
-    def test_diagnostic_followup_restores_fab_overview_as_comprehensive_analysis(self):
-        resolution = resolve_question_context(
-            "有什么改进建议",
-            [
-                {"role": "user", "content": "查看工厂总览和生产概况"},
-                {"role": "assistant", "content": "已展示当前工厂总览。"},
-            ],
-        )
-
-        self.assertTrue(resolution.applied)
-        self.assertEqual(resolution.strategy, "diagnostic_followup")
-        self.assertIn("查看工厂总览和生产概况", resolution.resolved_question)
-        self.assertEqual(route_question(resolution.resolved_question).intent, "fab_diagnostic")
-
-    def test_diagnostic_followup_preserves_specific_yield_scope(self):
-        resolution = resolve_question_context(
-            "还有哪些改善方向",
-            [
-                {"role": "user", "content": "分析 CMP 最近四周良率下降"},
-                {"role": "assistant", "content": "已完成良率趋势分析。"},
-            ],
-        )
-
-        self.assertTrue(resolution.applied)
-        self.assertEqual(route_question(resolution.resolved_question).intent, "yield_decline")
-
-    def test_risk_followup_restores_previous_manufacturing_topic(self):
-        resolution = resolve_question_context(
-            "有哪些风险和瓶颈",
-            [
-                {"role": "user", "content": "查看当前生产情况"},
-                {"role": "assistant", "content": "已展示当前数据。"},
-            ],
-        )
-
-        self.assertTrue(resolution.applied)
-        self.assertEqual(resolution.strategy, "diagnostic_followup")
-        self.assertEqual(route_question(resolution.resolved_question).intent, "fab_diagnostic")
-
-    def test_topic_followups_restore_latest_substantive_question(self):
+    def test_free_text_followups_are_not_resolved_by_phrase_rules(self):
         history = [
             {"role": "user", "content": "GaN 器件相对于 Si 器件的优势"},
             {"role": "assistant", "content": "已说明材料与器件特性。"},
         ]
-        questions = (
-            "需要更详细的内容",
-            "关于之前的问题我需要进一步回答",
-            "详细一点",
-            "再举几个例子",
-            "换个角度解释一下",
-        )
-
-        for question in questions:
+        for question in ("换个角度解释", "倘若目标材料改成 SiC 会怎样", "接着分析"):
             with self.subTest(question=question):
                 resolution = resolve_question_context(question, history)
-                self.assertTrue(resolution.applied)
-                self.assertEqual(resolution.strategy, "topic_followup")
-                self.assertIn("GaN 器件相对于 Si 器件的优势", resolution.resolved_question)
-                self.assertIn(question, resolution.resolved_question)
-                self.assertEqual(route_question(resolution.resolved_question).intent, "general_knowledge")
+                self.assertFalse(resolution.applied)
 
-    def test_chained_topic_followups_skip_previous_control_messages(self):
-        resolution = resolve_question_context(
-            "关于之前的问题我需要进一步回答",
-            [
-                {"role": "user", "content": "GaN 器件相对于 Si 器件的优势"},
-                {"role": "assistant", "content": "已给出基础回答。"},
-                {"role": "user", "content": "需要更详细的内容"},
-                {"role": "assistant", "content": "请补充分析目标。"},
-            ],
+    def test_semantic_resolution_accepts_followup_without_phrase_matching(self):
+        resolution = semantic_context_resolution(
+            "倘若目标材料改成 SiC 会怎样",
+            {
+                "relation": "correction",
+                "resolved_question": "比较 GaN 功率器件相对于 SiC 功率器件的优势、限制和适用场景",
+                "topic_anchor": "GaN 功率器件相对于 Si 的优势",
+                "confidence": 0.96,
+            },
         )
 
         self.assertTrue(resolution.applied)
-        self.assertEqual(resolution.selected_context, "GaN 器件相对于 Si 器件的优势")
-        self.assertNotIn("需要更详细的内容；", resolution.resolved_question)
+        self.assertEqual(resolution.strategy, "semantic_correction")
+        self.assertEqual(route_question(resolution.resolved_question).intent, "general_knowledge")
 
-    def test_unrelated_unknown_question_is_not_bound_to_previous_topic(self):
-        resolution = resolve_question_context(
-            "量子纠缠",
-            [
-                {"role": "user", "content": "GaN 器件相对于 Si 器件的优势"},
-                {"role": "assistant", "content": "已给出基础回答。"},
-            ],
+    def test_semantic_resolution_rejects_low_confidence_binding(self):
+        resolution = semantic_context_resolution(
+            "这个呢",
+            {
+                "relation": "followup",
+                "resolved_question": "继续讨论 GaN",
+                "topic_anchor": "GaN",
+                "confidence": 0.4,
+            },
         )
 
         self.assertFalse(resolution.applied)
-        self.assertEqual(resolution.resolved_question, "量子纠缠")
+        self.assertEqual(resolution.resolved_question, "这个呢")
 
-    def test_history_recall_returns_latest_substantive_question(self):
+    def test_context_window_is_bounded_and_preserves_latest_turns(self):
+        history = [
+            {"role": "user", "content": f"问题 {index} " + "x" * 900}
+            if index % 2 == 0
+            else {"role": "assistant", "content": f"回答 {index} " + "y" * 1500}
+            for index in range(30)
+        ]
+
+        messages = build_contextualizer_messages(
+            "继续",
+            history,
+            message_limit=6,
+            character_budget=2500,
+        )
+
+        self.assertEqual(messages[0]["role"], "system")
+        self.assertEqual(messages[-1], {"role": "user", "content": "继续"})
+        self.assertLessEqual(sum(len(item["content"]) for item in messages[1:-1]), 2500)
+        self.assertIn("回答 29", messages[-2]["content"])
+
+    def test_agent_answers_semantic_history_recall_after_context_stage(self):
         history = [
             {"role": "user", "content": "GaN 器件相对于 Si 器件的优势"},
             {"role": "assistant", "content": "已给出基础回答。"},
-            {"role": "user", "content": "需要更详细的内容"},
-            {"role": "assistant", "content": "请补充分析目标。"},
         ]
-        resolution = resolve_question_context("你知道我之前问的问题是啥吗", history)
-
-        self.assertTrue(resolution.applied)
-        self.assertEqual(resolution.strategy, "history_recall")
-        self.assertEqual(resolution.selected_context, "GaN 器件相对于 Si 器件的优势")
-
-    def test_agent_answers_history_recall_without_model_or_tools(self):
-        history = [
-            {"role": "user", "content": "GaN 器件相对于 Si 器件的优势"},
-            {"role": "assistant", "content": "已给出基础回答。"},
-        ]
-        model_call = AsyncMock(side_effect=AssertionError("history recall must not call model"))
+        model_call = AsyncMock(return_value=_context_response(
+            "recall",
+            "回忆用户上一条问题",
+            "GaN 器件相对于 Si 器件的优势",
+        ))
         with (
             patch("app.agent.get_settings", return_value=_settings()),
             patch("app.agent._stream_completion", model_call),
@@ -233,11 +166,50 @@ class ContextResolverTests(unittest.TestCase):
                 "run-history-recall-test",
             ))
 
-        model_call.assert_not_awaited()
+        model_call.assert_awaited_once()
         self.assertEqual(result["intent_route"]["intent"], "conversation")
-        self.assertEqual(result["context_resolution"]["strategy"], "history_recall")
+        self.assertEqual(result["context_resolution"]["strategy"], "semantic_recall")
         self.assertEqual(result["tool_trace"], [])
         self.assertIn("GaN 器件相对于 Si 器件的优势", result["answer"])
+
+    def test_agent_semantically_resolves_unseen_followup_before_routing(self):
+        history = [
+            {"role": "user", "content": "GaN 器件相对于 Si 器件的优势"},
+            {"role": "assistant", "content": "已给出基础回答。"},
+        ]
+        calls = 0
+
+        async def fake_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                self.assertEqual(
+                    request_payload["tools"][0]["function"]["name"],
+                    "resolve_conversation_turn",
+                )
+                return _context_response(
+                    "correction",
+                    "比较 GaN 功率器件相对于 SiC 功率器件的优势、限制和适用场景",
+                    "GaN 器件相对于 Si 器件的优势",
+                )
+            return ({"role": "assistant", "content": "继续比较 GaN 与 SiC。"}, {"total_tokens": 4}, "answer")
+
+        with (
+            patch("app.agent.get_settings", return_value=_settings()),
+            patch("app.agent._stream_completion", new=fake_stream),
+            patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": lambda **_: []}),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "倘若目标材料换作 SiC 会是怎样",
+                history,
+                "run-semantic-followup-test",
+            ))
+
+        self.assertEqual(calls, 2)
+        self.assertEqual(result["intent_route"]["intent"], "general_knowledge")
+        self.assertTrue(result["context_resolution"]["applied"])
+        self.assertEqual(result["context_resolution"]["strategy"], "semantic_correction")
+        self.assertIn("SiC", result["context_resolution"]["resolved_question"])
 
     def test_agent_does_not_override_explicit_current_intent_with_history(self):
         history = [
@@ -245,7 +217,6 @@ class ContextResolverTests(unittest.TestCase):
             {"role": "assistant", "content": CLARIFICATION},
         ]
         captured: dict = {}
-
         async def fake_stream(client, endpoint, headers, request_payload, progress, stream_state):
             captured.update(request_payload)
             return ({"role": "assistant", "content": "良率分析完成"}, {"total_tokens": 3}, "explicit-route")
@@ -263,8 +234,30 @@ class ContextResolverTests(unittest.TestCase):
             )
 
         self.assertFalse(result["context_resolution"]["applied"])
+        self.assertEqual(result["context_resolution"]["source"], "none")
         self.assertEqual(result["intent_route"]["intent"], "yield_decline")
         self.assertNotIn("context_resolution=", "\n".join(item["content"] for item in captured["messages"]))
+
+    def test_context_model_protocol_failure_falls_back_without_binding_history(self):
+        async def invalid_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            return ({"role": "assistant", "content": "无法判断"}, {}, "invalid-context")
+
+        with patch("app.agent._stream_completion", new=invalid_stream):
+            resolution, usage = asyncio.run(agent_module._resolve_conversation_turn(
+                "这个怎么处理",
+                [
+                    {"role": "user", "content": "分析 CMP-02 报警"},
+                    {"role": "assistant", "content": "已给出初步结论。"},
+                ],
+                _settings(),
+                "run-context-fallback-test",
+                None,
+            ))
+
+        self.assertFalse(resolution.applied)
+        self.assertEqual(resolution.source, "fallback")
+        self.assertEqual(resolution.resolved_question, "这个怎么处理")
+        self.assertEqual(usage, {})
 
     def test_agent_executes_knowledge_tool_for_selected_last_option(self):
         history = [

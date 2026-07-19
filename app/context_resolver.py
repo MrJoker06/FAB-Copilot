@@ -9,12 +9,12 @@ from typing import Literal
 ResolutionStrategy = Literal[
     "none",
     "ordinal_selection",
-    "continue_previous_action",
-    "general_scope_correction",
-    "diagnostic_followup",
-    "topic_followup",
-    "history_recall",
+    "semantic_followup",
+    "semantic_correction",
+    "semantic_recall",
 ]
+ContextRelation = Literal["standalone", "followup", "correction", "recall"]
+ResolutionSource = Literal["none", "deterministic", "model", "fallback"]
 
 
 @dataclass(frozen=True)
@@ -24,6 +24,9 @@ class ContextResolution:
     applied: bool
     strategy: ResolutionStrategy
     selected_context: str
+    relation: ContextRelation = "standalone"
+    confidence: float = 1.0
+    source: ResolutionSource = "none"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -32,43 +35,58 @@ class ContextResolution:
 _BULLET_PATTERN = re.compile(
     r"^\s*(?:[-*•]|\d+[.)、]|[一二三四五六七八九十]+[、.)])\s*(.+?)\s*$"
 )
-_ORDINAL_PATTERN = re.compile(r"第\s*([一二三四五六七八九十两\d]+)\s*(?:点|项|个)")
-_LAST_PATTERN = re.compile(r"(?:最后|末尾)(?:一)?(?:点|项|个)")
-_CONTINUATION_PATTERN = re.compile(
-    r"^(?:请)?(?:继续|接着|往下)(?:说|查|查询|分析|执行|进行)?(?:一下)?[。！!？?]*$|"
-    r"^(?:为什么|怎么|为何)(?:还)?没有继续[。！!？?]*$"
+_ORDINAL_PATTERN = re.compile(
+    r"^(?:选择|选|就)?\s*第\s*([一二三四五六七八九十两\d]+)\s*(?:点|项|个)\s*(?:吧|即可)?[。！!？?]*$"
 )
-_ACTION_PATTERN = re.compile(r"(?:调用|查询|查找|检索|分析|执行|开始|继续|接下来|我先)")
-_GENERAL_SCOPE_PATTERN = re.compile(
-    r"(?:不涉及|不需要|无需).{0,12}(?:具体工艺|具体制程|具体制造|制造分析|生产数据|厂内数据|设备数据)|"
-    r"(?:只|仅).{0,8}(?:通用问题|通用知识|概念|原理)|"
-    r"(?:仅仅|只是|就只是|只|仅).{0,8}(?:用于)?科普|直接回答|直接解释"
-)
-_DIAGNOSTIC_FOLLOWUP_PATTERN = re.compile(
-    r"^(?:(?:基于|结合)(?:这些|上述|上面)?(?:数据|结果|分析))?"
-    r"(?:请|再|还|能否|可以)?.{0,6}(?:给出|提供|说说)?"
-    r"(?:什么|哪些)?.{0,4}(?:改进|改善|优化|提升)(?:建议|方向|机会|空间|优先级)?[。！!？?]*$|"
-    r"^(?:还有|有|存在|请指出)?.{0,4}(?:什么|哪些)(?:风险|问题|异常|瓶颈|短板)"
-    r"(?:(?:和|与|及|、)(?:风险|问题|异常|瓶颈|短板))?[。！!？?]*$"
-)
-_TOPIC_FOLLOWUP_PATTERN = re.compile(
-    r"^(?:(?:需要|希望|请|能否|可以)?(?:再|继续|进一步|更)(?:详细|深入|具体)?(?:地)?"
-    r"(?:说|讲|说明|解释|回答|分析|展开|介绍)?(?:一下|一些|一点|点|(?:的)?内容)?|"
-    r"(?:详细|深入|具体)(?:一点|一些|说说|讲讲|说明|解释|展开)(?:一下)?|"
-    r"(?:展开|补充)(?:说说|讲讲|说明|解释)?(?:一下)?|"
-    r"(?:再)?(?:举|给)(?:几个|一个|些)?例子|"
-    r"(?:那|那么)?(?:为什么|怎么理解|然后呢|还有呢)|"
-    r"(?:换个角度|重新)(?:说|讲|说明|解释)(?:一下)?|"
-    r"(?:继续|接着)(?:这个|该|上面|之前)?(?:问题|内容|话题)|"
-    r"(?:关于)?(?:之前|刚才|上面|上述|前面|原来|上一个)(?:的)?(?:问题|内容|回答|话题)"
-    r".{0,20}(?:进一步|继续|补充|展开|详细|回答|说明|解释).*)[。！!？?]*$"
-)
-_HISTORY_RECALL_PATTERN = re.compile(
-    r"^(?:你(?:还)?(?:记得|知道))?.{0,6}(?:我)?(?:刚才|之前|前面|上一个)"
-    r"(?:问|说|提到)(?:的)?(?:问题|内容|话题)?(?:是)?(?:什么|啥)(?:吗)?[。！!？?]*$|"
-    r"^(?:我)?(?:刚才|之前|前面|上一个)(?:问|说|提到)(?:的)?(?:是)?(?:什么|啥)[。！!？?]*$"
+_LAST_PATTERN = re.compile(
+    r"^(?:选择|选|就)?\s*(?:最后|末尾)(?:一)?(?:点|项|个)\s*(?:吧|即可)?[。！!？?]*$"
 )
 _MARKDOWN_PATTERN = re.compile(r"[*_`#]+")
+
+CONTEXTUALIZE_TURN_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "resolve_conversation_turn",
+        "description": "根据当前会话历史判断本轮输入是否依赖上文，并生成可独立理解的问题。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "relation": {
+                    "type": "string",
+                    "enum": ["standalone", "followup", "correction", "recall"],
+                    "description": "当前输入与历史的语义关系。",
+                },
+                "resolved_question": {
+                    "type": "string",
+                    "description": "不依赖聊天记录也能完整理解的当前问题；独立问题保持原意。",
+                },
+                "topic_anchor": {
+                    "type": "string",
+                    "description": "本轮引用的历史主题；独立问题留空。",
+                },
+                "confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "关系判断的置信度。",
+                },
+            },
+            "required": ["relation", "resolved_question", "topic_anchor", "confidence"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+CONTEXTUALIZER_PROMPT = """你是 Agent Loop 的会话上下文解析器，不负责回答用户问题。
+
+读取最近会话和本轮输入后，必须调用 resolve_conversation_turn，并遵守：
+1. standalone：本轮是完整的新问题，resolved_question 保持本轮原意，不拼接旧主题。
+2. followup：本轮省略了对象、条件或动作，需要从最近相关历史补全。
+3. correction：本轮修改、替换或限制了上一问题，补全后必须体现修改，而不是保留被否定的要求。
+4. recall：用户询问此前说过或问过什么，topic_anchor 填写被询问的历史内容。
+5. resolved_question 必须是可直接进入意图路由的完整任务，保留用户当前比较对象、范围和目标。
+6. 只能恢复会话指代，禁止添加历史中不存在的制造事实、参数、结论或证据。
+7. 不输出分析过程、解释或答案，只调用指定函数。"""
 
 
 def _plain(value: str, limit: int = 1200) -> str:
@@ -99,28 +117,20 @@ def _number(value: str) -> int | None:
     return digits.get(value)
 
 
-def _base_user_question(history: list[dict], before: int | None = None) -> str:
+def _previous_user_question(history: list[dict], before: int | None = None) -> str:
     boundary = len(history) if before is None else before
     for item in reversed(history[:boundary]):
         if item.get("role") != "user":
             continue
-        content = _plain(str(item.get("content") or ""), 600)
-        if (
-            content
-            and not _CONTINUATION_PATTERN.fullmatch(content)
-            and not _LAST_PATTERN.search(content)
-            and not _GENERAL_SCOPE_PATTERN.search(content)
-            and not _DIAGNOSTIC_FOLLOWUP_PATTERN.fullmatch(content)
-            and not _TOPIC_FOLLOWUP_PATTERN.fullmatch(content)
-            and not _HISTORY_RECALL_PATTERN.fullmatch(content)
-        ):
+        content = _plain(str(item.get("content") or ""), 1000)
+        if content:
             return content
     return ""
 
 
 def _resolve_ordinal(question: str, history: list[dict]) -> ContextResolution | None:
-    ordinal = _ORDINAL_PATTERN.search(question)
-    is_last = bool(_LAST_PATTERN.search(question))
+    ordinal = _ORDINAL_PATTERN.fullmatch(question)
+    is_last = bool(_LAST_PATTERN.fullmatch(question))
     if not ordinal and not is_last:
         return None
     for index in range(len(history) - 1, -1, -1):
@@ -134,109 +144,104 @@ def _resolve_ordinal(question: str, history: list[dict]) -> ContextResolution | 
         if not 0 <= selected_index < len(options):
             return None
         selected = options[selected_index]
-        base = _base_user_question(history, index)
+        base = _previous_user_question(history, index)
         resolved = f"{base}；用户选择的分析方向：{selected}" if base else selected
-        return ContextResolution(question, resolved, True, "ordinal_selection", selected)
+        return ContextResolution(
+            question,
+            resolved,
+            True,
+            "ordinal_selection",
+            selected,
+            relation="followup",
+            confidence=1.0,
+            source="deterministic",
+        )
     return None
 
 
-def _resolve_continuation(question: str, history: list[dict]) -> ContextResolution | None:
-    normalized = _plain(question, 100)
-    if not _CONTINUATION_PATTERN.fullmatch(normalized):
-        return None
-    last_assistant = ""
-    for item in reversed(history):
-        if item.get("role") != "assistant":
-            continue
-        candidate = _plain(str(item.get("content") or ""), 800)
-        if candidate and _ACTION_PATTERN.search(candidate):
-            last_assistant = candidate
-            break
-    if not last_assistant:
-        return None
-    base = _base_user_question(history)
-    resolved = f"{base}；继续执行上一条助手已声明的任务：{last_assistant}" if base else last_assistant
-    return ContextResolution(question, resolved, True, "continue_previous_action", last_assistant)
-
-
-def _resolve_general_scope(question: str, history: list[dict]) -> ContextResolution | None:
-    normalized = _plain(question, 200)
-    if not _GENERAL_SCOPE_PATTERN.search(normalized):
-        return None
-    base = _base_user_question(history)
-    if not base:
-        return None
-    selected = "直接回答原知识问题，不查询或推断厂内生产数据，并先检索个人知识和工厂知识"
-    return ContextResolution(
-        question,
-        f"{base}；用户明确要求{selected}。",
-        True,
-        "general_scope_correction",
-        selected,
-    )
-
-
-def _resolve_diagnostic_followup(question: str, history: list[dict]) -> ContextResolution | None:
-    normalized = _plain(question, 200)
-    if not _DIAGNOSTIC_FOLLOWUP_PATTERN.fullmatch(normalized):
-        return None
-    base = _base_user_question(history)
-    if not base:
-        return None
-    selected = "基于上一问题对应的制造数据识别风险、瓶颈和改善优先级"
-    return ContextResolution(
-        question,
-        f"{base}；用户继续要求{selected}。",
-        True,
-        "diagnostic_followup",
-        selected,
-    )
-
-
-def _resolve_history_recall(question: str, history: list[dict]) -> ContextResolution | None:
-    normalized = _plain(question, 200)
-    if not _HISTORY_RECALL_PATTERN.fullmatch(normalized):
-        return None
-    base = _base_user_question(history)
-    if not base:
-        return None
-    return ContextResolution(question, question, True, "history_recall", base)
-
-
-def _resolve_topic_followup(question: str, history: list[dict]) -> ContextResolution | None:
-    normalized = _plain(question, 200)
-    if not _TOPIC_FOLLOWUP_PATTERN.fullmatch(normalized):
-        return None
-    base = _base_user_question(history)
-    if not base:
-        return None
-    return ContextResolution(
-        question,
-        f"{base}；这是同一会话的连续追问，用户当前要求：{normalized}",
-        True,
-        "topic_followup",
-        base,
-    )
+def unresolved_context(question: str, source: ResolutionSource = "none") -> ContextResolution:
+    return ContextResolution(question, question, False, "none", "", source=source)
 
 
 def resolve_question_context(question: str, history: list[dict] | None = None) -> ContextResolution:
+    """Resolve only structurally unambiguous UI selections without an LLM call."""
     normalized = _plain(question, 4000)
-    items = list(history or [])
-    resolution = (
-        _resolve_history_recall(normalized, items)
-        or _resolve_ordinal(normalized, items)
-        or _resolve_continuation(normalized, items)
-        or _resolve_general_scope(normalized, items)
-        or _resolve_diagnostic_followup(normalized, items)
-        or _resolve_topic_followup(normalized, items)
+    resolution = _resolve_ordinal(normalized, list(history or []))
+    return resolution or unresolved_context(question)
+
+
+def build_contextualizer_messages(
+    question: str,
+    history: list[dict] | None,
+    *,
+    message_limit: int = 20,
+    character_budget: int = 16_000,
+) -> list[dict]:
+    candidates: list[dict] = []
+    remaining = character_budget
+    for item in reversed(list(history or [])[-message_limit:]):
+        role = item.get("role")
+        if role not in {"user", "assistant"}:
+            continue
+        per_message_limit = 1600 if role == "assistant" else 1000
+        content = _plain(str(item.get("content") or ""), per_message_limit)
+        if not content or remaining <= 0:
+            continue
+        content = content[:remaining]
+        remaining -= len(content)
+        candidates.append({"role": role, "content": content})
+    candidates.reverse()
+    return [
+        {"role": "system", "content": CONTEXTUALIZER_PROMPT},
+        *candidates,
+        {"role": "user", "content": _plain(question, 4000)},
+    ]
+
+
+def semantic_context_resolution(question: str, arguments: dict) -> ContextResolution:
+    relation = str(arguments.get("relation") or "").strip()
+    if relation not in {"standalone", "followup", "correction", "recall"}:
+        return unresolved_context(question, "fallback")
+    try:
+        confidence = max(0.0, min(float(arguments.get("confidence", 0)), 1.0))
+    except (TypeError, ValueError):
+        return unresolved_context(question, "fallback")
+    resolved = _plain(str(arguments.get("resolved_question") or ""), 4000)
+    topic_anchor = _plain(str(arguments.get("topic_anchor") or ""), 1200)
+    if relation == "standalone" or confidence < 0.65:
+        return ContextResolution(
+            question,
+            question,
+            False,
+            "none",
+            "",
+            relation="standalone" if relation == "standalone" else relation,
+            confidence=confidence,
+            source="model",
+        )
+    if not resolved or (relation == "recall" and not topic_anchor):
+        return unresolved_context(question, "fallback")
+    strategies: dict[str, ResolutionStrategy] = {
+        "followup": "semantic_followup",
+        "correction": "semantic_correction",
+        "recall": "semantic_recall",
+    }
+    return ContextResolution(
+        question,
+        resolved,
+        True,
+        strategies[relation],
+        topic_anchor,
+        relation=relation,
+        confidence=confidence,
+        source="model",
     )
-    return resolution or ContextResolution(question, question, False, "none", "")
 
 
 def context_system_message(resolution: ContextResolution) -> str:
     return (
-        "当前用户输入是依赖上文的短追问。以下 resolved_question 由确定性规则从最近会话中的"
-        "用户原问题、澄清选项或助手已声明任务组合得到，仅用于恢复用户指代，不是制造事实或证据。"
-        "回答当前用户时应直接完成 resolved_question，不要再次承诺稍后调用工具，也不要展示伪工具 JSON。\n"
+        "当前输入依赖会话历史。context_resolution 是独立的语义上下文阶段产生的结构化结果，"
+        "只用于恢复指代或用户修正，不是制造事实、证据或隐藏思维链。"
+        "回答时完成 resolved_question，仍须通过正常工具和证据约束验证事实。\n"
         f"context_resolution={json.dumps(resolution.to_dict(), ensure_ascii=False, separators=(',', ':'))}"
     )

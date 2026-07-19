@@ -24,7 +24,15 @@ from .answer_synthesizer import (
 )
 from .audit import CONTENT_MODE, content_fingerprint, emit
 from .config import get_settings
-from .context_resolver import ContextResolution, context_system_message, resolve_question_context
+from .context_resolver import (
+    CONTEXTUALIZE_TURN_TOOL,
+    ContextResolution,
+    build_contextualizer_messages,
+    context_system_message,
+    resolve_question_context,
+    semantic_context_resolution,
+    unresolved_context,
+)
 from .domain_playbooks import PlaybookSelection, playbook_system_message, select_playbook
 from .evidence_validator import EvidenceObservation, validate_evidence, validator_system_message
 from .enterprise_data import enterprise_data_manifest, enterprise_fab_summary, query_enterprise_data
@@ -182,7 +190,7 @@ def _offline_answer(
     if intent_route.intent == "conversation":
         validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, [])
         contract = create_answer_contract(validation)
-        if context_resolution and context_resolution.strategy == "history_recall":
+        if context_resolution and context_resolution.strategy == "semantic_recall":
             answer = f"你上一条有效问题是：\n\n> {context_resolution.selected_context}"
         else:
             answer = (
@@ -734,17 +742,170 @@ def _model_retry_delay(base_seconds: float, retry_number: int, exc: Exception) -
     return base + random.uniform(0, base * 0.2)
 
 
+def _context_tool_arguments(assistant: dict) -> dict:
+    calls = assistant.get("tool_calls") or []
+    if len(calls) != 1:
+        raise ValueError("上下文解析器必须返回一个结构化调用")
+    function = calls[0].get("function") or {}
+    if function.get("name") != "resolve_conversation_turn":
+        raise ValueError("上下文解析器返回了未知函数")
+    arguments = json.loads(function.get("arguments") or "{}")
+    if not isinstance(arguments, dict):
+        raise ValueError("上下文解析结果必须是 JSON 对象")
+    return arguments
+
+
+async def _resolve_conversation_turn(
+    question: str,
+    history: list[dict] | None,
+    settings: Any,
+    run_id: str,
+    progress: ProgressCallback | None,
+    direct_route: IntentRoute | None = None,
+) -> tuple[ContextResolution, dict]:
+    deterministic = resolve_question_context(question, history)
+    if deterministic.applied or not history or not settings.deepseek_api_key:
+        return deterministic, {}
+    if (
+        direct_route
+        and direct_route.intent not in {"unknown", "ambiguous", "general_knowledge"}
+        and not direct_route.clarification_needed
+    ):
+        return deterministic, {}
+
+    await _notify(progress, {
+        "event": "stage",
+        "stage": "context",
+        "message": "正在结合当前会话理解这条消息",
+    })
+    request_payload = {
+        "model": settings.deepseek_model,
+        "messages": build_contextualizer_messages(question, history),
+        "temperature": 0,
+        "tools": [CONTEXTUALIZE_TURN_TOOL],
+        "tool_choice": "auto",
+        "max_tokens": 600,
+    }
+    endpoint = f"{settings.deepseek_base_url}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {settings.deepseek_api_key}",
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
+        for attempt in range(1, settings.model_max_retries + 2):
+            started = time.perf_counter()
+            emit(
+                "model_call_started",
+                run_id,
+                phase="contextualization",
+                attempt=attempt,
+                model=settings.deepseek_model,
+                message_count=len(request_payload["messages"]),
+                **({"request": request_payload} if CONTENT_MODE == "full" else {}),
+            )
+            try:
+                assistant, usage, response_id = await _stream_completion(
+                    client,
+                    endpoint,
+                    headers,
+                    request_payload,
+                    None,
+                    {},
+                )
+                resolution = semantic_context_resolution(
+                    question,
+                    _context_tool_arguments(assistant),
+                )
+            except Exception as exc:
+                retryable = _retryable_model_error(exc)
+                will_retry = retryable and attempt <= settings.model_max_retries
+                emit(
+                    "model_call_finished",
+                    run_id,
+                    status="error",
+                    phase="contextualization",
+                    attempt=attempt,
+                    model=settings.deepseek_model,
+                    duration_ms=round((time.perf_counter() - started) * 1000, 1),
+                    error_type=type(exc).__name__,
+                    retryable=retryable,
+                    will_retry=will_retry,
+                    **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
+                )
+                if will_retry:
+                    await asyncio.sleep(
+                        _model_retry_delay(settings.model_retry_base_seconds, attempt, exc)
+                    )
+                    continue
+                emit(
+                    "question_context_resolution_failed",
+                    run_id,
+                    error_type=type(exc).__name__,
+                )
+                await _notify(progress, {
+                    "event": "stage",
+                    "stage": "context",
+                    "message": "未能可靠恢复上文指代，将按当前输入独立判断",
+                })
+                return unresolved_context(question, "fallback"), {}
+
+            emit(
+                "model_call_finished",
+                run_id,
+                status="success",
+                phase="contextualization",
+                attempt=attempt,
+                model=settings.deepseek_model,
+                duration_ms=round((time.perf_counter() - started) * 1000, 1),
+                input_tokens=usage.get("prompt_tokens", 0),
+                output_tokens=usage.get("completion_tokens", 0),
+                total_tokens=usage.get("total_tokens", 0),
+                finish_reason="tool_calls",
+                response_id=response_id,
+                **({"response": assistant, "context_resolution": resolution.to_dict()} if CONTENT_MODE == "full" else {}),
+            )
+            emit(
+                "question_context_classified",
+                run_id,
+                relation=resolution.relation,
+                strategy=resolution.strategy,
+                applied=resolution.applied,
+                confidence=resolution.confidence,
+                original_length=len(question),
+                resolved_length=len(resolution.resolved_question),
+            )
+            await _notify(progress, {
+                "event": "stage",
+                "stage": "context",
+                "message": (
+                    "已结合上文恢复当前消息的完整目标"
+                    if resolution.applied
+                    else "未可靠关联到上文，将按当前消息独立判断"
+                    if resolution.relation != "standalone"
+                    else "已确认当前消息是独立问题"
+                ),
+                "context_resolution": resolution.to_dict(),
+            })
+            return resolution, usage
+
+    return unresolved_context(question, "fallback"), {}
+
+
 async def _run_agent_impl(
     question: str,
     history: list[dict] | None,
     run_id: str,
     progress: ProgressCallback | None = None,
 ) -> dict:
+    settings = effective_agent_settings(get_settings())
     direct_route = route_question(question)
-    context_resolution = (
-        resolve_question_context(question, history)
-        if direct_route.intent == "unknown"
-        else resolve_question_context(question)
+    context_resolution, context_usage = await _resolve_conversation_turn(
+        question,
+        history,
+        settings,
+        run_id,
+        progress,
+        direct_route,
     )
     analysis_question = context_resolution.resolved_question
     if context_resolution.applied:
@@ -755,15 +916,16 @@ async def _run_agent_impl(
             original_length=len(question),
             resolved_length=len(analysis_question),
         )
-        await _notify(progress, {
-            "event": "stage",
-            "stage": "context",
-            "message": "已结合上文恢复当前追问的分析目标",
-            "context_resolution": context_resolution.to_dict(),
-        })
+        if context_resolution.source == "deterministic":
+            await _notify(progress, {
+                "event": "stage",
+                "stage": "context",
+                "message": "已根据上条回答中的选项恢复分析目标",
+                "context_resolution": context_resolution.to_dict(),
+            })
     intent_route = (
         route_question("介绍一下你自己")
-        if context_resolution.strategy == "history_recall"
+        if context_resolution.strategy == "semantic_recall"
         else route_question(analysis_question)
         if context_resolution.applied
         else direct_route
@@ -841,7 +1003,6 @@ async def _run_agent_impl(
         max_identical_parameter_calls=execution_plan.budget.max_identical_parameter_calls,
         max_no_progress_rounds=execution_plan.budget.max_no_progress_rounds,
     )
-    settings = effective_agent_settings(get_settings())
     if execution_plan.status == "clarification_required":
         await _notify(progress, {
             "event": "stage",
@@ -857,8 +1018,8 @@ async def _run_agent_impl(
             context_resolution,
         )
         result["mode"] = "clarification"
-        result["model"] = "deterministic-router"
-        result["usage"] = {}
+        result["model"] = settings.deepseek_model if context_usage else "deterministic-router"
+        result["usage"] = context_usage
         result["context_resolution"] = context_resolution.to_dict()
         _emit_evidence_validation(run_id, 1, result["evidence_validation"])
         emit(
@@ -883,8 +1044,8 @@ async def _run_agent_impl(
             loop_guard,
             context_resolution,
         )
-        result["model"] = "deterministic-router"
-        result["usage"] = {}
+        result["model"] = settings.deepseek_model if context_usage else "deterministic-router"
+        result["usage"] = context_usage
         result["context_resolution"] = context_resolution.to_dict()
         _emit_evidence_validation(run_id, 1, result["evidence_validation"])
         emit(
@@ -957,7 +1118,10 @@ async def _run_agent_impl(
     trace: list[dict] = []
     sources: dict[str, dict] = {}
     endpoint = f"{settings.deepseek_base_url}/chat/completions"
-    total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    total_usage = {
+        key: int(context_usage.get(key, 0) or 0)
+        for key in ("prompt_tokens", "completion_tokens", "total_tokens")
+    }
     applied_synthesis_reason: str | None = None
     knowledge_fallback = {"used": False, "reason": None, "disclosure": None}
     fallback_announced = False
