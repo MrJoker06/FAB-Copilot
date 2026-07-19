@@ -12,6 +12,8 @@ ResolutionStrategy = Literal[
     "continue_previous_action",
     "general_scope_correction",
     "diagnostic_followup",
+    "topic_followup",
+    "history_recall",
 ]
 
 
@@ -48,6 +50,23 @@ _DIAGNOSTIC_FOLLOWUP_PATTERN = re.compile(
     r"(?:什么|哪些)?.{0,4}(?:改进|改善|优化|提升)(?:建议|方向|机会|空间|优先级)?[。！!？?]*$|"
     r"^(?:还有|有|存在|请指出)?.{0,4}(?:什么|哪些)(?:风险|问题|异常|瓶颈|短板)"
     r"(?:(?:和|与|及|、)(?:风险|问题|异常|瓶颈|短板))?[。！!？?]*$"
+)
+_TOPIC_FOLLOWUP_PATTERN = re.compile(
+    r"^(?:(?:需要|希望|请|能否|可以)?(?:再|继续|进一步|更)(?:详细|深入|具体)?(?:地)?"
+    r"(?:说|讲|说明|解释|回答|分析|展开|介绍)?(?:一下|一些|一点|点|(?:的)?内容)?|"
+    r"(?:详细|深入|具体)(?:一点|一些|说说|讲讲|说明|解释|展开)(?:一下)?|"
+    r"(?:展开|补充)(?:说说|讲讲|说明|解释)?(?:一下)?|"
+    r"(?:再)?(?:举|给)(?:几个|一个|些)?例子|"
+    r"(?:那|那么)?(?:为什么|怎么理解|然后呢|还有呢)|"
+    r"(?:换个角度|重新)(?:说|讲|说明|解释)(?:一下)?|"
+    r"(?:继续|接着)(?:这个|该|上面|之前)?(?:问题|内容|话题)|"
+    r"(?:关于)?(?:之前|刚才|上面|上述|前面|原来|上一个)(?:的)?(?:问题|内容|回答|话题)"
+    r".{0,20}(?:进一步|继续|补充|展开|详细|回答|说明|解释).*)[。！!？?]*$"
+)
+_HISTORY_RECALL_PATTERN = re.compile(
+    r"^(?:你(?:还)?(?:记得|知道))?.{0,6}(?:我)?(?:刚才|之前|前面|上一个)"
+    r"(?:问|说|提到)(?:的)?(?:问题|内容|话题)?(?:是)?(?:什么|啥)(?:吗)?[。！!？?]*$|"
+    r"^(?:我)?(?:刚才|之前|前面|上一个)(?:问|说|提到)(?:的)?(?:是)?(?:什么|啥)[。！!？?]*$"
 )
 _MARKDOWN_PATTERN = re.compile(r"[*_`#]+")
 
@@ -92,6 +111,8 @@ def _base_user_question(history: list[dict], before: int | None = None) -> str:
             and not _LAST_PATTERN.search(content)
             and not _GENERAL_SCOPE_PATTERN.search(content)
             and not _DIAGNOSTIC_FOLLOWUP_PATTERN.fullmatch(content)
+            and not _TOPIC_FOLLOWUP_PATTERN.fullmatch(content)
+            and not _HISTORY_RECALL_PATTERN.fullmatch(content)
         ):
             return content
     return ""
@@ -172,14 +193,42 @@ def _resolve_diagnostic_followup(question: str, history: list[dict]) -> ContextR
     )
 
 
+def _resolve_history_recall(question: str, history: list[dict]) -> ContextResolution | None:
+    normalized = _plain(question, 200)
+    if not _HISTORY_RECALL_PATTERN.fullmatch(normalized):
+        return None
+    base = _base_user_question(history)
+    if not base:
+        return None
+    return ContextResolution(question, question, True, "history_recall", base)
+
+
+def _resolve_topic_followup(question: str, history: list[dict]) -> ContextResolution | None:
+    normalized = _plain(question, 200)
+    if not _TOPIC_FOLLOWUP_PATTERN.fullmatch(normalized):
+        return None
+    base = _base_user_question(history)
+    if not base:
+        return None
+    return ContextResolution(
+        question,
+        f"{base}；这是同一会话的连续追问，用户当前要求：{normalized}",
+        True,
+        "topic_followup",
+        base,
+    )
+
+
 def resolve_question_context(question: str, history: list[dict] | None = None) -> ContextResolution:
     normalized = _plain(question, 4000)
     items = list(history or [])
     resolution = (
-        _resolve_ordinal(normalized, items)
+        _resolve_history_recall(normalized, items)
+        or _resolve_ordinal(normalized, items)
         or _resolve_continuation(normalized, items)
         or _resolve_general_scope(normalized, items)
         or _resolve_diagnostic_followup(normalized, items)
+        or _resolve_topic_followup(normalized, items)
     )
     return resolution or ContextResolution(question, question, False, "none", "")
 

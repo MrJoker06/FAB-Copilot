@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -166,6 +166,8 @@ class EvidenceValidatorTests(unittest.TestCase):
         requests: list[dict] = []
         events: list[dict] = []
         round_number = 0
+        end = date.today()
+        start = end - timedelta(days=6)
 
         async def fake_stream(client, endpoint, headers, request_payload, progress, stream_state):
             nonlocal round_number
@@ -181,7 +183,7 @@ class EvidenceValidatorTests(unittest.TestCase):
                         "function": {
                             "name": "get_process_capability",
                             "arguments": json.dumps({
-                                "start": "2026-07-12", "end": "2026-07-18", "process_step": "CMP",
+                                "start": start.isoformat(), "end": end.isoformat(), "process_step": "CMP",
                             }),
                         },
                     }],

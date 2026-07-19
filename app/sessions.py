@@ -186,7 +186,7 @@ def delete_sessions_permanently(session_ids: list[str]) -> dict:
     }
 
 
-def session_history(session_id: str, limit: int = 8) -> list[dict]:
+def session_history(session_id: str, limit: int = 20) -> list[dict]:
     tenant_id, owner_user_id = _scope()
     with db_session() as connection:
         exists = connection.execute(

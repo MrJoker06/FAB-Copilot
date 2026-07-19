@@ -155,6 +155,90 @@ class ContextResolverTests(unittest.TestCase):
         self.assertEqual(resolution.strategy, "diagnostic_followup")
         self.assertEqual(route_question(resolution.resolved_question).intent, "fab_diagnostic")
 
+    def test_topic_followups_restore_latest_substantive_question(self):
+        history = [
+            {"role": "user", "content": "GaN 器件相对于 Si 器件的优势"},
+            {"role": "assistant", "content": "已说明材料与器件特性。"},
+        ]
+        questions = (
+            "需要更详细的内容",
+            "关于之前的问题我需要进一步回答",
+            "详细一点",
+            "再举几个例子",
+            "换个角度解释一下",
+        )
+
+        for question in questions:
+            with self.subTest(question=question):
+                resolution = resolve_question_context(question, history)
+                self.assertTrue(resolution.applied)
+                self.assertEqual(resolution.strategy, "topic_followup")
+                self.assertIn("GaN 器件相对于 Si 器件的优势", resolution.resolved_question)
+                self.assertIn(question, resolution.resolved_question)
+                self.assertEqual(route_question(resolution.resolved_question).intent, "general_knowledge")
+
+    def test_chained_topic_followups_skip_previous_control_messages(self):
+        resolution = resolve_question_context(
+            "关于之前的问题我需要进一步回答",
+            [
+                {"role": "user", "content": "GaN 器件相对于 Si 器件的优势"},
+                {"role": "assistant", "content": "已给出基础回答。"},
+                {"role": "user", "content": "需要更详细的内容"},
+                {"role": "assistant", "content": "请补充分析目标。"},
+            ],
+        )
+
+        self.assertTrue(resolution.applied)
+        self.assertEqual(resolution.selected_context, "GaN 器件相对于 Si 器件的优势")
+        self.assertNotIn("需要更详细的内容；", resolution.resolved_question)
+
+    def test_unrelated_unknown_question_is_not_bound_to_previous_topic(self):
+        resolution = resolve_question_context(
+            "量子纠缠",
+            [
+                {"role": "user", "content": "GaN 器件相对于 Si 器件的优势"},
+                {"role": "assistant", "content": "已给出基础回答。"},
+            ],
+        )
+
+        self.assertFalse(resolution.applied)
+        self.assertEqual(resolution.resolved_question, "量子纠缠")
+
+    def test_history_recall_returns_latest_substantive_question(self):
+        history = [
+            {"role": "user", "content": "GaN 器件相对于 Si 器件的优势"},
+            {"role": "assistant", "content": "已给出基础回答。"},
+            {"role": "user", "content": "需要更详细的内容"},
+            {"role": "assistant", "content": "请补充分析目标。"},
+        ]
+        resolution = resolve_question_context("你知道我之前问的问题是啥吗", history)
+
+        self.assertTrue(resolution.applied)
+        self.assertEqual(resolution.strategy, "history_recall")
+        self.assertEqual(resolution.selected_context, "GaN 器件相对于 Si 器件的优势")
+
+    def test_agent_answers_history_recall_without_model_or_tools(self):
+        history = [
+            {"role": "user", "content": "GaN 器件相对于 Si 器件的优势"},
+            {"role": "assistant", "content": "已给出基础回答。"},
+        ]
+        model_call = AsyncMock(side_effect=AssertionError("history recall must not call model"))
+        with (
+            patch("app.agent.get_settings", return_value=_settings()),
+            patch("app.agent._stream_completion", model_call),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "你知道我之前问的问题是啥吗",
+                history,
+                "run-history-recall-test",
+            ))
+
+        model_call.assert_not_awaited()
+        self.assertEqual(result["intent_route"]["intent"], "conversation")
+        self.assertEqual(result["context_resolution"]["strategy"], "history_recall")
+        self.assertEqual(result["tool_trace"], [])
+        self.assertIn("GaN 器件相对于 Si 器件的优势", result["answer"])
+
     def test_agent_does_not_override_explicit_current_intent_with_history(self):
         history = [
             {"role": "user", "content": INITIAL_QUESTION},

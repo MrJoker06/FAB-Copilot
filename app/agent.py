@@ -24,7 +24,7 @@ from .answer_synthesizer import (
 )
 from .audit import CONTENT_MODE, content_fingerprint, emit
 from .config import get_settings
-from .context_resolver import context_system_message, resolve_question_context
+from .context_resolver import ContextResolution, context_system_message, resolve_question_context
 from .domain_playbooks import PlaybookSelection, playbook_system_message, select_playbook
 from .evidence_validator import EvidenceObservation, validate_evidence, validator_system_message
 from .enterprise_data import enterprise_data_manifest, enterprise_fab_summary, query_enterprise_data
@@ -177,15 +177,22 @@ def _offline_answer(
     playbook_selection: PlaybookSelection,
     execution_plan: ExecutionPlan,
     loop_guard: ToolLoopGuard,
+    context_resolution: ContextResolution | None = None,
 ) -> dict:
     if intent_route.intent == "conversation":
         validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, [])
         contract = create_answer_contract(validation)
+        if context_resolution and context_resolution.strategy == "history_recall":
+            answer = f"你上一条有效问题是：\n\n> {context_resolution.selected_context}"
+        else:
+            answer = (
+                "我是 Fab Copilot，面向半导体制造场景的分析助手。"
+                "我可以查询制造报表与模拟数据、检索当前用户的个人知识和工厂知识、引用历史案例，"
+                "并把事实、推断、建议和证据限制分开说明。对于一般技术问题，我会先检索可用知识，"
+                "证据不足时才明确标注并使用模型通用知识补充。"
+            )
         synthesis = synthesize_legacy_answer(
-            "我是 Fab Copilot，面向半导体制造场景的分析助手。"
-            "我可以查询制造报表与模拟数据、检索当前用户的个人知识和工厂知识、引用历史案例，"
-            "并把事实、推断、建议和证据限制分开说明。对于一般技术问题，我会先检索可用知识，"
-            "证据不足时才明确标注并使用模型通用知识补充。",
+            answer,
             contract,
         )
         return {
@@ -754,7 +761,13 @@ async def _run_agent_impl(
             "message": "已结合上文恢复当前追问的分析目标",
             "context_resolution": context_resolution.to_dict(),
         })
-    intent_route = route_question(analysis_question) if context_resolution.applied else direct_route
+    intent_route = (
+        route_question("介绍一下你自己")
+        if context_resolution.strategy == "history_recall"
+        else route_question(analysis_question)
+        if context_resolution.applied
+        else direct_route
+    )
     route_payload = intent_route.to_dict()
     emit(
         "intent_routed",
@@ -841,6 +854,7 @@ async def _run_agent_impl(
             playbook_selection,
             execution_plan,
             loop_guard,
+            context_resolution,
         )
         result["mode"] = "clarification"
         result["model"] = "deterministic-router"
@@ -867,6 +881,7 @@ async def _run_agent_impl(
             playbook_selection,
             execution_plan,
             loop_guard,
+            context_resolution,
         )
         result["model"] = "deterministic-router"
         result["usage"] = {}
