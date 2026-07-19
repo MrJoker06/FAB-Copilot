@@ -2,7 +2,15 @@ from __future__ import annotations
 
 import unittest
 
-from app.knowledge_decision import assess_retrieval, required_scopes, rewrite_query
+from app.knowledge_decision import (
+    assess_retrieval,
+    knowledge_anchor_terms,
+    required_scopes,
+    rewrite_query,
+    usable_result,
+)
+from app.personal_knowledge import _fts_query as personal_fts_query
+from app.rag import _tokenize_query
 
 
 def _source(reference_id: str, source_type: str, confidence: str = "medium") -> dict:
@@ -14,6 +22,55 @@ def _source(reference_id: str, source_type: str, confidence: str = "medium") -> 
 
 
 class KnowledgeDecisionTests(unittest.TestCase):
+    def test_domain_tokenization_preserves_lithography_entity_and_bilingual_aliases(self):
+        query = "为我简单介绍一下光刻"
+
+        retrieval_tokens = _tokenize_query(query)
+        decision_anchors = knowledge_anchor_terms(query)
+
+        self.assertIn("光刻", retrieval_tokens)
+        self.assertIn("photolithography", retrieval_tokens)
+        self.assertIn("光刻", decision_anchors)
+        self.assertIn("photolithography", decision_anchors)
+
+    def test_personal_fts_query_expands_chinese_process_entity(self):
+        fts_query = personal_fts_query("为我简单介绍一下光刻")
+
+        self.assertIn('"photolithography"', fts_query)
+        self.assertIn('"lithography"', fts_query)
+
+    def test_medium_personal_english_lithography_document_is_usable_for_chinese_query(self):
+        result = {
+            "reference_id": "PERSONAL-LITHO-1",
+            "source_type": "personal",
+            "title": "Micron_Intro_to_Photolithography",
+            "section": "Page 5",
+            "excerpt": "Photolithography transfers a reticle pattern to photoresist.",
+            "process_steps": [],
+            "retrieval": {
+                "confidence": "medium",
+                "filters": {"process_step": "LITHO"},
+            },
+        }
+
+        self.assertTrue(usable_result("为我简单介绍一下光刻", result))
+
+    def test_medium_personal_unrelated_document_remains_filtered(self):
+        result = {
+            "reference_id": "PERSONAL-CMP-1",
+            "source_type": "personal",
+            "title": "CMP Pad Maintenance",
+            "section": "Conditioning",
+            "excerpt": "Pad conditioning and slurry flow maintenance steps.",
+            "process_steps": [],
+            "retrieval": {
+                "confidence": "medium",
+                "filters": {"process_step": "LITHO"},
+            },
+        }
+
+        self.assertFalse(usable_result("为我简单介绍一下光刻", result))
+
     def test_rewrite_normalizes_gan_and_records_si_assumption(self):
         rewrite = rewrite_query("GAN器件和S器件的差别")
 

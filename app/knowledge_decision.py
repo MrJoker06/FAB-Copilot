@@ -5,6 +5,8 @@ import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from .processes import process_query_terms
+
 RetrievalState = Literal[
     "GROUND_PERSONAL",
     "GROUND_FACTORY",
@@ -83,7 +85,7 @@ def rewrite_query(question: str) -> QueryRewrite:
 
 
 def knowledge_anchor_terms(query: str) -> tuple[str, ...]:
-    terms: list[str] = []
+    terms = list(process_query_terms(query))
     for token in re.findall(r"[A-Za-z0-9_-]+|[\u4e00-\u9fff]{2,}", query.lower()):
         candidates = (
             [token[index:index + 3] for index in range(len(token) - 2)]

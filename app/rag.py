@@ -7,11 +7,16 @@ from .config import get_settings
 from .database import db_session, get_active_defect_aliases, rows_to_dicts
 from .identity import current_principal
 from .personal_knowledge import search_personal_knowledge
-from .processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS, PROCESS_ALIASES
+from .processes import (
+    ANALYSIS_SCOPES,
+    MANUFACTURING_STEPS,
+    matched_process_step,
+    process_query_terms,
+)
 
 
 def _tokenize_query(text: str) -> list[str]:
-    tokens: list[str] = []
+    tokens = list(process_query_terms(text))
     for term in re.findall(r"[A-Za-z0-9_-]+|[\u4e00-\u9fff]{2,}", text):
         if re.fullmatch(r"[\u4e00-\u9fff]+", term) and len(term) > 4:
             tokens.extend(term[index:index + 3] for index in range(len(term) - 2))
@@ -53,11 +58,7 @@ def _infer_filters(query: str, process_step: str | None, equipment_id: str | Non
     if inferred_step is None:
         inferred_step = next((step for step in PROCESS_STEPS if re.search(rf"\b{step}\b", upper)), None)
     if inferred_step is None:
-        compact_query = query.lower().replace(" ", "")
-        inferred_step = next(
-            (step for step, aliases in PROCESS_ALIASES.items() if any(alias.lower().replace(" ", "") in compact_query for alias in aliases)),
-            None,
-        )
+        inferred_step = matched_process_step(query)
     lower = query.lower().replace(" ", "")
     inferred_defect = defect_type or next(
         (name for name, aliases in get_active_defect_aliases().items()

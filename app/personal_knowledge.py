@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 from .audit import emit
 from .config import get_settings
 from .database import db_session
-from .processes import MANUFACTURING_STEPS
+from .processes import MANUFACTURING_STEPS, process_query_terms
 
 
 PARSER_VERSION = "personal-v1"
@@ -843,7 +843,7 @@ def personal_document_file(document_id: str, owner_user_id: str) -> tuple[Path, 
 
 
 def _fts_query(text: str) -> str:
-    terms: list[str] = []
+    terms = list(process_query_terms(text))
     for term in re.findall(r"[A-Za-z0-9_-]+|[\u4e00-\u9fff]{2,}", text):
         if re.fullmatch(r"[\u4e00-\u9fff]+", term) and len(term) > 4:
             terms.extend(term[index:index + 3] for index in range(len(term) - 2))
