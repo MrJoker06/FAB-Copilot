@@ -25,7 +25,7 @@ from .answer_synthesizer import (
 from .audit import CONTENT_MODE, content_fingerprint, emit
 from .config import get_settings
 from .context_resolver import (
-    CONTEXTUALIZE_TURN_TOOL,
+    CONTEXTUALIZER_RESPONSE_FORMAT,
     ContextResolution,
     build_contextualizer_messages,
     context_system_message,
@@ -747,16 +747,22 @@ def _model_retry_delay(base_seconds: float, retry_number: int, exc: Exception) -
     return base + random.uniform(0, base * 0.2)
 
 
-def _context_tool_arguments(assistant: dict) -> dict:
-    calls = assistant.get("tool_calls") or []
-    if len(calls) != 1:
-        raise ValueError("上下文解析器必须返回一个结构化调用")
-    function = calls[0].get("function") or {}
-    if function.get("name") != "resolve_conversation_turn":
-        raise ValueError("上下文解析器返回了未知函数")
-    arguments = json.loads(function.get("arguments") or "{}")
+def _context_json_arguments(assistant: dict) -> dict:
+    content = assistant.get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise ValueError("上下文解析器必须返回一个 JSON 对象")
+    arguments = json.loads(content)
     if not isinstance(arguments, dict):
         raise ValueError("上下文解析结果必须是 JSON 对象")
+    required_fields = {
+        "relation",
+        "resolved_question",
+        "topic_anchor",
+        "confidence",
+        "intent_hint",
+    }
+    if set(arguments) != required_fields:
+        raise ValueError("上下文解析结果字段不完整或包含未知字段")
     return arguments
 
 
@@ -789,8 +795,7 @@ async def _resolve_conversation_turn(
         "model": settings.deepseek_model,
         "messages": build_contextualizer_messages(question, history),
         "temperature": 0,
-        "tools": [CONTEXTUALIZE_TURN_TOOL],
-        "tool_choice": "auto",
+        "response_format": CONTEXTUALIZER_RESPONSE_FORMAT,
         "max_tokens": 600,
     }
     endpoint = f"{settings.deepseek_base_url}/chat/completions"
@@ -821,7 +826,7 @@ async def _resolve_conversation_turn(
                 )
                 resolution = semantic_context_resolution(
                     question,
-                    _context_tool_arguments(assistant),
+                    _context_json_arguments(assistant),
                 )
             except Exception as exc:
                 retryable = _retryable_model_error(exc) or isinstance(exc, ValueError)
@@ -867,7 +872,7 @@ async def _resolve_conversation_turn(
                 input_tokens=usage.get("prompt_tokens", 0),
                 output_tokens=usage.get("completion_tokens", 0),
                 total_tokens=usage.get("total_tokens", 0),
-                finish_reason="tool_calls",
+                finish_reason="stop",
                 response_id=response_id,
                 **({"response": assistant, "context_resolution": resolution.to_dict()} if CONTENT_MODE == "full" else {}),
             )

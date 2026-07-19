@@ -45,48 +45,18 @@ _LAST_PATTERN = re.compile(
 )
 _MARKDOWN_PATTERN = re.compile(r"[*_`#]+")
 
-CONTEXTUALIZE_TURN_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "resolve_conversation_turn",
-        "description": "根据当前会话历史判断本轮输入是否依赖上文，并生成可独立理解的问题。",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "relation": {
-                    "type": "string",
-                    "enum": ["standalone", "followup", "correction", "recall"],
-                    "description": "当前输入与历史的语义关系。",
-                },
-                "resolved_question": {
-                    "type": "string",
-                    "description": "不依赖聊天记录也能完整理解的当前问题；独立问题保持原意。",
-                },
-                "topic_anchor": {
-                    "type": "string",
-                    "description": "本轮引用的历史主题；独立问题留空。",
-                },
-                "confidence": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1,
-                    "description": "关系判断的置信度。",
-                },
-                "intent_hint": {
-                    "type": "string",
-                    "enum": ["general_knowledge", "manufacturing_analysis", "unclear"],
-                    "description": "通用知识、厂内制造分析或仍无法判断。",
-                },
-            },
-            "required": ["relation", "resolved_question", "topic_anchor", "confidence", "intent_hint"],
-            "additionalProperties": False,
-        },
-    },
-}
+CONTEXTUALIZER_RESPONSE_FORMAT = {"type": "json_object"}
 
 CONTEXTUALIZER_PROMPT = """你是 Agent Loop 的会话上下文解析器，不负责回答用户问题。
 
-读取最近会话和本轮输入后，必须调用 resolve_conversation_turn，并遵守：
+读取最近会话和本轮输入后，只返回一个 JSON 对象，不得输出解释或 Markdown。JSON 必须包含：
+- relation：standalone、followup、correction、recall 之一。
+- resolved_question：可独立理解并进入路由的完整当前问题。
+- topic_anchor：本轮引用的历史主题；独立问题使用空字符串。
+- confidence：0 到 1 之间的数字。
+- intent_hint：general_knowledge、manufacturing_analysis、unclear 之一。
+
+语义规则：
 1. standalone：本轮是完整的新问题，resolved_question 保持本轮原意，不拼接旧主题。
 2. followup：本轮省略了对象、条件或动作，需要从最近相关历史补全。
 3. correction：本轮修改、替换或限制了上一问题，补全后必须体现修改，而不是保留被否定的要求。
@@ -95,7 +65,7 @@ CONTEXTUALIZER_PROMPT = """你是 Agent Loop 的会话上下文解析器，不�
 6. 只能恢复会话指代，禁止添加历史中不存在的制造事实、参数、结论或证据。
 7. 只有主题、范围、对象、否定条件或回答方式，而没有独立信息请求的输入，不是 standalone；应与最近尚未完成的用户目标组合为 followup 或 correction。助手重复索要范围不代表用户已经放弃原目标。
 8. intent_hint=general_knowledge 表示概念、原理、分类、比较或行业常识，不需要当前厂内数据；manufacturing_analysis 表示需要当前生产、设备、批次、指标或异常数据；无法可靠判断时使用 unclear。
-9. 不输出分析过程、解释或答案，只调用指定函数。"""
+9. 不输出分析过程、解释、答案或额外字段。"""
 
 
 def _plain(value: str, limit: int = 1200) -> str:

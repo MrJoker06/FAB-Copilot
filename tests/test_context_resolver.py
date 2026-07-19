@@ -46,21 +46,13 @@ def _context_response(
     return (
         {
             "role": "assistant",
-            "content": "",
-            "tool_calls": [{
-                "id": "resolve-context",
-                "type": "function",
-                "function": {
-                    "name": "resolve_conversation_turn",
-                    "arguments": json.dumps({
-                        "relation": relation,
-                        "resolved_question": resolved_question,
-                        "topic_anchor": topic_anchor,
-                        "confidence": confidence,
-                        "intent_hint": intent_hint,
-                    }, ensure_ascii=False),
-                },
-            }],
+            "content": json.dumps({
+                "relation": relation,
+                "resolved_question": resolved_question,
+                "topic_anchor": topic_anchor,
+                "confidence": confidence,
+                "intent_hint": intent_hint,
+            }, ensure_ascii=False),
         },
         {"prompt_tokens": 8, "completion_tokens": 4, "total_tokens": 12},
         "context-response",
@@ -188,9 +180,10 @@ class ContextResolverTests(unittest.TestCase):
             calls += 1
             if calls == 1:
                 self.assertEqual(
-                    request_payload["tools"][0]["function"]["name"],
-                    "resolve_conversation_turn",
+                    request_payload["response_format"],
+                    {"type": "json_object"},
                 )
+                self.assertNotIn("tools", request_payload)
                 return _context_response(
                     "correction",
                     "比较 GaN 功率器件相对于 SiC 功率器件的优势、限制和适用场景",
@@ -263,6 +256,19 @@ class ContextResolverTests(unittest.TestCase):
         self.assertEqual(resolution.resolved_question, "这个怎么处理")
         self.assertEqual(usage, {})
 
+    def test_context_json_protocol_rejects_unknown_fields(self):
+        assistant, _, _ = _context_response(
+            "standalone",
+            "介绍半导体制程",
+            intent_hint="general_knowledge",
+        )
+        payload = json.loads(assistant["content"])
+        payload["answer"] = "不应由分类器回答"
+        assistant["content"] = json.dumps(payload, ensure_ascii=False)
+
+        with self.assertRaisesRegex(ValueError, "未知字段"):
+            agent_module._context_json_arguments(assistant)
+
     def test_context_model_retries_one_protocol_failure(self):
         calls = 0
         settings = _settings()
@@ -296,6 +302,38 @@ class ContextResolverTests(unittest.TestCase):
         self.assertTrue(resolution.applied)
         self.assertEqual(resolution.intent_hint, "general_knowledge")
         self.assertEqual(usage["total_tokens"], 12)
+
+    def test_scope_only_turn_restores_unresolved_general_question(self):
+        history = [
+            {"role": "user", "content": "当前主流的制程大概有哪些"},
+            {"role": "assistant", "content": "请补充要分析的制程站点或生产范围。"},
+            {"role": "user", "content": "我说的是半导体制程"},
+            {"role": "assistant", "content": "已介绍晶圆制造的主要工艺步骤。"},
+        ]
+        model_call = AsyncMock(return_value=_context_response(
+            "followup",
+            "介绍当前主流的半导体制造工艺流程，不涉及厂内数据",
+            "当前主流的半导体制造工艺流程",
+            confidence=0.9,
+            intent_hint="general_knowledge",
+        ))
+
+        with (
+            patch("app.agent._stream_completion", model_call),
+            patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": lambda **_: []}),
+        ):
+            resolution, _ = asyncio.run(agent_module._resolve_conversation_turn(
+                "不涉及厂内数据",
+                history,
+                _settings(),
+                "run-scope-only-general-test",
+                None,
+                route_question("不涉及厂内数据"),
+            ))
+
+        self.assertTrue(resolution.applied)
+        self.assertEqual(resolution.intent_hint, "general_knowledge")
+        self.assertIn("不涉及厂内数据", resolution.resolved_question)
 
     def test_agent_executes_knowledge_tool_for_selected_last_option(self):
         history = [
