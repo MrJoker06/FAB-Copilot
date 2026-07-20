@@ -217,6 +217,49 @@ class ContextResolverTests(unittest.TestCase):
         self.assertIn("整厂综合诊断", result["answer"])
         self.assertNotIn("PH 光刻", result["answer"])
 
+    def test_recall_reports_unknown_scope_as_blocked_instead_of_fab_wide(self):
+        history = [
+            {"message_id": 25, "role": "user", "content": "分析一下最近 PH 的生产状况"},
+            {
+                "message_id": 26,
+                "role": "assistant",
+                "content": "请确认 PH 的含义。",
+                "metadata": {
+                    "intent_route": {
+                        "intent": "fab_diagnostic",
+                        "process_steps": [],
+                        "scope_resolution": {
+                            "scope_type": "unknown",
+                            "resolved_ids": [],
+                            "unresolved_mentions": ["PH"],
+                        },
+                    },
+                    "tool_trace": [],
+                },
+            },
+        ]
+        model_call = AsyncMock(return_value=_context_response(
+            "recall",
+            "说明更早一轮如何理解 PH",
+            "PH 光刻",
+            target_message_ids=[25],
+        ))
+
+        with (
+            patch("app.agent.get_settings", return_value=_settings()),
+            patch("app.agent._stream_completion", model_call),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "是更前面的一个",
+                history,
+                "run-history-unknown-scope-audit-test",
+            ))
+
+        self.assertIn("制造范围记录为未知（PH）", result["answer"])
+        self.assertIn("实际执行了 0 个工具", result["answer"])
+        self.assertNotIn("整厂综合诊断执行", result["answer"])
+        self.assertNotIn("PH 光刻", result["answer"])
+
     def test_recall_can_select_an_older_message_by_id(self):
         history = [
             {"message_id": 31, "role": "user", "content": "最早的问题"},

@@ -217,7 +217,20 @@ def _offline_answer(
                 route = metadata.get("intent_route") if isinstance(metadata.get("intent_route"), dict) else {}
                 process_steps = route.get("process_steps") if isinstance(route.get("process_steps"), list) else []
                 scope = route.get("scope_resolution") if isinstance(route.get("scope_resolution"), dict) else {}
-                if route.get("intent") == "fab_diagnostic" and not process_steps:
+                scope_type = str(scope.get("scope_type") or "")
+                tool_trace = metadata.get("tool_trace") if isinstance(metadata.get("tool_trace"), list) else []
+                if scope_type == "unknown":
+                    unresolved = scope.get("unresolved_mentions") if isinstance(scope.get("unresolved_mentions"), list) else []
+                    scope_label = f"（{', '.join(str(value) for value in unresolved)}）" if unresolved else ""
+                    lines.append(
+                        f"\n该轮运行将制造范围记录为未知{scope_label}，没有把它映射为具体制程、设备或整厂范围；"
+                        f"该轮实际执行了 {len(tool_trace)} 个工具。"
+                    )
+                elif (
+                    route.get("intent") == "fab_diagnostic"
+                    and not process_steps
+                    and scope_type in {"", "fab"}
+                ):
                     lines.append(
                         "\n该轮运行没有解析出具体制程或设备范围，实际按整厂综合诊断执行；"
                         "因此不能根据运行记录声称某个未解析缩写已被映射为特定制程。"
