@@ -1035,7 +1035,8 @@ async def _resolve_conversation_turn(
                 input_tokens=usage.get("prompt_tokens", 0),
                 output_tokens=usage.get("completion_tokens", 0),
                 total_tokens=usage.get("total_tokens", 0),
-                finish_reason="stop",
+                finish_reason=context_stream_state.get("finish_reason") or "stop",
+                reasoning_length=int(context_stream_state.get("reasoning_length", 0)),
                 response_id=response_id,
                 **({"response": assistant, "context_resolution": resolution.to_dict()} if CONTENT_MODE == "full" else {}),
             )

@@ -530,6 +530,10 @@ class ContextResolverTests(unittest.TestCase):
 
     def test_empty_context_response_expands_only_retry_token_budget(self):
         calls = 0
+        events: list[tuple[str, dict]] = []
+
+        def capture(event_type: str, run_id: str, **fields) -> None:
+            events.append((event_type, fields))
 
         async def empty_then_valid(client, endpoint, headers, request_payload, progress, stream_state):
             nonlocal calls
@@ -540,13 +544,18 @@ class ContextResolverTests(unittest.TestCase):
                 stream_state["finish_reason"] = "length"
                 return ({"role": "assistant", "content": ""}, {}, "empty-context")
             self.assertEqual(request_payload["max_tokens"], 2400)
+            stream_state["reasoning_length"] = 450
+            stream_state["finish_reason"] = "stop"
             return _context_response(
                 "recall",
                 "回忆上一条问题",
                 target_message_ids=[81],
             )
 
-        with patch("app.agent._stream_completion", new=empty_then_valid):
+        with (
+            patch("app.agent._stream_completion", new=empty_then_valid),
+            patch("app.agent.emit", new=capture),
+        ):
             resolution, usage = asyncio.run(agent_module._resolve_conversation_turn(
                 "你在上一个问题中理解的主题是什么",
                 [
@@ -562,6 +571,13 @@ class ContextResolverTests(unittest.TestCase):
         self.assertEqual(resolution.strategy, "semantic_recall")
         self.assertEqual(resolution.target_message_ids, (81,))
         self.assertEqual(usage["total_tokens"], 12)
+        successes = [
+            fields
+            for event, fields in events
+            if event == "model_call_finished" and fields.get("status") == "success"
+        ]
+        self.assertEqual(successes[0]["reasoning_length"], 450)
+        self.assertEqual(successes[0]["finish_reason"], "stop")
 
     def test_repeated_empty_context_response_blocks_general_knowledge_fallback(self):
         question = "你在上一个问题中理解的主题是什么"
