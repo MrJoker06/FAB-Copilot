@@ -1117,7 +1117,20 @@ function createLiveAnalysis() {
   const el = document.createElement('div'); el.className = 'message assistant live-analysis';
   el.innerHTML = '<div class="message-meta"><div class="message-label">FAB COPILOT · 分析中</div><span class="live-indicator">运行中</span></div><details class="live-path" open><summary><span class="live-path-title">正在建立分析路径</span><small class="live-path-count">准备中</small></summary><div class="live-path-body"><ol></ol><div class="trace-footer"><span>工具调用会在执行时实时更新</span><span class="live-run-id"></span></div></div></details><div class="message-content markdown-content streaming-answer" hidden></div>';
   $('#chatMessages').appendChild(el); $('#chatMessages').scrollTop = $('#chatMessages').scrollHeight;
-  return {el, steps: [], runId: null, buffer: new FabSmoothTextBuffer(), renderTimer: null, drainResolvers: [], firstToken: false, cancelled: false};
+  const live = {
+    el, steps: [], runId: null, buffer: new FabSmoothTextBuffer(), telemetry: new FabStreamDiagnostics(),
+    renderTimer: null, drainResolvers: [], firstToken: false, cancelled: false,
+    renderDelay: 72, lastRenderedText: '', stallTimer: null, visibilityHandler: null,
+  };
+  live.visibilityHandler = () => {
+    if (document.hidden || live.cancelled || !live.buffer.pendingLength) return;
+    live.telemetry.markVisibleResume();
+    if (live.renderTimer) window.clearTimeout(live.renderTimer);
+    live.renderTimer = null;
+    scheduleLiveAnswerFrame(live, 0);
+  };
+  document.addEventListener('visibilitychange', live.visibilityHandler);
+  return live;
 }
 
 function renderLiveAnalysis(live) {
@@ -1160,41 +1173,68 @@ function renderLiveAnswerFrame(live) {
   const container = $('#chatMessages');
   const follow = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
   const answer = live.el.querySelector('.streaming-answer');
-  answer.innerHTML = renderMarkdown(live.buffer.takeNext());
+  const renderStarted = performance.now();
+  const visible = live.buffer.takeNext({targetFrames: live.buffer.complete ? 3 : 6, maxChars: live.buffer.complete ? 640 : 384});
+  if (visible !== live.lastRenderedText) {
+    answer.innerHTML = renderMarkdown(visible);
+    live.lastRenderedText = visible;
+  }
+  const renderDuration = performance.now() - renderStarted;
+  live.telemetry.markRender(renderDuration);
+  live.renderDelay = Math.min(180, Math.max(72, renderDuration * 4));
   if (follow) container.scrollTop = container.scrollHeight;
   if (live.buffer.pendingLength) {
-    live.renderTimer = window.setTimeout(() => renderLiveAnswerFrame(live), live.buffer.pendingLength > 240 ? 24 : 32);
+    live.renderTimer = window.setTimeout(() => renderLiveAnswerFrame(live), live.renderDelay);
   } else {
     resolveLiveAnswerDrain(live);
   }
 }
 
-function scheduleLiveAnswerFrame(live) {
+function scheduleLiveAnswerFrame(live, delay = live.renderDelay) {
   if (live.cancelled || live.renderTimer || !live.buffer.pendingLength) return;
-  live.renderTimer = window.setTimeout(() => renderLiveAnswerFrame(live), 24);
+  live.renderTimer = window.setTimeout(() => renderLiveAnswerFrame(live), delay);
+}
+
+function armLiveAnswerStall(live) {
+  if (live.stallTimer) window.clearTimeout(live.stallTimer);
+  live.el.querySelector('.live-indicator').textContent = '生成中';
+  live.stallTimer = window.setTimeout(() => {
+    if (!live.cancelled && live.firstToken && !live.buffer.complete) {
+      live.el.querySelector('.live-indicator').textContent = '模型继续生成中';
+    }
+  }, 1500);
 }
 
 function appendLiveAnswer(live, delta) {
   if (!delta || live.cancelled) return;
   live.buffer.append(delta);
+  live.telemetry.markPending(live.buffer.pendingLength);
   if (!live.firstToken) {
     startLiveAnswer(live);
   }
+  armLiveAnswerStall(live);
   scheduleLiveAnswerFrame(live);
 }
 
 async function finishLiveAnswer(live, finalAnswer) {
   live.buffer.finish(finalAnswer);
+  live.telemetry.markPending(live.buffer.pendingLength);
   if (live.buffer.received && !live.firstToken) startLiveAnswer(live);
   live.el.querySelector('.live-indicator').textContent = live.buffer.done ? '完成' : '输出中';
-  scheduleLiveAnswerFrame(live);
+  if (live.stallTimer) window.clearTimeout(live.stallTimer);
+  live.stallTimer = null;
+  scheduleLiveAnswerFrame(live, 0);
   if (!live.buffer.done) await new Promise(resolve => live.drainResolvers.push(resolve));
+  document.removeEventListener('visibilitychange', live.visibilityHandler);
 }
 
 function cancelLiveAnswer(live) {
   live.cancelled = true;
   if (live.renderTimer) window.clearTimeout(live.renderTimer);
+  if (live.stallTimer) window.clearTimeout(live.stallTimer);
   live.renderTimer = null;
+  live.stallTimer = null;
+  document.removeEventListener('visibilitychange', live.visibilityHandler);
   for (const resolve of live.drainResolvers.splice(0)) resolve();
 }
 
@@ -1221,7 +1261,7 @@ function updateLiveAnalysis(live, event) {
   renderLiveAnalysis(live);
 }
 
-async function streamAgent(message, clientMessageId, onProgress) {
+async function streamAgent(message, clientMessageId, onProgress, diagnostics) {
   let response;
   try {
     response = await fetch('/api/chat/stream', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message, session_id:state.sessionId, client_message_id:clientMessageId})});
@@ -1237,6 +1277,7 @@ async function streamAgent(message, clientMessageId, onProgress) {
   let buffer = '', finalResult = null;
   while (true) {
     const {value, done} = await reader.read();
+    if (value?.length) diagnostics.markRead();
     buffer += decoder.decode(value || new Uint8Array(), {stream:!done});
     const lines = buffer.split('\n'); buffer = lines.pop() || '';
     for (const line of lines) {
@@ -1244,7 +1285,10 @@ async function streamAgent(message, clientMessageId, onProgress) {
       const event = JSON.parse(line);
       if (event.type === 'session') {
         state.sessionId = event.session_id; localStorage.setItem('fabInsightSessionId', state.sessionId);
-      } else if (event.type === 'progress') onProgress(event);
+      } else if (event.type === 'progress') {
+        diagnostics.markProgress(event);
+        onProgress(event);
+      }
       else if (event.type === 'result') finalResult = event.result;
       else if (event.type === 'error') throw apiError(event.error || {detail:event.detail || '分析失败'}, response);
     }
@@ -1252,6 +1296,14 @@ async function streamAgent(message, clientMessageId, onProgress) {
   }
   if (!finalResult) throw new FabApiError('分析结束但未收到结果', {code:'STREAM_INCOMPLETE', requestId:response.headers.get('x-request-id') || '', retryable:true});
   return finalResult;
+}
+
+function reportStreamTelemetry(live, finalAnswer) {
+  const payload = live.telemetry.finish(live.buffer.received === String(finalAnswer || ''));
+  if (!payload.run_id) return;
+  fetch('/api/telemetry/stream', {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload), keepalive: true,
+  }).catch(() => {});
 }
 
 function renderAssistantInto(el, content, extra = {}) {
@@ -1315,8 +1367,9 @@ async function sendChat(message, {clientMessageId = newClientMessageId(), isRetr
   $('#sendButton').disabled = true; state.streaming = true;
   const live = createLiveAnalysis();
   try {
-    const result = await streamAgent(text, clientMessageId, event => updateLiveAnalysis(live, event));
+    const result = await streamAgent(text, clientMessageId, event => updateLiveAnalysis(live, event), live.telemetry);
     await finishLiveAnswer(live, result.answer);
+    reportStreamTelemetry(live, result.answer);
     renderAssistantInto(live.el, result.answer, result);
     state.history.push({role:'assistant', content:result.answer});
     $('#agentMode').textContent = result.mode === 'deepseek' ? `${state.modelConfig?.model || 'DeepSeek'} · 工具分析` : '本地规则分析';

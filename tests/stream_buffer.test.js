@@ -18,7 +18,23 @@ test('a batched answer is revealed over multiple frames', () => {
     buffer.takeNext();
     frames += 1;
   }
-  assert.ok(frames > 10);
+  assert.ok(frames >= 3);
+  assert.ok(frames <= 10);
+  assert.equal(buffer.visible, answer);
+});
+
+test('a long burst drains in bounded frames without losing unicode text', () => {
+  const buffer = new FabSmoothTextBuffer();
+  const answer = '# 光刻分析\n\n- 套刻精度\n- CD 均匀性\n'.repeat(500);
+  buffer.append(answer);
+  buffer.finish(answer);
+
+  let frames = 0;
+  while (!buffer.done && frames < 100) {
+    buffer.takeNext({targetFrames: 3, maxChars: 2000});
+    frames += 1;
+  }
+  assert.ok(frames < 20);
   assert.equal(buffer.visible, answer);
 });
 

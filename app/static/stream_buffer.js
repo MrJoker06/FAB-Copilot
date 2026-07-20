@@ -4,7 +4,9 @@
       this.received = '';
       this.visible = '';
       this.pending = [];
+      this.pendingOffset = 0;
       this.complete = false;
+      this.drainFramesRemaining = null;
     }
 
     append(delta) {
@@ -22,29 +24,43 @@
         } else if (finalAnswer.startsWith(this.visible)) {
           this.received = finalAnswer;
           this.pending = Array.from(finalAnswer.slice(this.visible.length));
+          this.pendingOffset = 0;
         } else {
           this.received = finalAnswer;
           this.visible = '';
           this.pending = Array.from(finalAnswer);
+          this.pendingOffset = 0;
         }
       }
       this.complete = true;
+      this.drainFramesRemaining = null;
     }
 
-    takeNext() {
-      const backlog = this.pending.length;
+    takeNext({targetFrames, minChars = 8, maxChars = 384} = {}) {
+      const backlog = this.pendingLength;
       if (!backlog) return this.visible;
-      const count = backlog > 600 ? 16 : backlog > 240 ? 10 : backlog > 80 ? 6 : backlog > 24 ? 4 : 2;
-      this.visible += this.pending.splice(0, count).join('');
+      const frames = Math.max(1, Number(targetFrames) || (this.complete ? 3 : 6));
+      if (this.complete && this.drainFramesRemaining === null) {
+        this.drainFramesRemaining = Math.max(frames, Math.ceil(backlog / maxChars));
+      }
+      const remainingFrames = this.complete ? Math.max(1, this.drainFramesRemaining) : frames;
+      const count = Math.min(backlog, Math.max(minChars, Math.min(maxChars, Math.ceil(backlog / remainingFrames))));
+      this.visible += this.pending.slice(this.pendingOffset, this.pendingOffset + count).join('');
+      this.pendingOffset += count;
+      if (this.complete) this.drainFramesRemaining = Math.max(0, this.drainFramesRemaining - 1);
+      if (this.pendingOffset > 2048 && this.pendingOffset > this.pending.length / 2) {
+        this.pending = this.pending.slice(this.pendingOffset);
+        this.pendingOffset = 0;
+      }
       return this.visible;
     }
 
     get pendingLength() {
-      return this.pending.length;
+      return this.pending.length - this.pendingOffset;
     }
 
     get done() {
-      return this.complete && this.pending.length === 0;
+      return this.complete && this.pendingLength === 0;
     }
   }
 

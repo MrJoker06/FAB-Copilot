@@ -129,9 +129,10 @@ class FabInsightTests(unittest.TestCase):
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("/static/stream_buffer.js?v=20260720-7", page)
-        self.assertIn("/static/source_presenter.js?v=20260720-7", page)
-        self.assertIn("/static/app.js?v=20260720-7", page)
+        self.assertIn("/static/stream_diagnostics.js?v=20260720-9", page)
+        self.assertIn("/static/stream_buffer.js?v=20260720-9", page)
+        self.assertIn("/static/source_presenter.js?v=20260720-9", page)
+        self.assertIn("/static/app.js?v=20260720-9", page)
         self.assertNotIn('id="monitorView"', page)
         self.assertNotIn('id="apiKeyInput"', page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")
@@ -148,6 +149,8 @@ class FabInsightTests(unittest.TestCase):
         self.assertIn("item.status === 'blocked'", script)
         self.assertIn("执行路径受限", script)
         self.assertIn("await finishLiveAnswer(live, result.answer)", script)
+        self.assertIn("reportStreamTelemetry(live, result.answer)", script)
+        self.assertIn("模型继续生成中", script)
         self.assertNotIn("window.clearTimeout(live.renderTimer); live.renderTimer = null;", script)
         self.assertNotIn("item.arguments", script)
         self.assertNotIn("event.arguments", script)
