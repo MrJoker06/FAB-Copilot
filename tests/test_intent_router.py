@@ -98,6 +98,36 @@ class IntentRouterTests(unittest.TestCase):
         self.assertEqual(unclear.intent, "unknown")
         self.assertTrue(unclear.clarification_needed)
 
+    def test_unknown_manufacturing_scope_requires_clarification_without_special_case_mapping(self):
+        for mention in ("PH", "ABC", "LINE-X7"):
+            with self.subTest(mention=mention):
+                route = route_question(
+                    f"分析一下最近{mention}的生产状况",
+                    current_date=date(2026, 7, 20),
+                )
+
+                self.assertEqual(route.intent, "fab_diagnostic")
+                self.assertEqual(route.process_steps, ())
+                self.assertEqual(route.scope_resolution.scope_type, "unknown")
+                self.assertEqual(route.scope_resolution.unresolved_mentions, (mention,))
+                self.assertTrue(route.scope_resolution.clarification_needed)
+                self.assertTrue(route.clarification_needed)
+                self.assertIn(mention, route.clarification_questions[0])
+
+    def test_scope_resolution_distinguishes_fab_process_equipment_and_product(self):
+        cases = (
+            ("分析一下最近的生产状况", "fab", ("FAB",)),
+            ("分析最近一周光刻机台状况", "process", ("LITHO",)),
+            ("检查 ETCH-04 最近一周的故障", "equipment", ("ETCH-04",)),
+            ("分析 Nova-P1 的生产状况", "product", ("Nova-P1",)),
+        )
+        for question, scope_type, resolved_ids in cases:
+            with self.subTest(question=question):
+                route = route_question(question, current_date=date(2026, 7, 20))
+                self.assertEqual(route.scope_resolution.scope_type, scope_type)
+                self.assertEqual(route.scope_resolution.resolved_ids, resolved_ids)
+                self.assertFalse(route.scope_resolution.clarification_needed)
+
     def test_routes_operational_reviews_for_every_manufacturing_process_family(self):
         cases = (
             ("分析最近一周光刻机台状况", "LITHO"),

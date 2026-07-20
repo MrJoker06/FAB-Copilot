@@ -395,24 +395,32 @@ def create_execution_plan(
 ) -> ExecutionPlan:
     plan_id = _plan_id(question, route, selection)
     playbook = selection.selected_playbook
-    if selection.status == "clarification_required" or route.intent == "unknown":
+    if selection.status == "clarification_required" or route.intent == "unknown" or route.clarification_needed:
+        if route.scope_resolution.clarification_needed:
+            missing_inputs = ("manufacturing_scope",)
+            reason = "Router 检测到无法映射的制造范围，确认范围前不得执行工具。"
+        elif route.intent == "capability_excursion" and not route.process_steps:
+            missing_inputs = ("process_step",)
+            reason = "Domain Playbook 的必需输入尚不完整。"
+        elif selection.status == "clarification_required":
+            missing_inputs = ("primary_intent",)
+            reason = "路由匹配多个 Domain Playbook，必须先确认主分析目标。"
+        else:
+            missing_inputs = ("primary_intent",)
+            reason = "Router 未识别明确分析目标，必须先补充问题范围。"
         return ExecutionPlan(
             plan_id=plan_id,
             schema_version="1.0",
             planner_version="1.0.0",
             status="clarification_required",
-            reason=(
-                "路由匹配多个 Domain Playbook，必须先确认主分析目标。"
-                if selection.status == "clarification_required"
-                else "Router 未识别明确分析目标，必须先补充问题范围。"
-            ),
+            reason=reason,
             route_intent=route.intent,
             playbook_id=None,
             playbook_version=None,
             required_evidence_ids=(),
             steps=(),
             budget=_empty_budget(),
-            missing_inputs=("primary_intent",),
+            missing_inputs=missing_inputs,
             clarification_questions=route.clarification_questions,
         )
     if playbook is None:

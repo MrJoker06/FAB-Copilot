@@ -960,6 +960,7 @@ async def _run_agent_impl(
         confidence=intent_route.confidence,
         process_steps=list(intent_route.process_steps),
         equipment_ids=list(intent_route.equipment_ids),
+        scope_resolution=route_payload["scope_resolution"],
         time_range=route_payload["time_range"],
         data_requirements=list(intent_route.data_requirements),
         risk_level=intent_route.risk_level,

@@ -113,9 +113,9 @@ class FabInsightTests(unittest.TestCase):
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("/static/stream_buffer.js?v=20260719-3", page)
-        self.assertIn("/static/source_presenter.js?v=20260719-3", page)
-        self.assertIn("/static/app.js?v=20260719-3", page)
+        self.assertIn("/static/stream_buffer.js?v=20260720-1", page)
+        self.assertIn("/static/source_presenter.js?v=20260720-1", page)
+        self.assertIn("/static/app.js?v=20260720-1", page)
         self.assertNotIn('id="monitorView"', page)
         self.assertNotIn('id="apiKeyInput"', page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")

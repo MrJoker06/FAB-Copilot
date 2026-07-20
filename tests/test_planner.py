@@ -188,6 +188,15 @@ class StructuredPlannerTests(unittest.TestCase):
                     {tool: process_step for tool in scoped_tools},
                 )
 
+    def test_unknown_manufacturing_scope_creates_no_tool_steps(self):
+        plan = _plan("分析一下最近PH的生产状况", current_date=date(2026, 7, 20))
+
+        self.assertEqual(plan.status, "clarification_required")
+        self.assertEqual(plan.steps, ())
+        self.assertEqual(plan.budget.max_tool_calls, 0)
+        self.assertEqual(plan.missing_inputs, ("manufacturing_scope",))
+        self.assertIn("PH", plan.clarification_questions[0])
+
     def test_missing_ambiguous_and_unknown_inputs_create_no_tool_steps(self):
         cases = (
             ("分析 Cpk 不合格", "process_step"),
