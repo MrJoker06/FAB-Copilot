@@ -528,6 +528,67 @@ class ContextResolverTests(unittest.TestCase):
         self.assertEqual(resolution.intent_hint, "general_knowledge")
         self.assertEqual(usage["total_tokens"], 12)
 
+    def test_empty_context_response_expands_only_retry_token_budget(self):
+        calls = 0
+
+        async def empty_then_valid(client, endpoint, headers, request_payload, progress, stream_state):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                self.assertEqual(request_payload["max_tokens"], 1200)
+                stream_state["reasoning_length"] = 1100
+                stream_state["finish_reason"] = "length"
+                return ({"role": "assistant", "content": ""}, {}, "empty-context")
+            self.assertEqual(request_payload["max_tokens"], 2400)
+            return _context_response(
+                "recall",
+                "回忆上一条问题",
+                target_message_ids=[81],
+            )
+
+        with patch("app.agent._stream_completion", new=empty_then_valid):
+            resolution, usage = asyncio.run(agent_module._resolve_conversation_turn(
+                "你在上一个问题中理解的主题是什么",
+                [
+                    {"message_id": 81, "role": "user", "content": "介绍光刻基本原理"},
+                    {"message_id": 82, "role": "assistant", "content": "已完成介绍。"},
+                ],
+                _settings(),
+                "run-context-empty-budget-test",
+                None,
+            ))
+
+        self.assertEqual(calls, 2)
+        self.assertEqual(resolution.strategy, "semantic_recall")
+        self.assertEqual(resolution.target_message_ids, (81,))
+        self.assertEqual(usage["total_tokens"], 12)
+
+    def test_repeated_empty_context_response_blocks_general_knowledge_fallback(self):
+        question = "你在上一个问题中理解的主题是什么"
+
+        async def empty_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            stream_state["reasoning_length"] = int(request_payload["max_tokens"])
+            stream_state["finish_reason"] = "length"
+            return ({"role": "assistant", "content": ""}, {}, "empty-context")
+
+        direct_route = route_question(question)
+        self.assertEqual(direct_route.intent, "general_knowledge")
+        with patch("app.agent._stream_completion", new=empty_stream):
+            resolution, _ = asyncio.run(agent_module._resolve_conversation_turn(
+                question,
+                [
+                    {"message_id": 91, "role": "user", "content": "介绍光刻基本原理"},
+                    {"message_id": 92, "role": "assistant", "content": "已完成介绍。"},
+                ],
+                _settings(),
+                "run-context-empty-general-fallback-test",
+                None,
+                direct_route,
+            ))
+
+        self.assertEqual(resolution.strategy, "context_clarification")
+        self.assertEqual(resolution.failure_reason, "empty_response")
+
     def test_context_protocol_failure_retries_only_once_even_with_larger_model_budget(self):
         calls = 0
         settings = _settings()

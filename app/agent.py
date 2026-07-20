@@ -718,6 +718,11 @@ async def _stream_completion(
             choice = choices[0]
             finish_reason = choice.get("finish_reason") or finish_reason
             delta = choice.get("delta") or {}
+            reasoning_content = delta.get("reasoning_content")
+            if isinstance(reasoning_content, str) and reasoning_content:
+                stream_state["reasoning_length"] = (
+                    int(stream_state.get("reasoning_length", 0)) + len(reasoning_content)
+                )
             content = delta.get("content")
             if content:
                 content_parts.append(content)
@@ -771,6 +776,7 @@ async def _stream_completion(
             stream_state["answer_emitted"] = True
         for part in pending_answer_parts:
             await _notify(progress, {"event": "answer_delta", "delta": part})
+    stream_state["finish_reason"] = finish_reason
     return assistant, usage, response_id
 
 
@@ -897,7 +903,7 @@ async def _resolve_conversation_turn(
         "messages": build_contextualizer_messages(question, history),
         "temperature": 0,
         "response_format": CONTEXTUALIZER_RESPONSE_FORMAT,
-        "max_tokens": 600,
+        "max_tokens": 1200,
     }
     endpoint = f"{settings.deepseek_base_url}/chat/completions"
     headers = {
@@ -912,6 +918,7 @@ async def _resolve_conversation_turn(
             attempt += 1
             started = time.perf_counter()
             assistant: dict | None = None
+            context_stream_state: dict[str, Any] = {}
             emit(
                 "model_call_started",
                 run_id,
@@ -928,7 +935,7 @@ async def _resolve_conversation_turn(
                     headers,
                     request_payload,
                     None,
-                    {},
+                    context_stream_state,
                 )
                 resolution = semantic_context_resolution(
                     question,
@@ -966,6 +973,8 @@ async def _resolve_conversation_turn(
                     protocol_error_code=protocol_error.code if protocol_error else None,
                     response_length=protocol_error.response_length if protocol_error else None,
                     response_fingerprint=protocol_error.response_fingerprint if protocol_error else None,
+                    finish_reason=context_stream_state.get("finish_reason"),
+                    reasoning_length=int(context_stream_state.get("reasoning_length", 0)),
                     **({
                         "error_message": str(exc),
                         "traceback": traceback.format_exc(),
@@ -974,6 +983,11 @@ async def _resolve_conversation_turn(
                 )
                 if will_retry:
                     if protocol_error:
+                        if protocol_error.code == "empty_response":
+                            request_payload["max_tokens"] = min(
+                                max(int(request_payload.get("max_tokens", 1200)) * 2, 2400),
+                                2400,
+                            )
                         request_payload["messages"] = [
                             *request_payload["messages"],
                             _context_protocol_correction(protocol_error),
@@ -995,7 +1009,13 @@ async def _resolve_conversation_turn(
                 })
                 fallback_route = direct_route or route_question(question)
                 if history and (
-                    fallback_route.intent == "unknown" or fallback_route.clarification_needed
+                    fallback_route.intent == "unknown"
+                    or fallback_route.clarification_needed
+                    or (
+                        protocol_error is not None
+                        and protocol_error.code == "empty_response"
+                        and fallback_route.intent == "general_knowledge"
+                    )
                 ):
                     return context_clarification_resolution(
                         question,
