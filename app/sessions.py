@@ -197,13 +197,21 @@ def session_history(session_id: str, limit: int = 20) -> list[dict]:
         if exists is None:
             raise ValueError("会话不存在")
         rows = connection.execute(
-            """SELECT role, content FROM (
-                   SELECT message_id, role, content FROM chat_messages
+            """SELECT message_id, role, content, metadata_json FROM (
+                   SELECT message_id, role, content, metadata_json FROM chat_messages
                    WHERE session_id = ? ORDER BY message_id DESC LIMIT ?
                ) ORDER BY message_id""",
             (session_id, max(1, min(limit, 20))),
         ).fetchall()
-    return [dict(row) for row in rows]
+    history: list[dict] = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item["metadata"] = json.loads(item.pop("metadata_json") or "{}")
+        except json.JSONDecodeError:
+            item["metadata"] = {}
+        history.append(item)
+    return history
 
 
 def cached_agent_result(session_id: str, client_message_id: str | None) -> dict | None:

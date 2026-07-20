@@ -196,7 +196,32 @@ def _offline_answer(
         validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, [])
         contract = create_answer_contract(validation)
         if context_resolution and context_resolution.strategy == "semantic_recall":
-            answer = f"你上一条有效问题是：\n\n> {context_resolution.selected_context}"
+            records = context_resolution.recalled_messages
+            user_records = [item for item in records if item.get("role") == "user"]
+            assistant_records = [item for item in records if item.get("role") == "assistant"]
+            lines = ["根据当前会话中的原始记录："]
+            for item in user_records:
+                lines.append(
+                    f"\n> 用户消息 #{item.get('message_id')}：{str(item.get('content') or '')[:700]}"
+                )
+            for item in assistant_records:
+                metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+                route = metadata.get("intent_route") if isinstance(metadata.get("intent_route"), dict) else {}
+                process_steps = route.get("process_steps") if isinstance(route.get("process_steps"), list) else []
+                scope = route.get("scope_resolution") if isinstance(route.get("scope_resolution"), dict) else {}
+                if route.get("intent") == "fab_diagnostic" and not process_steps:
+                    lines.append(
+                        "\n该轮运行没有解析出具体制程或设备范围，实际按整厂综合诊断执行；"
+                        "因此不能根据运行记录声称某个未解析缩写已被映射为特定制程。"
+                    )
+                elif scope.get("resolved_ids"):
+                    lines.append(
+                        f"\n该轮运行记录的分析范围是：{', '.join(str(value) for value in scope['resolved_ids'])}。"
+                    )
+                lines.append(
+                    f"\n> 助手消息 #{item.get('message_id')} 摘要：{str(item.get('content') or '')[:700]}"
+                )
+            answer = "".join(lines)
         else:
             answer = (
                 "我是 Fab Copilot，面向半导体制造场景的分析助手。"
@@ -758,6 +783,7 @@ def _context_json_arguments(assistant: dict) -> dict:
         "relation",
         "resolved_question",
         "topic_anchor",
+        "target_message_ids",
         "confidence",
         "intent_hint",
     }
@@ -821,6 +847,7 @@ async def _resolve_conversation_turn(
                 resolution = semantic_context_resolution(
                     question,
                     _context_json_arguments(assistant),
+                    history,
                 )
             except Exception as exc:
                 retryable = _retryable_model_error(exc) or isinstance(exc, ValueError)

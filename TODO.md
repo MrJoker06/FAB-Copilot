@@ -2,7 +2,7 @@
 
 状态基线：`experiment/parallel-platform`，2026-07-18。
 
-当前统计：共 139 个独立任务，已完成 81 个，待做 58 个。
+当前统计：共 140 个独立任务，已完成 82 个，待做 58 个。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
@@ -19,7 +19,7 @@
 
 | 工作流 | 清单 | 当前结论 |
 |---|---|---|
-| Agent 执行架构 | [Agent TODO](docs/todos/agent-architecture.md) | Tool Agent Loop、语义上下文、制造范围门禁、通用制造运营概览、Router、六类 Playbook、Planner、运行时守卫、Validator、Synthesizer 与计划审计持久化已完成；黄金集待做 |
+| Agent 执行架构 | [Agent TODO](docs/todos/agent-architecture.md) | Tool Agent Loop、基于真实消息 ID 的上下文回忆、制造范围门禁、通用制造运营概览、Router、六类 Playbook、Planner、运行时守卫、Validator、Synthesizer 与计划审计持久化已完成；黄金集待做 |
 | 身份与权限 | [身份安全 TODO](docs/todos/identity-security.md) | 本地隔离和管理令牌已完成；企业 SSO/RBAC 待做 |
 | 模型治理 | [模型治理 TODO](docs/todos/model-governance.md) | 模型目录和用户选择已完成；企业凭据与审批待做 |
 | RAG 与知识库 | [知识库 TODO](docs/todos/rag-knowledge.md) | L0 本地 RAG 和中文双语制程召回治理已完成；自动 Tag、OCR 和分布式 RAG 待做 |

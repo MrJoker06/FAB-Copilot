@@ -33,12 +33,13 @@ Session history + current turn
   "relation": "standalone | followup | correction | recall",
   "resolved_question": "可独立理解并进入路由的完整问题",
   "topic_anchor": "本轮引用的历史主题；独立问题为空",
+  "target_message_ids": [],
   "confidence": 0.0,
   "intent_hint": "general_knowledge | manufacturing_analysis | unclear"
 }
 ```
 
-`standalone` 不改写输入。`followup` 补全省略对象或动作，`correction` 应用用户最新修改并移除被否定要求，`recall` 只恢复用户要求回忆的历史内容。
+`standalone` 不改写输入。`followup` 补全省略对象或动作，`correction` 应用用户最新修改并移除被否定要求。`recall` 必须通过 `target_message_ids` 选择当前用户有权读取的原始 Session 消息；服务端再读取对应用户消息和配对助手消息，不能使用模型生成的 `topic_anchor` 伪造历史。当用户要求“更前面的一个”时，由上下文模型在可见消息 ID 中选择更早的目标，而不是依赖固定短语补丁。
 
 当确定性 Router 返回 `unknown` 时，只有置信度不低于 0.65 的 `general_knowledge` 提示可以进入通用知识检索路径。对于模型已高置信度判定为追问或纠正的消息，同一提示也可以修正仅因“知识库”等来源措辞形成的 `sop_lookup` 路由；模型判定为 `standalone` 时不应用该修正。`manufacturing_analysis` 和 `unclear` 仍保留原路由或澄清要求，通用知识提示不能覆盖良率、设备、批次等制造意图，也不能直接触发制造数据工具。
 
@@ -48,10 +49,12 @@ Session history + current turn
 - 用户消息最多保留 1000 字符，助手消息最多保留 1600 字符。
 - 上下文阶段总历史预算为 16000 字符，从最新消息向前保留。
 - 当前实现不把旧消息重复写回 Session，完整历史仍由会话数据库持久化。
+- 上下文输入给每条历史消息附带真实 `message_id`；无持久化 ID 的单元测试或兼容调用使用窗口内临时 ID。
 - 后续当单会话显著增长时，应增加滚动摘要或 compaction，而不是继续扩大原始消息窗口。
 
 ## 失败与安全边界
 
+- `recall` 返回的消息 ID 必须存在于当前租户、当前用户已经读取的 Session 历史窗口内，否则拒绝绑定历史。
 - 模型未返回合法 JSON 对象时，在现有模型重试上限内重试；仍失败、字段类型非法、关系类型非法或置信度过低时，不绑定历史，按当前输入独立路由。
 - 上下文分类器使用 `response_format=json_object`，不占用 Agent 工具协议；制造工具和知识工具仍只由后续主循环调用。
 - 上下文阶段不得调用制造数据或知识库工具。

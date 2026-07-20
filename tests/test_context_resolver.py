@@ -42,6 +42,7 @@ def _context_response(
     topic_anchor: str = "",
     confidence: float = 0.95,
     intent_hint: str = "unclear",
+    target_message_ids: list[int] | None = None,
 ) -> tuple[dict, dict, str]:
     return (
         {
@@ -50,6 +51,7 @@ def _context_response(
                 "relation": relation,
                 "resolved_question": resolved_question,
                 "topic_anchor": topic_anchor,
+                "target_message_ids": target_message_ids or [],
                 "confidence": confidence,
                 "intent_hint": intent_hint,
             }, ensure_ascii=False),
@@ -98,6 +100,7 @@ class ContextResolverTests(unittest.TestCase):
                 "relation": "correction",
                 "resolved_question": "比较 GaN 功率器件相对于 SiC 功率器件的优势、限制和适用场景",
                 "topic_anchor": "GaN 功率器件相对于 Si 的优势",
+                "target_message_ids": [],
                 "confidence": 0.96,
                 "intent_hint": "general_knowledge",
             },
@@ -114,6 +117,7 @@ class ContextResolverTests(unittest.TestCase):
                 "relation": "followup",
                 "resolved_question": "继续讨论 GaN",
                 "topic_anchor": "GaN",
+                "target_message_ids": [],
                 "confidence": 0.4,
                 "intent_hint": "unclear",
             },
@@ -124,9 +128,9 @@ class ContextResolverTests(unittest.TestCase):
 
     def test_context_window_is_bounded_and_preserves_latest_turns(self):
         history = [
-            {"role": "user", "content": f"问题 {index} " + "x" * 900}
+            {"message_id": index + 100, "role": "user", "content": f"问题 {index} " + "x" * 900}
             if index % 2 == 0
-            else {"role": "assistant", "content": f"回答 {index} " + "y" * 1500}
+            else {"message_id": index + 100, "role": "assistant", "content": f"回答 {index} " + "y" * 1500}
             for index in range(30)
         ]
 
@@ -141,17 +145,19 @@ class ContextResolverTests(unittest.TestCase):
         self.assertEqual(messages[-1], {"role": "user", "content": "继续"})
         self.assertLessEqual(sum(len(item["content"]) for item in messages[1:-1]), 2500)
         self.assertIn("回答 29", messages[-2]["content"])
+        self.assertIn("[message_id=129]", messages[-2]["content"])
 
     def test_agent_answers_semantic_history_recall_after_context_stage(self):
-        history = [
-            {"role": "user", "content": "GaN 器件相对于 Si 器件的优势"},
-            {"role": "assistant", "content": "已给出基础回答。"},
-        ]
         model_call = AsyncMock(return_value=_context_response(
             "recall",
             "回忆用户上一条问题",
             "GaN 器件相对于 Si 器件的优势",
+            target_message_ids=[11],
         ))
+        history = [
+            {"message_id": 11, "role": "user", "content": "GaN 器件相对于 Si 器件的优势"},
+            {"message_id": 12, "role": "assistant", "content": "已给出基础回答。"},
+        ]
         with (
             patch("app.agent.get_settings", return_value=_settings()),
             patch("app.agent._stream_completion", model_call),
@@ -167,6 +173,95 @@ class ContextResolverTests(unittest.TestCase):
         self.assertEqual(result["context_resolution"]["strategy"], "semantic_recall")
         self.assertEqual(result["tool_trace"], [])
         self.assertIn("GaN 器件相对于 Si 器件的优势", result["answer"])
+        self.assertEqual(result["context_resolution"]["target_message_ids"], [11])
+        self.assertNotIn("recalled_messages", result["context_resolution"])
+        self.assertIn("助手消息 #12", result["answer"])
+
+    def test_recall_uses_original_run_scope_instead_of_generated_topic_anchor(self):
+        history = [
+            {"message_id": 21, "role": "user", "content": "分析一下最近 PH 的生产状况"},
+            {
+                "message_id": 22,
+                "role": "assistant",
+                "content": "已完成生产分析。",
+                "metadata": {
+                    "intent_route": {
+                        "intent": "fab_diagnostic",
+                        "process_steps": [],
+                        "scope_resolution": {
+                            "scope_type": "fab",
+                            "resolved_ids": [],
+                        },
+                    },
+                },
+            },
+        ]
+        model_call = AsyncMock(return_value=_context_response(
+            "recall",
+            "说明上一轮实际如何理解 PH",
+            "PH 光刻",
+            target_message_ids=[21],
+        ))
+
+        with (
+            patch("app.agent.get_settings", return_value=_settings()),
+            patch("app.agent._stream_completion", model_call),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "你在上一个问题中理解的 PH 是什么",
+                history,
+                "run-history-scope-audit-test",
+            ))
+
+        self.assertIn("没有解析出具体制程或设备范围", result["answer"])
+        self.assertIn("整厂综合诊断", result["answer"])
+        self.assertNotIn("PH 光刻", result["answer"])
+
+    def test_recall_can_select_an_older_message_by_id(self):
+        history = [
+            {"message_id": 31, "role": "user", "content": "最早的问题"},
+            {"message_id": 32, "role": "assistant", "content": "最早的回答"},
+            {"message_id": 33, "role": "user", "content": "后一个问题"},
+            {"message_id": 34, "role": "assistant", "content": "后一个回答"},
+        ]
+        resolution = semantic_context_resolution(
+            "是更前面的一个",
+            {
+                "relation": "recall",
+                "resolved_question": "回忆更早的问题",
+                "topic_anchor": "模型生成的锚点",
+                "target_message_ids": [31],
+                "confidence": 0.96,
+                "intent_hint": "unclear",
+            },
+            history,
+        )
+
+        self.assertTrue(resolution.applied)
+        self.assertEqual(resolution.target_message_ids, (31,))
+        self.assertEqual(
+            [item["message_id"] for item in resolution.recalled_messages],
+            [31, 32],
+        )
+        self.assertIn("最早的问题", resolution.selected_context)
+        self.assertNotIn("模型生成的锚点", resolution.selected_context)
+
+    def test_recall_rejects_message_ids_outside_supplied_history(self):
+        resolution = semantic_context_resolution(
+            "回忆之前的问题",
+            {
+                "relation": "recall",
+                "resolved_question": "回忆之前的问题",
+                "topic_anchor": "",
+                "target_message_ids": [999],
+                "confidence": 0.95,
+                "intent_hint": "unclear",
+            },
+            [{"message_id": 1, "role": "user", "content": "真实历史问题"}],
+        )
+
+        self.assertFalse(resolution.applied)
+        self.assertEqual(resolution.source, "fallback")
 
     def test_agent_semantically_resolves_unseen_followup_before_routing(self):
         history = [

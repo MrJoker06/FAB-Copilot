@@ -29,9 +29,14 @@ class ContextResolution:
     confidence: float = 1.0
     source: ResolutionSource = "none"
     intent_hint: IntentHint = "unclear"
+    target_message_ids: tuple[int, ...] = ()
+    recalled_messages: tuple[dict, ...] = ()
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        payload = asdict(self)
+        payload["target_message_ids"] = list(self.target_message_ids)
+        payload.pop("recalled_messages", None)
+        return payload
 
 
 _BULLET_PATTERN = re.compile(
@@ -53,6 +58,7 @@ CONTEXTUALIZER_PROMPT = """你是 Agent Loop 的会话上下文解析器，不�
 - relation：standalone、followup、correction、recall 之一。
 - resolved_question：可独立理解并进入路由的完整当前问题。
 - topic_anchor：本轮引用的历史主题；独立问题使用空字符串。
+- target_message_ids：recall 时填写被引用历史消息的 message_id 数组；其他关系使用空数组。
 - confidence：0 到 1 之间的数字。
 - intent_hint：general_knowledge、manufacturing_analysis、unclear 之一。
 
@@ -60,7 +66,7 @@ CONTEXTUALIZER_PROMPT = """你是 Agent Loop 的会话上下文解析器，不�
 1. standalone：本轮是完整的新问题，resolved_question 保持本轮原意，不拼接旧主题。
 2. followup：本轮省略了对象、条件或动作，需要从最近相关历史补全。
 3. correction：本轮修改、替换或限制了上一问题，补全后必须体现修改，而不是保留被否定的要求。
-4. recall：用户询问此前说过或问过什么，topic_anchor 填写被询问的历史内容。
+4. recall：用户询问此前说过、问过或助手如何理解时，必须从输入中提供的 message_id 选择 target_message_ids；不得自行生成历史内容。若用户说“更前面的一个”，应选择比上次回忆目标更早的相关消息。
 5. resolved_question 必须是可直接进入意图路由的完整任务，保留用户当前比较对象、范围和目标。
 6. 只能恢复会话指代，禁止添加历史中不存在的制造事实、参数、结论或证据。
 7. 只有主题、范围、对象、否定条件或回答方式，而没有独立信息请求的输入，不是 standalone；应与最近尚未完成的用户目标组合为 followup 或 correction。助手重复索要范围不代表用户已经放弃原目标。
@@ -160,17 +166,26 @@ def build_contextualizer_messages(
 ) -> list[dict]:
     candidates: list[dict] = []
     remaining = character_budget
-    for item in reversed(list(history or [])[-message_limit:]):
+    bounded_history = list(history or [])[-message_limit:]
+    indexed_history = [
+        {**item, "message_id": int(item.get("message_id") or index + 1)}
+        for index, item in enumerate(bounded_history)
+    ]
+    for item in reversed(indexed_history):
         role = item.get("role")
         if role not in {"user", "assistant"}:
             continue
+        prefix = f"[message_id={item['message_id']}] "
         per_message_limit = 1600 if role == "assistant" else 1000
         content = _plain(str(item.get("content") or ""), per_message_limit)
-        if not content or remaining <= 0:
+        if not content or remaining <= len(prefix):
             continue
-        content = content[:remaining]
-        remaining -= len(content)
-        candidates.append({"role": role, "content": content})
+        content = content[:remaining - len(prefix)]
+        remaining -= len(prefix) + len(content)
+        candidates.append({
+            "role": role,
+            "content": f"{prefix}{content}",
+        })
     candidates.reverse()
     return [
         {"role": "system", "content": CONTEXTUALIZER_PROMPT},
@@ -179,7 +194,37 @@ def build_contextualizer_messages(
     ]
 
 
-def semantic_context_resolution(question: str, arguments: dict) -> ContextResolution:
+def _history_index(history: list[dict] | None) -> tuple[list[dict], dict[int, dict]]:
+    indexed = [
+        {**item, "message_id": int(item.get("message_id") or index + 1)}
+        for index, item in enumerate(list(history or []))
+    ]
+    return indexed, {item["message_id"]: item for item in indexed}
+
+
+def _recall_records(history: list[dict] | None, target_ids: tuple[int, ...]) -> tuple[dict, ...]:
+    indexed, by_id = _history_index(history)
+    selected = {message_id for message_id in target_ids if message_id in by_id}
+    positions = {item["message_id"]: index for index, item in enumerate(indexed)}
+    for message_id in tuple(selected):
+        position = positions[message_id]
+        item = indexed[position]
+        if item.get("role") == "user" and position + 1 < len(indexed):
+            following = indexed[position + 1]
+            if following.get("role") == "assistant":
+                selected.add(following["message_id"])
+        elif item.get("role") == "assistant" and position > 0:
+            previous = indexed[position - 1]
+            if previous.get("role") == "user":
+                selected.add(previous["message_id"])
+    return tuple(item for item in indexed if item["message_id"] in selected)
+
+
+def semantic_context_resolution(
+    question: str,
+    arguments: dict,
+    history: list[dict] | None = None,
+) -> ContextResolution:
     relation = str(arguments.get("relation") or "").strip()
     if relation not in {"standalone", "followup", "correction", "recall"}:
         return unresolved_context(question, "fallback")
@@ -189,6 +234,10 @@ def semantic_context_resolution(question: str, arguments: dict) -> ContextResolu
         return unresolved_context(question, "fallback")
     resolved = _plain(str(arguments.get("resolved_question") or ""), 4000)
     topic_anchor = _plain(str(arguments.get("topic_anchor") or ""), 1200)
+    raw_target_ids = arguments.get("target_message_ids")
+    if not isinstance(raw_target_ids, list) or any(not isinstance(item, int) for item in raw_target_ids):
+        return unresolved_context(question, "fallback")
+    target_message_ids = tuple(dict.fromkeys(raw_target_ids))
     intent_hint = str(arguments.get("intent_hint") or "").strip()
     if intent_hint not in {"general_knowledge", "manufacturing_analysis", "unclear"}:
         return unresolved_context(question, "fallback")
@@ -204,7 +253,18 @@ def semantic_context_resolution(question: str, arguments: dict) -> ContextResolu
             source="model",
             intent_hint=intent_hint,
         )
-    if not resolved or (relation == "recall" and not topic_anchor):
+    recalled_messages: tuple[dict, ...] = ()
+    if relation == "recall":
+        recalled_messages = _recall_records(history, target_message_ids)
+        valid_ids = {int(item["message_id"]) for item in recalled_messages}
+        if not target_message_ids or not set(target_message_ids).issubset(valid_ids):
+            return unresolved_context(question, "fallback")
+        topic_anchor = " | ".join(
+            _plain(str(item.get("content") or ""), 300)
+            for item in recalled_messages
+            if item.get("content")
+        )[:1200]
+    if not resolved or (relation == "recall" and not recalled_messages):
         return unresolved_context(question, "fallback")
     strategies: dict[str, ResolutionStrategy] = {
         "followup": "semantic_followup",
@@ -221,6 +281,8 @@ def semantic_context_resolution(question: str, arguments: dict) -> ContextResolu
         confidence=confidence,
         source="model",
         intent_hint=intent_hint,
+        target_message_ids=target_message_ids if relation == "recall" else (),
+        recalled_messages=recalled_messages,
     )
 
 
