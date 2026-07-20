@@ -181,6 +181,24 @@ class ChatRequest(BaseModel):
     client_message_id: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
 
 
+class StreamTelemetryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: str = Field(min_length=8, max_length=64)
+    read_chunks: int = Field(default=0, ge=0, le=100000)
+    progress_events: int = Field(default=0, ge=0, le=100000)
+    answer_events: int = Field(default=0, ge=0, le=100000)
+    answer_chars: int = Field(default=0, ge=0, le=1000000)
+    max_read_gap_ms: float = Field(default=0, ge=0, le=3600000)
+    max_buffer_pending: int = Field(default=0, ge=0, le=1000000)
+    render_frames: int = Field(default=0, ge=0, le=100000)
+    max_render_ms: float = Field(default=0, ge=0, le=3600000)
+    total_render_ms: float = Field(default=0, ge=0, le=3600000)
+    hidden_resumes: int = Field(default=0, ge=0, le=10000)
+    final_match: bool = False
+    duration_ms: float = Field(default=0, ge=0, le=3600000)
+
+
 class ModelConfigRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -888,20 +906,54 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             return
         begin_agent_run(principal, session_id, request.message, selected_model)
         activity_finished = False
-        queue: asyncio.Queue[dict] = asyncio.Queue()
+        queue: asyncio.Queue[tuple[dict, float]] = asyncio.Queue()
+        stream_started = asyncio.get_running_loop().time()
+        delivery = {
+            "answer_events": 0,
+            "answer_chars": 0,
+            "first_answer_ms": None,
+            "max_enqueue_gap_ms": 0.0,
+            "max_queue_wait_ms": 0.0,
+            "max_sse_gap_ms": 0.0,
+        }
+        last_answer_enqueued: float | None = None
+        last_answer_yielded: float | None = None
 
         async def progress(event: dict) -> None:
+            nonlocal last_answer_enqueued
             await recorder.observe(event)
-            await queue.put(event)
+            enqueued_at = asyncio.get_running_loop().time()
+            if event.get("event") == "answer_delta":
+                delivery["answer_events"] += 1
+                delivery["answer_chars"] += len(str(event.get("delta") or ""))
+                if last_answer_enqueued is None:
+                    delivery["first_answer_ms"] = round((enqueued_at - stream_started) * 1000, 1)
+                else:
+                    delivery["max_enqueue_gap_ms"] = max(
+                        delivery["max_enqueue_gap_ms"],
+                        round((enqueued_at - last_answer_enqueued) * 1000, 1),
+                    )
+                last_answer_enqueued = enqueued_at
+            await queue.put((event, enqueued_at))
             await asyncio.sleep(0)
 
         task = asyncio.create_task(run_agent(request.message, history, progress))
         try:
             while not task.done() or not queue.empty():
                 try:
-                    event = await asyncio.wait_for(queue.get(), timeout=0.25)
+                    event, enqueued_at = await asyncio.wait_for(queue.get(), timeout=0.25)
                 except TimeoutError:
                     continue
+                now = asyncio.get_running_loop().time()
+                delivery["max_queue_wait_ms"] = max(
+                    delivery["max_queue_wait_ms"], round((now - enqueued_at) * 1000, 1)
+                )
+                if event.get("event") == "answer_delta":
+                    if last_answer_yielded is not None:
+                        delivery["max_sse_gap_ms"] = max(
+                            delivery["max_sse_gap_ms"], round((now - last_answer_yielded) * 1000, 1)
+                        )
+                    last_answer_yielded = now
                 yield _stream_line("progress", **event)
             result = await task
             recorder.complete(result)
@@ -918,6 +970,9 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             )
             finish_agent_run(principal, "success", str(result.get("run_id") or ""), str(result.get("model") or selected_model))
             activity_finished = True
+            delivery["duration_ms"] = round((asyncio.get_running_loop().time() - stream_started) * 1000, 1)
+            emit("stream_delivery_summary", str(result.get("run_id") or session_id), **delivery)
+            yield _stream_line("progress", event="stream_delivery_summary", run_id=result.get("run_id"), **delivery)
             yield _stream_line("result", result=result)
         except asyncio.CancelledError:
             task.cancel()
@@ -966,6 +1021,12 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
         media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.post("/api/telemetry/stream")
+def record_stream_telemetry(request: StreamTelemetryRequest) -> dict:
+    emit("browser_stream_summary", request.run_id, **request.model_dump(exclude={"run_id"}))
+    return {"accepted": True}
 
 
 @app.get("/api/monitor/summary")

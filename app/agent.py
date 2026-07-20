@@ -692,6 +692,22 @@ async def _stream_completion(
     usage: dict = {}
     finish_reason: str | None = None
     response_id: str | None = None
+    stream_started = time.perf_counter()
+    last_content_at: float | None = None
+
+    def record_content_delta(content: str) -> None:
+        nonlocal last_content_at
+        now = time.perf_counter()
+        if last_content_at is None:
+            stream_state["first_content_ms"] = round((now - stream_started) * 1000, 1)
+        else:
+            gap_ms = round((now - last_content_at) * 1000, 1)
+            stream_state["max_content_gap_ms"] = max(
+                float(stream_state.get("max_content_gap_ms", 0)), gap_ms
+            )
+        last_content_at = now
+        stream_state["content_delta_count"] = int(stream_state.get("content_delta_count", 0)) + 1
+        stream_state["content_chars"] = int(stream_state.get("content_chars", 0)) + len(content)
 
     def suppress_pending_content() -> bool:
         if not stream_state.get("suppress_embedded_tool_json"):
@@ -725,6 +741,7 @@ async def _stream_completion(
                 )
             content = delta.get("content")
             if content:
+                record_content_delta(content)
                 content_parts.append(content)
                 if answer_started:
                     stream_state["answer_emitted"] = True
@@ -777,6 +794,7 @@ async def _stream_completion(
         for part in pending_answer_parts:
             await _notify(progress, {"event": "answer_delta", "delta": part})
     stream_state["finish_reason"] = finish_reason
+    stream_state["stream_duration_ms"] = round((time.perf_counter() - stream_started) * 1000, 1)
     return assistant, usage, response_id
 
 
@@ -1528,6 +1546,11 @@ async def _run_agent_impl(
                     total_tokens=usage.get("total_tokens", 0),
                     finish_reason="tool_calls" if assistant.get("tool_calls") else "stop",
                     response_id=response_id,
+                    first_content_ms=stream_state.get("first_content_ms"),
+                    max_content_gap_ms=stream_state.get("max_content_gap_ms", 0),
+                    content_delta_count=stream_state.get("content_delta_count", 0),
+                    content_chars=stream_state.get("content_chars", 0),
+                    stream_duration_ms=stream_state.get("stream_duration_ms"),
                     **({"response": assistant} if CONTENT_MODE == "full" else {}),
                 )
                 break
