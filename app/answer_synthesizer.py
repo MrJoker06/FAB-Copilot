@@ -35,6 +35,7 @@ SUBMIT_ANALYSIS_TOOL = {
             "type": "object",
             "properties": {
                 "conclusion": {"type": "string", "maxLength": 600},
+                "conclusion_evidence_refs": {"type": "array", "maxItems": 8, "items": {"type": "string"}},
                 "facts": {
                     "type": "array",
                     "maxItems": 8,
@@ -94,6 +95,7 @@ SUBMIT_ANALYSIS_TOOL = {
             },
             "required": [
                 "conclusion",
+                "conclusion_evidence_refs",
                 "facts",
                 "inferences",
                 "hypotheses",
@@ -124,6 +126,10 @@ class AnswerContract:
     permitted_source_refs: tuple[str, ...]
     mandatory_limitations: tuple[str, ...]
     model_knowledge_fallback: bool
+    primary_scope_type: str
+    primary_scope_ids: tuple[str, ...]
+    primary_scope_labels: tuple[str, ...]
+    source_scope_roles: dict[str, str]
     submission_tool: str = "submit_analysis"
 
     def to_dict(self) -> dict[str, Any]:
@@ -221,8 +227,8 @@ def create_answer_contract(
         limitations = list(_validation_limitations(validation))
     required = validation.status == "validated"
     return AnswerContract(
-        schema_version="1.0",
-        synthesizer_version="1.0.0",
+        schema_version="1.1",
+        synthesizer_version="1.1.0",
         plan_id=validation.plan_id,
         status="required" if required else "not_applicable",
         allowed_conclusion_strength=validation.allowed_conclusion_strength,
@@ -237,6 +243,10 @@ def create_answer_contract(
         permitted_source_refs=permitted,
         mandatory_limitations=tuple(dict.fromkeys(limitations)),
         model_knowledge_fallback=allow_model_knowledge_fallback,
+        primary_scope_type=validation.primary_scope_type,
+        primary_scope_ids=validation.primary_scope_ids,
+        primary_scope_labels=validation.primary_scope_labels,
+        source_scope_roles=validation.source_scope_roles,
     )
 
 
@@ -261,6 +271,7 @@ def synthesizer_system_message(contract: AnswerContract) -> str:
             else ""
         )
         + "不得提交隐藏思维链、逐 token 推理或未在 permitted_source_refs 中的来源。"
+        "conclusion_evidence_refs 必须列出结论依据；仅由 context_only 来源支持的整厂背景不得表述为主范围自身指标。"
         "结论不得超过 allowed_conclusion_strength，causal_claims_allowed=false 时不得声称已证明因果。\n"
         f"answer_contract={contract.to_prompt()}"
     )
@@ -331,6 +342,17 @@ def _overclaim(statement: str, strength: str, causal_allowed: bool) -> bool:
     return strength in {"insufficient", "hypothesis_only"} and bool(_DEFINITIVE_PATTERN.search(statement))
 
 
+def _scope_mismatch(statement: str, references: tuple[str, ...], contract: AnswerContract) -> bool:
+    if contract.primary_scope_type not in {"process", "equipment", "product"}:
+        return False
+    normalized = statement.lower()
+    if not any(label.lower() in normalized for label in contract.primary_scope_labels if label):
+        return False
+    if not references:
+        return True
+    return all(contract.source_scope_roles.get(reference, "primary") != "primary" for reference in references)
+
+
 def _claim_line(claim: _Claim) -> str:
     references = " ".join(
         "[模型通用知识]"
@@ -385,7 +407,15 @@ def synthesize_submission(
         uses_model_knowledge = contract.model_knowledge_fallback and (
             not claim.evidence_refs or set(claim.evidence_refs) == {MODEL_KNOWLEDGE_REF}
         )
-        if uses_model_knowledge and not _overclaim(
+        if _scope_mismatch(claim.statement, claim.evidence_refs, contract):
+            hypotheses.append(_Claim(
+                claim.statement,
+                claim.evidence_refs,
+                "补充与主范围一致的工具证据后复核。",
+            ))
+            moved += 1
+            adjustments.append("将范围证据不匹配的事实降级为待验证假设。")
+        elif uses_model_knowledge and not _overclaim(
             claim.statement,
             contract.allowed_conclusion_strength,
             contract.causal_claims_allowed,
@@ -423,7 +453,15 @@ def synthesize_submission(
         uses_model_knowledge = contract.model_knowledge_fallback and (
             not claim.evidence_refs or set(claim.evidence_refs) == {MODEL_KNOWLEDGE_REF}
         )
-        if uses_model_knowledge and not _overclaim(
+        if _scope_mismatch(claim.statement, claim.evidence_refs, contract):
+            hypotheses.append(_Claim(
+                claim.statement,
+                claim.evidence_refs,
+                claim.verification or "补充与主范围一致的工具证据后复核。",
+            ))
+            moved += 1
+            adjustments.append("将范围证据不匹配的推断降级为待验证假设。")
+        elif uses_model_knowledge and not _overclaim(
             claim.statement,
             contract.allowed_conclusion_strength,
             contract.causal_claims_allowed,
@@ -451,6 +489,20 @@ def synthesize_submission(
         )
 
     submitted_conclusion = _clean_text(payload.get("conclusion"))
+    conclusion_refs: list[str] = []
+    invalid_conclusion_refs: set[str] = set()
+    for supplied in payload.get("conclusion_evidence_refs", []) if isinstance(payload.get("conclusion_evidence_refs"), list) else []:
+        normalized = _normalize_ref(supplied, allowed)
+        if normalized:
+            conclusion_refs.append(normalized)
+        elif str(supplied or "").strip():
+            invalid_conclusion_refs.add(str(supplied).strip())
+    invalid.update(invalid_conclusion_refs)
+    conclusion_scope_mismatch = _scope_mismatch(
+        submitted_conclusion,
+        tuple(dict.fromkeys(conclusion_refs)),
+        contract,
+    )
     if contract.model_knowledge_fallback:
         safe_conclusion = (
             submitted_conclusion
@@ -478,6 +530,16 @@ def synthesize_submission(
             hypotheses.append(_Claim(submitted_conclusion, (), "按证据限制中的缺口补充验证。"))
             moved += 1
             adjustments.append("将模型提交的结论降级为待验证假设。")
+    elif conclusion_scope_mismatch:
+        conclusion = "当前证据没有以一致范围支持模型提交的主范围结论。"
+        if submitted_conclusion:
+            hypotheses.append(_Claim(
+                submitted_conclusion,
+                tuple(dict.fromkeys(conclusion_refs)),
+                "补充与主范围一致的工具证据后重新评估。",
+            ))
+            moved += 1
+            adjustments.append("将范围证据不匹配的结论降级为待验证假设。")
     elif submitted_conclusion and not _overclaim(
         submitted_conclusion,
         contract.allowed_conclusion_strength,
@@ -508,6 +570,7 @@ def synthesize_submission(
         for claim in (*facts, *inferences, *hypotheses)
         for reference in claim.evidence_refs
     }
+    used_refs.update(conclusion_refs)
     for supplied in supplied_sources:
         normalized = _normalize_ref(supplied, allowed)
         if normalized:
@@ -592,6 +655,7 @@ def synthesize_legacy_answer(
     low_strength = contract.allowed_conclusion_strength in {"insufficient", "hypothesis_only"}
     payload = {
         "conclusion": "基于模型通用知识提供一般性技术说明。" if contract.model_knowledge_fallback else "",
+        "conclusion_evidence_refs": [MODEL_KNOWLEDGE_REF] if contract.model_knowledge_fallback else [],
         "facts": [],
         "inferences": [claim] if contract.model_knowledge_fallback or not low_strength else [],
         "hypotheses": (

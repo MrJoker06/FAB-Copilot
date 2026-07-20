@@ -57,6 +57,18 @@ class EvidenceValidatorTests(unittest.TestCase):
         self.assertEqual(validation.coverage["required_coverage_pct"], 100.0)
         self.assertNotIn(validation.allowed_conclusion_strength, {"insufficient", "hypothesis_only"})
         self.assertEqual({item["process_step"] for item in capability_rows}, set(MANUFACTURING_STEPS))
+        self.assertEqual(validation.primary_scope_type, "fab")
+        self.assertTrue(all(role == "primary" for role in validation.source_scope_roles.values()))
+
+    def test_process_scope_marks_unfiltered_fab_tools_as_context_only(self):
+        selection, plan = _context("分析最近一周刻蚀机台状况")
+        validation = validate_evidence(plan, selection.selected_playbook, [])
+
+        self.assertEqual(validation.primary_scope_type, "process")
+        self.assertEqual(validation.primary_scope_ids, ("ETCH",))
+        self.assertEqual(validation.source_scope_roles["TOOL:get_fab_overview"], "context_only")
+        self.assertEqual(validation.source_scope_roles["TOOL:get_yield_trend"], "context_only")
+        self.assertEqual(validation.source_scope_roles["TOOL:get_equipment_health"], "primary")
 
     def test_complete_required_yield_evidence_allows_supported_conclusion(self):
         selection, plan = _context("最近四周良率下降")

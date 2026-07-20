@@ -10,9 +10,11 @@ from typing import Any, Literal
 
 from .domain_playbooks import DomainPlaybook, EvidenceRequirement, PlaybookSelection
 from .intent_router import IntentRoute
+from .processes import PROCESS_ALIASES
 
 
 PlanStatus = Literal["ready", "clarification_required", "unsupported"]
+ScopeRole = Literal["primary", "context_only"]
 
 
 @dataclass(frozen=True)
@@ -28,6 +30,14 @@ class PlanBudget:
 
 
 @dataclass(frozen=True)
+class AnalysisScopeContract:
+    primary_scope_type: str
+    primary_scope_ids: tuple[str, ...]
+    primary_scope_labels: tuple[str, ...]
+    context_only_tools: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class PlanStep:
     step_id: str
     title: str
@@ -39,6 +49,7 @@ class PlanStep:
     required: bool
     success_criteria: tuple[str, ...]
     estimated_result_limit: int
+    scope_role: ScopeRole
 
 
 @dataclass(frozen=True)
@@ -51,6 +62,7 @@ class ExecutionPlan:
     route_intent: str
     playbook_id: str | None
     playbook_version: str | None
+    scope_contract: AnalysisScopeContract
     required_evidence_ids: tuple[str, ...]
     steps: tuple[PlanStep, ...]
     budget: PlanBudget
@@ -91,6 +103,25 @@ _DATE_TOOLS = {
     "get_recent_excursions",
     "get_sensor_summary",
 }
+
+
+def _analysis_scope_contract(route: IntentRoute) -> AnalysisScopeContract:
+    resolution = route.scope_resolution
+    labels: list[str] = list(resolution.resolved_ids)
+    if resolution.scope_type == "process":
+        for process_step in route.process_steps:
+            labels.extend(PROCESS_ALIASES.get(process_step, ()))
+        context_only_tools = ("get_fab_overview", "get_yield_trend")
+    elif resolution.scope_type == "equipment":
+        context_only_tools = ()
+    else:
+        context_only_tools = ()
+    return AnalysisScopeContract(
+        primary_scope_type=resolution.scope_type,
+        primary_scope_ids=resolution.resolved_ids,
+        primary_scope_labels=tuple(dict.fromkeys(str(item) for item in labels if item)),
+        context_only_tools=context_only_tools,
+    )
 
 
 def _plan_id(question: str, route: IntentRoute, selection: PlaybookSelection) -> str:
@@ -242,7 +273,12 @@ def _base_parameters(
     } and route.process_steps:
         parameters["process_step"] = route.process_steps[0]
         sources["process_step"] = "intent_route.process_steps[0]"
-    if tool == "get_sensor_summary" and route.equipment_ids:
+    if tool in {
+        "get_equipment_health",
+        "get_equipment_productivity",
+        "get_recent_excursions",
+        "get_sensor_summary",
+    } and route.equipment_ids:
         parameters["equipment_id"] = route.equipment_ids[0]
         sources["equipment_id"] = "intent_route.equipment_ids[0]"
     if tool == "get_recent_excursions":
@@ -311,6 +347,7 @@ def _ready_steps(
     resolved: dict[str, Any],
 ) -> tuple[PlanStep, ...]:
     builders: dict[str, _StepBuilder] = {}
+    scope_contract = _analysis_scope_contract(route)
     previous_required_group_keys: tuple[str, ...] = ()
 
     for evidence in playbook.evidence_requirements:
@@ -359,6 +396,11 @@ def _ready_steps(
             required=builder.required,
             success_criteria=tuple(builder.success_criteria),
             estimated_result_limit=builder.estimated_result_limit,
+            scope_role=(
+                "context_only"
+                if builder.tool in scope_contract.context_only_tools
+                else "primary"
+            ),
         )
         for key, builder in builders.items()
     )
@@ -395,6 +437,26 @@ def create_execution_plan(
 ) -> ExecutionPlan:
     plan_id = _plan_id(question, route, selection)
     playbook = selection.selected_playbook
+    scope_contract = _analysis_scope_contract(route)
+    if route.scope_resolution.scope_type == "product" and route.intent == "fab_diagnostic":
+        return ExecutionPlan(
+            plan_id=plan_id,
+            schema_version="1.1",
+            planner_version="1.1.0",
+            status="clarification_required",
+            reason="产品范围无法由当前综合诊断的全部工具一致过滤，必须先确认分析目标。",
+            route_intent=route.intent,
+            playbook_id=playbook.playbook_id if playbook else None,
+            playbook_version=playbook.playbook_version if playbook else None,
+            scope_contract=scope_contract,
+            required_evidence_ids=(),
+            steps=(),
+            budget=_empty_budget(),
+            missing_inputs=("product_analysis_scope",),
+            clarification_questions=(
+                "已识别产品范围。请确认只分析该产品的良率和周期，或补充需要关联的具体制程。",
+            ),
+        )
     if selection.status == "clarification_required" or route.intent == "unknown" or route.clarification_needed:
         if route.scope_resolution.clarification_needed:
             missing_inputs = ("manufacturing_scope",)
@@ -410,13 +472,14 @@ def create_execution_plan(
             reason = "Router 未识别明确分析目标，必须先补充问题范围。"
         return ExecutionPlan(
             plan_id=plan_id,
-            schema_version="1.0",
-            planner_version="1.0.0",
+            schema_version="1.1",
+            planner_version="1.1.0",
             status="clarification_required",
             reason=reason,
             route_intent=route.intent,
             playbook_id=None,
             playbook_version=None,
+            scope_contract=scope_contract,
             required_evidence_ids=(),
             steps=(),
             budget=_empty_budget(),
@@ -426,13 +489,14 @@ def create_execution_plan(
     if playbook is None:
         return ExecutionPlan(
             plan_id=plan_id,
-            schema_version="1.0",
-            planner_version="1.0.0",
+            schema_version="1.1",
+            planner_version="1.1.0",
             status="unsupported",
             reason="当前 Planner 仅实例化六类 Domain Playbook；该问题继续使用通用 Agent 路径。",
             route_intent=route.intent,
             playbook_id=None,
             playbook_version=None,
+            scope_contract=scope_contract,
             required_evidence_ids=(),
             steps=(),
             budget=_generic_budget(),
@@ -455,13 +519,14 @@ def create_execution_plan(
                 questions.append(question_text)
         return ExecutionPlan(
             plan_id=plan_id,
-            schema_version="1.0",
-            planner_version="1.0.0",
+            schema_version="1.1",
+            planner_version="1.1.0",
             status="clarification_required",
             reason="Domain Playbook 的必需输入尚不完整。",
             route_intent=route.intent,
             playbook_id=playbook.playbook_id,
             playbook_version=playbook.playbook_version,
+            scope_contract=scope_contract,
             required_evidence_ids=tuple(
                 item.evidence_id for item in playbook.evidence_requirements if item.required
             ),
@@ -476,13 +541,14 @@ def create_execution_plan(
     planned_per_tool = Counter(step.tool for step in steps)
     return ExecutionPlan(
         plan_id=plan_id,
-        schema_version="1.0",
-        planner_version="1.0.0",
+        schema_version="1.1",
+        planner_version="1.1.0",
         status="ready",
         reason="已将路由范围和 Domain Playbook 证据模板实例化为确定性工具计划。",
         route_intent=route.intent,
         playbook_id=playbook.playbook_id,
         playbook_version=playbook.playbook_version,
+        scope_contract=scope_contract,
         required_evidence_ids=tuple(
             item.evidence_id for item in playbook.evidence_requirements if item.required
         ),

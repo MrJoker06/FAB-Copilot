@@ -87,13 +87,17 @@ def equipment_health(
     start: str | None = None,
     end: str | None = None,
     process_step: str | None = None,
+    equipment_id: str | None = None,
 ) -> list[dict]:
     start, end = timestamp_bounds(start, end)
-    run_scope = "AND process_step = ?" if process_step else ""
-    event_scope = "AND equipment_id LIKE ?" if process_step else ""
+    run_scope = "AND equipment_id = ?" if equipment_id else "AND process_step = ?" if process_step else ""
+    event_scope = "AND equipment_id = ?" if equipment_id else "AND equipment_id LIKE ?" if process_step else ""
     params: list[Any] = [start, end]
     event_params: list[Any] = [start, end]
-    if process_step:
+    if equipment_id:
+        params.append(equipment_id.upper())
+        event_params.append(equipment_id.upper())
+    elif process_step:
         params.append(process_step.upper())
         event_params.append(f"{process_step.upper()}-%")
     with db_session() as connection:
@@ -127,11 +131,14 @@ def equipment_productivity(
     start: str | None = None,
     end: str | None = None,
     process_step: str | None = None,
+    equipment_id: str | None = None,
 ) -> list[dict]:
     start, end = timestamp_bounds(start, end)
-    process_scope = "AND equipment_id LIKE ?" if process_step else ""
+    process_scope = "AND equipment_id = ?" if equipment_id else "AND equipment_id LIKE ?" if process_step else ""
     params: list[Any] = [start, end]
-    if process_step:
+    if equipment_id:
+        params.append(equipment_id.upper())
+    elif process_step:
         params.append(f"{process_step.upper()}-%")
     with db_session() as connection:
         rows = connection.execute(
@@ -256,12 +263,16 @@ def recent_excursions(
     end: str | None = None,
     limit: int = 20,
     process_step: str | None = None,
+    equipment_id: str | None = None,
 ) -> list[dict]:
     start, end = timestamp_bounds(start, end)
     process_clause = "AND process_step = ?" if process_step else ""
+    equipment_clause = "AND equipment_id = ?" if equipment_id else ""
     params: list[Any] = [start, end]
     if process_step:
         params.append(process_step.upper())
+    if equipment_id:
+        params.append(equipment_id.upper())
     params.append(max(1, min(limit, 100)))
     with db_session() as connection:
         rows = connection.execute(
@@ -271,7 +282,7 @@ def recent_excursions(
                       spec_lsl, spec_usl
                FROM process_runs
                WHERE run_time >= ? AND run_time < ? AND excursion_code IS NOT NULL
-                     {process_clause}
+                     {process_clause} {equipment_clause}
                ORDER BY run_time DESC LIMIT ?""",
             params,
         ).fetchall()

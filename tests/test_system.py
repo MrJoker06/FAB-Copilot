@@ -88,6 +88,22 @@ class FabInsightTests(unittest.TestCase):
                 self.assertTrue(all(row["equipment_id"].startswith(f"{process_step}-") for row in productivity))
                 self.assertTrue(all(row["process_steps"] == process_step for row in defects))
 
+    def test_equipment_operational_reports_keep_exact_equipment_scope(self):
+        start = (date.today() - timedelta(days=90)).isoformat()
+        end = (date.today() + timedelta(days=1)).isoformat()
+        equipment_id = "ETCH-04"
+
+        health = equipment_health(start, end, "ETCH", equipment_id)
+        productivity = equipment_productivity(start, end, "ETCH", equipment_id)
+        excursions = recent_excursions(start, end, 100, "ETCH", equipment_id)
+
+        self.assertTrue(health)
+        self.assertTrue(productivity)
+        self.assertTrue(excursions)
+        self.assertTrue(all(row["equipment_id"] == equipment_id for row in health))
+        self.assertTrue(all(row["equipment_id"] == equipment_id for row in productivity))
+        self.assertTrue(all(row["equipment_id"] == equipment_id for row in excursions))
+
     def test_health_exposes_runtime_instance_identity(self):
         with TestClient(app) as client:
             payload = client.get("/api/health").json()
@@ -113,9 +129,9 @@ class FabInsightTests(unittest.TestCase):
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("/static/stream_buffer.js?v=20260720-1", page)
-        self.assertIn("/static/source_presenter.js?v=20260720-1", page)
-        self.assertIn("/static/app.js?v=20260720-1", page)
+        self.assertIn("/static/stream_buffer.js?v=20260720-2", page)
+        self.assertIn("/static/source_presenter.js?v=20260720-2", page)
+        self.assertIn("/static/app.js?v=20260720-2", page)
         self.assertNotIn('id="monitorView"', page)
         self.assertNotIn('id="apiKeyInput"', page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")

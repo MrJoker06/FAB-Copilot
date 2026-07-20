@@ -177,6 +177,46 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertNotIn("[来源 KB-FAKE]", result.answer)
         self.assertEqual(result.report.invalid_source_refs, ("KB-FAKE",))
 
+    def test_process_claim_cannot_use_fab_context_as_primary_scope_evidence(self):
+        selection, plan = _context("分析最近一周刻蚀机台状况")
+        observations = [
+            EvidenceObservation(
+                step.tool,
+                step.parameters,
+                "success",
+                agent_module.TOOL_HANDLERS[step.tool](**step.parameters),
+            )
+            for step in plan.steps
+        ]
+        validation = validate_evidence(plan, selection.selected_playbook, observations)
+        contract = create_answer_contract(validation)
+        payload = {
+            "conclusion": "刻蚀良率为 90%。",
+            "conclusion_evidence_refs": ["TOOL:get_fab_overview"],
+            "facts": [
+                {
+                    "statement": "刻蚀良率为 90%。",
+                    "evidence_refs": ["TOOL:get_fab_overview"],
+                },
+                {
+                    "statement": "整厂良率为 90%。",
+                    "evidence_refs": ["TOOL:get_fab_overview"],
+                },
+            ],
+            "inferences": [],
+            "hypotheses": [],
+            "recommendations": [],
+            "limitations": [],
+            "source_refs": [],
+        }
+
+        result = synthesize_submission(payload, contract)
+
+        self.assertIn("当前证据没有以一致范围支持", result.answer)
+        self.assertIn("## 已确认事实\n- 整厂良率为 90%", result.answer)
+        self.assertNotIn("## 已确认事实\n- 刻蚀良率为 90%", result.answer)
+        self.assertIn("范围证据不匹配", " ".join(result.report.wording_adjustments))
+
     def test_legacy_answer_is_repaired_only_for_domain_plan(self):
         contract, sources = _supported_yield_contract()
         repaired = synthesize_legacy_answer("模型返回了未分段答案。", contract, sources)

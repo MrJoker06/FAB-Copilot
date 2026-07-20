@@ -72,6 +72,10 @@ class EvidenceValidation:
     evidence_checks: tuple[EvidenceCheck, ...]
     risks: tuple[ValidationIssue, ...]
     conflicts: tuple[ValidationIssue, ...]
+    primary_scope_type: str
+    primary_scope_ids: tuple[str, ...]
+    primary_scope_labels: tuple[str, ...]
+    source_scope_roles: dict[str, str]
     allowed_conclusion_strength: ConclusionStrength
     conclusion_guidance: str
     causal_claims_allowed: bool = False
@@ -91,6 +95,15 @@ def _normalize_value(key: str, value: Any) -> Any:
         items = tuple(_normalize_value(key, item) for item in value)
         return tuple(sorted(items)) if key == "source_types" else items
     return value
+
+
+def _source_scope_roles(plan: ExecutionPlan) -> dict[str, str]:
+    roles: dict[str, str] = {}
+    for step in plan.steps:
+        reference = f"TOOL:{step.tool}"
+        if step.scope_role == "primary" or reference not in roles:
+            roles[reference] = step.scope_role
+    return roles
 
 
 def _step_matches(step: PlanStep, observation: EvidenceObservation) -> bool:
@@ -323,8 +336,8 @@ def validate_evidence(
     if plan.status != "ready" or playbook is None:
         strength: ConclusionStrength = "not_applicable"
         return EvidenceValidation(
-            schema_version="1.0",
-            validator_version="1.0.0",
+            schema_version="1.1",
+            validator_version="1.1.0",
             plan_id=plan.plan_id,
             status="not_applicable",
             coverage={
@@ -336,6 +349,10 @@ def validate_evidence(
             evidence_checks=(),
             risks=(),
             conflicts=(),
+            primary_scope_type=plan.scope_contract.primary_scope_type,
+            primary_scope_ids=plan.scope_contract.primary_scope_ids,
+            primary_scope_labels=plan.scope_contract.primary_scope_labels,
+            source_scope_roles=_source_scope_roles(plan),
             allowed_conclusion_strength=strength,
             conclusion_guidance=_GUIDANCE[strength],
         )
@@ -386,8 +403,8 @@ def validate_evidence(
     conflicts = _deduplicate_issues(_fact_conflicts(matched))
     strength = _strength(len(required_checks), required_covered, risks, conflicts)
     return EvidenceValidation(
-        schema_version="1.0",
-        validator_version="1.0.0",
+        schema_version="1.1",
+        validator_version="1.1.0",
         plan_id=plan.plan_id,
         status="validated",
         coverage={
@@ -399,6 +416,10 @@ def validate_evidence(
         evidence_checks=tuple(checks),
         risks=risks,
         conflicts=conflicts,
+        primary_scope_type=plan.scope_contract.primary_scope_type,
+        primary_scope_ids=plan.scope_contract.primary_scope_ids,
+        primary_scope_labels=plan.scope_contract.primary_scope_labels,
+        source_scope_roles=_source_scope_roles(plan),
         allowed_conclusion_strength=strength,
         conclusion_guidance=_GUIDANCE[strength],
     )
@@ -409,6 +430,7 @@ def validator_system_message(validation: EvidenceValidation) -> str:
         "以下 evidence_validation 是基于实际工具结果生成的确定性约束，不是制造事实本身。"
         "若上下文中存在多份报告，以最后一份为准。"
         "最终回答不得超过 allowed_conclusion_strength；必须披露 missing/partial 证据、critical 风险和冲突。"
+        "source_scope_roles=context_only 的工具只能提供背景，不能支持 primary_scope 的专属指标或结论。"
         "causal_claims_allowed=false 时不得把相关性表述为已证明因果。\n"
         f"evidence_validation={validation.to_prompt()}"
     )

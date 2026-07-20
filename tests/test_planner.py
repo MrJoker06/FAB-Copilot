@@ -50,8 +50,8 @@ class StructuredPlannerTests(unittest.TestCase):
 
         self.assertEqual(first, second)
         self.assertRegex(first.plan_id, r"^plan-[0-9a-f]{16}$")
-        self.assertEqual(first.schema_version, "1.0")
-        self.assertEqual(first.planner_version, "1.0.0")
+        self.assertEqual(first.schema_version, "1.1")
+        self.assertEqual(first.planner_version, "1.1.0")
 
     def test_dependencies_form_an_ordered_acyclic_graph_and_cover_required_evidence(self):
         questions = (
@@ -187,6 +187,35 @@ class StructuredPlannerTests(unittest.TestCase):
                     {tool: by_tool[tool].parameters.get("process_step") for tool in scoped_tools},
                     {tool: process_step for tool in scoped_tools},
                 )
+                self.assertEqual(by_tool["get_fab_overview"].scope_role, "context_only")
+                self.assertEqual(by_tool["get_yield_trend"].scope_role, "context_only")
+                self.assertTrue(all(by_tool[tool].scope_role == "primary" for tool in scoped_tools))
+                self.assertEqual(plan.scope_contract.primary_scope_type, "process")
+                self.assertEqual(plan.scope_contract.primary_scope_ids, (process_step,))
+
+    def test_equipment_scope_is_pushed_to_supported_operational_tools(self):
+        plan = _plan("检查 ETCH-04 最近一周的故障报警")
+        by_tool = {step.tool: step for step in plan.steps}
+
+        self.assertEqual(plan.scope_contract.primary_scope_type, "equipment")
+        self.assertEqual(plan.scope_contract.primary_scope_ids, ("ETCH-04",))
+        for tool in (
+            "get_equipment_health",
+            "get_equipment_productivity",
+            "get_recent_excursions",
+            "get_sensor_summary",
+        ):
+            self.assertEqual(by_tool[tool].parameters["equipment_id"], "ETCH-04")
+            self.assertEqual(by_tool[tool].scope_role, "primary")
+
+    def test_product_wide_diagnostic_stops_before_unscoped_tools(self):
+        plan = _plan("分析 Nova-P1 的生产状况")
+
+        self.assertEqual(plan.status, "clarification_required")
+        self.assertEqual(plan.scope_contract.primary_scope_type, "product")
+        self.assertEqual(plan.steps, ())
+        self.assertEqual(plan.budget.max_tool_calls, 0)
+        self.assertEqual(plan.missing_inputs, ("product_analysis_scope",))
 
     def test_unknown_manufacturing_scope_creates_no_tool_steps(self):
         plan = _plan("分析一下最近PH的生产状况", current_date=date(2026, 7, 20))
