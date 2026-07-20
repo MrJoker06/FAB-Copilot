@@ -28,6 +28,7 @@ from .context_resolver import (
     CONTEXTUALIZER_RESPONSE_FORMAT,
     ContextResolution,
     build_contextualizer_messages,
+    context_clarification_resolution,
     context_system_message,
     resolve_question_context,
     semantic_context_resolution,
@@ -195,7 +196,14 @@ def _offline_answer(
     if intent_route.intent == "conversation":
         validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, [])
         contract = create_answer_contract(validation)
-        if context_resolution and context_resolution.strategy == "semantic_recall":
+        if context_resolution and context_resolution.strategy == "context_clarification":
+            candidates = context_resolution.candidate_messages
+            lines = ["我没能可靠确定你指的是哪一条历史消息。请直接选择一条，或把对象重新写完整："]
+            for item in candidates:
+                content = " ".join(str(item.get("content") or "").strip().split())[:240]
+                lines.append(f"\n- 消息 #{item.get('message_id')}：{content}")
+            answer = "".join(lines)
+        elif context_resolution and context_resolution.strategy == "semantic_recall":
             records = context_resolution.recalled_messages
             user_records = [item for item in records if item.get("role") == "user"]
             assistant_records = [item for item in records if item.get("role") == "assistant"]
@@ -772,13 +780,37 @@ def _model_retry_delay(base_seconds: float, retry_number: int, exc: Exception) -
     return base + random.uniform(0, base * 0.2)
 
 
+class ContextProtocolError(ValueError):
+    def __init__(self, code: str, message: str, content: str = ""):
+        super().__init__(message)
+        self.code = code
+        self.response_length = len(content)
+        self.response_fingerprint = content_fingerprint(content) if content else None
+
+
+def _strip_json_fence(content: str) -> str:
+    stripped = content.strip()
+    if not stripped.startswith("```"):
+        return stripped
+    lines = stripped.splitlines()
+    if not lines or not re.fullmatch(r"```(?:json)?\s*", lines[0], re.IGNORECASE):
+        return stripped
+    if len(lines) < 3 or lines[-1].strip() != "```":
+        return stripped
+    return "\n".join(lines[1:-1]).strip()
+
+
 def _context_json_arguments(assistant: dict) -> dict:
     content = assistant.get("content")
     if not isinstance(content, str) or not content.strip():
-        raise ValueError("上下文解析器必须返回一个 JSON 对象")
-    arguments = json.loads(content)
+        raise ContextProtocolError("empty_response", "上下文解析器必须返回一个 JSON 对象")
+    cleaned = _strip_json_fence(content)
+    try:
+        arguments = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        raise ContextProtocolError("invalid_json", "上下文解析结果不是合法 JSON", content) from exc
     if not isinstance(arguments, dict):
-        raise ValueError("上下文解析结果必须是 JSON 对象")
+        raise ContextProtocolError("invalid_object", "上下文解析结果必须是 JSON 对象", content)
     required_fields = {
         "relation",
         "resolved_question",
@@ -787,9 +819,45 @@ def _context_json_arguments(assistant: dict) -> dict:
         "confidence",
         "intent_hint",
     }
-    if set(arguments) != required_fields:
-        raise ValueError("上下文解析结果字段不完整或包含未知字段")
+    missing_fields = required_fields - set(arguments)
+    if missing_fields:
+        raise ContextProtocolError(
+            "missing_field",
+            f"上下文解析结果缺少字段：{', '.join(sorted(missing_fields))}",
+            content,
+        )
+    relation = arguments["relation"]
+    intent_hint = arguments["intent_hint"]
+    confidence = arguments["confidence"]
+    target_ids = arguments["target_message_ids"]
+    valid = (
+        isinstance(relation, str)
+        and relation in {"standalone", "followup", "correction", "recall"}
+        and isinstance(arguments["resolved_question"], str)
+        and bool(arguments["resolved_question"].strip())
+        and isinstance(arguments["topic_anchor"], str)
+        and isinstance(target_ids, list)
+        and all(isinstance(item, int) and not isinstance(item, bool) for item in target_ids)
+        and isinstance(confidence, (int, float))
+        and not isinstance(confidence, bool)
+        and 0 <= confidence <= 1
+        and isinstance(intent_hint, str)
+        and intent_hint in {"general_knowledge", "manufacturing_analysis", "unclear"}
+    )
+    if not valid:
+        raise ContextProtocolError("invalid_field_type", "上下文解析结果字段类型或枚举值非法", content)
     return arguments
+
+
+def _context_protocol_correction(error: ContextProtocolError) -> dict:
+    return {
+        "role": "user",
+        "content": (
+            "上一次上下文分类响应未通过协议校验"
+            f"（{error.code}）。请重新返回一个符合最初契约的 JSON 对象；"
+            "不要回答用户问题，不要省略必需字段。"
+        ),
+    }
 
 
 async def _resolve_conversation_turn(
@@ -824,8 +892,13 @@ async def _resolve_conversation_turn(
         "Content-Type": "application/json",
     }
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
-        for attempt in range(1, settings.model_max_retries + 2):
+        attempt = 0
+        protocol_failures = 0
+        transport_failures = 0
+        while True:
+            attempt += 1
             started = time.perf_counter()
+            assistant: dict | None = None
             emit(
                 "model_call_started",
                 run_id,
@@ -849,9 +922,23 @@ async def _resolve_conversation_turn(
                     _context_json_arguments(assistant),
                     history,
                 )
+                if resolution.source == "fallback":
+                    raise ContextProtocolError(
+                        "invalid_message_id",
+                        "上下文解析器引用了当前历史窗口之外的消息",
+                        str(assistant.get("content") or ""),
+                    )
             except Exception as exc:
-                retryable = _retryable_model_error(exc) or isinstance(exc, ValueError)
-                will_retry = retryable and attempt <= settings.model_max_retries
+                protocol_error = exc if isinstance(exc, ContextProtocolError) else None
+                if protocol_error:
+                    protocol_failures += 1
+                    retryable = True
+                    will_retry = protocol_failures < 2
+                else:
+                    retryable = _retryable_model_error(exc)
+                    if retryable:
+                        transport_failures += 1
+                    will_retry = retryable and transport_failures <= settings.model_max_retries
                 emit(
                     "model_call_finished",
                     run_id,
@@ -863,12 +950,25 @@ async def _resolve_conversation_turn(
                     error_type=type(exc).__name__,
                     retryable=retryable,
                     will_retry=will_retry,
-                    **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
+                    protocol_error_code=protocol_error.code if protocol_error else None,
+                    response_length=protocol_error.response_length if protocol_error else None,
+                    response_fingerprint=protocol_error.response_fingerprint if protocol_error else None,
+                    **({
+                        "error_message": str(exc),
+                        "traceback": traceback.format_exc(),
+                        "response": assistant,
+                    } if CONTENT_MODE == "full" else {}),
                 )
                 if will_retry:
-                    await asyncio.sleep(
-                        _model_retry_delay(settings.model_retry_base_seconds, attempt, exc)
-                    )
+                    if protocol_error:
+                        request_payload["messages"] = [
+                            *request_payload["messages"],
+                            _context_protocol_correction(protocol_error),
+                        ]
+                    else:
+                        await asyncio.sleep(
+                            _model_retry_delay(settings.model_retry_base_seconds, transport_failures, exc)
+                        )
                     continue
                 emit(
                     "question_context_resolution_failed",
@@ -878,8 +978,17 @@ async def _resolve_conversation_turn(
                 await _notify(progress, {
                     "event": "stage",
                     "stage": "context",
-                    "message": "未能可靠恢复上文指代，将按当前输入独立判断",
+                    "message": "未能可靠恢复上文指代",
                 })
+                fallback_route = direct_route or route_question(question)
+                if history and (
+                    fallback_route.intent == "unknown" or fallback_route.clarification_needed
+                ):
+                    return context_clarification_resolution(
+                        question,
+                        history,
+                        protocol_error.code if protocol_error else type(exc).__name__,
+                    ), {}
                 return unresolved_context(question, "fallback"), {}
 
             emit(
@@ -958,7 +1067,7 @@ async def _run_agent_impl(
             })
     base_route = (
         route_question("介绍一下你自己")
-        if context_resolution.strategy == "semantic_recall"
+        if context_resolution.strategy in {"semantic_recall", "context_clarification"}
         else route_question(analysis_question)
         if context_resolution.applied
         else direct_route

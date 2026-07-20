@@ -12,6 +12,7 @@ ResolutionStrategy = Literal[
     "semantic_followup",
     "semantic_correction",
     "semantic_recall",
+    "context_clarification",
 ]
 ContextRelation = Literal["standalone", "followup", "correction", "recall"]
 ResolutionSource = Literal["none", "deterministic", "model", "fallback"]
@@ -31,11 +32,14 @@ class ContextResolution:
     intent_hint: IntentHint = "unclear"
     target_message_ids: tuple[int, ...] = ()
     recalled_messages: tuple[dict, ...] = ()
+    candidate_messages: tuple[dict, ...] = ()
+    failure_reason: str = ""
 
     def to_dict(self) -> dict:
         payload = asdict(self)
         payload["target_message_ids"] = list(self.target_message_ids)
         payload.pop("recalled_messages", None)
+        payload.pop("candidate_messages", None)
         return payload
 
 
@@ -148,6 +152,32 @@ def _resolve_ordinal(question: str, history: list[dict]) -> ContextResolution | 
 
 def unresolved_context(question: str, source: ResolutionSource = "none") -> ContextResolution:
     return ContextResolution(question, question, False, "none", "", source=source)
+
+
+def context_clarification_resolution(
+    question: str,
+    history: list[dict] | None,
+    failure_reason: str,
+) -> ContextResolution:
+    indexed, _ = _history_index(history)
+    candidates = tuple(
+        item
+        for item in reversed(indexed)
+        if item.get("role") == "user" and _plain(str(item.get("content") or ""), 400)
+    )[:3]
+    return ContextResolution(
+        question,
+        question,
+        False,
+        "context_clarification",
+        "",
+        relation="followup",
+        confidence=0.0,
+        source="fallback",
+        intent_hint="unclear",
+        candidate_messages=candidates,
+        failure_reason=failure_reason,
+    )
 
 
 def resolve_question_context(question: str, history: list[dict] | None = None) -> ContextResolution:

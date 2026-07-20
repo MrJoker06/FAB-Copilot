@@ -383,12 +383,16 @@ class ContextResolverTests(unittest.TestCase):
         self.assertIsNone(result["domain_playbook"]["selected_playbook"])
 
     def test_context_model_protocol_failure_falls_back_without_binding_history(self):
+        calls = 0
+
         async def invalid_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            nonlocal calls
+            calls += 1
             return ({"role": "assistant", "content": "无法判断"}, {}, "invalid-context")
 
         with patch("app.agent._stream_completion", new=invalid_stream):
             resolution, usage = asyncio.run(agent_module._resolve_conversation_turn(
-                "这个怎么处理",
+                "是更前面的一个",
                 [
                     {"role": "user", "content": "分析 CMP-02 报警"},
                     {"role": "assistant", "content": "已给出初步结论。"},
@@ -398,12 +402,15 @@ class ContextResolverTests(unittest.TestCase):
                 None,
             ))
 
+        self.assertEqual(calls, 2)
         self.assertFalse(resolution.applied)
         self.assertEqual(resolution.source, "fallback")
-        self.assertEqual(resolution.resolved_question, "这个怎么处理")
+        self.assertEqual(resolution.strategy, "context_clarification")
+        self.assertEqual(resolution.resolved_question, "是更前面的一个")
+        self.assertEqual(resolution.failure_reason, "invalid_json")
         self.assertEqual(usage, {})
 
-    def test_context_json_protocol_rejects_unknown_fields(self):
+    def test_context_json_protocol_ignores_unknown_fields(self):
         assistant, _, _ = _context_response(
             "standalone",
             "介绍半导体制程",
@@ -413,8 +420,35 @@ class ContextResolverTests(unittest.TestCase):
         payload["answer"] = "不应由分类器回答"
         assistant["content"] = json.dumps(payload, ensure_ascii=False)
 
-        with self.assertRaisesRegex(ValueError, "未知字段"):
+        arguments = agent_module._context_json_arguments(assistant)
+
+        self.assertEqual(arguments["relation"], "standalone")
+        self.assertEqual(arguments["answer"], "不应由分类器回答")
+
+    def test_context_json_protocol_accepts_json_code_fence(self):
+        assistant, _, _ = _context_response(
+            "standalone",
+            "介绍半导体制程",
+            intent_hint="general_knowledge",
+        )
+        assistant["content"] = f"```json\n{assistant['content']}\n```"
+
+        arguments = agent_module._context_json_arguments(assistant)
+
+        self.assertEqual(arguments["intent_hint"], "general_knowledge")
+
+    def test_context_json_protocol_rejects_invalid_field_types_with_reason(self):
+        assistant, _, _ = _context_response("standalone", "介绍半导体制程")
+        payload = json.loads(assistant["content"])
+        payload["target_message_ids"] = [True]
+        assistant["content"] = json.dumps(payload, ensure_ascii=False)
+
+        with self.assertRaises(agent_module.ContextProtocolError) as captured:
             agent_module._context_json_arguments(assistant)
+
+        self.assertEqual(captured.exception.code, "invalid_field_type")
+        self.assertEqual(captured.exception.response_length, len(assistant["content"]))
+        self.assertTrue(captured.exception.response_fingerprint)
 
     def test_context_model_retries_one_protocol_failure(self):
         calls = 0
@@ -426,6 +460,7 @@ class ContextResolverTests(unittest.TestCase):
             calls += 1
             if calls == 1:
                 return ({"role": "assistant", "content": "格式错误"}, {}, "invalid-context")
+            self.assertIn("invalid_json", request_payload["messages"][-1]["content"])
             return _context_response(
                 "correction",
                 "当前主流的半导体制程大概有哪些",
@@ -449,6 +484,113 @@ class ContextResolverTests(unittest.TestCase):
         self.assertTrue(resolution.applied)
         self.assertEqual(resolution.intent_hint, "general_knowledge")
         self.assertEqual(usage["total_tokens"], 12)
+
+    def test_context_protocol_failure_retries_only_once_even_with_larger_model_budget(self):
+        calls = 0
+        settings = _settings()
+        settings.model_max_retries = 4
+
+        async def invalid_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            nonlocal calls
+            calls += 1
+            return ({"role": "assistant", "content": "仍然不是 JSON"}, {}, "invalid-context")
+
+        with patch("app.agent._stream_completion", new=invalid_stream):
+            resolution, _ = asyncio.run(agent_module._resolve_conversation_turn(
+                "是更前面的一个",
+                [
+                    {"message_id": 41, "role": "user", "content": "分析 CMP-02 报警"},
+                    {"message_id": 42, "role": "assistant", "content": "已给出初步结论。"},
+                ],
+                settings,
+                "run-context-protocol-budget-test",
+                None,
+            ))
+
+        self.assertEqual(calls, 2)
+        self.assertEqual(resolution.strategy, "context_clarification")
+
+    def test_context_protocol_metadata_logs_reason_without_response_content(self):
+        events: list[tuple[str, dict]] = []
+
+        async def invalid_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            return ({"role": "assistant", "content": "不合法的完整响应"}, {}, "invalid-context")
+
+        def capture(event_type: str, run_id: str, **fields) -> None:
+            events.append((event_type, fields))
+
+        with (
+            patch("app.agent._stream_completion", new=invalid_stream),
+            patch("app.agent.emit", new=capture),
+            patch("app.agent.CONTENT_MODE", "metadata"),
+        ):
+            asyncio.run(agent_module._resolve_conversation_turn(
+                "是更前面的一个",
+                [{"message_id": 61, "role": "user", "content": "此前的问题"}],
+                _settings(),
+                "run-context-protocol-log-test",
+                None,
+            ))
+
+        failures = [fields for event, fields in events if event == "model_call_finished"]
+        self.assertEqual(len(failures), 2)
+        self.assertTrue(all(item["protocol_error_code"] == "invalid_json" for item in failures))
+        self.assertTrue(all(item["response_length"] == len("不合法的完整响应") for item in failures))
+        self.assertTrue(all(item["response_fingerprint"] for item in failures))
+        self.assertTrue(all("response" not in item for item in failures))
+
+    def test_context_protocol_failure_preserves_independent_manufacturing_route(self):
+        question = "分析最近一周刻蚀机台状况"
+
+        async def invalid_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            return ({"role": "assistant", "content": "格式错误"}, {}, "invalid-context")
+
+        direct_route = route_question(question)
+        with patch("app.agent._stream_completion", new=invalid_stream):
+            resolution, _ = asyncio.run(agent_module._resolve_conversation_turn(
+                question,
+                [
+                    {"message_id": 71, "role": "user", "content": "介绍 GaN"},
+                    {"message_id": 72, "role": "assistant", "content": "已完成介绍。"},
+                ],
+                _settings(),
+                "run-context-independent-manufacturing-test",
+                None,
+                direct_route,
+            ))
+
+        self.assertEqual(resolution.strategy, "none")
+        self.assertEqual(resolution.resolved_question, question)
+        self.assertEqual(direct_route.intent, "fab_diagnostic")
+        self.assertEqual(direct_route.process_steps, ("ETCH",))
+
+    def test_agent_context_failure_lists_recent_user_messages_instead_of_manufacturing_prompt(self):
+        async def invalid_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            return ({"role": "assistant", "content": "无法输出结构化结果"}, {}, "invalid-context")
+
+        history = [
+            {"message_id": 51, "role": "user", "content": "GaN 相对于 Si 的优势"},
+            {"message_id": 52, "role": "assistant", "content": "已完成材料比较。"},
+            {"message_id": 53, "role": "user", "content": "那么 SiC 呢"},
+            {"message_id": 54, "role": "assistant", "content": "已完成 SiC 比较。"},
+        ]
+        with (
+            patch("app.agent.get_settings", return_value=_settings()),
+            patch("app.agent._stream_completion", new=invalid_stream),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "是更前面的一个",
+                history,
+                "run-context-specific-clarification-test",
+            ))
+
+        self.assertEqual(result["intent_route"]["intent"], "conversation")
+        self.assertEqual(result["context_resolution"]["strategy"], "context_clarification")
+        self.assertEqual(result["tool_trace"], [])
+        self.assertIn("消息 #53", result["answer"])
+        self.assertIn("消息 #51", result["answer"])
+        self.assertNotIn("制程站点", result["answer"])
+        self.assertNotIn("设备编号", result["answer"])
 
     def test_scope_only_turn_restores_unresolved_general_question(self):
         history = [
