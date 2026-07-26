@@ -89,6 +89,16 @@ conda run -n fab-insight-agent python -m pip install -r requirements.txt
 
 `run.sh` 还会按 `worktree-Git提交-端口` 生成实例 ID。每个实例在 `runtime/<instance_id>/` 下保存独立的 Git 源码快照、制造数据库、AI 运营库、个人知识文件和日志，并持有独立进程锁；服务从实例源码快照启动，后续修改当前 worktree 不会改变已运行版本的后端或静态资源。不同提交或端口不会共享会话和运行状态。可通过 `FAB_INSTANCE_ID` 与 `FAB_INSTANCE_ROOT` 显式命名实例，但两个并行服务不得指向同一实例目录。实际运行目录和源码快照可在 `/api/health` 的 `instance.root` 与 `instance.source_root` 中核对。
 
+每次提交启动都会保留一份完整模拟数据库，因此应定期检查运行快照。以下命令默认只输出清理计划，不删除文件；`--apply` 会跳过仍持有进程锁的实例，保留最新 3 个实例，并只删除超过 3 天的其余有效实例：
+
+```bash
+conda run -n fab-insight-agent python scripts/manage_runtime.py list
+conda run -n fab-insight-agent python scripts/manage_runtime.py prune --keep 3 --older-than-days 3
+conda run -n fab-insight-agent python scripts/manage_runtime.py prune --keep 3 --older-than-days 3 --apply
+```
+
+仓库通过 `.gitattributes` 和 `.editorconfig` 将文本文件统一为 LF。提交前若突然出现大量等量增删，应先用 `git diff -w` 判断是否只是换行符变化，禁止把整库换行改写混入业务提交。
+
 在 Windows 中运行：
 
 ```bat
