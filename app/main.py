@@ -199,6 +199,7 @@ class StreamTelemetryRequest(BaseModel):
     tail_replacements: int = Field(default=0, ge=0, le=100000)
     stream_resets: int = Field(default=0, ge=0, le=10000)
     max_tail_chars: int = Field(default=0, ge=0, le=1000000)
+    max_visible_step: int = Field(default=0, ge=0, le=1000000)
     final_match: bool = False
     duration_ms: float = Field(default=0, ge=0, le=3600000)
 

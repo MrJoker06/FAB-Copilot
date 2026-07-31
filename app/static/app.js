@@ -1121,7 +1121,7 @@ function createLiveAnalysis() {
     el, steps: [], runId: null, buffer: new FabSmoothTextBuffer(), telemetry: new FabStreamDiagnostics(),
     markdownStream: new FabIncrementalMarkdown(), markdownNodes: null,
     renderTimer: null, drainResolvers: [], firstToken: false, cancelled: false,
-    renderDelay: 72, lastRenderedText: '', stallTimer: null, visibilityHandler: null,
+    renderDelay: 32, lastRenderedText: '', stallTimer: null, visibilityHandler: null, caret: null,
   };
   live.visibilityHandler = () => {
     if (document.hidden || live.cancelled || !live.buffer.pendingLength) return;
@@ -1160,6 +1160,7 @@ function startLiveAnswer(live) {
   live.el.querySelector('.live-path-title').textContent = `${pathLabel} · ${toolSteps.length} 个工具`;
   live.el.querySelector('.live-path-count').textContent = '可展开';
   live.el.querySelector('.streaming-answer').hidden = false;
+  live.el.querySelector('.streaming-answer').setAttribute('aria-busy', 'true');
   live.el.classList.add('answer-streaming');
 }
 
@@ -1175,7 +1176,11 @@ function renderLiveAnswerFrame(live) {
   const follow = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
   const answer = live.el.querySelector('.streaming-answer');
   const renderStarted = performance.now();
-  const visible = live.buffer.takeNext({targetFrames: live.buffer.complete ? 3 : 6, maxChars: live.buffer.complete ? 640 : 384});
+  const visible = live.buffer.takeNext({
+    targetFrames: live.buffer.complete ? 24 : 14,
+    minChars: 2,
+    maxChars: live.buffer.complete ? 32 : 24,
+  });
   if (visible !== live.lastRenderedText) {
     if (!live.markdownNodes) {
       answer.innerHTML = '<div class="streaming-stable"></div><div class="streaming-tail"></div>';
@@ -1185,17 +1190,26 @@ function renderLiveAnswerFrame(live) {
       };
     }
     const patch = live.markdownStream.update(visible);
+    live.caret?.remove();
     if (patch.reset) live.markdownNodes.stable.replaceChildren();
     if (patch.stableDelta) {
       live.markdownNodes.stable.insertAdjacentHTML('beforeend', renderMarkdown(patch.stableDelta));
     }
-    live.markdownNodes.tail.innerHTML = renderMarkdown(patch.tail);
-    live.telemetry.markIncrementalRender(patch.stableDelta.length, patch.tail.length, patch.reset);
+    live.markdownNodes.tail.innerHTML = renderMarkdown(patch.presentableTail);
+    const caretTarget = live.markdownNodes.tail.lastElementChild || live.markdownNodes.stable.lastElementChild;
+    if (caretTarget) {
+      live.caret = document.createElement('span');
+      live.caret.className = 'streaming-caret';
+      live.caret.setAttribute('aria-hidden', 'true');
+      caretTarget.appendChild(live.caret);
+    }
+    const visibleStep = patch.reset ? visible.length : visible.length - live.lastRenderedText.length;
+    live.telemetry.markIncrementalRender(patch.stableDelta.length, patch.tail.length, visibleStep, patch.reset);
     live.lastRenderedText = visible;
   }
   const renderDuration = performance.now() - renderStarted;
   live.telemetry.markRender(renderDuration);
-  live.renderDelay = Math.min(180, Math.max(72, renderDuration * 4));
+  live.renderDelay = Math.min(80, Math.max(28, renderDuration * 3));
   if (follow) container.scrollTop = container.scrollHeight;
   if (live.buffer.pendingLength) {
     live.renderTimer = window.setTimeout(() => renderLiveAnswerFrame(live), live.renderDelay);
@@ -1239,6 +1253,7 @@ async function finishLiveAnswer(live, finalAnswer) {
   live.stallTimer = null;
   scheduleLiveAnswerFrame(live, 0);
   if (!live.buffer.done) await new Promise(resolve => live.drainResolvers.push(resolve));
+  live.el.querySelector('.streaming-answer').setAttribute('aria-busy', 'false');
   document.removeEventListener('visibilitychange', live.visibilityHandler);
 }
 

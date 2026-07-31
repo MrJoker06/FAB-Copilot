@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {FabIncrementalMarkdown, stableMarkdownBoundary} = require('../app/static/stream_markdown.js');
+const {FabIncrementalMarkdown, presentableMarkdownTail, stableMarkdownBoundary} = require('../app/static/stream_markdown.js');
 
 test('completed markdown blocks are emitted once while only the tail changes', () => {
   const stream = new FabIncrementalMarkdown();
@@ -22,6 +22,14 @@ test('blank lines inside an open code fence are not committed', () => {
   assert.equal(stableMarkdownBoundary(text), '说明\n\n'.length);
   const closed = text + '\n```\n\n结论';
   assert.equal(stableMarkdownBoundary(closed), closed.indexOf('结论'));
+});
+
+test('incomplete block markers are hidden until they form readable markdown', () => {
+  assert.equal(presentableMarkdownTail('上一段\n##'), '上一段\n');
+  assert.equal(presentableMarkdownTail('上一段\n######'), '上一段\n');
+  assert.equal(presentableMarkdownTail('上一段\n- '), '上一段\n');
+  assert.equal(presentableMarkdownTail('上一段\n```python'), '上一段\n');
+  assert.equal(presentableMarkdownTail('上一段\n## 标题'), '上一段\n## 标题');
 });
 
 test('a normalized final stream resets previously committed content', () => {

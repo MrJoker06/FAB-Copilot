@@ -20,6 +20,16 @@
     return boundary;
   }
 
+  function presentableMarkdownTail(markdown) {
+    const text = String(markdown || '');
+    const lineStart = text.lastIndexOf('\n') + 1;
+    const finalLine = text.slice(lineStart);
+    if (/^\s*(?:#{1,6}|[-+*]|\d+\.|>|`{1,3}|`{3,}[A-Za-z0-9_-]*|~{3,}[A-Za-z0-9_-]*)\s*$/.test(finalLine)) {
+      return text.slice(0, lineStart);
+    }
+    return text;
+  }
+
   class FabIncrementalMarkdown {
     constructor() {
       this.committedLength = 0;
@@ -38,12 +48,13 @@
       const stableDelta = text.slice(this.committedLength, boundary);
       this.committedLength = boundary;
       this.lastText = text;
-      return {reset, stableDelta, tail: text.slice(boundary), text};
+      const tail = text.slice(boundary);
+      return {reset, stableDelta, tail, presentableTail: presentableMarkdownTail(tail), text};
     }
   }
 
   global.FabIncrementalMarkdown = FabIncrementalMarkdown;
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {FabIncrementalMarkdown, stableMarkdownBoundary};
+    module.exports = {FabIncrementalMarkdown, presentableMarkdownTail, stableMarkdownBoundary};
   }
 })(typeof window === 'undefined' ? globalThis : window);

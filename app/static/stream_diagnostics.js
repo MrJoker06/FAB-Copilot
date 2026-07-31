@@ -18,6 +18,7 @@
       this.tailReplacements = 0;
       this.streamResets = 0;
       this.maxTailChars = 0;
+      this.maxVisibleStep = 0;
     }
 
     now() {
@@ -50,11 +51,12 @@
       this.totalRenderMs += duration;
     }
 
-    markIncrementalRender(stableChars, tailChars, reset) {
+    markIncrementalRender(stableChars, tailChars, visibleStep, reset) {
       if (Number(stableChars) > 0) this.stableAppends += 1;
       this.tailReplacements += 1;
       if (reset) this.streamResets += 1;
       this.maxTailChars = Math.max(this.maxTailChars, Number(tailChars) || 0);
+      this.maxVisibleStep = Math.max(this.maxVisibleStep, Math.max(0, Number(visibleStep) || 0));
     }
 
     markVisibleResume() {
@@ -78,6 +80,7 @@
         tail_replacements: this.tailReplacements,
         stream_resets: this.streamResets,
         max_tail_chars: this.maxTailChars,
+        max_visible_step: this.maxVisibleStep,
         final_match: Boolean(finalMatch),
         duration_ms: Math.round((at - this.startedAt) * 10) / 10,
       };
