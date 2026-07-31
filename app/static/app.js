@@ -1119,6 +1119,7 @@ function createLiveAnalysis() {
   $('#chatMessages').appendChild(el); $('#chatMessages').scrollTop = $('#chatMessages').scrollHeight;
   const live = {
     el, steps: [], runId: null, buffer: new FabSmoothTextBuffer(), telemetry: new FabStreamDiagnostics(),
+    markdownStream: new FabIncrementalMarkdown(), markdownNodes: null,
     renderTimer: null, drainResolvers: [], firstToken: false, cancelled: false,
     renderDelay: 72, lastRenderedText: '', stallTimer: null, visibilityHandler: null,
   };
@@ -1176,7 +1177,20 @@ function renderLiveAnswerFrame(live) {
   const renderStarted = performance.now();
   const visible = live.buffer.takeNext({targetFrames: live.buffer.complete ? 3 : 6, maxChars: live.buffer.complete ? 640 : 384});
   if (visible !== live.lastRenderedText) {
-    answer.innerHTML = renderMarkdown(visible);
+    if (!live.markdownNodes) {
+      answer.innerHTML = '<div class="streaming-stable"></div><div class="streaming-tail"></div>';
+      live.markdownNodes = {
+        stable: answer.querySelector('.streaming-stable'),
+        tail: answer.querySelector('.streaming-tail'),
+      };
+    }
+    const patch = live.markdownStream.update(visible);
+    if (patch.reset) live.markdownNodes.stable.replaceChildren();
+    if (patch.stableDelta) {
+      live.markdownNodes.stable.insertAdjacentHTML('beforeend', renderMarkdown(patch.stableDelta));
+    }
+    live.markdownNodes.tail.innerHTML = renderMarkdown(patch.tail);
+    live.telemetry.markIncrementalRender(patch.stableDelta.length, patch.tail.length, patch.reset);
     live.lastRenderedText = visible;
   }
   const renderDuration = performance.now() - renderStarted;

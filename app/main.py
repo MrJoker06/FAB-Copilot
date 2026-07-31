@@ -195,6 +195,10 @@ class StreamTelemetryRequest(BaseModel):
     max_render_ms: float = Field(default=0, ge=0, le=3600000)
     total_render_ms: float = Field(default=0, ge=0, le=3600000)
     hidden_resumes: int = Field(default=0, ge=0, le=10000)
+    stable_appends: int = Field(default=0, ge=0, le=100000)
+    tail_replacements: int = Field(default=0, ge=0, le=100000)
+    stream_resets: int = Field(default=0, ge=0, le=10000)
+    max_tail_chars: int = Field(default=0, ge=0, le=1000000)
     final_match: bool = False
     duration_ms: float = Field(default=0, ge=0, le=3600000)
 

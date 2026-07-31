@@ -14,6 +14,10 @@
       this.maxRenderMs = 0;
       this.totalRenderMs = 0;
       this.hiddenResumes = 0;
+      this.stableAppends = 0;
+      this.tailReplacements = 0;
+      this.streamResets = 0;
+      this.maxTailChars = 0;
     }
 
     now() {
@@ -46,6 +50,13 @@
       this.totalRenderMs += duration;
     }
 
+    markIncrementalRender(stableChars, tailChars, reset) {
+      if (Number(stableChars) > 0) this.stableAppends += 1;
+      this.tailReplacements += 1;
+      if (reset) this.streamResets += 1;
+      this.maxTailChars = Math.max(this.maxTailChars, Number(tailChars) || 0);
+    }
+
     markVisibleResume() {
       this.hiddenResumes += 1;
     }
@@ -63,6 +74,10 @@
         max_render_ms: Math.round(this.maxRenderMs * 10) / 10,
         total_render_ms: Math.round(this.totalRenderMs * 10) / 10,
         hidden_resumes: this.hiddenResumes,
+        stable_appends: this.stableAppends,
+        tail_replacements: this.tailReplacements,
+        stream_resets: this.streamResets,
+        max_tail_chars: this.maxTailChars,
         final_match: Boolean(finalMatch),
         duration_ms: Math.round((at - this.startedAt) * 10) / 10,
       };
