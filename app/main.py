@@ -7,12 +7,12 @@ import secrets
 import traceback
 import uuid
 from contextlib import asynccontextmanager
-from typing import Annotated
+from typing import Annotated, Literal
 
 import httpx
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
@@ -281,20 +281,26 @@ def personal_problem(exc: PersonalKnowledgeError) -> HTTPException:
     return http_problem(exc.status_code, exc.error_code, exc.detail, exc.retryable)
 
 
+_VERSIONED_PAGE_TEMPLATES = {
+    "index": PROJECT_DIR / "app" / "static" / "index.html",
+    "admin": PROJECT_DIR / "app" / "static" / "admin.html",
+}
+
+
+def render_versioned_page(page: Literal["index", "admin"]) -> HTMLResponse:
+    """Render one of the trusted frontend templates with the active build version."""
+    html = _VERSIONED_PAGE_TEMPLATES[page].read_text(encoding="utf-8").replace("__APP_VERSION__", APP_VERSION)
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+
 @app.get("/", include_in_schema=False)
 async def index():
-    return FileResponse(
-        PROJECT_DIR / "app" / "static" / "index.html",
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
-    )
+    return render_versioned_page("index")
 
 
 @app.get("/admin", include_in_schema=False)
 async def admin_index():
-    return FileResponse(
-        PROJECT_DIR / "app" / "static" / "admin.html",
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
-    )
+    return render_versioned_page("admin")
 
 
 @app.get("/api/health")

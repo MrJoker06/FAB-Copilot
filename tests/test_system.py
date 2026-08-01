@@ -27,6 +27,7 @@ from fastapi.testclient import TestClient
 
 from app.audit import read_events, sanitize
 from app import agent as agent_module
+from app.config import APP_VERSION
 from app.database import (
     db_session,
     department_paths,
@@ -129,11 +130,11 @@ class FabInsightTests(unittest.TestCase):
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("/static/stream_diagnostics.js?v=20260801-2", page)
-        self.assertIn("/static/stream_buffer.js?v=20260801-2", page)
-        self.assertIn("/static/stream_markdown.js?v=20260801-2", page)
-        self.assertIn("/static/source_presenter.js?v=20260801-2", page)
-        self.assertIn("/static/app.js?v=20260801-2", page)
+        self.assertIn(f"/static/stream_diagnostics.js?v={APP_VERSION}", page)
+        self.assertIn(f"/static/stream_buffer.js?v={APP_VERSION}", page)
+        self.assertIn(f"/static/stream_markdown.js?v={APP_VERSION}", page)
+        self.assertIn(f"/static/source_presenter.js?v={APP_VERSION}", page)
+        self.assertIn(f"/static/app.js?v={APP_VERSION}", page)
         self.assertNotIn('id="monitorView"', page)
         self.assertNotIn('id="apiKeyInput"', page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")
@@ -176,7 +177,7 @@ class FabInsightTests(unittest.TestCase):
         ):
             self.assertIn(f'id="{element_id}"', response.text)
         self.assertIn('<div id="adminWorkspace" class="admin-workspace" hidden>', response.text)
-        self.assertIn("/static/admin.js?v=20260718-3", response.text)
+        self.assertIn(f"/static/admin.js?v={APP_VERSION}", response.text)
         script = (Path(__file__).parents[1] / "app" / "static" / "admin.js").read_text(encoding="utf-8")
         self.assertIn("/api/admin/overview", script)
         self.assertIn("/api/admin/models", script)
