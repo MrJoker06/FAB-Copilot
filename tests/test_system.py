@@ -121,9 +121,10 @@ class FabInsightTests(unittest.TestCase):
         page = response.text
         for element_id in (
             "knowledgeSourceTabs",
-            "openKnowledgeUpload",
+            "personalKnowledgeAdd",
             "knowledgeUploadDialog",
             "knowledgeUploadFile",
+            "knowledgeUploadQueue",
             "personalKnowledgeActions",
             "renamePersonalKnowledge",
             "personalKnowledgeRenameDialog",
@@ -134,6 +135,7 @@ class FabInsightTests(unittest.TestCase):
         self.assertIn(f"/static/stream_buffer.js?v={APP_VERSION}", page)
         self.assertIn(f"/static/stream_markdown.js?v={APP_VERSION}", page)
         self.assertIn(f"/static/source_presenter.js?v={APP_VERSION}", page)
+        self.assertIn(f"/static/personal_upload_queue.js?v={APP_VERSION}", page)
         self.assertIn(f"/static/app.js?v={APP_VERSION}", page)
         self.assertNotIn('id="monitorView"', page)
         self.assertNotIn('id="apiKeyInput"', page)
@@ -143,10 +145,9 @@ class FabInsightTests(unittest.TestCase):
         self.assertIn("data-personal-chunk", script)
         self.assertIn("renderSourcePanel(messageSources)", script)
         self.assertIn("sourcePresenter.stripSourceAppendix(content)", script)
-        self.assertIn("function selectedUploadFiles()", script)
-        self.assertIn("for (const [index, file] of files.entries())", script)
-        self.assertIn("`正在上传 ${index + 1}/${files.length}…`", script)
-        self.assertIn("if (files.length === 1 && title)", script)
+        self.assertIn("function mergeKnowledgeUploadFiles(files)", script)
+        self.assertIn("personalUploadQueue.uploadSequential", script)
+        self.assertIn("item.status === 'failed' || item.status === 'invalid'", script)
         self.assertIn("sourcePresenter.replaceReferenceIds(content, sources)", script)
         self.assertIn("method: 'PATCH'", script)
         self.assertIn("refreshRenderedPersonalSourceName(documentId, updated.title)", script)

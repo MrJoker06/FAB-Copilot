@@ -1,4 +1,4 @@
-const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, selectedSessionIds: new Set(), sessionBatchMode: false, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionIds: [], toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', modelConfig: null, enterpriseContext: null, knowledgeMode: 'factory', knowledgeDocuments: [], knowledgeIndexPromise: null, personalKnowledgeDocuments: [], selectedPersonalDocumentId: null, selectedPersonalDocument: null, personalKnowledgeRequestId: 0, personalKnowledgePollTimer: null, pendingPersonalRenameId: null, pendingPersonalDeleteId: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
+const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, selectedSessionIds: new Set(), sessionBatchMode: false, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionIds: [], toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', modelConfig: null, enterpriseContext: null, knowledgeMode: 'factory', knowledgeDocuments: [], knowledgeIndexPromise: null, personalKnowledgeDocuments: [], selectedPersonalDocumentId: null, selectedPersonalDocument: null, personalKnowledgeRequestId: 0, personalKnowledgePollTimer: null, personalUploadQueue: [], personalUploadInProgress: false, pendingPersonalRenameId: null, pendingPersonalDeleteId: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
 const $ = (selector) => document.querySelector(selector);
 const AGENT_WIDTH_KEY = 'fabInsightAgentWidth';
 const CHAT_DRAFT_KEY = 'fabInsightChatDraft';
@@ -330,37 +330,52 @@ async function setKnowledgeMode(mode) {
   $('#knowledgeIndexTitle').textContent = mode === 'personal' ? '我的文档' : '文档目录';
   $('#knowledgeIndexHint').textContent = mode === 'personal' ? '仅当前用户可见' : '按文档浏览章节';
   $('#knowledgeFilter').placeholder = mode === 'personal' ? '搜索我的文档' : '筛选文档或章节';
+  $('#personalKnowledgeAdd').hidden = mode !== 'personal';
   resetKnowledgeReader(mode);
   if (mode === 'personal') await loadPersonalKnowledgeDocuments();
   else await loadKnowledgeIndex();
 }
 
-const MAX_KNOWLEDGE_UPLOAD_BYTES = 50 * 1024 * 1024;
-const KNOWLEDGE_UPLOAD_FILE_HINT = '支持一次选择或拖入多个 PDF、DOCX、Markdown、TXT、CSV、XLSX 文件；单文件最大 50 MB';
+const personalUploadQueue = globalThis.FabPersonalUploadQueue;
+const KNOWLEDGE_UPLOAD_FILE_HINT = '可多次添加并自动去重；支持 PDF、DOCX、Markdown、TXT、CSV、XLSX，单文件最大 50 MB';
 
-function selectedUploadFiles() {
-  return Array.from($('#knowledgeUploadFile').files || []);
+function renderKnowledgeUploadQueue() {
+  const queue = state.personalUploadQueue;
+  const uploading = state.personalUploadInProgress;
+  const statusLabels = {queued:'待上传', uploading:'上传中', success:'已上传', failed:'失败', invalid:'不支持'};
+  $('#knowledgeUploadDrop').classList.toggle('has-file', queue.length > 0);
+  $('#knowledgeUploadDrop').classList.toggle('is-disabled', uploading);
+  $('#knowledgeUploadFile').disabled = uploading;
+  $('#knowledgeUploadFileState').textContent = queue.length ? `队列中 ${queue.length} 个文件；可继续添加，重复文件会自动忽略。` : KNOWLEDGE_UPLOAD_FILE_HINT;
+  $('#knowledgeUploadQueue').innerHTML = queue.map(item => `<div class="knowledge-upload-item ${item.status}"><div><strong>${escapeHtml(item.file.name)}</strong><span>${formatFileSize(item.file.size)} · ${statusLabels[item.status] || item.status}${item.error ? `：${escapeHtml(item.error)}` : ''}</span></div>${!uploading && item.status !== 'success' ? `<button type="button" class="icon-btn knowledge-upload-remove" data-upload-key="${escapeHtml(item.key)}" aria-label="移除 ${escapeHtml(item.file.name)}">×</button>` : ''}</div>`).join('') || '<p class="knowledge-upload-empty">尚未添加文件。可分多次选择或拖入文件。</p>';
+  const pending = queue.filter(item => item.status === 'queued' || item.status === 'failed').length;
+  const hasInvalid = personalUploadQueue.hasInvalid(queue);
+  $('#confirmKnowledgeUpload').disabled = uploading || !personalUploadQueue.canUpload(queue);
+  if (hasInvalid && !uploading) $('#knowledgeUploadFileState').textContent = '请先移除不支持或超限的文件，才能上传其余文件。';
+  $('#confirmKnowledgeUpload').textContent = uploading ? '正在上传…' : queue.some(item => item.status === 'failed') && !queue.some(item => item.status === 'queued') ? `重试失败项（${pending}）` : `上传并处理（${pending}）`;
 }
 
-function updateKnowledgeUploadFileState() {
-  const files = selectedUploadFiles();
-  const stateLabel = $('#knowledgeUploadFileState');
-  const titleInput = $('#knowledgeUploadTitle');
-  $('#knowledgeUploadDrop').classList.toggle('has-file', files.length > 0);
-  if (files.length === 1) stateLabel.textContent = `${files[0].name} · ${formatFileSize(files[0].size)}`;
-  else if (files.length > 1) stateLabel.textContent = `已选择 ${files.length} 个文件 · 共 ${formatFileSize(files.reduce((total, file) => total + file.size, 0))}`;
-  else stateLabel.textContent = KNOWLEDGE_UPLOAD_FILE_HINT;
-  titleInput.disabled = files.length > 1;
-  titleInput.placeholder = files.length > 1 ? '批量上传时使用各自文件名' : '默认使用文件名';
+function mergeKnowledgeUploadFiles(files) {
+  if (state.personalUploadInProgress) return;
+  const {items, added} = personalUploadQueue.merge(state.personalUploadQueue, files);
+  state.personalUploadQueue = items;
+  const invalid = added.filter(item => item.status === 'invalid');
+  if (invalid.length) showKnowledgeUploadMessage(`有 ${invalid.length} 个文件无法上传，请移除后继续。`, true);
+  renderKnowledgeUploadQueue();
+}
+
+function showKnowledgeUploadMessage(text, error = false) {
+  const message = $('#knowledgeUploadMessage');
+  message.textContent = text; message.hidden = false; message.classList.toggle('error', error);
 }
 
 function resetKnowledgeUploadForm() {
   $('#knowledgeUploadForm').reset();
+  state.personalUploadQueue = [];
+  state.personalUploadInProgress = false;
   $('#knowledgeUploadMessage').hidden = true;
   $('#knowledgeUploadMessage').classList.remove('error');
-  $('#confirmKnowledgeUpload').disabled = false;
-  $('#confirmKnowledgeUpload').textContent = '上传并处理';
-  updateKnowledgeUploadFileState();
+  renderKnowledgeUploadQueue();
 }
 
 function openKnowledgeUploadDialog() {
@@ -374,53 +389,38 @@ function splitMetadataValues(value) {
 
 async function uploadPersonalKnowledge(event) {
   event.preventDefault();
-  const files = selectedUploadFiles();
   const message = $('#knowledgeUploadMessage');
-  if (!files.length) return;
-  const oversizedFiles = files.filter(file => file.size > MAX_KNOWLEDGE_UPLOAD_BYTES);
-  if (oversizedFiles.length) {
-    const names = oversizedFiles.slice(0, 3).map(file => file.name).join('、');
-    const suffix = oversizedFiles.length > 3 ? ` 等 ${oversizedFiles.length} 个文件` : '';
-    message.textContent = `以下文件超过 50 MB，请选择更小的文件：${names}${suffix}。`;
-    message.classList.add('error');
-    message.hidden = false;
+  if (state.personalUploadInProgress) return;
+  if (personalUploadQueue.hasInvalid(state.personalUploadQueue)) {
+    showKnowledgeUploadMessage('请先移除不支持或超限的文件，再上传其余文件。', true);
     return;
   }
+  const files = state.personalUploadQueue.filter(item => item.status === 'queued' || item.status === 'failed');
+  if (!files.length) return;
   const metadata = {
     process_steps: $('#knowledgeUploadStep').value ? [$('#knowledgeUploadStep').value] : [],
     equipment_ids: splitMetadataValues($('#knowledgeUploadEquipment').value),
-    tags: splitMetadataValues($('#knowledgeUploadTags').value),
   };
-  const title = $('#knowledgeUploadTitle').value.trim();
+  const tags = splitMetadataValues($('#knowledgeUploadTags').value);
+  if (tags.length) metadata.tags = tags;
   const effectiveDate = $('#knowledgeUploadEffectiveDate').value;
   if (effectiveDate) metadata.effective_date = effectiveDate;
   const button = $('#confirmKnowledgeUpload');
-  button.disabled = true;
+  state.personalUploadInProgress = true;
   message.hidden = true;
   message.classList.remove('error');
-  const successes = [];
-  const failures = [];
-  for (const [index, file] of files.entries()) {
-    button.textContent = `正在上传 ${index + 1}/${files.length}…`;
-    const fileMetadata = {...metadata};
-    if (files.length === 1 && title) fileMetadata.title = title;
-    const form = new FormData();
-    form.append('file', file);
-    form.append('metadata', JSON.stringify(fileMetadata));
-    try {
-      const result = await api('/api/knowledge/personal/documents', {method:'POST', headers:{'Idempotency-Key':newClientMessageId()}, body:form});
-      successes.push({file, result});
-    } catch (error) {
-      failures.push({file, error});
-    }
-  }
-  const failureDetails = failures.slice(0, 3).map(({file, error}) => `${file.name}：${error.message || '上传失败'}`).join('；');
+  renderKnowledgeUploadQueue();
+  const {successes, failures} = await personalUploadQueue.uploadSequential(state.personalUploadQueue, async file => {
+    const form = new FormData(); form.append('file', file); form.append('metadata', JSON.stringify(metadata));
+    return api('/api/knowledge/personal/documents', {method:'POST', headers:{'Idempotency-Key':newClientMessageId()}, body:form});
+  }, ({index, total}) => { renderKnowledgeUploadQueue(); button.textContent = `正在上传 ${Math.min(total, index + 1)}/${total}…`; });
+  const failureDetails = failures.slice(0, 3).map(item => `${item.file.name}：${item.error || '上传失败'}`).join('；');
   const suffix = failures.length > 3 ? `；另有 ${failures.length - 3} 个文件失败` : '';
   const uploadSummary = `已成功上传 ${successes.length} 个，失败 ${failures.length} 个。${failureDetails}${suffix}`;
   let dialogClosedAfterFullSuccess = false;
   try {
     const lastSuccess = successes.at(-1);
-    if (successes.length === files.length) {
+    if (!failures.length) {
       $('#knowledgeUploadDialog').close();
       dialogClosedAfterFullSuccess = true;
       $('#knowledgeFilter').value = '';
@@ -430,8 +430,7 @@ async function uploadPersonalKnowledge(event) {
       showToast(`已上传 ${successes.length} 个文档，正在建立个人检索索引`);
       return;
     }
-    $('#knowledgeUploadFile').value = '';
-    updateKnowledgeUploadFileState();
+    state.personalUploadQueue = state.personalUploadQueue.filter(item => item.status === 'failed' || item.status === 'invalid');
     if (successes.length) {
       $('#knowledgeFilter').value = '';
       state.selectedPersonalDocumentId = lastSuccess.result.document_id;
@@ -450,8 +449,8 @@ async function uploadPersonalKnowledge(event) {
     message.classList.add('error');
     message.hidden = false;
   } finally {
-    button.disabled = false;
-    button.textContent = '上传并处理';
+    state.personalUploadInProgress = false;
+    renderKnowledgeUploadQueue();
   }
 }
 
@@ -1633,19 +1632,27 @@ async function init() {
     else if (personalTarget) openPersonalKnowledgeDocument(personalTarget.dataset.personalDocumentId).catch(error => showToast(`文档加载失败：${error.message}`, {tone:'error'}));
     else if (event.target.closest('[data-open-knowledge-upload]')) openKnowledgeUploadDialog();
   });
-  $('#openKnowledgeUpload').addEventListener('click', openKnowledgeUploadDialog);
+  $('#personalKnowledgeAdd').addEventListener('click', openKnowledgeUploadDialog);
   $('#knowledgeUploadForm').addEventListener('submit', uploadPersonalKnowledge);
-  $('#knowledgeUploadFile').addEventListener('change', updateKnowledgeUploadFileState);
+  $('#knowledgeUploadFile').addEventListener('change', event => { mergeKnowledgeUploadFiles(event.target.files); event.target.value = ''; });
   $('#knowledgeUploadDrop').addEventListener('dragover', event => { event.preventDefault(); event.currentTarget.classList.add('dragging'); });
   $('#knowledgeUploadDrop').addEventListener('dragleave', event => event.currentTarget.classList.remove('dragging'));
   $('#knowledgeUploadDrop').addEventListener('drop', event => {
     event.preventDefault();
     event.currentTarget.classList.remove('dragging');
     const files = event.dataTransfer?.files;
-    if (files?.length) { $('#knowledgeUploadFile').files = files; updateKnowledgeUploadFileState(); }
+    if (files?.length) mergeKnowledgeUploadFiles(files);
   });
-  $('#closeKnowledgeUploadDialog').addEventListener('click', () => $('#knowledgeUploadDialog').close());
-  $('#cancelKnowledgeUpload').addEventListener('click', () => $('#knowledgeUploadDialog').close());
+  $('#knowledgeUploadQueue').addEventListener('click', event => {
+    const button = event.target.closest('[data-upload-key]');
+    if (!button || state.personalUploadInProgress) return;
+    state.personalUploadQueue = personalUploadQueue.remove(state.personalUploadQueue, button.dataset.uploadKey);
+    renderKnowledgeUploadQueue();
+  });
+  const closeKnowledgeUploadDialog = () => { if (!state.personalUploadInProgress) $('#knowledgeUploadDialog').close(); };
+  $('#closeKnowledgeUploadDialog').addEventListener('click', closeKnowledgeUploadDialog);
+  $('#cancelKnowledgeUpload').addEventListener('click', closeKnowledgeUploadDialog);
+  $('#knowledgeUploadDialog').addEventListener('cancel', event => { if (state.personalUploadInProgress) event.preventDefault(); });
   $('#knowledgeUploadDialog').addEventListener('close', resetKnowledgeUploadForm);
   $('#downloadPersonalKnowledge').addEventListener('click', downloadSelectedPersonalKnowledge);
   $('#renamePersonalKnowledge').addEventListener('click', openPersonalKnowledgeRenameDialog);

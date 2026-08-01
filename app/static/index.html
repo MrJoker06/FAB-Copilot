@@ -93,12 +93,11 @@
               <button type="button" data-knowledge-mode="personal">我的知识</button>
             </div>
             <div class="knowledge-search"><input id="knowledgeFilter" type="search" placeholder="筛选文档或章节" aria-label="筛选知识库"><span id="knowledgeCount"></span></div>
-            <button id="openKnowledgeUpload" type="button" class="primary-btn knowledge-upload-button"><span aria-hidden="true">＋</span> 上传个人文档</button>
           </div>
         </div>
         <div class="knowledge-layout">
           <aside class="panel knowledge-index">
-            <div class="panel-heading"><div><h2 id="knowledgeIndexTitle">文档目录</h2><p id="knowledgeIndexHint">按文档浏览章节</p></div></div>
+            <div class="panel-heading"><div><h2 id="knowledgeIndexTitle">文档目录</h2><p id="knowledgeIndexHint">按文档浏览章节</p></div><button id="personalKnowledgeAdd" type="button" class="secondary-btn personal-knowledge-add" hidden>＋ 添加文档</button></div>
             <div id="knowledgeDocuments" class="knowledge-document-list"></div>
           </aside>
           <article class="panel knowledge-reader">
@@ -221,12 +220,12 @@
       <div class="dialog-heading"><div><p class="eyebrow">PRIVATE KNOWLEDGE</p><h2>上传个人文档</h2></div><button id="closeKnowledgeUploadDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
       <div class="dialog-body knowledge-upload-body">
         <label id="knowledgeUploadDrop" class="knowledge-upload-drop" for="knowledgeUploadFile" tabindex="0">
-          <input id="knowledgeUploadFile" type="file" accept=".pdf,.docx,.md,.txt,.csv,.xlsx" multiple required>
-          <strong>选择一个或多个文件，或拖放到这里</strong>
-          <span id="knowledgeUploadFileState">支持一次选择或拖入多个 PDF、DOCX、Markdown、TXT、CSV、XLSX 文件；单文件最大 50 MB</span>
+          <input id="knowledgeUploadFile" type="file" accept=".pdf,.docx,.md,.txt,.csv,.xlsx" multiple>
+          <strong>选择文件，或拖放到这里</strong>
+          <span id="knowledgeUploadFileState">可多次添加并自动去重；支持 PDF、DOCX、Markdown、TXT、CSV、XLSX，单文件最大 50 MB</span>
         </label>
+        <div id="knowledgeUploadQueue" class="knowledge-upload-queue" aria-live="polite" aria-label="待上传文件队列"></div>
         <div class="knowledge-form-grid">
-          <label><span class="field-label">文档标题（可选）</span><input id="knowledgeUploadTitle" class="dialog-text-input" type="text" maxlength="200" placeholder="默认使用文件名"></label>
           <label><span class="field-label">所属制程（可选）</span><select id="knowledgeUploadStep"><option value="">不指定</option><option value="LITHO">光刻</option><option value="ETCH">刻蚀</option><option value="CVD">化学气相沉积</option><option value="PVD">物理气相沉积</option><option value="DIFFUSION">扩散 / 炉管</option><option value="IMPLANT">离子注入</option><option value="CMP">化学机械研磨</option><option value="CLEAN">湿法清洗</option><option value="METROLOGY">量测</option></select></label>
           <label><span class="field-label">设备编号（可选）</span><input id="knowledgeUploadEquipment" class="dialog-text-input" type="text" maxlength="500" placeholder="例如 CMP-01, CMP-02"></label>
           <label><span class="field-label">生效日期（可选）</span><input id="knowledgeUploadEffectiveDate" class="dialog-text-input" type="date"></label>
@@ -275,6 +274,7 @@
   <script src="/static/stream_buffer.js?v=__APP_VERSION__" defer></script>
   <script src="/static/stream_markdown.js?v=__APP_VERSION__" defer></script>
   <script src="/static/source_presenter.js?v=__APP_VERSION__" defer></script>
+  <script src="/static/personal_upload_queue.js?v=__APP_VERSION__" defer></script>
   <script src="/static/app.js?v=__APP_VERSION__" defer></script>
 </body>
 </html>
