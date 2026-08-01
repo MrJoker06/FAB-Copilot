@@ -104,7 +104,7 @@
             <div class="knowledge-reader-heading">
               <div><p id="knowledgeSource" class="eyebrow">KNOWLEDGE BASE</p><h2 id="knowledgeTitle">选择一份知识文档</h2><div id="knowledgeMeta" class="knowledge-meta"></div></div>
               <div id="personalKnowledgeActions" class="knowledge-reader-actions" hidden>
-                <button id="renamePersonalKnowledge" type="button" class="secondary-btn">重命名</button>
+                <button id="editPersonalKnowledge" type="button" class="secondary-btn">编辑信息</button>
                 <button id="downloadPersonalKnowledge" type="button" class="secondary-btn">下载原文</button>
                 <button id="retryPersonalKnowledge" type="button" class="secondary-btn" hidden>重新处理</button>
                 <button id="deletePersonalKnowledge" type="button" class="danger-btn">删除</button>
@@ -246,16 +246,17 @@
     </form>
   </dialog>
 
-  <dialog id="personalKnowledgeRenameDialog" class="settings-dialog session-rename-dialog">
-    <form id="personalKnowledgeRenameForm">
-      <div class="dialog-heading"><div><p class="eyebrow">RENAME PRIVATE KNOWLEDGE</p><h2>重命名个人知识</h2></div><button id="closePersonalKnowledgeRenameDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
-      <div class="dialog-body">
-        <label class="field-label" for="personalKnowledgeRenameInput">知识名称</label>
-        <input id="personalKnowledgeRenameInput" class="dialog-text-input" type="text" maxlength="200" autocomplete="off" aria-describedby="personalKnowledgeRenameCount personalKnowledgeRenameMessage" required>
-        <div class="field-meta"><span id="personalKnowledgeRenameCount">0 / 200</span></div>
-        <div id="personalKnowledgeRenameMessage" class="settings-message error" role="alert" hidden></div>
-      </div>
-      <div class="dialog-actions"><button id="cancelPersonalKnowledgeRename" type="button" class="secondary-btn">取消</button><button id="confirmPersonalKnowledgeRename" type="submit" class="primary-btn">保存</button></div>
+  <dialog id="personalKnowledgeMetadataDialog" class="settings-dialog personal-knowledge-metadata-dialog">
+    <form id="personalKnowledgeMetadataForm">
+      <div class="dialog-heading"><div><p class="eyebrow">PRIVATE KNOWLEDGE</p><h2>编辑文档信息</h2></div><button id="closePersonalKnowledgeMetadataDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="dialog-body"><div class="knowledge-form-grid">
+        <label><span class="field-label">知识名称</span><input id="personalKnowledgeMetadataTitle" class="dialog-text-input" type="text" maxlength="200" autocomplete="off" required></label>
+        <label><span class="field-label">所属制程</span><select id="personalKnowledgeMetadataStep"><option value="">不指定</option><option value="LITHO">光刻</option><option value="ETCH">刻蚀</option><option value="CVD">化学气相沉积</option><option value="PVD">物理气相沉积</option><option value="DIFFUSION">扩散 / 炉管</option><option value="IMPLANT">离子注入</option><option value="CMP">化学机械研磨</option><option value="CLEAN">湿法清洗</option><option value="METROLOGY">量测</option></select></label>
+        <label><span class="field-label">设备编号</span><input id="personalKnowledgeMetadataEquipment" class="dialog-text-input" type="text" maxlength="500"></label>
+        <label><span class="field-label">有效日期</span><input id="personalKnowledgeMetadataEffectiveDate" class="dialog-text-input" type="date"></label>
+        <label class="knowledge-tags-field"><span class="field-label">标签</span><input id="personalKnowledgeMetadataTags" class="dialog-text-input" type="text" maxlength="500" aria-describedby="personalKnowledgeMetadataTagSource"></label>
+      </div><p id="personalKnowledgeMetadataTagSource" class="personal-tag-source-note"></p><div id="personalKnowledgeMetadataMessage" class="settings-message error" role="alert" hidden></div></div>
+      <div class="dialog-actions"><button id="cancelPersonalKnowledgeMetadata" type="button" class="secondary-btn">取消</button><button id="confirmPersonalKnowledgeMetadata" type="submit" class="primary-btn">保存</button></div>
     </form>
   </dialog>
 
@@ -275,6 +276,7 @@
   <script src="/static/stream_markdown.js?v=__APP_VERSION__" defer></script>
   <script src="/static/source_presenter.js?v=__APP_VERSION__" defer></script>
   <script src="/static/personal_upload_queue.js?v=__APP_VERSION__" defer></script>
+  <script src="/static/personal_knowledge_metadata.js?v=__APP_VERSION__" defer></script>
   <script src="/static/app.js?v=__APP_VERSION__" defer></script>
 </body>
 </html>

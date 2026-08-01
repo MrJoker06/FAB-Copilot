@@ -126,8 +126,8 @@ class FabInsightTests(unittest.TestCase):
             "knowledgeUploadFile",
             "knowledgeUploadQueue",
             "personalKnowledgeActions",
-            "renamePersonalKnowledge",
-            "personalKnowledgeRenameDialog",
+            "editPersonalKnowledge",
+            "personalKnowledgeMetadataDialog",
             "personalKnowledgeDeleteDialog",
         ):
             self.assertIn(f'id="{element_id}"', page)
@@ -136,6 +136,7 @@ class FabInsightTests(unittest.TestCase):
         self.assertIn(f"/static/stream_markdown.js?v={APP_VERSION}", page)
         self.assertIn(f"/static/source_presenter.js?v={APP_VERSION}", page)
         self.assertIn(f"/static/personal_upload_queue.js?v={APP_VERSION}", page)
+        self.assertIn(f"/static/personal_knowledge_metadata.js?v={APP_VERSION}", page)
         self.assertIn(f"/static/app.js?v={APP_VERSION}", page)
         self.assertNotIn('id="monitorView"', page)
         self.assertNotIn('id="apiKeyInput"', page)
@@ -150,6 +151,7 @@ class FabInsightTests(unittest.TestCase):
         self.assertIn("item.status === 'failed' || item.status === 'invalid'", script)
         self.assertIn("sourcePresenter.replaceReferenceIds(content, sources)", script)
         self.assertIn("method: 'PATCH'", script)
+        self.assertIn("personalKnowledgeMetadata.buildPatch", script)
         self.assertIn("refreshRenderedPersonalSourceName(documentId, updated.title)", script)
         self.assertIn("event.key !== 'Enter' || event.shiftKey || event.isComposing || event.keyCode === 229", script)
         self.assertIn("$('#chatForm').requestSubmit()", script)

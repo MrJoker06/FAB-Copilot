@@ -1,4 +1,4 @@
-const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, selectedSessionIds: new Set(), sessionBatchMode: false, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionIds: [], toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', modelConfig: null, enterpriseContext: null, knowledgeMode: 'factory', knowledgeDocuments: [], knowledgeIndexPromise: null, personalKnowledgeDocuments: [], selectedPersonalDocumentId: null, selectedPersonalDocument: null, personalKnowledgeRequestId: 0, personalKnowledgePollTimer: null, personalUploadQueue: [], personalUploadInProgress: false, pendingPersonalRenameId: null, pendingPersonalDeleteId: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
+const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, selectedSessionIds: new Set(), sessionBatchMode: false, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionIds: [], toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', modelConfig: null, enterpriseContext: null, knowledgeMode: 'factory', knowledgeDocuments: [], knowledgeIndexPromise: null, personalKnowledgeDocuments: [], selectedPersonalDocumentId: null, selectedPersonalDocument: null, personalKnowledgeRequestId: 0, personalKnowledgePollTimer: null, personalUploadQueue: [], personalUploadInProgress: false, pendingPersonalMetadataId: null, pendingPersonalDeleteId: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
 const $ = (selector) => document.querySelector(selector);
 const AGENT_WIDTH_KEY = 'fabInsightAgentWidth';
 const CHAT_DRAFT_KEY = 'fabInsightChatDraft';
@@ -10,6 +10,7 @@ const APP_VERSION = document.querySelector('meta[name="app-version"]')?.content 
 const processLabels = { LITHO: '光刻', ETCH: '刻蚀', CVD: '化学气相沉积', PVD: '物理气相沉积', DIFFUSION: '扩散/炉管', IMPLANT: '离子注入', CMP: '化学机械研磨', CLEAN: '湿法清洗', METROLOGY: '量测' };
 const toolLabels = { get_enterprise_data_manifest: '查询企业数据目录', get_enterprise_fab_summary: '聚合企业模拟数据', query_enterprise_data: '抽取企业模拟数据', get_fab_overview: '查询工厂总览', get_yield_trend: '查询良率趋势', get_equipment_health: '查询设备健康', get_equipment_productivity: '查询设备生产状态', get_process_capability: '查询制程能力', get_defect_pareto: '查询缺陷 Pareto', get_recent_excursions: '查询近期异常', get_sensor_summary: '查询传感器摘要', search_knowledge: '检索知识与案例', query_manufacturing_data: '执行制造数据查询' };
 const sourcePresenter = globalThis.FabSourcePresenter;
+const personalKnowledgeMetadata = globalThis.FabPersonalKnowledgeMetadata;
 
 function isoDate(date) { return date.toISOString().slice(0, 10); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
@@ -220,7 +221,9 @@ function renderPersonalKnowledgeDocuments() {
   $('#knowledgeDocuments').innerHTML = documents.map(doc => {
     const [label, tone] = personalKnowledgeStatusLabel(doc.status);
     const details = [doc.filename, formatFileSize(doc.size_bytes), doc.chunk_count ? `${doc.chunk_count} 段` : ''].filter(Boolean).join(' · ');
-    return `<button class="knowledge-document personal-document ${doc.document_id === state.selectedPersonalDocumentId ? 'active' : ''}" data-personal-document-id="${escapeHtml(doc.document_id)}"><span class="personal-document-title"><strong>${escapeHtml(doc.title)}</strong><em class="personal-status ${tone}">${escapeHtml(label)}</em></span><span>${escapeHtml(details)}</span></button>`;
+    const tags = (doc.tags || []).slice(0, 3).map(tag => `#${escapeHtml(tag)}`).join(' · ');
+    const source = doc.tags_source === 'auto' ? '自动标记' : '手动标记';
+    return `<button class="knowledge-document personal-document ${doc.document_id === state.selectedPersonalDocumentId ? 'active' : ''}" data-personal-document-id="${escapeHtml(doc.document_id)}"><span class="personal-document-title"><strong>${escapeHtml(doc.title)}</strong><em class="personal-status ${tone}">${escapeHtml(label)}</em></span><span>${escapeHtml(details)}</span><small class="personal-document-tags"><i class="tag-source-badge ${doc.tags_source === 'auto' ? 'auto' : 'user'}">${source}</i>${tags || '无标签'}</small></button>`;
   }).join('') || '<div class="personal-knowledge-empty"><strong>还没有个人文档</strong><span>上传 SOP、分析记录或设备资料后，可在此预览和检索。</span><button type="button" class="secondary-btn" data-open-knowledge-upload>上传文档</button></div>';
 }
 
@@ -264,6 +267,7 @@ function personalKnowledgeMeta(document) {
   for (const step of document.process_steps || []) items.push(`<span>${escapeHtml(processLabels[step] || step)}</span>`);
   for (const equipment of document.equipment_ids || []) items.push(`<span>${escapeHtml(equipment)}</span>`);
   if (document.effective_date) items.push(`<span>生效 ${escapeHtml(document.effective_date)}</span>`);
+  items.push(`<span class="tag-source-badge ${document.tags_source === 'auto' ? 'auto' : 'user'}">${document.tags_source === 'auto' ? '自动标记' : '手动标记'}</span>`);
   for (const tag of document.tags || []) items.push(`<span>#${escapeHtml(tag)}</span>`);
   return items.join('');
 }
@@ -296,7 +300,7 @@ async function openPersonalKnowledgeDocument(documentId, {scroll = true} = {}) {
     $('#knowledgeMeta').innerHTML = personalKnowledgeMeta(personalDocument);
     $('#knowledgeContent').innerHTML = renderPersonalKnowledgeContent(personalDocument);
     $('#personalKnowledgeActions').hidden = false;
-    $('#renamePersonalKnowledge').disabled = personalDocument.status === 'deleting';
+    $('#editPersonalKnowledge').disabled = personalDocument.status === 'deleting';
     $('#downloadPersonalKnowledge').disabled = personalDocument.status === 'deleting';
     $('#deletePersonalKnowledge').disabled = personalDocument.status === 'deleting';
     $('#retryPersonalKnowledge').hidden = personalDocument.status !== 'failed' || personalDocument.error_code === 'DELETE_FAILED';
@@ -468,18 +472,19 @@ async function retrySelectedPersonalKnowledge() {
   } finally { $('#retryPersonalKnowledge').disabled = false; }
 }
 
-function updatePersonalKnowledgeRenameCount() {
-  $('#personalKnowledgeRenameCount').textContent = `${$('#personalKnowledgeRenameInput').value.length} / 200`;
-}
-
-function openPersonalKnowledgeRenameDialog() {
-  if (!state.selectedPersonalDocumentId || !state.selectedPersonalDocument) return;
-  state.pendingPersonalRenameId = state.selectedPersonalDocumentId;
-  $('#personalKnowledgeRenameInput').value = state.selectedPersonalDocument.title;
-  $('#personalKnowledgeRenameMessage').hidden = true;
-  updatePersonalKnowledgeRenameCount();
-  $('#personalKnowledgeRenameDialog').showModal();
-  requestAnimationFrame(() => $('#personalKnowledgeRenameInput').select());
+function openPersonalKnowledgeMetadataDialog() {
+  const document = state.selectedPersonalDocument;
+  if (!state.selectedPersonalDocumentId || !document) return;
+  state.pendingPersonalMetadataId = state.selectedPersonalDocumentId;
+  $('#personalKnowledgeMetadataTitle').value = document.title || '';
+  $('#personalKnowledgeMetadataStep').value = document.process_steps?.[0] || '';
+  $('#personalKnowledgeMetadataEquipment').value = (document.equipment_ids || []).join(', ');
+  $('#personalKnowledgeMetadataEffectiveDate').value = document.effective_date || '';
+  $('#personalKnowledgeMetadataTags').value = (document.tags || []).join(', ');
+  $('#personalKnowledgeMetadataTagSource').textContent = document.tags_source === 'auto' ? '系统自动标记，可编辑确认' : '手动标记';
+  $('#personalKnowledgeMetadataMessage').hidden = true;
+  $('#personalKnowledgeMetadataDialog').showModal();
+  requestAnimationFrame(() => $('#personalKnowledgeMetadataTitle').select());
 }
 
 function refreshRenderedPersonalSourceName(documentId, title) {
@@ -488,33 +493,46 @@ function refreshRenderedPersonalSourceName(documentId, title) {
   });
 }
 
-async function renameSelectedPersonalKnowledge(event) {
+async function savePersonalKnowledgeMetadata(event) {
   event.preventDefault();
-  const documentId = state.pendingPersonalRenameId;
-  const title = $('#personalKnowledgeRenameInput').value.trim();
-  const message = $('#personalKnowledgeRenameMessage');
-  if (!documentId || !title) {
-    message.textContent = '知识名称不能为空。';
+  const documentId = state.pendingPersonalMetadataId;
+  const message = $('#personalKnowledgeMetadataMessage');
+  if (!documentId || !state.selectedPersonalDocument) return;
+  const {error, patch} = personalKnowledgeMetadata.buildPatch(state.selectedPersonalDocument, {
+    title: $('#personalKnowledgeMetadataTitle').value,
+    process_step: $('#personalKnowledgeMetadataStep').value,
+    equipment_ids: $('#personalKnowledgeMetadataEquipment').value,
+    effective_date: $('#personalKnowledgeMetadataEffectiveDate').value,
+    tags: $('#personalKnowledgeMetadataTags').value,
+  });
+  if (error) {
+    message.textContent = error;
     message.hidden = false;
     return;
   }
-  const button = $('#confirmPersonalKnowledgeRename');
+  if (!Object.keys(patch).length) { $('#personalKnowledgeMetadataDialog').close(); showToast('未修改文档信息'); return; }
+  const button = $('#confirmPersonalKnowledgeMetadata');
   button.disabled = true;
   try {
     const updated = await api(`/api/knowledge/personal/documents/${encodeURIComponent(documentId)}`, {
       method: 'PATCH',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({title}),
+      body: JSON.stringify(patch),
     });
     state.personalKnowledgeDocuments = state.personalKnowledgeDocuments.map(document => document.document_id === documentId ? {...document, ...updated} : document);
     if (state.selectedPersonalDocumentId === documentId) {
       state.selectedPersonalDocument = {...state.selectedPersonalDocument, ...updated};
       $('#knowledgeTitle').textContent = updated.title;
+      $('#knowledgeMeta').innerHTML = personalKnowledgeMeta(state.selectedPersonalDocument);
     }
     renderPersonalKnowledgeDocuments();
     refreshRenderedPersonalSourceName(documentId, updated.title);
-    $('#personalKnowledgeRenameDialog').close();
-    showToast('个人知识名称已更新');
+    $('#personalKnowledgeMetadataDialog').close();
+    showToast('个人知识信息已更新');
+    if ($('#knowledgeFilter').value.trim()) {
+      try { await loadPersonalKnowledgeDocuments({selectFirst:false}); }
+      catch (refreshError) { showToast(`信息已保存，但列表刷新失败：${refreshError.message}`, {tone:'error'}); }
+    }
   } catch (error) {
     message.textContent = error.message;
     message.hidden = false;
@@ -1655,18 +1673,17 @@ async function init() {
   $('#knowledgeUploadDialog').addEventListener('cancel', event => { if (state.personalUploadInProgress) event.preventDefault(); });
   $('#knowledgeUploadDialog').addEventListener('close', resetKnowledgeUploadForm);
   $('#downloadPersonalKnowledge').addEventListener('click', downloadSelectedPersonalKnowledge);
-  $('#renamePersonalKnowledge').addEventListener('click', openPersonalKnowledgeRenameDialog);
+  $('#editPersonalKnowledge').addEventListener('click', openPersonalKnowledgeMetadataDialog);
   $('#retryPersonalKnowledge').addEventListener('click', retrySelectedPersonalKnowledge);
   $('#deletePersonalKnowledge').addEventListener('click', openPersonalKnowledgeDeleteDialog);
   $('#personalKnowledgeDeleteForm').addEventListener('submit', deleteSelectedPersonalKnowledge);
   $('#closePersonalKnowledgeDeleteDialog').addEventListener('click', () => $('#personalKnowledgeDeleteDialog').close());
   $('#cancelPersonalKnowledgeDelete').addEventListener('click', () => $('#personalKnowledgeDeleteDialog').close());
   $('#personalKnowledgeDeleteDialog').addEventListener('close', () => { state.pendingPersonalDeleteId = null; });
-  $('#personalKnowledgeRenameForm').addEventListener('submit', renameSelectedPersonalKnowledge);
-  $('#personalKnowledgeRenameInput').addEventListener('input', () => { updatePersonalKnowledgeRenameCount(); $('#personalKnowledgeRenameMessage').hidden = true; });
-  $('#closePersonalKnowledgeRenameDialog').addEventListener('click', () => $('#personalKnowledgeRenameDialog').close());
-  $('#cancelPersonalKnowledgeRename').addEventListener('click', () => $('#personalKnowledgeRenameDialog').close());
-  $('#personalKnowledgeRenameDialog').addEventListener('close', () => { state.pendingPersonalRenameId = null; $('#personalKnowledgeRenameMessage').hidden = true; });
+  $('#personalKnowledgeMetadataForm').addEventListener('submit', savePersonalKnowledgeMetadata);
+  $('#closePersonalKnowledgeMetadataDialog').addEventListener('click', () => $('#personalKnowledgeMetadataDialog').close());
+  $('#cancelPersonalKnowledgeMetadata').addEventListener('click', () => $('#personalKnowledgeMetadataDialog').close());
+  $('#personalKnowledgeMetadataDialog').addEventListener('close', () => { state.pendingPersonalMetadataId = null; $('#personalKnowledgeMetadataMessage').hidden = true; });
   $('#caseFilter').addEventListener('input', renderCaseList);
   $('#caseStepFilter').addEventListener('change', renderCaseList);
   $('#caseList').addEventListener('click', event => { const target=event.target.closest('[data-case-id]'); if (target) openHistoricalCase(target.dataset.caseId); });

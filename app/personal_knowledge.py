@@ -690,9 +690,12 @@ def list_personal_documents(
         clauses.append("status = ?")
         params.append(status)
     if query.strip():
-        clauses.append("(title LIKE ? OR filename LIKE ?)")
+        clauses.append("""(title LIKE ? OR filename LIKE ?
+            OR EXISTS (SELECT 1 FROM json_each(tags_json) value WHERE value.value LIKE ?)
+            OR EXISTS (SELECT 1 FROM json_each(process_steps_json) value WHERE value.value LIKE ?)
+            OR EXISTS (SELECT 1 FROM json_each(equipment_ids_json) value WHERE value.value LIKE ?))""")
         value = f"%{query.strip()}%"
-        params.extend([value, value])
+        params.extend([value, value, value, value, value])
     if cursor:
         cursor_time, cursor_id = _decode_cursor(cursor)
         clauses.append("(updated_at < ? OR (updated_at = ? AND document_id < ?))")

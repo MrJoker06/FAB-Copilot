@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from unittest.mock import patch
 
 from app.database import _migrate_personal_knowledge_tags_source
-from app.personal_knowledge import ExtractedSection, _automatic_tags, _normalise_tags, search_personal_knowledge
+from app.personal_knowledge import ExtractedSection, _automatic_tags, _normalise_tags, list_personal_documents, search_personal_knowledge
 
 
 class PersonalKnowledgeTagTests(unittest.TestCase):
@@ -102,6 +102,29 @@ class PersonalKnowledgeTagTests(unittest.TestCase):
                 [item["document_id"] for item in search_personal_knowledge("owner", "needle", limit=1, document_ids=["d1"])],
                 ["d1"],
             )
+
+    def test_list_personal_documents_searches_metadata_with_owner_isolation(self):
+        connection = sqlite3.connect(":memory:")
+        connection.row_factory = sqlite3.Row
+        connection.execute("""CREATE TABLE personal_knowledge_documents (
+            document_id TEXT, owner_user_id TEXT, title TEXT, filename TEXT, process_steps_json TEXT,
+            equipment_ids_json TEXT, tags_json TEXT, tags_source TEXT, status TEXT, updated_at TEXT)""")
+        connection.execute("CREATE TABLE personal_knowledge_chunks (document_id TEXT)")
+        connection.executemany("INSERT INTO personal_knowledge_documents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+            ("title", "owner", "标题命中", "one.md", "[]", "[]", "[]", "auto", "ready", "2026-01-04"),
+            ("tag", "owner", "普通", "two.md", "[]", "[]", '["关键标签"]', "auto", "ready", "2026-01-03"),
+            ("step", "owner", "普通", "three.md", '["ETCH"]', "[]", "[]", "auto", "ready", "2026-01-02"),
+            ("equipment", "owner", "普通", "four.md", "[]", '["ETCH-01"]', "[]", "auto", "ready", "2026-01-01"),
+            ("other", "other", "普通", "private.md", "[]", "[]", '["关键标签"]', "auto", "ready", "2026-01-05"),
+        ])
+        @contextmanager
+        def fake_session():
+            yield connection
+        with patch("app.personal_knowledge.db_session", fake_session):
+            self.assertEqual([item["document_id"] for item in list_personal_documents("owner", "标题命中")["items"]], ["title"])
+            self.assertEqual([item["document_id"] for item in list_personal_documents("owner", "关键标签")["items"]], ["tag"])
+            self.assertEqual([item["document_id"] for item in list_personal_documents("owner", "ETCH")["items"]], ["step", "equipment"])
+            self.assertEqual(list_personal_documents("owner", "不存在")["items"], [])
 
 
 if __name__ == "__main__":
