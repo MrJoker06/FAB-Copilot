@@ -335,15 +335,23 @@ async function setKnowledgeMode(mode) {
   else await loadKnowledgeIndex();
 }
 
-function selectedUploadFile() {
-  return $('#knowledgeUploadFile').files?.[0] || null;
+const MAX_KNOWLEDGE_UPLOAD_BYTES = 50 * 1024 * 1024;
+const KNOWLEDGE_UPLOAD_FILE_HINT = '支持一次选择或拖入多个 PDF、DOCX、Markdown、TXT、CSV、XLSX 文件；单文件最大 50 MB';
+
+function selectedUploadFiles() {
+  return Array.from($('#knowledgeUploadFile').files || []);
 }
 
 function updateKnowledgeUploadFileState() {
-  const file = selectedUploadFile();
+  const files = selectedUploadFiles();
   const stateLabel = $('#knowledgeUploadFileState');
-  $('#knowledgeUploadDrop').classList.toggle('has-file', Boolean(file));
-  stateLabel.textContent = file ? `${file.name} · ${formatFileSize(file.size)}` : '支持 PDF、DOCX、Markdown、TXT、CSV、XLSX，最大 50 MB';
+  const titleInput = $('#knowledgeUploadTitle');
+  $('#knowledgeUploadDrop').classList.toggle('has-file', files.length > 0);
+  if (files.length === 1) stateLabel.textContent = `${files[0].name} · ${formatFileSize(files[0].size)}`;
+  else if (files.length > 1) stateLabel.textContent = `已选择 ${files.length} 个文件 · 共 ${formatFileSize(files.reduce((total, file) => total + file.size, 0))}`;
+  else stateLabel.textContent = KNOWLEDGE_UPLOAD_FILE_HINT;
+  titleInput.disabled = files.length > 1;
+  titleInput.placeholder = files.length > 1 ? '批量上传时使用各自文件名' : '默认使用文件名';
 }
 
 function resetKnowledgeUploadForm() {
@@ -366,11 +374,14 @@ function splitMetadataValues(value) {
 
 async function uploadPersonalKnowledge(event) {
   event.preventDefault();
-  const file = selectedUploadFile();
+  const files = selectedUploadFiles();
   const message = $('#knowledgeUploadMessage');
-  if (!file) return;
-  if (file.size > 50 * 1024 * 1024) {
-    message.textContent = '文件超过 50 MB，请选择更小的文件。';
+  if (!files.length) return;
+  const oversizedFiles = files.filter(file => file.size > MAX_KNOWLEDGE_UPLOAD_BYTES);
+  if (oversizedFiles.length) {
+    const names = oversizedFiles.slice(0, 3).map(file => file.name).join('、');
+    const suffix = oversizedFiles.length > 3 ? ` 等 ${oversizedFiles.length} 个文件` : '';
+    message.textContent = `以下文件超过 50 MB，请选择更小的文件：${names}${suffix}。`;
     message.classList.add('error');
     message.hidden = false;
     return;
@@ -382,26 +393,60 @@ async function uploadPersonalKnowledge(event) {
   };
   const title = $('#knowledgeUploadTitle').value.trim();
   const effectiveDate = $('#knowledgeUploadEffectiveDate').value;
-  if (title) metadata.title = title;
   if (effectiveDate) metadata.effective_date = effectiveDate;
-  const form = new FormData();
-  form.append('file', file);
-  form.append('metadata', JSON.stringify(metadata));
   const button = $('#confirmKnowledgeUpload');
   button.disabled = true;
-  button.textContent = '正在上传…';
   message.hidden = true;
   message.classList.remove('error');
+  const successes = [];
+  const failures = [];
+  for (const [index, file] of files.entries()) {
+    button.textContent = `正在上传 ${index + 1}/${files.length}…`;
+    const fileMetadata = {...metadata};
+    if (files.length === 1 && title) fileMetadata.title = title;
+    const form = new FormData();
+    form.append('file', file);
+    form.append('metadata', JSON.stringify(fileMetadata));
+    try {
+      const result = await api('/api/knowledge/personal/documents', {method:'POST', headers:{'Idempotency-Key':newClientMessageId()}, body:form});
+      successes.push({file, result});
+    } catch (error) {
+      failures.push({file, error});
+    }
+  }
+  const failureDetails = failures.slice(0, 3).map(({file, error}) => `${file.name}：${error.message || '上传失败'}`).join('；');
+  const suffix = failures.length > 3 ? `；另有 ${failures.length - 3} 个文件失败` : '';
+  const uploadSummary = `已成功上传 ${successes.length} 个，失败 ${failures.length} 个。${failureDetails}${suffix}`;
+  let dialogClosedAfterFullSuccess = false;
   try {
-    const result = await api('/api/knowledge/personal/documents', {method:'POST', headers:{'Idempotency-Key':newClientMessageId()}, body:form});
-    $('#knowledgeUploadDialog').close();
-    $('#knowledgeFilter').value = '';
-    state.selectedPersonalDocumentId = result.document_id;
-    await setKnowledgeMode('personal');
-    await openPersonalKnowledgeDocument(result.document_id, {scroll:false});
-    showToast('文档已上传，正在建立个人检索索引');
+    const lastSuccess = successes.at(-1);
+    if (successes.length === files.length) {
+      $('#knowledgeUploadDialog').close();
+      dialogClosedAfterFullSuccess = true;
+      $('#knowledgeFilter').value = '';
+      state.selectedPersonalDocumentId = lastSuccess.result.document_id;
+      await setKnowledgeMode('personal');
+      await openPersonalKnowledgeDocument(lastSuccess.result.document_id, {scroll:false});
+      showToast(`已上传 ${successes.length} 个文档，正在建立个人检索索引`);
+      return;
+    }
+    $('#knowledgeUploadFile').value = '';
+    updateKnowledgeUploadFileState();
+    if (successes.length) {
+      $('#knowledgeFilter').value = '';
+      state.selectedPersonalDocumentId = lastSuccess.result.document_id;
+      await setKnowledgeMode('personal');
+      await openPersonalKnowledgeDocument(lastSuccess.result.document_id, {scroll:false});
+    }
+    message.textContent = uploadSummary;
+    message.classList.add('error');
+    message.hidden = false;
   } catch (error) {
-    message.textContent = error.message;
+    if (dialogClosedAfterFullSuccess) {
+      showToast(`已上传 ${successes.length} 个文档，但列表刷新失败：${error.message}`, {tone:'error'});
+      return;
+    }
+    message.textContent = `${uploadSummary} 列表刷新失败：${error.message}`;
     message.classList.add('error');
     message.hidden = false;
   } finally {
