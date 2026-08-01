@@ -5,7 +5,7 @@
 - [x] `DEPLOY-001` 使用独立 Conda 环境运行项目，保持 base 环境干净。
 - [x] `DEPLOY-002` 提供 WSL `run.sh` 和 Windows `run.bat` 启动入口。
 - [x] `DEPLOY-003` 使用独立 Git 分支和同名 worktree 开发并行方案。
-- [x] `DEPLOY-004` 使用 8876 独立端口运行并行版本。
+- [x] `DEPLOY-004` 使用 8888 独立端口运行并行版本。
 - [x] `DEPLOY-005` 将用户页面和管理页面分离为独立前端入口。
 - [x] `DEPLOY-006` 将运行数据按部门拆分为独立数据库文件。
 - [x] `DEPLOY-007` 提供用户、管理、企业模拟数据和个人知识 API 边界。

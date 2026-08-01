@@ -418,6 +418,7 @@ class FabInsightTests(unittest.TestCase):
             detail = client.get(f"/api/knowledge/personal/documents/{document_id}")
             self.assertEqual(detail.status_code, 200)
             self.assertEqual(detail.json()["process_steps"], ["CMP"])
+            self.assertEqual(detail.json()["tags_source"], "user")
             self.assertGreater(detail.json()["chunk_count"], 0)
             self.assertNotIn("owner_user_id", detail.json())
             self.assertNotIn("storage_key", detail.json())
@@ -450,6 +451,68 @@ class FabInsightTests(unittest.TestCase):
             )
             self.assertEqual(updated.status_code, 200, updated.text)
             self.assertEqual(updated.json()["title"], "CMP-03 Pad 更换与验证记录")
+            self.assertEqual(updated.json()["tags_source"], "user")
+
+            tag_only = client.post(
+                "/api/knowledge/personal/search-preview",
+                json={"query": "verified", "document_ids": [document_id]},
+            )
+            self.assertEqual(tag_only.status_code, 200, tag_only.text)
+            self.assertIn(document_id, {item["document_id"] for item in tag_only.json()["results"]})
+
+            # Exercise the retry API after a simulated retryable failure: user tags
+            # must survive a fresh extraction and index rebuild.
+            with db_session() as connection:
+                connection.execute(
+                    """UPDATE knowledge.personal_knowledge_documents
+                       SET status = 'failed', error_code = 'INGESTION_FAILED'
+                       WHERE document_id = ?""",
+                    (document_id,),
+                )
+                connection.commit()
+            retried = client.post(f"/api/knowledge/personal/documents/{document_id}/retry")
+            self.assertEqual(retried.status_code, 202, retried.text)
+            after_retry = client.get(f"/api/knowledge/personal/documents/{document_id}")
+            self.assertEqual(after_retry.json()["tags"], ["pad", "verified"])
+            self.assertEqual(after_retry.json()["tags_source"], "user")
+
+            auto_uploaded = client.post(
+                "/api/knowledge/personal/documents",
+                headers={"Idempotency-Key": "personal-auto-tags-003"},
+                files={"file": ("note.md", "# 生产记录\n\nETCH-09 出现划伤，完成维护。".encode("utf-8"), "text/markdown")},
+                data={"metadata": json.dumps({"title": "生产记录"}, ensure_ascii=False)},
+            )
+            self.assertEqual(auto_uploaded.status_code, 202, auto_uploaded.text)
+            auto_document_id = auto_uploaded.json()["document_id"]
+            auto_detail = client.get(f"/api/knowledge/personal/documents/{auto_document_id}")
+            self.assertEqual(auto_detail.json()["tags_source"], "auto")
+            self.assertTrue({"ETCH", "ETCH-09", "RECORD", "SCRATCH", "MAINTENANCE", "MD"}.issubset(auto_detail.json()["tags"]))
+            auto_tag_only = client.post(
+                "/api/knowledge/personal/search-preview",
+                json={"query": "MAINTENANCE", "document_ids": [auto_document_id]},
+            )
+            self.assertEqual(auto_tag_only.status_code, 200, auto_tag_only.text)
+            self.assertEqual([item["document_id"] for item in auto_tag_only.json()["results"]], [auto_document_id])
+
+            empty_uploaded = client.post(
+                "/api/knowledge/personal/documents",
+                headers={"Idempotency-Key": "personal-empty-tags-004"},
+                files={"file": ("calibration.md", b"# Calibration\n\nBaseline complete.", "text/markdown")},
+                data={"metadata": '{"tags": []}'},
+            )
+            self.assertEqual(empty_uploaded.status_code, 202, empty_uploaded.text)
+            empty_document_id = empty_uploaded.json()["document_id"]
+            empty_detail = client.get(f"/api/knowledge/personal/documents/{empty_document_id}")
+            self.assertEqual(empty_detail.json()["tags_source"], "user")
+            self.assertEqual(empty_detail.json()["tags"], [])
+            sketch = client.patch(
+                f"/api/knowledge/personal/documents/{empty_document_id}", json={"tags": ["sketch"]}
+            )
+            self.assertEqual(sketch.status_code, 200, sketch.text)
+            self.assertEqual(client.post(
+                "/api/knowledge/personal/search-preview",
+                json={"query": "etch", "document_ids": [empty_document_id]},
+            ).json()["count"], 0)
 
             downloaded = client.get(f"/api/knowledge/personal/documents/{document_id}/file")
             self.assertEqual(downloaded.status_code, 200)
@@ -494,6 +557,10 @@ class FabInsightTests(unittest.TestCase):
                     "SELECT COUNT(*) FROM personal_knowledge_fts WHERE document_id = ?", (document_id,)
                 ).fetchone()[0]
             self.assertEqual(indexed_chunks, 0)
+            for extra_document_id in (auto_document_id, empty_document_id):
+                deleted_extra = client.delete(f"/api/knowledge/personal/documents/{extra_document_id}")
+                self.assertEqual(deleted_extra.status_code, 202, deleted_extra.text)
+                self.assertEqual(client.get(f"/api/knowledge/personal/documents/{extra_document_id}").status_code, 404)
 
     def test_agent_search_combines_private_knowledge_with_cross_language_recall(self):
         content = (

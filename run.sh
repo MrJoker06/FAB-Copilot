@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 LAUNCH_ROOT="$PWD"
-PORT="${PORT:-8876}"
+PORT="${PORT:-8888}"
 GIT_COMMIT="$(git rev-parse --short=12 HEAD 2>/dev/null || printf 'unversioned')"
 WORKTREE_NAME="$(basename "$PWD")"
 DEFAULT_INSTANCE_ID="${WORKTREE_NAME}-${GIT_COMMIT}-${PORT}"

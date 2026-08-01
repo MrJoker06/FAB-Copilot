@@ -537,6 +537,7 @@ def _initialize_legacy(path: Path) -> None:
     try:
         connection.execute(f"PRAGMA journal_mode={sqlite_journal_mode(path)}")
         connection.executescript(SCHEMA)
+        _migrate_personal_knowledge_tags_source(connection)
         existing_columns = {row[1] for row in connection.execute("PRAGMA table_info(historical_cases)")}
         for name, definition in CASE_GOVERNANCE_COLUMNS.items():
             if name not in existing_columns:
@@ -574,6 +575,8 @@ def _initialize_departments() -> None:
         try:
             connection.execute(f"PRAGMA journal_mode={sqlite_journal_mode(path)}")
             connection.executescript(DEPARTMENT_SCHEMAS[department])
+            if department == "knowledge":
+                _migrate_personal_knowledge_tags_source(connection)
             if department == "agent":
                 session_columns = {row[1] for row in connection.execute("PRAGMA table_info(chat_sessions)")}
                 for name, definition in CHAT_SESSION_COLUMNS.items():
@@ -603,6 +606,29 @@ def _initialize_departments() -> None:
             connection.commit()
         finally:
             connection.close()
+
+
+def _migrate_personal_knowledge_tags_source(connection: sqlite3.Connection) -> None:
+    """Add the RAG-023 provenance column without changing it on later starts."""
+    tables = {
+        row[0] for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'personal_knowledge_documents'"
+        )
+    }
+    if "personal_knowledge_documents" not in tables:
+        return
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(personal_knowledge_documents)")}
+    if "tags_source" in columns:
+        return
+    connection.execute(
+        "ALTER TABLE personal_knowledge_documents ADD COLUMN tags_source TEXT NOT NULL "
+        "DEFAULT 'auto' CHECK(tags_source IN ('auto', 'user'))"
+    )
+    # This runs only while adding the column: legacy non-empty choices were human input.
+    connection.execute(
+        "UPDATE personal_knowledge_documents SET tags_source = 'user' "
+        "WHERE json_array_length(tags_json) > 0"
+    )
 
 
 def connect(path: Path | None = None) -> sqlite3.Connection:

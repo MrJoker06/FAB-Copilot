@@ -108,7 +108,7 @@ run.bat
 
 `run.bat` 是 Windows 入口，会通过 `wsl.exe` 调用 `run.sh`，实际运行时仍使用 WSL 中的 `fab-insight-agent` Conda 环境；Windows 端不需要另外安装 Python 或项目依赖。
 
-本并行方案默认使用独立端口。用户端访问 <http://127.0.0.1:8876>，管理端访问 <http://127.0.0.1:8876/admin>，接口文档位于 <http://127.0.0.1:8876/docs>。
+本并行方案默认使用独立端口。用户端访问 <http://127.0.0.1:8888>，管理端访问 <http://127.0.0.1:8888/admin>，接口文档位于 <http://127.0.0.1:8888/docs>。
 
 企业模拟数据接口、租户请求头和真实数据源替换契约见 [企业化并行方案](docs/enterprise-transition.md)。
 用户端、管理端、模型发布和管理认证边界见 [用户端与管理端分离设计](docs/user-admin-separation.md)。

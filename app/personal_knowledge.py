@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 from .audit import emit
 from .config import get_settings
 from .database import db_session
-from .processes import MANUFACTURING_STEPS, process_query_terms
+from .processes import MANUFACTURING_STEPS, PROCESS_ALIASES, process_query_terms
 
 
 PARSER_VERSION = "personal-v1"
@@ -31,6 +31,27 @@ MIME_TYPES = {
     ".csv": "text/csv",
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 }
+
+# Canonical, reviewable vocabulary used for deterministic metadata extraction.
+DOCUMENT_TYPE_TAGS = {
+    "SOP": ("sop", "standard operating procedure", "标准作业程序", "作业指导书"),
+    "CONTROL PLAN": ("control plan", "控制计划"),
+    "GUIDE": ("guide", "guideline", "指南", "指引"),
+    "REPORT": ("report", "报告"),
+    "RECORD": ("record", "记录"),
+    "TRAINING": ("training", "培训"),
+}
+TOPIC_TAGS = {
+    "SCRATCH": ("scratch", "划伤", "刮伤"),
+    "PARTICLE": ("particle", "颗粒"),
+    "MAINTENANCE": ("maintenance", "维护", "保养"),
+    "SPC": ("spc", "statistical process control", "统计过程控制"),
+    "YIELD": ("yield", "良率"),
+    "CPK": ("cpk", "process capability index", "过程能力指数"),
+    "RECIPE": ("recipe", "配方"),
+    "ALARM": ("alarm", "报警", "告警"),
+}
+MAX_TAG_SOURCE_CHARS = 200_000
 
 
 class PersonalKnowledgeError(Exception):
@@ -75,7 +96,14 @@ class PersonalDocumentMetadata(BaseModel):
     @field_validator("tags")
     @classmethod
     def clean_tags(cls, values: list[str]) -> list[str]:
-        cleaned = list(dict.fromkeys(" ".join(value.strip().split()) for value in values if value.strip()))
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            tag = " ".join(value.strip().split())
+            key = tag.casefold()
+            if tag and key not in seen:
+                cleaned.append(tag)
+                seen.add(key)
         if any(len(value) > 40 for value in cleaned):
             raise ValueError("单个标签不能超过 40 个字符")
         return cleaned
@@ -138,10 +166,58 @@ def _document_dict(row) -> dict:
     item["process_steps"] = _json_list(item.pop("process_steps_json", "[]"))
     item["equipment_ids"] = _json_list(item.pop("equipment_ids_json", "[]"))
     item["tags"] = _json_list(item.pop("tags_json", "[]"))
+    item["tags_source"] = item.get("tags_source", "auto")
     item.pop("owner_user_id", None)
     item.pop("storage_key", None)
     item.pop("idempotency_key", None)
     return item
+
+
+def _normalise_tags(values: Iterable[str]) -> list[str]:
+    """Return stable, case-insensitively unique tags within the public limits."""
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        tag = " ".join(str(value).strip().split())
+        key = tag.casefold()
+        if tag and len(tag) <= 40 and key not in seen:
+            result.append(tag)
+            seen.add(key)
+        if len(result) == 30:
+            break
+    return result
+
+
+def _automatic_tags(title: str, filename: str, sections: Iterable[ExtractedSection]) -> list[str]:
+    """Derive explainable tags from document text without a model call."""
+    parts = [title, filename]
+    remaining = MAX_TAG_SOURCE_CHARS - sum(len(part) for part in parts)
+    for section in sections:
+        if remaining <= 0:
+            break
+        part = f"{section.section_path}\n{section.content}"
+        parts.append(part[:remaining])
+        remaining -= len(part)
+    text = "\n".join(parts)
+    compact = text.casefold().replace(" ", "")
+    tags: list[str] = []
+    for step in MANUFACTURING_STEPS:
+        aliases = PROCESS_ALIASES[step]
+        if step.casefold() in text.casefold() or any(alias.casefold().replace(" ", "") in compact for alias in aliases):
+            tags.append(step)
+    # Equipment identifiers intentionally follow the same conservative contract as metadata,
+    # while requiring a digit, dash or underscore so ordinary prose is not labelled equipment.
+    tags.extend(re.findall(r"\b(?=[A-Za-z][A-Za-z0-9_-]{1,31}\b)(?=[A-Za-z0-9_-]*[0-9_-])[A-Za-z][A-Za-z0-9_-]+\b", text))
+    suffix = Path(filename).suffix.lstrip(".").upper()
+    for tag, aliases in DOCUMENT_TYPE_TAGS.items():
+        if any(alias.casefold().replace(" ", "") in compact for alias in aliases):
+            tags.append(tag)
+    if suffix:
+        tags.append(suffix)
+    for tag, aliases in TOPIC_TAGS.items():
+        if any(alias.casefold().replace(" ", "") in compact for alias in aliases):
+            tags.append(tag)
+    return _normalise_tags(tags)
 
 
 def parse_metadata(raw: str | None) -> PersonalDocumentMetadata:
@@ -230,6 +306,7 @@ def create_personal_upload(
     safe_name = _safe_filename(filename)
     suffix, mime_type = _validate_file(safe_name, data)
     metadata = parse_metadata(metadata_raw)
+    tags_source = "user" if "tags" in metadata.model_fields_set else "auto"
     checksum = hashlib.sha256(data).hexdigest()
 
     with db_session() as connection:
@@ -270,14 +347,14 @@ def create_personal_upload(
                 """INSERT INTO knowledge.personal_knowledge_documents(
                        document_id, owner_user_id, filename, title, mime_type, size_bytes,
                        checksum_sha256, process_steps_json, equipment_ids_json, effective_date,
-                       tags_json, status, storage_key, parser_version, idempotency_key,
+                       tags_json, tags_source, status, storage_key, parser_version, idempotency_key,
                        created_at, updated_at
-                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploaded', ?, ?, ?, ?, ?)""",
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploaded', ?, ?, ?, ?, ?)""",
                 (
                     document_id, owner_user_id, safe_name, title, mime_type, len(data), checksum,
                     json.dumps(metadata.process_steps), json.dumps(metadata.equipment_ids),
                     metadata.effective_date.isoformat() if metadata.effective_date else None,
-                    json.dumps(metadata.tags, ensure_ascii=False), storage_key, PARSER_VERSION,
+                    json.dumps(_normalise_tags(metadata.tags), ensure_ascii=False), tags_source, storage_key, PARSER_VERSION,
                     idempotency_key, timestamp, timestamp,
                 ),
             )
@@ -496,6 +573,7 @@ def process_personal_document(document_id: str, owner_user_id: str, job_id: str)
         if not path.exists():
             raise PersonalKnowledgeError(500, "STORAGE_FILE_MISSING", "原始文件不存在", True)
         sections = _extract_sections(path, path.suffix.lower(), document["title"])
+        automatic_tags = _automatic_tags(document["title"], document["filename"], sections)
         _update_progress(document_id, owner_user_id, job_id, "chunking", "chunking", 45)
         chunks: list[tuple[int | None, str, str]] = []
         for section in sections:
@@ -534,9 +612,11 @@ def process_personal_document(document_id: str, owner_user_id: str, job_id: str)
                 )
             connection.execute(
                 """UPDATE knowledge.personal_knowledge_documents
-                   SET status = 'ready', error_code = NULL, error_message = NULL, updated_at = ?
+                   SET status = 'ready', error_code = NULL, error_message = NULL,
+                       tags_json = CASE WHEN tags_source = 'auto' THEN ? ELSE tags_json END,
+                       updated_at = ?
                    WHERE document_id = ? AND owner_user_id = ?""",
-                (timestamp, document_id, owner_user_id),
+                (json.dumps(automatic_tags, ensure_ascii=False), timestamp, document_id, owner_user_id),
             )
             connection.execute(
                 """UPDATE knowledge.personal_knowledge_jobs
@@ -675,7 +755,8 @@ def update_personal_document(document_id: str, owner_user_id: str, patch: Person
     if "effective_date" in fields:
         updates["effective_date"] = patch.effective_date.isoformat() if patch.effective_date else None
     if "tags" in fields:
-        updates["tags_json"] = json.dumps(patch.tags or [], ensure_ascii=False)
+        updates["tags_json"] = json.dumps(_normalise_tags(patch.tags or []), ensure_ascii=False)
+        updates["tags_source"] = "user"
     if not updates:
         return get_personal_document(document_id, owner_user_id)
     with db_session() as connection:
@@ -876,11 +957,46 @@ def search_personal_knowledge(
         clauses.append(f"f.document_id IN ({placeholders})")
         params.extend(selected_ids)
     fts_query = _fts_query(query)
+    normalized_query = " ".join(query.casefold().split())
+    tag_terms = list(dict.fromkeys([normalized_query, *(
+        term.casefold() for term in re.findall(r"[A-Za-z0-9_-]+|[\u4e00-\u9fff]{2,}", query)
+    )]))[:20]
     with db_session() as connection:
+        # Exact element matching prevents a tag such as "sketch" from satisfying
+        # "etch". Tag matches are intentionally placed before lexical FTS results.
+        if tag_terms:
+            tag_clauses = ["d.owner_user_id = ?", "d.status = 'ready'"]
+            tag_params: list[object] = [owner_user_id]
+            if selected_ids:
+                placeholders = ", ".join("?" for _ in selected_ids)
+                tag_clauses.append(f"d.document_id IN ({placeholders})")
+                tag_params.extend(selected_ids)
+            placeholders = ", ".join("?" for _ in tag_terms)
+            tag_clauses.append(
+                "EXISTS (SELECT 1 FROM json_each(d.tags_json) tag "
+                f"WHERE LOWER(TRIM(tag.value)) IN ({placeholders}))"
+            )
+            tag_params.extend(tag_terms)
+            tag_params.append(bounded)
+            tag_rows = connection.execute(
+                f"""SELECT c.chunk_id, c.document_id, d.title, c.section_path,
+                           d.filename, d.process_steps_json, d.equipment_ids_json, d.tags_json, d.tags_source,
+                           d.effective_date, c.page_number, c.content AS excerpt, -2.0 AS score
+                    FROM personal_knowledge_documents d
+                    JOIN personal_knowledge_chunks c ON c.chunk_id = (
+                        SELECT c2.chunk_id FROM personal_knowledge_chunks c2
+                        WHERE c2.document_id = d.document_id ORDER BY c2.chunk_index LIMIT 1
+                    )
+                    WHERE {' AND '.join(tag_clauses)}
+                    ORDER BY d.updated_at DESC, d.document_id DESC LIMIT ?""",
+                tag_params,
+            ).fetchall()
+        else:
+            tag_rows = []
         if fts_query:
             rows = connection.execute(
                 f"""SELECT f.chunk_id, f.document_id, f.title, f.section_path,
-                           d.filename, d.process_steps_json, d.equipment_ids_json, d.tags_json,
+                           d.filename, d.process_steps_json, d.equipment_ids_json, d.tags_json, d.tags_source,
                            d.effective_date, c.page_number,
                            snippet(personal_knowledge_fts, 2, '[', ']', '…', 32) AS excerpt,
                            round(bm25(personal_knowledge_fts), 4) AS score
@@ -889,7 +1005,7 @@ def search_personal_knowledge(
                     JOIN personal_knowledge_documents d ON d.document_id = f.document_id
                     WHERE personal_knowledge_fts MATCH ? AND {' AND '.join(clauses)}
                     ORDER BY bm25(personal_knowledge_fts) LIMIT ?""",
-                [fts_query, *params, bounded],
+                [fts_query, *params, bounded * 2],
             ).fetchall()
         else:
             fallback_clauses = ["c.owner_user_id = ?", "d.status = 'ready'", "c.content LIKE ?"]
@@ -898,10 +1014,10 @@ def search_personal_knowledge(
                 placeholders = ", ".join("?" for _ in selected_ids)
                 fallback_clauses.append(f"c.document_id IN ({placeholders})")
                 fallback_params.extend(selected_ids)
-            fallback_params.append(bounded)
+            fallback_params.append(bounded * 2)
             rows = connection.execute(
                 f"""SELECT c.chunk_id, c.document_id, d.title, c.section_path,
-                           d.filename, d.process_steps_json, d.equipment_ids_json, d.tags_json,
+                           d.filename, d.process_steps_json, d.equipment_ids_json, d.tags_json, d.tags_source,
                            d.effective_date, c.page_number, c.content AS excerpt, -1.0 AS score
                     FROM personal_knowledge_chunks c
                     JOIN personal_knowledge_documents d ON d.document_id = c.document_id
@@ -909,6 +1025,9 @@ def search_personal_knowledge(
                     ORDER BY c.chunk_index LIMIT ?""",
                 fallback_params,
             ).fetchall()
+    seen_document_ids = {row["document_id"] for row in tag_rows}
+    rows = list(tag_rows) + [row for row in rows if row["document_id"] not in seen_document_ids]
+    rows = rows[:bounded]
     results = []
     for rank, row in enumerate(rows, start=1):
         item = dict(row)

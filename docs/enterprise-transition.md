@@ -1,6 +1,6 @@
 # Fab Insight Agent 企业化并行方案
 
-状态：并行实验分支，默认端口 `8876`。本方案保持现有 FastAPI、静态 SPA、部门 SQLite 和 Agent 工具接口，先建立企业级边界，再允许逐项替换基础设施。
+状态：并行实验分支，默认端口 `8888`。本方案保持现有 FastAPI、静态 SPA、部门 SQLite 和 Agent 工具接口，先建立企业级边界，再允许逐项替换基础设施。
 
 ## 1. 本期目标
 
@@ -51,7 +51,7 @@ GET /api/enterprise/data/sensor-events
 
 ```bash
 curl -H 'X-Tenant-ID: fab-a' -H 'X-User-ID: engineer-001' \
-  'http://127.0.0.1:8876/api/enterprise/data/process-runs?process_step=ETCH&limit=100'
+  'http://127.0.0.1:8888/api/enterprise/data/process-runs?process_step=ETCH&limit=100'
 ```
 
 响应中的 `page.next_cursor` 用于下一页。游标包含租户、实体、筛选指纹和位置，并由 HMAC 签名；修改游标、跨租户使用或变更筛选条件都会被拒绝。接口不支持 offset，避免深分页随数据量增长而退化。
@@ -99,6 +99,6 @@ def page(entity: str, principal: Principal, limit: int, cursor: str | None, filt
 
 ## 6. 运行隔离
 
-- 当前分支默认监听 `127.0.0.1:8876`，与 `8765` 路线并行。
+- 当前分支默认监听 `127.0.0.1:8888`，与 `8765` 路线并行。
 - 数据、个人知识和日志默认位于本 worktree 的 `data/` 与 `logs/`，不会复用另一 worktree 的运行文件。
 - `FAB_MOCK_CURSOR_SECRET` 在本地可以使用演示值；共享或生产环境必须使用密钥管理系统生成的随机密钥。

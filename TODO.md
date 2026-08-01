@@ -1,8 +1,8 @@
 # Fab Insight Agent TODO
 
-状态基线：`experiment/parallel-platform`，2026-07-20。
+状态基线：`experiment/parallel-platform`，2026-08-01。
 
-当前统计：共 151 个独立任务，已完成 95 个，待做 56 个。
+当前统计：共 151 个独立任务，已完成 96 个，待做 55 个。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
@@ -22,10 +22,10 @@
 | Agent 执行架构 | [Agent TODO](docs/todos/agent-architecture.md) | Tool Agent Loop、基于真实消息 ID 的上下文回忆、制造范围门禁、通用制造运营概览、Router、六类 Playbook、Planner、运行时守卫、Validator、Synthesizer 与计划审计持久化已完成；黄金集待做 |
 | 身份与权限 | [身份安全 TODO](docs/todos/identity-security.md) | 本地隔离和管理令牌已完成；企业 SSO/RBAC 待做 |
 | 模型治理 | [模型治理 TODO](docs/todos/model-governance.md) | 模型目录和用户选择已完成；企业凭据与审批待做 |
-| RAG 与知识库 | [知识库 TODO](docs/todos/rag-knowledge.md) | L0 本地 RAG 和中文双语制程召回治理已完成；自动 Tag、OCR 和分布式 RAG 待做 |
+| RAG 与知识库 | [知识库 TODO](docs/todos/rag-knowledge.md) | L0 本地 RAG、中文双语制程召回治理和自动 Tag 人工保护已完成；OCR 和分布式 RAG 待做 |
 | 企业数据 | [企业数据 TODO](docs/todos/enterprise-data.md) | 大规模模拟契约已完成；真实制造系统适配待做 |
 | 日志与运行监控 | [可观测性 TODO](docs/todos/observability.md) | 单实例监控与端到端流式聚合诊断已完成；集中式多实例监控待做 |
-| 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 会话管理、后台 Run 归属、来源折叠去重及流式停滞修复已完成；Tag 编辑和浏览器自动化回归待做 |
+| 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 会话管理、后台 Run 归属、来源折叠去重及流式停滞修复已完成；个人 Tag 编辑和浏览器自动化回归待做 |
 | 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接及运行快照治理已完成；独立服务部署待做 |
 
 ## 更新要求

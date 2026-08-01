@@ -382,7 +382,7 @@ Content-Type: multipart/form-data
 调用示例：
 
 ```bash
-curl -X POST http://127.0.0.1:8876/api/knowledge/personal/documents \
+curl -X POST http://127.0.0.1:8888/api/knowledge/personal/documents \
   -H "Authorization: Bearer $TOKEN" \
   -H "Idempotency-Key: $(uuidgen)" \
   -F 'file=@CMP-03-pad-record.docx' \
@@ -407,6 +407,7 @@ curl -X POST http://127.0.0.1:8876/api/knowledge/personal/documents \
 - `Idempotency-Key` 在当前用户范围内生效，重复请求返回同一个 `document_id` 和 `job_id`。
 - 服务端同时校验扩展名、MIME、文件签名和 SHA-256。
 - 用户不能指定 storage key、所有者、状态、权威等级或可见范围。
+- 文本解析完成后，服务端使用确定性规则生成制程、设备、文档类型和主题 Tag，并将 `tags_source` 记为 `auto`；上传或 PATCH 显式提交 `tags`（包括空数组）会记为 `user`，后续重试和重建索引不会覆盖人工 Tag。
 - 完全重复的文件只在当前用户自己的文档中检查，不进行跨用户去重探测。
 
 ### 10.2 处理状态与失败重试

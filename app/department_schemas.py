@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 SCHEMA_METADATA = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -248,6 +248,7 @@ CREATE TABLE IF NOT EXISTS personal_knowledge_documents (
     equipment_ids_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(equipment_ids_json)),
     effective_date TEXT,
     tags_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(tags_json)),
+    tags_source TEXT NOT NULL DEFAULT 'auto' CHECK(tags_source IN ('auto', 'user')),
     status TEXT NOT NULL CHECK(status IN ('uploaded', 'parsing', 'chunking', 'indexing', 'ready', 'failed', 'deleting')),
     storage_key TEXT NOT NULL,
     parser_version TEXT NOT NULL,
