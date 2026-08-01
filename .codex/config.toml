@@ -8,4 +8,4 @@ enabled = true
 # Default execution agents and the maximum number that may run concurrently.
 max_concurrent_threads_per_session = 4
 default_subagent_model = "gpt-5.6-terra"
-default_subagent_reasoning_effort = "high"
+default_subagent_reasoning_effort = "medium"
