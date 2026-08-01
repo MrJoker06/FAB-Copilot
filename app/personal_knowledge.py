@@ -275,7 +275,19 @@ def _latest_job(connection, document_id: str, owner_user_id: str):
                   error_code, error_message, retryable, created_at, updated_at
            FROM personal_knowledge_jobs
            WHERE document_id = ? AND owner_user_id = ?
-           ORDER BY created_at DESC LIMIT 1""",
+           ORDER BY attempt DESC, created_at DESC, job_id DESC LIMIT 1""",
+        (document_id, owner_user_id),
+    ).fetchone()
+
+
+def _initial_upload_job(connection, document_id: str, owner_user_id: str):
+    """Return the immutable first upload attempt for an idempotent replay."""
+    return connection.execute(
+        """SELECT job_id, document_id, status, stage, progress, attempt,
+                  error_code, error_message, retryable, created_at, updated_at
+           FROM personal_knowledge_jobs
+           WHERE document_id = ? AND owner_user_id = ?
+           ORDER BY attempt ASC, created_at ASC, job_id ASC LIMIT 1""",
         (document_id, owner_user_id),
     ).fetchone()
 
@@ -318,7 +330,9 @@ def create_personal_upload(
         if idempotent is not None:
             if idempotent["checksum_sha256"] != checksum:
                 raise PersonalKnowledgeError(409, "IDEMPOTENCY_CONFLICT", "同一幂等键不能用于不同文件")
-            job = _latest_job(connection, idempotent["document_id"], owner_user_id)
+            # A replay identifies the original upload transaction, not a later
+            # retry.  Document detail continues to expose the latest job.
+            job = _initial_upload_job(connection, idempotent["document_id"], owner_user_id)
             response = _upload_response(idempotent, job)
             response["_start_processing"] = False
             return response

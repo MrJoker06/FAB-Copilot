@@ -136,13 +136,13 @@ class FabInsightTests(unittest.TestCase):
         self.assertIn(f"/static/source_presenter.js?v={APP_VERSION}", page)
         self.assertIn(f"/static/personal_upload_queue.js?v={APP_VERSION}", page)
         self.assertIn(f"/static/personal_knowledge_metadata.js?v={APP_VERSION}", page)
-        self.assertIn('data-open-knowledge-upload', page)
         self.assertIn(f"/static/app.js?v={APP_VERSION}", page)
         self.assertNotIn('id="monitorView"', page)
         self.assertNotIn('id="apiKeyInput"', page)
         styles = (Path(__file__).parents[1] / "app" / "static" / "styles.css").read_text(encoding="utf-8")
         self.assertIn("scrollbar-gutter: stable", styles)
         script = (Path(__file__).parents[1] / "app" / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("data-open-knowledge-upload", script)
         self.assertIn("data-personal-chunk", script)
         self.assertIn("renderSourcePanel(messageSources)", script)
         self.assertIn("sourcePresenter.stripSourceAppendix(content)", script)
@@ -1438,6 +1438,69 @@ class FabInsightTests(unittest.TestCase):
                 for event in read_events(200)
             ))
             client.delete(f"/api/sessions/{session_id}/permanent")
+
+
+class HttpContractTests(unittest.TestCase):
+    """Small endpoint contracts kept separate from broad system workflow tests."""
+
+    def test_version_contract_exposes_current_build_identity(self):
+        with TestClient(app) as client:
+            response = client.get("/api/version")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["version"], APP_VERSION)
+        self.assertIn("git_commit", response.json())
+        self.assertIn("instance_id", response.json())
+
+    def test_enterprise_manifest_is_available_to_the_current_principal(self):
+        with TestClient(app) as client:
+            response = client.get("/api/enterprise/data/manifest")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertIn("provider", response.json())
+        self.assertIn("entities", response.json())
+
+    def test_capability_contract_validates_scope_and_returns_rows(self):
+        with TestClient(app) as client:
+            valid = client.get("/api/reports/capability", params={"process_step": "CVD"})
+            invalid = client.get("/api/reports/capability", params={"process_step": "UNKNOWN"})
+        self.assertEqual(valid.status_code, 200, valid.text)
+        self.assertTrue(valid.json())
+        self.assertTrue(all(row["equipment_id"].startswith("CVD-") for row in valid.json()))
+        self.assertEqual(invalid.status_code, 422)
+        self.assertEqual(invalid.json()["error_code"], "VALIDATION_ERROR")
+
+    def test_rag_search_contract_covers_valid_and_invalid_query_boundaries(self):
+        with TestClient(app) as client:
+            valid = client.get("/api/rag/search", params={"q": "CVD particle", "limit": 2})
+            too_short = client.get("/api/rag/search", params={"q": "x"})
+            too_many = client.get("/api/rag/search", params={"q": "CVD", "limit": 11})
+        self.assertEqual(valid.status_code, 200, valid.text)
+        self.assertEqual(valid.json()["query"], "CVD particle")
+        self.assertLessEqual(valid.json()["count"], 2)
+        self.assertEqual(too_short.status_code, 422)
+        self.assertEqual(too_many.status_code, 422)
+
+    def test_monitor_events_requires_admin_and_returns_sanitized_events(self):
+        event = sanitize({"event": "quality_gate", "api_key": "must-not-leak", "safe": "visible"})
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("FAB_ADMIN_API_TOKEN", None)
+            with TestClient(app) as client:
+                unavailable = client.get("/api/monitor/events")
+        with patch.dict(os.environ, {"FAB_ADMIN_API_TOKEN": "quality-gate-token"}):
+            with patch("app.main.read_events", return_value=[event]):
+                with TestClient(app) as client:
+                    unauthorized = client.get("/api/monitor/events", headers={"Authorization": "Bearer wrong"})
+                    authorized = client.get(
+                        "/api/monitor/events", params={"limit": 1}, headers={"Authorization": "Bearer quality-gate-token"}
+                    )
+                    invalid_limit = client.get(
+                        "/api/monitor/events", params={"limit": 0}, headers={"Authorization": "Bearer quality-gate-token"}
+                    )
+        self.assertEqual(unavailable.status_code, 503)
+        self.assertEqual(unauthorized.status_code, 401)
+        self.assertEqual(authorized.status_code, 200)
+        self.assertEqual(authorized.json()[0]["api_key"], "<redacted>")
+        self.assertEqual(authorized.json()[0]["safe"], "visible")
+        self.assertEqual(invalid_limit.status_code, 422)
 
 
 if __name__ == "__main__":

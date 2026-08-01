@@ -2,11 +2,11 @@
 
 状态基线：`experiment/parallel-platform`，2026-08-01。
 
-当前统计：共 155 个独立任务，已完成 101 个，待做 54 个。
+当前统计：共 158 个独立任务，已完成 102 个，待做 56 个。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
-当前执行顺序见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)：41 项已进入或完成串行队列，39 项企业级任务暂缓。
+当前执行顺序见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)：42 项已进入或完成串行队列，39 项企业级任务暂缓。
 
 ## 标记规则
 
@@ -27,6 +27,7 @@
 | 日志与运行监控 | [可观测性 TODO](docs/todos/observability.md) | 单实例监控与端到端流式聚合诊断已完成；集中式多实例监控待做 |
 | 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 会话管理、后台 Run 归属、来源折叠去重、流式停滞、版本提示修复、个人知识唯一上传入口及 Tag/元数据编辑已完成；浏览器自动化回归待做 |
 | 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接及运行快照治理已完成；独立服务部署待做 |
+| 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 本地分层质量门与全量审计策略已完成；系统测试拆分和脚本风险路径待做 |
 
 ## 更新要求
 

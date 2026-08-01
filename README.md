@@ -152,7 +152,20 @@ conda run -n fab-insight-agent python -m pip install -r requirements.txt
 conda run -n fab-insight-agent python -m app.seed --force
 ```
 
-运行测试：
+安装测试依赖并运行快速质量门（非系统集成 Python、Node、静态 JS 与 RAG 黄金集）：
+
+```bash
+conda run -n fab-insight-agent python -m pip install -r requirements-test.txt
+conda run -n fab-insight-agent python scripts/run_quality_gate.py quick
+```
+
+完整质量门会运行全部 Python 分支覆盖率（`app/*` 不低于 80%）及同一组前端与 RAG 检查：
+
+```bash
+conda run -n fab-insight-agent python scripts/run_quality_gate.py full
+```
+
+直接运行 Python 测试：
 
 ```bash
 conda run -n fab-insight-agent python -m unittest discover -s tests -v
