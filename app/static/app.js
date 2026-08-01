@@ -218,13 +218,14 @@ function resetKnowledgeReader(mode = state.knowledgeMode) {
 function renderPersonalKnowledgeDocuments() {
   const documents = state.personalKnowledgeDocuments;
   $('#knowledgeCount').textContent = `${documents.length} 份文档`;
-  $('#knowledgeDocuments').innerHTML = documents.map(doc => {
+  const documentItems = documents.map(doc => {
     const [label, tone] = personalKnowledgeStatusLabel(doc.status);
     const details = [doc.filename, formatFileSize(doc.size_bytes), doc.chunk_count ? `${doc.chunk_count} 段` : ''].filter(Boolean).join(' · ');
     const tags = (doc.tags || []).slice(0, 3).map(tag => `#${escapeHtml(tag)}`).join(' · ');
     const source = doc.tags_source === 'auto' ? '自动标记' : '手动标记';
     return `<button class="knowledge-document personal-document ${doc.document_id === state.selectedPersonalDocumentId ? 'active' : ''}" data-personal-document-id="${escapeHtml(doc.document_id)}"><span class="personal-document-title"><strong>${escapeHtml(doc.title)}</strong><em class="personal-status ${tone}">${escapeHtml(label)}</em></span><span>${escapeHtml(details)}</span><small class="personal-document-tags"><i class="tag-source-badge ${doc.tags_source === 'auto' ? 'auto' : 'user'}">${source}</i>${tags || '无标签'}</small></button>`;
-  }).join('') || '<div class="personal-knowledge-empty"><strong>还没有个人文档</strong><span>上传 SOP、分析记录或设备资料后，可在此预览和检索。</span><button type="button" class="secondary-btn" data-open-knowledge-upload>上传文档</button></div>';
+  }).join('');
+  $('#knowledgeDocuments').innerHTML = documentItems ? `${documentItems}<div class="personal-knowledge-upload-more"><button type="button" class="secondary-btn" data-open-knowledge-upload>＋ 上传文档</button></div>` : '<div class="personal-knowledge-empty"><strong>还没有个人文档</strong><span>上传 SOP、分析记录或设备资料后，可在此预览和检索。</span><button type="button" class="secondary-btn" data-open-knowledge-upload>上传文档</button></div>';
 }
 
 function schedulePersonalKnowledgeRefresh() {
@@ -334,7 +335,6 @@ async function setKnowledgeMode(mode) {
   $('#knowledgeIndexTitle').textContent = mode === 'personal' ? '我的文档' : '文档目录';
   $('#knowledgeIndexHint').textContent = mode === 'personal' ? '仅当前用户可见' : '按文档浏览章节';
   $('#knowledgeFilter').placeholder = mode === 'personal' ? '搜索我的文档' : '筛选文档或章节';
-  $('#personalKnowledgeAdd').hidden = mode !== 'personal';
   resetKnowledgeReader(mode);
   if (mode === 'personal') await loadPersonalKnowledgeDocuments();
   else await loadKnowledgeIndex();
@@ -1650,7 +1650,6 @@ async function init() {
     else if (personalTarget) openPersonalKnowledgeDocument(personalTarget.dataset.personalDocumentId).catch(error => showToast(`文档加载失败：${error.message}`, {tone:'error'}));
     else if (event.target.closest('[data-open-knowledge-upload]')) openKnowledgeUploadDialog();
   });
-  $('#personalKnowledgeAdd').addEventListener('click', openKnowledgeUploadDialog);
   $('#knowledgeUploadForm').addEventListener('submit', uploadPersonalKnowledge);
   $('#knowledgeUploadFile').addEventListener('change', event => { mergeKnowledgeUploadFiles(event.target.files); event.target.value = ''; });
   $('#knowledgeUploadDrop').addEventListener('dragover', event => { event.preventDefault(); event.currentTarget.classList.add('dragging'); });

@@ -17,7 +17,7 @@ class VersionContractTests(unittest.TestCase):
         self.assertRegex(upload_input.group(0), r'\bmultiple\b')
         self.assertNotRegex(upload_input.group(0), r'\brequired\b')
         self.assertNotIn('id="openKnowledgeUpload"', html)
-        self.assertIn('id="personalKnowledgeAdd"', html)
+        self.assertNotIn('id="personalKnowledgeAdd"', html)
         self.assertIn('id="knowledgeUploadQueue"', html)
         self.assertIn('/static/personal_upload_queue.js?v=__APP_VERSION__', html)
         self.assertIn('/static/personal_knowledge_metadata.js?v=__APP_VERSION__', html)
@@ -27,6 +27,9 @@ class VersionContractTests(unittest.TestCase):
         self.assertNotIn('id="personalKnowledgeRenameDialog"', html)
         self.assertNotIn('id="knowledgeUploadTitle"', html)
         script = (Path(__file__).parents[1] / "app" / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertNotIn('personalKnowledgeAdd', script)
+        self.assertIn('personal-knowledge-upload-more', script)
+        self.assertIn('data-open-knowledge-upload', script)
         self.assertIn("${tags || '无标签'}", script)
         self.assertIn("信息已保存，但列表刷新失败", script)
 

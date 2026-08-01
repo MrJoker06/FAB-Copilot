@@ -121,7 +121,6 @@ class FabInsightTests(unittest.TestCase):
         page = response.text
         for element_id in (
             "knowledgeSourceTabs",
-            "personalKnowledgeAdd",
             "knowledgeUploadDialog",
             "knowledgeUploadFile",
             "knowledgeUploadQueue",
@@ -137,6 +136,7 @@ class FabInsightTests(unittest.TestCase):
         self.assertIn(f"/static/source_presenter.js?v={APP_VERSION}", page)
         self.assertIn(f"/static/personal_upload_queue.js?v={APP_VERSION}", page)
         self.assertIn(f"/static/personal_knowledge_metadata.js?v={APP_VERSION}", page)
+        self.assertIn('data-open-knowledge-upload', page)
         self.assertIn(f"/static/app.js?v={APP_VERSION}", page)
         self.assertNotIn('id="monitorView"', page)
         self.assertNotIn('id="apiKeyInput"', page)
@@ -147,6 +147,7 @@ class FabInsightTests(unittest.TestCase):
         self.assertIn("renderSourcePanel(messageSources)", script)
         self.assertIn("sourcePresenter.stripSourceAppendix(content)", script)
         self.assertIn("function mergeKnowledgeUploadFiles(files)", script)
+        self.assertIn("personal-knowledge-upload-more", script)
         self.assertIn("personalUploadQueue.uploadSequential", script)
         self.assertIn("item.status === 'failed' || item.status === 'invalid'", script)
         self.assertIn("sourcePresenter.replaceReferenceIds(content, sources)", script)
