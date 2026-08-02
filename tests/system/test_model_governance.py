@@ -1,0 +1,218 @@
+from __future__ import annotations
+
+import asyncio
+import os
+import unittest
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+
+import httpx
+
+from tests.system.support import isolated_system_environment
+
+isolated_system_environment()
+
+from fastapi.testclient import TestClient
+
+from app.audit import sanitize
+from app import agent as agent_module
+from app.database import db_session
+from app.main import app
+from app.seed import seed_reference_data
+
+class ModelGovernanceSystemTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        seed_reference_data()
+
+    def test_model_can_only_be_selected_from_published_catalog(self):
+        with TestClient(app) as client:
+            initial = client.get("/api/settings/model")
+            self.assertEqual(initial.status_code, 200)
+            self.assertEqual(initial.json()["allowed_models"], ["deepseekv4-flash", "deepseekv4-pro"])
+            self.assertEqual(len(initial.json()["model_options"]), 2)
+            self.assertEqual(initial.json()["credential_scope"], "server_managed")
+            self.assertNotIn("api_key_masked", initial.json())
+            self.assertNotIn("api_key_source", initial.json())
+            response = client.post("/api/settings/model", json={"model": "deepseekv4-pro"})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["model"], "deepseekv4-pro")
+            self.assertEqual(response.json()["provider_model"], "deepseek-v4-pro")
+            rejected = client.post("/api/settings/model", json={
+                "model": "deepseekv4-pro",
+                "api_key": "user-supplied-key-must-be-rejected",
+            })
+            self.assertEqual(rejected.status_code, 422, rejected.text)
+            self.assertNotIn("user-supplied-key-must-be-rejected", rejected.text)
+            client.post("/api/settings/model", json={"model": "deepseekv4-flash"})
+
+    def test_admin_can_publish_model_and_user_selection_is_scoped(self):
+        model_id = "enterprise-test-model"
+        admin_token = "enterprise-admin-token"
+        with db_session() as connection:
+            connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
+            connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
+            connection.commit()
+        try:
+            with patch.dict(os.environ, {
+                "FAB_ADMIN_API_TOKEN": admin_token,
+                "DEEPSEEK_API_KEY": "server-managed-test-key",
+            }), TestClient(app) as client:
+                self.assertEqual(client.get("/api/admin/models").status_code, 401)
+                admin_headers = {"Authorization": f"Bearer {admin_token}"}
+                published = client.post(
+                    "/api/admin/models",
+                    headers=admin_headers,
+                    json={
+                        "model_id": model_id,
+                        "display_name": "Enterprise Test Model",
+                        "provider": "openai-compatible",
+                        "provider_model": "enterprise-test-v1",
+                        "base_url": "https://models.example.test/v1",
+                        "capabilities": {"streaming": True, "tool_calls": True},
+                    },
+                )
+                self.assertEqual(published.status_code, 201, published.text)
+                self.assertEqual(published.json()["status"], "published")
+                invalid = client.post(
+                    "/api/admin/models",
+                    headers=admin_headers,
+                    json={
+                        "model_id": "invalid-blank-name",
+                        "display_name": "  ",
+                        "provider": "openai-compatible",
+                        "provider_model": "enterprise-test-v1",
+                        "base_url": "https://models.example.test/v1",
+                    },
+                )
+                self.assertEqual(invalid.status_code, 400, invalid.text)
+
+                user_a = {"X-Tenant-ID": "model-fab", "X-User-ID": "user-a"}
+                user_b = {"X-Tenant-ID": "model-fab", "X-User-ID": "user-b"}
+                catalog = client.get("/api/settings/model", headers=user_a)
+                self.assertIn(model_id, catalog.json()["allowed_models"])
+                selected = client.post(
+                    "/api/settings/model",
+                    headers=user_a,
+                    json={"model": model_id},
+                )
+                self.assertEqual(selected.status_code, 200, selected.text)
+                self.assertEqual(selected.json()["model"], model_id)
+                self.assertEqual(selected.json()["credential_scope"], "server_managed")
+                self.assertNotEqual(client.get("/api/settings/model", headers=user_b).json()["model"], model_id)
+
+                captured = {}
+
+                async def fake_model_stream(client_session, endpoint, headers, request_payload, progress, stream_state):
+                    captured.update({"endpoint": endpoint, "headers": headers, "payload": request_payload})
+                    return ({"role": "assistant", "content": "模型作用域验证完成"}, {"total_tokens": 3}, "response-model-scope")
+
+                with patch("app.agent._stream_completion", new=fake_model_stream):
+                    chat_response = client.post("/api/chat", headers=user_a, json={"message": "查看工厂总览"})
+                self.assertEqual(chat_response.status_code, 200, chat_response.text)
+                self.assertEqual(captured["payload"]["model"], "enterprise-test-v1")
+                self.assertEqual(captured["endpoint"], "https://models.example.test/v1/chat/completions")
+                self.assertEqual(captured["headers"]["Authorization"], "Bearer server-managed-test-key")
+                client.delete(f"/api/sessions/{chat_response.json()['session_id']}/permanent", headers=user_a)
+
+                client.post("/api/settings/model", headers=user_a, json={"model": "deepseekv4-flash"})
+                retired = client.patch(
+                    f"/api/admin/models/{model_id}",
+                    headers=admin_headers,
+                    json={"status": "retired"},
+                )
+                self.assertEqual(retired.status_code, 200, retired.text)
+                self.assertNotIn(model_id, client.get("/api/settings/model", headers=user_a).json()["allowed_models"])
+        finally:
+            with db_session() as connection:
+                connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
+                connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
+                connection.commit()
+
+    def test_unknown_model_is_rejected(self):
+        with TestClient(app) as client:
+            response = client.post("/api/settings/model", json={"model": "unknown-model"})
+            self.assertEqual(response.status_code, 400)
+
+    def test_full_logging_still_redacts_credentials(self):
+        payload = sanitize({
+            "DEEPSEEK_API_KEY": "secret-key",
+            "headers": {"Authorization": "Bearer secret-token"},
+            "input_tokens": 42,
+        })
+        self.assertEqual(payload["DEEPSEEK_API_KEY"], "<redacted>")
+        self.assertEqual(payload["headers"]["Authorization"], "<redacted>")
+        self.assertEqual(payload["input_tokens"], 42)
+
+    def test_model_retries_transient_500_before_first_answer_token(self):
+        attempts = 0
+        progress_events = []
+        request = httpx.Request("POST", "https://example.test/chat/completions")
+        transient_error = httpx.HTTPStatusError(
+            "temporary failure",
+            request=request,
+            response=httpx.Response(500, request=request),
+        )
+
+        async def fake_stream(*args):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise transient_error
+            return ({"role": "assistant", "content": "OK"}, {"total_tokens": 3}, "response-test")
+
+        async def progress(event):
+            progress_events.append(event)
+
+        settings = SimpleNamespace(
+            deepseek_api_key="test-key",
+            deepseek_base_url="https://example.test",
+            deepseek_model="test-model",
+            api_timeout_seconds=5,
+            model_max_retries=2,
+            model_retry_base_seconds=0.05,
+        )
+        with (
+            patch("app.agent.get_settings", return_value=settings),
+            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent.asyncio.sleep", new=AsyncMock()),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-retry-test", progress))
+        self.assertEqual(result["answer"], "OK")
+        self.assertEqual(attempts, 2)
+        self.assertTrue(any(item.get("stage") == "retrying" for item in progress_events))
+
+    def test_model_does_not_retry_after_answer_output_starts(self):
+        attempts = 0
+        request = httpx.Request("POST", "https://example.test/chat/completions")
+        stream_error = httpx.HTTPStatusError(
+            "stream interrupted",
+            request=request,
+            response=httpx.Response(500, request=request),
+        )
+
+        async def failing_stream(*args):
+            nonlocal attempts
+            attempts += 1
+            args[-1]["answer_emitted"] = True
+            raise stream_error
+
+        settings = SimpleNamespace(
+            deepseek_api_key="test-key",
+            deepseek_base_url="https://example.test",
+            deepseek_model="test-model",
+            api_timeout_seconds=5,
+            model_max_retries=2,
+            model_retry_base_seconds=0.05,
+        )
+        with (
+            patch("app.agent.get_settings", return_value=settings),
+            patch("app.agent._stream_completion", new=failing_stream),
+            patch("app.agent.asyncio.sleep", new=AsyncMock()),
+        ):
+            with self.assertRaises(httpx.HTTPStatusError):
+                asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-no-retry-test"))
+        self.assertEqual(attempts, 1)
+
+if __name__ == "__main__":
+    unittest.main()

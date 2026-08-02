@@ -4,7 +4,7 @@
 
 审计前有 166 个 Python 测试、19 个 JavaScript 断言和 15 条 RAG 黄金集。完整宿主 Python 回归当时有 2 个失败；`app` 分支覆盖率为 81%。低覆盖重点为 `seed.py`（25%）、`database.py`（76%）、`agent.py`（77%）、`context_resolver.py`（78%）和 `personal_knowledge.py`（80%）。在 coverage run 中，`scripts/evaluate_rag.py`、`scripts/manage_databases.py` 和 `scripts/smoke_stream.py` 均为 0%；其中 RAG 评估另以独立命令实际通过 15/15，`smoke_stream.py` 会触发真实模型，不能进入自动门。
 
-`test_system.py` 有约 49 项、耗时约 340 秒，且共享类级数据库；后续应按领域拆分并使用独立 fixture。前端约 99 个事件绑定目前仅有 19 个 JS 纯函数断言，尚无 DOM 或浏览器链路覆盖。
+系统测试现有 54 项，按数据报表、知识与个人上传、HTTP/企业契约、模型治理、会话与流式拆分至 `tests/system/`。完整门为每个模块启动独立进程：fixture 在导入 app 前以 SQLite backup 创建参考部门数据库的一致临时快照，并使用独立个人知识目录、日志目录，进程退出时清理。前端约 99 个事件绑定目前仅有 19 个 JS 纯函数断言，尚无 DOM 或浏览器链路覆盖。
 
 ## 分层与原则
 
@@ -23,13 +23,13 @@
 python -m pip install -r requirements-test.txt
 ```
 
-快速门运行非 `test_system` Python、全部 Node 测试、全部静态 JS 语法检查、RAG 黄金集和 Playbook 黄金集：
+快速门运行非 `tests.system.*` Python、全部 Node 测试、全部静态 JS 语法检查、RAG 黄金集和 Playbook 黄金集：
 
 ```bash
 python scripts/run_quality_gate.py quick
 ```
 
-完整门运行全部 Python 的 `coverage --branch --source=app`，要求 `app/*` 至少 80%，然后执行同一组 Node、语法、RAG 和 Playbook 检查：
+完整门先运行非系统 Python 的 `coverage --branch --source=app`，再逐个运行系统模块的 `coverage --append`，要求合并后的 `app/*` 至少 80%，然后执行同一组 Node、语法、RAG 和 Playbook 检查。每个系统模块及总耗时均按版本化预算检查：达到告警阈值会输出警告，超过失败阈值则失败；结构化报告写入 `runtime/quality/system_test_timings.json`。2026-08-02 首次宿主完整门实测：数据报表 16.5 秒、HTTP/企业契约 23.0 秒、知识上传 15.5 秒、模型治理 16.7 秒、会话流式 19.1 秒，总计 90.7 秒；据此校准模块告警/失败预算为 45/75、60/90、45/75、45/75、50/80 秒，总计 180/300 秒。
 
 ```bash
 python scripts/run_quality_gate.py full

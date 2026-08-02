@@ -152,12 +152,14 @@ conda run -n fab-insight-agent python -m pip install -r requirements.txt
 conda run -n fab-insight-agent python -m app.seed --force
 ```
 
-安装测试依赖并运行快速质量门（非系统集成 Python、Node、静态 JS、RAG 与 Playbook 黄金集）：
+安装测试依赖并运行快速质量门（非 `tests.system.*` Python、Node、静态 JS、RAG 与 Playbook 黄金集）：
 
 ```bash
 conda run -n fab-insight-agent python -m pip install -r requirements-test.txt
 conda run -n fab-insight-agent python scripts/run_quality_gate.py quick
 ```
+
+完整质量门会先覆盖非系统 Python，再以独立进程逐个运行 `tests/system/` 的五个领域模块并合并 coverage。每个模块在导入应用前通过 SQLite backup 创建部门参考数据库的一致临时快照，个人知识、日志和数据库状态不会跨模块共享；耗时预算与结果报告分别位于 `evaluations/system_test_budgets.json` 和 `runtime/quality/system_test_timings.json`。
 
 完整质量门会运行全部 Python 分支覆盖率（`app/*` 不低于 80%）及同一组前端、RAG 与 Playbook 检查：
 
