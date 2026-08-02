@@ -10,7 +10,7 @@
 
 - 单元测试覆盖纯规则、解析、计划、RAG 决策和质量门命令构造。
 - HTTP 契约测试覆盖公开 API 的成功、认证、脱敏和输入边界；系统测试覆盖跨库与后台任务工作流。
-- RAG 黄金集独立评估召回、来源覆盖和禁止命中；不访问真实模型。
+- RAG 黄金集独立评估召回、来源覆盖和禁止命中；Playbook 黄金集以固定日期驱动真实 Router、Playbook 选择和 Planner，并断言严格工具路径、必需证据覆盖与预算一致性；两者均不访问真实模型。
 - 测试必须确定、隔离和可重复，负向路径与边界值和正常路径同等重要。测试日志可记录完整轨迹，但 API Key、Authorization、Password、Secret、Cookie 和 Token 始终脱敏。
 
 在受限沙箱中，FastAPI 的同步端点会由 `anyio.to_thread` 调度；测试应避免把该调度限制误判为 API 契约失败，并不得以真实模型或浏览器依赖绕过隔离。
@@ -23,19 +23,19 @@
 python -m pip install -r requirements-test.txt
 ```
 
-快速门运行非 `test_system` Python、全部 Node 测试、全部静态 JS 语法检查和 RAG 黄金集：
+快速门运行非 `test_system` Python、全部 Node 测试、全部静态 JS 语法检查、RAG 黄金集和 Playbook 黄金集：
 
 ```bash
 python scripts/run_quality_gate.py quick
 ```
 
-完整门运行全部 Python 的 `coverage --branch --source=app`，要求 `app/*` 至少 80%，然后执行同一组 Node、语法和 RAG 检查：
+完整门运行全部 Python 的 `coverage --branch --source=app`，要求 `app/*` 至少 80%，然后执行同一组 Node、语法、RAG 和 Playbook 检查：
 
 ```bash
 python scripts/run_quality_gate.py full
 ```
 
-质量门在执行前以 AST 统计 unittest 风格测试方法，避免导入测试时污染环境；发现 0 个或少于当前 170 个下限即失败，命令首次失败即非零退出。覆盖数据写入 `runtime/quality/`。
+质量门在执行前以 AST 统计 unittest 风格测试方法，避免导入测试时污染环境；发现少于最近完整审计确认的 175 个测试即失败。只有完整审计确认的有意删测才能调整此基线；命令首次失败即非零退出。覆盖数据写入 `runtime/quality/`，Playbook 报告同时写入 `runtime/quality/playbook_gold_report.json`。
 
 ## 完整审计触发条件
 

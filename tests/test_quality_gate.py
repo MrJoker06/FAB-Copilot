@@ -15,7 +15,10 @@ class QualityGateTests(unittest.TestCase):
         self.assertIn("tests.test_quality_gate", quick[0])
         self.assertNotIn("tests.test_system", quick[0])
         self.assertIn([sys.executable, "-m", "coverage", "run", "--branch", "--source=app", "-m", "unittest", "discover", "-s", "tests"], full)
-        self.assertEqual(quick[-1], [sys.executable, "scripts/evaluate_rag.py"])
+        self.assertEqual(quick[-2:], [
+            [sys.executable, "scripts/evaluate_rag.py"],
+            [sys.executable, "scripts/evaluate_playbooks.py"],
+        ])
 
     def test_commands_cover_node_tests_and_every_static_script(self):
         commands = run_quality_gate.quality_commands("quick")
@@ -42,7 +45,7 @@ class QualityGateTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(run_quality_gate.count_python_tests(directory), 2)
-        self.assertGreaterEqual(run_quality_gate.MIN_PYTHON_TESTS, 170)
+        self.assertGreaterEqual(run_quality_gate.MIN_PYTHON_TESTS, 175)
 
 
 if __name__ == "__main__":

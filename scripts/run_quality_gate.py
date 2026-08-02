@@ -13,7 +13,9 @@ from typing import Iterable
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 TEST_DIR = PROJECT_DIR / "tests"
 RUNTIME_DIR = PROJECT_DIR / "runtime" / "quality"
-MIN_PYTHON_TESTS = 170
+# QA-001's last full audit confirmed this baseline.  Raise or lower it only after
+# a deliberate full-audit decision, so accidental broad test deletion cannot pass.
+MIN_PYTHON_TESTS = 175
 
 
 def count_python_tests(test_dir: Path = TEST_DIR) -> int:
@@ -55,7 +57,10 @@ def quality_commands(mode: str) -> list[list[str]]:
     if node_tests:
         commands.append(["node", "--test", *map(str, node_tests)])
     commands.extend([["node", "--check", str(path)] for path in static_scripts])
-    commands.append([sys.executable, "scripts/evaluate_rag.py"])
+    commands.extend([
+        [sys.executable, "scripts/evaluate_rag.py"],
+        [sys.executable, "scripts/evaluate_playbooks.py"],
+    ])
     return commands
 
 
