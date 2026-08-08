@@ -348,7 +348,7 @@ def _offline_answer(
     equipment = run_local_tool("get_equipment_health", equipment_health)
     loop_guard.finish_round()
     risky = (equipment or [])[:3]
-    lines = ["当前未配置可用的 DeepSeek API，因此返回本地规则分析。"]
+    lines = ["当前未配置可用的模型 API，因此返回本地规则分析。"]
     if overview is not None:
         lines.append(
             f"最近90天共完成 {overview['lots']} 个批次，综合良率 {overview['yield_pct']}%，"
@@ -359,7 +359,7 @@ def _offline_answer(
     if risky:
         names = "、".join(f"{row['equipment_id']}（{row['health']}，{row['excursions']}次异常）" for row in risky)
         lines.append(f"优先关注设备：{names}。")
-    lines.append("配置根目录 .env 的 DEEPSEEK_API_KEY 后，可获得针对问题的多轮工具分析。")
+    lines.append("配置根目录 .env 的 FAB_MODEL_API_KEY 后，可获得针对问题的多轮工具分析。")
     validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, observations)
     contract = create_answer_contract(validation)
     synthesis = synthesize_legacy_answer("\n\n".join(lines), contract)
@@ -906,7 +906,8 @@ async def _resolve_conversation_turn(
     direct_route: IntentRoute | None = None,
 ) -> tuple[ContextResolution, dict]:
     deterministic = resolve_question_context(question, history)
-    if deterministic.applied or not settings.deepseek_api_key:
+    connection = settings.model_connection
+    if deterministic.applied or not connection.api_key:
         return deterministic, {}
     if not history and (direct_route is None or direct_route.intent != "unknown"):
         return deterministic, {}
@@ -917,15 +918,15 @@ async def _resolve_conversation_turn(
         "message": "正在结合当前会话理解这条消息",
     })
     request_payload = {
-        "model": settings.deepseek_model,
+        "model": connection.model,
         "messages": build_contextualizer_messages(question, history),
         "temperature": 0,
         "response_format": CONTEXTUALIZER_RESPONSE_FORMAT,
         "max_tokens": 1200,
     }
-    endpoint = f"{settings.deepseek_base_url}/chat/completions"
+    endpoint = f"{connection.base_url}/chat/completions"
     headers = {
-        "Authorization": f"Bearer {settings.deepseek_api_key}",
+        "Authorization": f"Bearer {connection.api_key}",
         "Content-Type": "application/json",
     }
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
@@ -942,7 +943,7 @@ async def _resolve_conversation_turn(
                 run_id,
                 phase="contextualization",
                 attempt=attempt,
-                model=settings.deepseek_model,
+                model=connection.model,
                 message_count=len(request_payload["messages"]),
                 **({"request": request_payload} if CONTENT_MODE == "full" else {}),
             )
@@ -983,7 +984,7 @@ async def _resolve_conversation_turn(
                     status="error",
                     phase="contextualization",
                     attempt=attempt,
-                    model=settings.deepseek_model,
+                    model=connection.model,
                     duration_ms=round((time.perf_counter() - started) * 1000, 1),
                     error_type=type(exc).__name__,
                     retryable=retryable,
@@ -1048,7 +1049,7 @@ async def _resolve_conversation_turn(
                 status="success",
                 phase="contextualization",
                 attempt=attempt,
-                model=settings.deepseek_model,
+                model=connection.model,
                 duration_ms=round((time.perf_counter() - started) * 1000, 1),
                 input_tokens=usage.get("prompt_tokens", 0),
                 output_tokens=usage.get("completion_tokens", 0),
@@ -1232,7 +1233,7 @@ async def _run_agent_impl(
             context_resolution,
         )
         result["mode"] = "clarification"
-        result["model"] = settings.deepseek_model if context_usage else "deterministic-router"
+        result["model"] = settings.model_connection.model if context_usage else "deterministic-router"
         result["usage"] = context_usage
         result["context_resolution"] = context_resolution.to_dict()
         _emit_evidence_validation(run_id, 1, result["evidence_validation"])
@@ -1258,7 +1259,7 @@ async def _run_agent_impl(
             loop_guard,
             context_resolution,
         )
-        result["model"] = settings.deepseek_model if context_usage else "deterministic-router"
+        result["model"] = settings.model_connection.model if context_usage else "deterministic-router"
         result["usage"] = context_usage
         result["context_resolution"] = context_resolution.to_dict()
         _emit_evidence_validation(run_id, 1, result["evidence_validation"])
@@ -1275,7 +1276,8 @@ async def _run_agent_impl(
         )
         await _stream_answer(progress, result["answer"])
         return result
-    if not settings.deepseek_api_key:
+    connection = settings.model_connection
+    if not connection.api_key:
         await _notify(progress, {"event": "stage", "stage": "planning", "message": "正在使用本地规则规划分析路径"})
         result = _offline_answer(analysis_question, intent_route, playbook_selection, execution_plan, loop_guard)
         _emit_evidence_validation(run_id, 1, result["evidence_validation"])
@@ -1331,7 +1333,7 @@ async def _run_agent_impl(
     messages.append({"role": "user", "content": question})
     trace: list[dict] = []
     sources: dict[str, dict] = {}
-    endpoint = f"{settings.deepseek_base_url}/chat/completions"
+    endpoint = f"{connection.base_url}/chat/completions"
     total_usage = {
         key: int(context_usage.get(key, 0) or 0)
         for key in ("prompt_tokens", "completion_tokens", "total_tokens")
@@ -1391,7 +1393,7 @@ async def _run_agent_impl(
                 "knowledge_fallback_enabled",
                 run_id,
                 reason=knowledge_fallback["reason"],
-                model=settings.deepseek_model,
+                model=connection.model,
                 retrieval_state=retrieval_decision.state,
             )
             await _notify(progress, {
@@ -1420,7 +1422,7 @@ async def _run_agent_impl(
                 if reference in cited_knowledge_refs
             ],
             "mode": "deepseek",
-            "model": settings.deepseek_model,
+            "model": connection.model,
             "usage": total_usage,
             "intent_route": route_payload,
             "domain_playbook": playbook_payload,
@@ -1455,7 +1457,7 @@ async def _run_agent_impl(
                 ),
             })
             request_payload = {
-                "model": settings.deepseek_model,
+                "model": connection.model,
                 "messages": messages,
                 "temperature": 0.15,
             }
@@ -1477,7 +1479,7 @@ async def _run_agent_impl(
                     run_id,
                     iteration=iteration + 1,
                     attempt=attempt,
-                    model=settings.deepseek_model,
+                    model=connection.model,
                     message_count=len(messages),
                     **({"request": request_payload} if CONTENT_MODE == "full" else {}),
                 )
@@ -1490,7 +1492,7 @@ async def _run_agent_impl(
                     assistant, usage, response_id = await _stream_completion(
                         client,
                         endpoint,
-                        {"Authorization": f"Bearer {settings.deepseek_api_key}", "Content-Type": "application/json"},
+                        {"Authorization": f"Bearer {connection.api_key}", "Content-Type": "application/json"},
                         request_payload,
                         None if answer_contract.status == "required" else progress,
                         stream_state,
@@ -1504,7 +1506,7 @@ async def _run_agent_impl(
                         status="error",
                         iteration=iteration + 1,
                         attempt=attempt,
-                        model=settings.deepseek_model,
+                        model=connection.model,
                         duration_ms=round((time.perf_counter() - model_started) * 1000, 1),
                         error_type=type(exc).__name__,
                         retryable=retryable,
@@ -1539,7 +1541,7 @@ async def _run_agent_impl(
                     status="success",
                     iteration=iteration + 1,
                     attempt=attempt,
-                    model=settings.deepseek_model,
+                    model=connection.model,
                     duration_ms=round((time.perf_counter() - model_started) * 1000, 1),
                     input_tokens=usage.get("prompt_tokens", 0),
                     output_tokens=usage.get("completion_tokens", 0),
@@ -1817,7 +1819,7 @@ async def _run_agent_impl(
                     "knowledge_fallback_enabled",
                     run_id,
                     reason=knowledge_fallback["reason"],
-                    model=settings.deepseek_model,
+                    model=connection.model,
                 )
                 await _notify(progress, {
                     "event": "stage",

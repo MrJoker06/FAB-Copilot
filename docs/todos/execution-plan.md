@@ -58,7 +58,7 @@
 | 6 | `AGENT-013` | `AGENT-012` | Answer Synthesizer | 最终答案稳定区分事实、推断、假设、建议和来源，并受 Validator 结果约束 |
 | 7 | `AGENT-014` | `AGENT-011` 至 `AGENT-013` | 计划与步骤持久化 | 数据库迁移、Plan/Step 状态、会话读取和审计回放完整，现有会话兼容 |
 | 8 | `AGENT-015` | `AGENT-009` 至 `AGENT-014` | Playbook 黄金集 | 每类 Playbook 有问题集、路径断言、证据覆盖断言和回归报告 |
-| 9 | `MODEL-014` | Agent 结构稳定 | Provider 配置抽象 | DeepSeek 与 OpenAI Compatible 使用统一连接配置，旧模型目录无损迁移 |
+| 9 | `MODEL-014`（已完成） | Agent 结构稳定 | Provider 配置抽象 | DeepSeek 与 OpenAI Compatible 使用统一连接配置，旧模型目录保持不变 |
 | 10 | `MODEL-015` | `MODEL-014` | 模型能力元数据与约束 | 后台可标注 Thinking 和原生多模态能力；目录与请求校验一致，旧模型数据无损迁移 |
 | 11 | `UX-017` | `MODEL-015` | Thinking 能力感知控件 | 支持模型可开启 Thinking；不支持模型的控件常灰，点击有应用内提示且请求不会携带无效状态 |
 | 12 | `MODEL-009` | `MODEL-014`、`MODEL-015` | 发布前兼容性测试 | 校验连通性、流式响应、工具调用、Thinking、多模态声明和上下文限制；失败模型不能发布 |

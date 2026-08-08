@@ -149,9 +149,7 @@ class ToolLoopGuardTests(unittest.TestCase):
             return [{"equipment_id": "CMP-03", "cpk": 0.91}]
 
         settings = SimpleNamespace(
-            deepseek_api_key="test-key",
-            deepseek_base_url="https://example.test",
-            deepseek_model="test-model",
+            model_connection=SimpleNamespace(provider="test", api_key="test-key", base_url="https://example.test", model="test-model"),
             api_timeout_seconds=5,
             model_max_retries=0,
             model_retry_base_seconds=0.05,

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 WORKSPACE_DIR = PROJECT_DIR.parent.parent
-APP_VERSION = "20260802-2"
+APP_VERSION = "20260808-1"
 
 
 def _load_env(path: Path) -> None:
@@ -32,9 +32,14 @@ MODEL_API_NAMES = {
     "deepseekv4-flash": "deepseek-v4-flash",
     "deepseekv4-pro": "deepseek-v4-pro",
 }
-_configured_model = os.getenv("DEEPSEEK_MODEL", "")
-_configured_alias = next((alias for alias, api_name in MODEL_API_NAMES.items() if api_name == _configured_model), _configured_model)
-_default_model = _configured_alias if _configured_alias in ALLOWED_MODELS else ALLOWED_MODELS[0]
+
+
+@dataclass(frozen=True)
+class ModelConnection:
+    provider: str
+    api_key: str = field(repr=False)
+    base_url: str
+    model: str
 
 
 @dataclass(frozen=True)
@@ -45,9 +50,7 @@ class Settings:
     quality_database_path: Path
     knowledge_database_path: Path
     agent_database_path: Path
-    deepseek_api_key: str
-    deepseek_base_url: str
-    deepseek_model: str
+    model_connection: ModelConnection
     api_timeout_seconds: float
     model_max_retries: int
     model_retry_base_seconds: float
@@ -80,8 +83,29 @@ def get_settings() -> Settings:
         value = os.getenv(variable)
         path = Path(value) if value else database_dir / filename
         return path if path.is_absolute() else PROJECT_DIR / path
-    api_key = os.getenv("DEEPSEEK_API_KEY", "")
-    model = MODEL_API_NAMES[_default_model]
+    generic_model = os.getenv("FAB_MODEL_NAME")
+    legacy_model = os.getenv("DEEPSEEK_MODEL", "")
+    if generic_model is not None:
+        model = generic_model.strip() or MODEL_API_NAMES[ALLOWED_MODELS[0]]
+        model = MODEL_API_NAMES.get(model, model)
+    else:
+        configured_alias = next(
+            (alias for alias, api_name in MODEL_API_NAMES.items() if api_name == legacy_model),
+            legacy_model,
+        )
+        default_alias = configured_alias if configured_alias in ALLOWED_MODELS else ALLOWED_MODELS[0]
+        model = MODEL_API_NAMES[default_alias]
+    base_url = (
+        os.getenv("FAB_MODEL_BASE_URL")
+        or os.getenv("DEEPSEEK_BASE_URL")
+        or "https://api.deepseek.com"
+    ).strip().rstrip("/") or "https://api.deepseek.com"
+    connection = ModelConnection(
+        provider=os.getenv("FAB_MODEL_PROVIDER", "deepseek").strip().lower() or "deepseek",
+        api_key=os.getenv("FAB_MODEL_API_KEY", os.getenv("DEEPSEEK_API_KEY", "")).strip(),
+        base_url=base_url,
+        model=model,
+    )
     personal_storage = Path(os.getenv("FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH", "data/personal_knowledge"))
     if not personal_storage.is_absolute():
         personal_storage = PROJECT_DIR / personal_storage
@@ -92,9 +116,7 @@ def get_settings() -> Settings:
         quality_database_path=department_path("FAB_QUALITY_DATABASE_PATH", "yield_quality.db"),
         knowledge_database_path=department_path("FAB_KNOWLEDGE_DATABASE_PATH", "process_knowledge.db"),
         agent_database_path=department_path("FAB_AGENT_DATABASE_PATH", "ai_operations.db"),
-        deepseek_api_key=api_key,
-        deepseek_base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").rstrip("/"),
-        deepseek_model=model,
+        model_connection=connection,
         api_timeout_seconds=float(os.getenv("API_TIMEOUT_MS", "60000")) / 1000,
         model_max_retries=max(0, min(int(os.getenv("MODEL_MAX_RETRIES", "2")), 4)),
         model_retry_base_seconds=max(0.05, min(float(os.getenv("MODEL_RETRY_BASE_MS", "500")) / 1000, 5.0)),

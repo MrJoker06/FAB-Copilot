@@ -136,10 +136,12 @@ class ModelGovernanceSystemTests(unittest.TestCase):
 
     def test_full_logging_still_redacts_credentials(self):
         payload = sanitize({
+            "FAB_MODEL_API_KEY": "generic-secret-key",
             "DEEPSEEK_API_KEY": "secret-key",
             "headers": {"Authorization": "Bearer secret-token"},
             "input_tokens": 42,
         })
+        self.assertEqual(payload["FAB_MODEL_API_KEY"], "<redacted>")
         self.assertEqual(payload["DEEPSEEK_API_KEY"], "<redacted>")
         self.assertEqual(payload["headers"]["Authorization"], "<redacted>")
         self.assertEqual(payload["input_tokens"], 42)
@@ -165,9 +167,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             progress_events.append(event)
 
         settings = SimpleNamespace(
-            deepseek_api_key="test-key",
-            deepseek_base_url="https://example.test",
-            deepseek_model="test-model",
+            model_connection=SimpleNamespace(provider="test", api_key="test-key", base_url="https://example.test", model="test-model"),
             api_timeout_seconds=5,
             model_max_retries=2,
             model_retry_base_seconds=0.05,
@@ -198,9 +198,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             raise stream_error
 
         settings = SimpleNamespace(
-            deepseek_api_key="test-key",
-            deepseek_base_url="https://example.test",
-            deepseek_model="test-model",
+            model_connection=SimpleNamespace(provider="test", api_key="test-key", base_url="https://example.test", model="test-model"),
             api_timeout_seconds=5,
             model_max_retries=2,
             model_retry_base_seconds=0.05,

@@ -27,9 +27,7 @@ CLARIFICATION = """为了继续，请选择分析方向：
 
 def _settings():
     return SimpleNamespace(
-        deepseek_api_key="test-key",
-        deepseek_base_url="https://example.test",
-        deepseek_model="test-model",
+        model_connection=SimpleNamespace(provider="test", api_key="test-key", base_url="https://example.test", model="test-model"),
         api_timeout_seconds=5,
         model_max_retries=0,
         model_retry_base_seconds=0.05,

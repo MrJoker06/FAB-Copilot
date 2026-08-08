@@ -782,7 +782,7 @@ async def chat(request: ChatRequest) -> dict:
     except httpx.RequestError as exc:
         recorder.fail(str(exc))
         finish_agent_run(principal, "error", model=selected_model, error=str(exc))
-        raise http_problem(502, "MODEL_NETWORK_ERROR", f"无法连接 DeepSeek API: {exc}", True) from exc
+        raise http_problem(502, "MODEL_NETWORK_ERROR", f"无法连接模型 API: {exc}", True) from exc
     except Exception as exc:
         recorder.fail(str(exc))
         finish_agent_run(principal, "error", model=selected_model, error=str(exc))
@@ -886,7 +886,7 @@ def _prepare_chat(request: ChatRequest) -> tuple[str, list[dict], dict | None, d
 
 def _model_status_error(exc: httpx.HTTPStatusError) -> tuple[str, bool]:
     status_code = exc.response.status_code
-    detail = f"DeepSeek API 返回 {status_code}"
+    detail = f"模型 API 返回 {status_code}"
     try:
         api_error = exc.response.json().get("error", {}).get("message")
         if api_error:
@@ -1003,7 +1003,7 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             recorder.fail(str(exc))
             finish_agent_run(principal, "error", model=selected_model, error=str(exc))
             activity_finished = True
-            detail = f"无法连接 DeepSeek API: {exc}"
+            detail = f"无法连接模型 API: {exc}"
             emit("api_stream_error", current_request_id() or session_id, status="error", error_type="MODEL_NETWORK_ERROR", session_id=session_id, retryable=True)
             yield _stream_line("error", detail=detail, error=error_payload("MODEL_NETWORK_ERROR", detail, True))
         except Exception as exc:

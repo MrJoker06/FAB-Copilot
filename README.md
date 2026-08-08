@@ -14,8 +14,8 @@
 - 周良率趋势、设备健康、缺陷 Pareto、近期异常批次
 - 覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗和量测，各站点按自身关键量测与规格计算 Cpk
 - 九类制程各有一个可复现异常场景，隐藏根因真值不向 Agent 开放
-- DeepSeek Agent 多轮工具调用，支持固定报表和受限只读 SQL
-- DeepSeek 瞬时网络错误、429 和 5xx 在首 Token 前自动退避重试；消息使用客户端幂等 ID 防止重复落库
+- OpenAI Compatible Agent 多轮工具调用，支持固定报表和受限只读 SQL
+- 模型服务瞬时网络错误、429 和 5xx 在首 Token 前自动退避重试；消息使用客户端幂等 ID 防止重复落库
 - 工具执行期间实时展开路径；收到最终答案首批 Token 后立即折叠，Markdown 答案流式输出并支持一键复制
 - 短追问可引用最近澄清选项或上一条已声明任务，例如“最后一点”和“为什么没有继续”；无法安全恢复上下文时由确定性路由器给出可选择的澄清方向，不调用模型生成伪工具请求
 - 用户端执行路径只展示步骤、状态和结果数量，不展示模型请求体；知识型问题先隔离检索个人知识与工厂知识，必要时改写查询，只有所有可用范围均无可靠证据时才允许模型通用知识兜底，并明确标注其不是厂内知识或可核验证据
@@ -28,7 +28,7 @@
 - 68 个知识章节与 17 个固定格式历史案例
 - SQLite FTS5 trigram 双来源 RAG，支持中文检索与引用跳转
 - 个人知识库支持私有文件上传、异步解析、分块索引、Agent 三路融合检索、来源跳转、下载、重试和完整删除；扫描件会明确返回 `OCR_REQUIRED`
-- DeepSeek 不可用时自动提供本地规则分析
+- 模型服务不可用时自动提供本地规则分析
 
 > 所有数据和知识文档均为演示用途，不代表真实工厂或量产规范。公开数据只用于校准数据形态和统计特征，具体配方、规格与根因均为可复现合成内容。
 
@@ -48,9 +48,10 @@
 项目会自动读取 `D:\modern_agents\.env`，至少需要：
 
 ```dotenv
-DEEPSEEK_API_KEY=your-key
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseekv4-flash
+FAB_MODEL_PROVIDER=deepseek
+FAB_MODEL_API_KEY=your-key
+FAB_MODEL_BASE_URL=https://api.deepseek.com
+FAB_MODEL_NAME=deepseekv4-flash
 FAB_DATABASE_PATH=data/fab_history.db
 FAB_DATABASE_DIR=data/departments
 FAB_SQLITE_JOURNAL_MODE=auto
@@ -75,6 +76,8 @@ FAB_MOCK_VIRTUAL_LOTS=25000000
 FAB_MOCK_CURSOR_SECRET=replace-with-a-long-random-secret
 FAB_ADMIN_API_TOKEN=replace-with-a-long-random-admin-token
 ```
+
+模型连接优先读取 `FAB_MODEL_PROVIDER`、`FAB_MODEL_API_KEY`、`FAB_MODEL_BASE_URL` 和 `FAB_MODEL_NAME`。现有部署可继续使用 `DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL` 和 `DEEPSEEK_MODEL` 作为兼容回退；新配置应使用统一变量。凭据仅由服务端托管，不写入模型目录，也不会通过设置 API 或日志暴露。
 
 在 WSL 中运行：
 
@@ -136,7 +139,7 @@ POST /api/settings/model
 }
 ```
 
-模型偏好按租户和用户写入 AI 运营库。接口只接受已发布的 `model_id`，额外提交 `api_key` 等字段会被拒绝。当前样例由服务端 `.env` 的 `DEEPSEEK_API_KEY` 提供模型凭据；生产环境应替换为企业 Secret Manager 或受管模型网关。
+模型偏好按租户和用户写入 AI 运营库。接口只接受已发布的 `model_id`，额外提交 `api_key` 等字段会被拒绝。当前样例由服务端 `.env` 的 `FAB_MODEL_API_KEY`（或兼容的 `DEEPSEEK_API_KEY`）提供模型凭据；生产环境应替换为企业 Secret Manager 或受管模型网关。
 
 如独立环境缺少依赖：
 
@@ -353,7 +356,7 @@ GET /api/monitor/events?limit=100
 ```text
 app/
   main.py       FastAPI 接口与静态站点
-  agent.py      DeepSeek 工具调用循环与系统约束
+  agent.py      OpenAI Compatible 工具调用循环与系统约束
   intent_router.py  确定性问题分类、范围抽取与风险路由
   domain_playbooks.py  五类版本化领域证据与回答契约
   planner.py    结构化工具计划、参数绑定、依赖与运行时预算策略

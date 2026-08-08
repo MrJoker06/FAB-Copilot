@@ -375,6 +375,7 @@ class SessionsStreamingSystemTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(events[-1]["type"], "error")
             self.assertEqual(events[-1]["error"]["error_code"], "MODEL_UPSTREAM_ERROR")
+            self.assertEqual(events[-1]["detail"], "模型 API 返回 503")
             self.assertEqual(events[-1]["error"]["request_id"], request_id)
             self.assertTrue(events[-1]["error"]["retryable"])
             self.assertTrue(any(

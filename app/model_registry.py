@@ -5,7 +5,7 @@ import re
 from dataclasses import replace
 from datetime import datetime, timezone
 
-from .config import ALLOWED_MODELS, MODEL_API_NAMES, Settings, get_settings
+from .config import ALLOWED_MODELS, MODEL_API_NAMES, ModelConnection, Settings, get_settings
 from .database import db_session
 from .identity import Principal, current_principal
 
@@ -27,7 +27,7 @@ def ensure_model_catalog() -> None:
             "DeepSeek V4 Flash" if model_id.endswith("flash") else "DeepSeek V4 Pro",
             "deepseek",
             MODEL_API_NAMES[model_id],
-            settings.deepseek_base_url,
+            settings.model_connection.base_url,
             "published",
             json.dumps({"streaming": True, "tool_calls": True}, separators=(",", ":")),
             "system",
@@ -82,7 +82,7 @@ def _selected_model(principal: Principal) -> dict:
             (principal.tenant_id, principal.user_id),
         ).fetchone()
         if row is None:
-            configured = get_settings().deepseek_model
+            configured = get_settings().model_connection.model
             row = connection.execute(
                 """SELECT * FROM model_catalog
                    WHERE status = 'published'
@@ -100,7 +100,7 @@ def public_user_model_config(principal: Principal | None = None) -> dict:
     principal = principal or current_principal()
     selected = _selected_model(principal)
     models = list_models()
-    api_key_configured = bool(get_settings().deepseek_api_key)
+    api_key_configured = bool(get_settings().model_connection.api_key)
     return {
         "model": selected["model_id"],
         "display_name": selected["display_name"],
@@ -151,8 +151,12 @@ def effective_agent_settings(settings):
     selected = _selected_model(principal)
     return replace(
         settings,
-        deepseek_base_url=selected["base_url"].rstrip("/"),
-        deepseek_model=selected["provider_model"],
+        model_connection=ModelConnection(
+            provider=selected["provider"],
+            api_key=settings.model_connection.api_key,
+            base_url=selected["base_url"].rstrip("/"),
+            model=selected["provider_model"],
+        ),
     )
 
 

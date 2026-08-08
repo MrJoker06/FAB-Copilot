@@ -287,9 +287,7 @@ class IntentRouterTests(unittest.TestCase):
         model_call = AsyncMock(side_effect=AssertionError("conversation must not call model"))
         with (
             patch("app.agent.get_settings", return_value=SimpleNamespace(
-                deepseek_api_key="test-key",
-                deepseek_base_url="https://example.test",
-                deepseek_model="test-model",
+                model_connection=SimpleNamespace(provider="test", api_key="test-key", base_url="https://example.test", model="test-model"),
                 api_timeout_seconds=5,
                 model_max_retries=0,
                 model_retry_base_seconds=0.05,
@@ -334,9 +332,7 @@ class IntentRouterTests(unittest.TestCase):
             )
 
         settings = SimpleNamespace(
-            deepseek_api_key="test-key",
-            deepseek_base_url="https://example.test",
-            deepseek_model="test-model",
+            model_connection=SimpleNamespace(provider="test", api_key="test-key", base_url="https://example.test", model="test-model"),
             api_timeout_seconds=5,
             model_max_retries=0,
             model_retry_base_seconds=0.05,
@@ -379,9 +375,7 @@ class IntentRouterTests(unittest.TestCase):
             )
 
         settings = SimpleNamespace(
-            deepseek_api_key="test-key",
-            deepseek_base_url="https://example.test",
-            deepseek_model="test-model",
+            model_connection=SimpleNamespace(provider="test", api_key="test-key", base_url="https://example.test", model="test-model"),
             api_timeout_seconds=5,
             model_max_retries=0,
             model_retry_base_seconds=0.05,
@@ -417,9 +411,7 @@ class IntentRouterTests(unittest.TestCase):
             )
 
         settings = SimpleNamespace(
-            deepseek_api_key="test-key",
-            deepseek_base_url="https://example.test",
-            deepseek_model="test-model",
+            model_connection=SimpleNamespace(provider="test", api_key="test-key", base_url="https://example.test", model="test-model"),
             api_timeout_seconds=5,
             model_max_retries=0,
             model_retry_base_seconds=0.05,
@@ -463,9 +455,7 @@ class IntentRouterTests(unittest.TestCase):
             )
 
         settings = SimpleNamespace(
-            deepseek_api_key="test-key",
-            deepseek_base_url="https://example.test",
-            deepseek_model="test-model",
+            model_connection=SimpleNamespace(provider="test", api_key="test-key", base_url="https://example.test", model="test-model"),
             api_timeout_seconds=5,
             model_max_retries=0,
             model_retry_base_seconds=0.05,
@@ -499,9 +489,7 @@ class IntentRouterTests(unittest.TestCase):
             progress_events.append(event)
 
         settings = SimpleNamespace(
-            deepseek_api_key="test-key",
-            deepseek_base_url="https://example.test",
-            deepseek_model="test-model",
+            model_connection=SimpleNamespace(provider="test", api_key="test-key", base_url="https://example.test", model="test-model"),
             api_timeout_seconds=5,
             model_max_retries=0,
             model_retry_base_seconds=0.05,
