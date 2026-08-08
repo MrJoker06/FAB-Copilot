@@ -35,13 +35,13 @@ Session history + current turn
   "topic_anchor": "本轮引用的历史主题；独立问题为空",
   "target_message_ids": [],
   "confidence": 0.0,
-  "intent_hint": "general_knowledge | manufacturing_analysis | unclear"
+  "intent_hint": "conversation | general_knowledge | manufacturing_analysis | unclear"
 }
 ```
 
 `standalone` 不改写输入。`followup` 补全省略对象或动作，`correction` 应用用户最新修改并移除被否定要求。`recall` 必须通过 `target_message_ids` 选择当前用户有权读取的原始 Session 消息；服务端再读取对应用户消息和配对助手消息，不能使用模型生成的 `topic_anchor` 伪造历史。当用户要求“更前面的一个”时，由上下文模型在可见消息 ID 中选择更早的目标，而不是依赖固定短语补丁。
 
-当确定性 Router 返回 `unknown` 时，只有置信度不低于 0.65 的 `general_knowledge` 提示可以进入通用知识检索路径。对于模型已高置信度判定为追问或纠正的消息，同一提示也可以修正仅因“知识库”等来源措辞形成的 `sop_lookup` 路由；模型判定为 `standalone` 时不应用该修正。`manufacturing_analysis` 和 `unclear` 仍保留原路由或澄清要求，通用知识提示不能覆盖良率、设备、批次等制造意图，也不能直接触发制造数据工具。
+`conversation` 表示助手身份、能力、问候以及不请求外部技术或制造事实的交互或元问题。当确定性 Router 返回 `unknown` 时，置信度不低于 0.65 的 `conversation` 提示可进入确定性的零工具助手对话路径；其检索判定为 `NOT_APPLICABLE`，不会附加知识库为空的披露。相同条件下，`general_knowledge` 提示可以进入通用知识检索路径。对于模型已高置信度判定为追问或纠正的消息，同一通用知识提示也可以修正仅因“知识库”等来源措辞形成的 `sop_lookup` 路由；模型判定为 `standalone` 时不应用该修正。`manufacturing_analysis` 和 `unclear` 仍保留原路由或澄清要求；两类语义提示都不能覆盖良率、设备、批次等制造意图，也不能直接触发制造数据工具。
 
 ## 上下文窗口
 

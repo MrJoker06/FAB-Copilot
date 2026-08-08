@@ -879,7 +879,7 @@ def _context_json_arguments(assistant: dict) -> dict:
         and not isinstance(confidence, bool)
         and 0 <= confidence <= 1
         and isinstance(intent_hint, str)
-        and intent_hint in {"general_knowledge", "manufacturing_analysis", "unclear"}
+        and intent_hint in {"conversation", "general_knowledge", "manufacturing_analysis", "unclear"}
     )
     if not valid:
         raise ContextProtocolError("invalid_field_type", "上下文解析结果字段类型或枚举值非法", content)
@@ -1262,6 +1262,19 @@ async def _run_agent_impl(
         result["model"] = settings.model_connection.model if context_usage else "deterministic-router"
         result["usage"] = context_usage
         result["context_resolution"] = context_resolution.to_dict()
+        result["knowledge_fallback"] = {"used": False, "reason": None, "disclosure": None}
+        result["retrieval_decision"] = {
+            "state": "NOT_APPLICABLE",
+            "reason": None,
+            "attempted_scopes": [],
+            "attempts": [],
+            "selected_reference_ids": [],
+            "source_counts": {"personal": 0, "knowledge": 0, "case": 0},
+            "rewritten_query": None,
+            "assumptions": [],
+            "model_knowledge_allowed": False,
+            "disclosure": None,
+        }
         _emit_evidence_validation(run_id, 1, result["evidence_validation"])
         emit(
             "answer_synthesis_completed",

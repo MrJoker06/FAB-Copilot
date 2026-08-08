@@ -544,6 +544,19 @@ def apply_semantic_intent_hint(
     context_applied: bool = False,
 ) -> IntentRoute:
     """Use a high-confidence semantic hint without overriding manufacturing routes."""
+    if route.intent == "unknown" and intent_hint == "conversation" and confidence >= 0.65:
+        return replace(
+            route,
+            intent="conversation",
+            intent_label=INTENT_LABELS["conversation"],
+            confidence=round(min(confidence, 0.95), 2),
+            candidate_intents=("conversation",),
+            data_requirements=(),
+            risk_level="low",
+            risk_reasons=(),
+            clarification_needed=False,
+            clarification_questions=(),
+        )
     eligible_intents = {"unknown"}
     if context_applied:
         eligible_intents.add("sop_lookup")

@@ -227,6 +227,70 @@ class IntentRouterTests(unittest.TestCase):
         self.assertEqual(manufacturing.intent, "unknown")
         self.assertTrue(manufacturing.clarification_needed)
 
+    def test_semantic_conversation_hint_promotes_only_unknown_to_zero_tool_path(self):
+        unknown = route_question("你是？", current_date=date(2026, 7, 18))
+        manufacturing = route_question("分析最近四周良率", current_date=date(2026, 7, 18))
+
+        conversation = apply_semantic_intent_hint(unknown, "conversation", 0.92)
+        unchanged = apply_semantic_intent_hint(manufacturing, "conversation", 0.99)
+
+        self.assertEqual(unknown.intent, "unknown")
+        self.assertEqual(conversation.intent, "conversation")
+        self.assertEqual(conversation.data_requirements, ())
+        self.assertEqual(conversation.risk_level, "low")
+        self.assertFalse(conversation.clarification_needed)
+        self.assertEqual(unchanged.intent, "yield_decline")
+
+    def test_semantic_meta_conversation_uses_context_model_only(self):
+        question = "你是？"
+        self.assertEqual(route_question(question, current_date=date(2026, 7, 18)).intent, "unknown")
+        cases = (
+            ("first_turn", []),
+            ("unrelated_history", [
+                {"message_id": 1, "role": "user", "content": "解释一下 CMP 的作用。"},
+                {"message_id": 2, "role": "assistant", "content": "CMP 用于晶圆表面平坦化。"},
+            ]),
+        )
+
+        for case_name, history in cases:
+            with self.subTest(case=case_name):
+                model_call = AsyncMock(return_value=(
+                    {
+                        "role": "assistant",
+                        "content": json.dumps({
+                            "relation": "standalone",
+                            "resolved_question": question,
+                            "topic_anchor": "",
+                            "target_message_ids": [],
+                            "confidence": 0.94,
+                            "intent_hint": "conversation",
+                        }, ensure_ascii=False),
+                    },
+                    {"prompt_tokens": 8, "completion_tokens": 4, "total_tokens": 12},
+                    "context-conversation-response",
+                ))
+
+                with (
+                    patch("app.agent.get_settings", return_value=SimpleNamespace(
+                        model_connection=SimpleNamespace(provider="test", api_key="test-key", base_url="https://example.test", model="test-model"),
+                        api_timeout_seconds=5,
+                        model_max_retries=0,
+                        model_retry_base_seconds=0.05,
+                    )),
+                    patch("app.agent._stream_completion", model_call),
+                ):
+                    result = asyncio.run(agent_module._run_agent_impl(
+                        question, history, f"run-semantic-conversation-{case_name}",
+                    ))
+
+                model_call.assert_awaited_once()
+                self.assertEqual(result["intent_route"]["intent"], "conversation")
+                self.assertEqual(result["tool_trace"], [])
+                self.assertEqual(result["retrieval_decision"]["state"], "NOT_APPLICABLE")
+                self.assertFalse(result["knowledge_fallback"]["used"])
+                self.assertNotIn("个人知识库和工厂知识库", result["answer"])
+                self.assertNotIn("未检索到", result["answer"])
+
     def test_semantic_followup_hint_can_correct_source_driven_sop_route(self):
         route = route_question("优先使用我的个人知识库继续介绍光刻")
         self.assertEqual(route.intent, "sop_lookup")

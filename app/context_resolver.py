@@ -16,7 +16,7 @@ ResolutionStrategy = Literal[
 ]
 ContextRelation = Literal["standalone", "followup", "correction", "recall"]
 ResolutionSource = Literal["none", "deterministic", "model", "fallback"]
-IntentHint = Literal["general_knowledge", "manufacturing_analysis", "unclear"]
+IntentHint = Literal["conversation", "general_knowledge", "manufacturing_analysis", "unclear"]
 
 
 @dataclass(frozen=True)
@@ -64,7 +64,7 @@ CONTEXTUALIZER_PROMPT = """你是 Agent Loop 的会话上下文解析器，不�
 - topic_anchor：本轮引用的历史主题；独立问题使用空字符串。
 - target_message_ids：recall 时填写被引用历史消息的 message_id 数组；其他关系使用空数组。
 - confidence：0 到 1 之间的数字。
-- intent_hint：general_knowledge、manufacturing_analysis、unclear 之一。
+- intent_hint：conversation、general_knowledge、manufacturing_analysis、unclear 之一。
 
 语义规则：
 1. standalone：本轮是完整的新问题，resolved_question 保持本轮原意，不拼接旧主题。
@@ -75,7 +75,7 @@ CONTEXTUALIZER_PROMPT = """你是 Agent Loop 的会话上下文解析器，不�
 6. 只能恢复会话指代，禁止添加历史中不存在的制造事实、参数、结论或证据。
 7. 只有主题、范围、对象、否定条件或回答方式，而没有独立信息请求的输入，不是 standalone；应与最近尚未完成的用户目标组合为 followup 或 correction。助手重复索要范围不代表用户已经放弃原目标。
 8. 用户补充、限制或纠正回答应使用的知识来源时，resolved_question 必须同时保留最近尚未完成的信息目标和本轮来源偏好；不能只保留“查个人知识库”等来源动作。
-9. intent_hint 由完整信息目标决定，而不是由来源名称决定。general_knowledge 表示概念、原理、分类、比较或行业常识，即使用户要求优先使用个人或工厂知识；manufacturing_analysis 表示需要当前生产、设备、批次、指标或异常数据；无法可靠判断时使用 unclear。
+9. intent_hint 由完整信息目标决定，而不是由来源名称决定。conversation 表示助手身份、能力、问候以及不请求外部技术或制造事实的交互或元问题；general_knowledge 表示概念、原理、分类、比较或行业常识，即使用户要求优先使用个人或工厂知识；manufacturing_analysis 表示需要当前生产、设备、批次、指标或异常数据；无法可靠判断时使用 unclear。
 10. 不输出分析过程、解释、答案或额外字段。"""
 
 
@@ -269,7 +269,7 @@ def semantic_context_resolution(
         return unresolved_context(question, "fallback")
     target_message_ids = tuple(dict.fromkeys(raw_target_ids))
     intent_hint = str(arguments.get("intent_hint") or "").strip()
-    if intent_hint not in {"general_knowledge", "manufacturing_analysis", "unclear"}:
+    if intent_hint not in {"conversation", "general_knowledge", "manufacturing_analysis", "unclear"}:
         return unresolved_context(question, "fallback")
     if relation == "standalone" or confidence < 0.65:
         return ContextResolution(
