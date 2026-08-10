@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 SCHEMA_METADATA = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -70,6 +70,21 @@ CREATE TABLE IF NOT EXISTS simulation_scenarios (
     observable_signals TEXT NOT NULL,
     source_profile TEXT NOT NULL,
     visible_to_agent INTEGER NOT NULL DEFAULT 0 CHECK(visible_to_agent IN (0, 1))
+);
+
+CREATE TABLE IF NOT EXISTS simulation_metadata (
+    singleton_id INTEGER PRIMARY KEY CHECK(singleton_id = 1),
+    profile_id TEXT NOT NULL,
+    classification TEXT NOT NULL CHECK(classification = 'synthetic_non_production'),
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL,
+    forecast_start TEXT NOT NULL,
+    generated_at TEXT NOT NULL,
+    seed INTEGER NOT NULL,
+    source_basis_json TEXT NOT NULL CHECK(json_valid(source_basis_json)),
+    engineering_assumptions_json TEXT NOT NULL CHECK(json_valid(engineering_assumptions_json)),
+    CHECK(date(start_date) IS NOT NULL AND date(end_date) IS NOT NULL AND date(forecast_start) IS NOT NULL),
+    CHECK(date(start_date) <= date(forecast_start) AND date(forecast_start) <= date(end_date))
 );
 
 CREATE INDEX IF NOT EXISTS idx_lots_complete ON lots(complete_time);
@@ -466,6 +481,7 @@ TABLE_DEPARTMENTS = {
     "lots": "main",
     "process_runs": "main",
     "simulation_scenarios": "main",
+    "simulation_metadata": "main",
     "sensor_readings": "equipment",
     "equipment_state_intervals": "equipment",
     "equipment_events": "equipment",

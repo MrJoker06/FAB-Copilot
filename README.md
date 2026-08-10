@@ -41,6 +41,14 @@
 - [WM-811K 论文记录](https://scholars.lib.ntu.edu.tw/entities/publication/563e8f2c-74ee-4733-bd62-ba5e409d8424)：校准 None、Center、Donut、Edge、Loc、Random、Scratch 等 Wafer Map 类别和不平衡形态。
 - [NIST Control Charts](https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc31.htm)：构造稳定基线、缓慢漂移、突变和控制限异常。
 
+DATA-016 的版本化市场校准档案为 `public-2026-market-anchors-v1`：
+
+- [SEMI World Fab Forecast](https://www.semi.org/en/products-services/market-data/world-fab-forecast) 用于约 2026/2027 年安装产能 `+5%` 趋势的量级校准。
+- [TSMC 2025 Annual Report](https://investor.tsmc.com/static/annualReports/2025/english/index.html) 的 2026 年 12 吋约当晶圆出货量 `16–17m`、产能 `17–18m`，仅作为高利用率边界参考。
+- [UMC 2025 Q2 results](https://www.umc.com/en/News/press_release/Content/investor/20250730) 的 `76%` 产能利用率与 `22/28nm` 营收占比 `40%`，用于成熟/特殊制程的量级参考；本样例的 28nm 批次目标约为 40%。
+
+生成数据会写入制造库的单例 `simulation_metadata`，分类固定为 `synthetic_non_production`。默认固定生成至 `2026-12-25`（可通过 `FAB_SIMULATION_END_DATE` 或 `python -m app.seed --end-date YYYY-MM-DD` 覆盖）；`2026-08-11` 至 `2026-12-25` 是已声明的预测合成段，不是实际 fab 记录。良率、周期时间、recipe、规格、传感器、异常根因和每日 76–86% productive utilization 的设备差异均是工程假设，不应被表述为公开市场数据或真实量产事实。
+
 默认 Route 包含 18 个重复模块节点，覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗和量测。`simulation_scenarios` 保存评测根因，但不在 SQL 白名单和 Agent 工具中。
 
 ## 快速启动
@@ -54,6 +62,7 @@ FAB_MODEL_BASE_URL=https://api.deepseek.com
 FAB_MODEL_NAME=deepseekv4-flash
 FAB_DATABASE_PATH=data/fab_history.db
 FAB_DATABASE_DIR=data/departments
+FAB_SIMULATION_END_DATE=2026-12-25
 FAB_SQLITE_JOURNAL_MODE=auto
 AGENT_LOG_PATH=logs/agent_events.jsonl
 AGENT_RUN_LOG_DIR=logs/agent
@@ -152,7 +161,7 @@ conda run -n fab-insight-agent python -m pip install -r requirements.txt
 重新生成相同分布的历史数据：
 
 ```bash
-conda run -n fab-insight-agent python -m app.seed --force
+conda run -n fab-insight-agent python -m app.seed --force --end-date 2026-12-25
 ```
 
 安装测试依赖并运行快速质量门（非 `tests.system.*` Python、Node、静态 JS、RAG 与 Playbook 黄金集）：

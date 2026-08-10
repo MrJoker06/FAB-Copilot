@@ -7,7 +7,7 @@ from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 WORKSPACE_DIR = PROJECT_DIR.parent.parent
-APP_VERSION = "20260810-2"
+APP_VERSION = "20260810-3"
 
 
 def _load_env(path: Path) -> None:

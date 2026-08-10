@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app.database import _migrate_model_catalog_capabilities
+from app.database import MODEL_CAPABILITIES_SCHEMA_VERSION, _migrate_model_catalog_capabilities
 from app.model_registry import MODEL_CAPABILITY_DEFAULTS, _decode_model, normalize_capabilities
 
 
@@ -50,4 +50,5 @@ class ModelCapabilitiesTests(unittest.TestCase):
         })
         self.assertEqual(json.loads(first["damaged"]), MODEL_CAPABILITY_DEFAULTS)
         self.assertEqual(json.loads(first["array"]), MODEL_CAPABILITY_DEFAULTS)
+        self.assertEqual(MODEL_CAPABILITIES_SCHEMA_VERSION, 10)
         self.assertEqual(migration[0], 10)

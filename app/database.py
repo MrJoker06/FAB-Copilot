@@ -110,6 +110,21 @@ CREATE TABLE IF NOT EXISTS simulation_scenarios (
     visible_to_agent INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS simulation_metadata (
+    singleton_id INTEGER PRIMARY KEY CHECK(singleton_id = 1),
+    profile_id TEXT NOT NULL,
+    classification TEXT NOT NULL CHECK(classification = 'synthetic_non_production'),
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL,
+    forecast_start TEXT NOT NULL,
+    generated_at TEXT NOT NULL,
+    seed INTEGER NOT NULL,
+    source_basis_json TEXT NOT NULL CHECK(json_valid(source_basis_json)),
+    engineering_assumptions_json TEXT NOT NULL CHECK(json_valid(engineering_assumptions_json)),
+    CHECK(date(start_date) IS NOT NULL AND date(end_date) IS NOT NULL AND date(forecast_start) IS NOT NULL),
+    CHECK(date(start_date) <= date(forecast_start) AND date(forecast_start) <= date(end_date))
+);
+
 CREATE TABLE IF NOT EXISTS equipment_events (
     event_id INTEGER PRIMARY KEY AUTOINCREMENT,
     equipment_id TEXT NOT NULL,
@@ -407,6 +422,10 @@ AGENT_TOOL_EVENT_COLUMNS = {
     "completed_at": "TEXT",
 }
 
+# MODEL-015 has an independent migration contract.  Do not couple it to later
+# cross-department schema releases.
+MODEL_CAPABILITIES_SCHEMA_VERSION = 10
+
 
 def _migrate_agent_runs(connection: sqlite3.Connection) -> None:
     columns = {row[1] for row in connection.execute("PRAGMA table_info(agent_runs)")}
@@ -472,7 +491,7 @@ def _migrate_model_catalog_capabilities(connection: sqlite3.Connection) -> None:
     )
     connection.execute(
         "INSERT OR IGNORE INTO schema_migrations(version, description) VALUES (?, ?)",
-        (SCHEMA_VERSION, "model catalog capabilities"),
+        (MODEL_CAPABILITIES_SCHEMA_VERSION, "model catalog capabilities"),
     )
 
 
@@ -588,6 +607,11 @@ def _initialize_legacy(path: Path) -> None:
         _migrate_agent_tool_events(connection)
         _migrate_model_catalog_capabilities(connection)
         connection.execute(
+            """INSERT INTO schema_migrations(version, description) VALUES (?, 'legacy schema')
+               ON CONFLICT(version) DO UPDATE SET description = excluded.description""",
+            (SCHEMA_VERSION,),
+        )
+        connection.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_messages_client_id "
             "ON chat_messages(session_id, client_message_id) "
             "WHERE role = 'user' AND client_message_id IS NOT NULL"
@@ -630,7 +654,8 @@ def _initialize_departments() -> None:
                     "ON chat_sessions(tenant_id, owner_user_id, updated_at DESC)"
                 )
             connection.execute(
-                "INSERT OR IGNORE INTO schema_migrations(version, description) VALUES (?, ?)",
+                """INSERT INTO schema_migrations(version, description) VALUES (?, ?)
+                   ON CONFLICT(version) DO UPDATE SET description = excluded.description""",
                 (SCHEMA_VERSION, f"department schema: {department}"),
             )
             if department == "quality":
@@ -808,6 +833,11 @@ def ensure_department_databases() -> dict[str, int]:
 def validate_department_databases() -> dict[str, int | str]:
     """Run lightweight cross-department contract checks used by startup and tests."""
     with db_session() as connection:
+        metadata = connection.execute(
+            "SELECT end_date, forecast_start FROM simulation_metadata WHERE singleton_id = 1"
+        ).fetchone()
+        metadata_end_date = metadata["end_date"] if metadata else None
+        metadata_forecast_start = metadata["forecast_start"] if metadata else None
         checks: dict[str, int | str] = {
             "quick_check": connection.execute("PRAGMA quick_check").fetchone()[0],
             "sensor_orphans": connection.execute(
@@ -819,9 +849,9 @@ def validate_department_databases() -> dict[str, int | str]:
             "wafer_map_orphans": connection.execute(
                 "SELECT COUNT(*) FROM wafer_maps w LEFT JOIN lots l USING(lot_id) WHERE l.lot_id IS NULL"
             ).fetchone()[0],
-            "future_wafer_maps": connection.execute(
-                "SELECT COUNT(*) FROM wafer_maps WHERE datetime(detected_time) > CURRENT_TIMESTAMP"
-            ).fetchone()[0],
+            "simulation_metadata_status": "present" if metadata else "missing",
+            "simulation_end_date": metadata_end_date or "",
+            "simulation_forecast_start": metadata_forecast_start or "",
             "uncatalogued_defects": connection.execute(
                 """SELECT COUNT(DISTINCT d.defect_type) FROM defect_records d
                    LEFT JOIN defect_types t ON t.canonical_name = d.defect_type
@@ -840,6 +870,32 @@ def validate_department_databases() -> dict[str, int | str]:
                 "(SELECT COUNT(*) FROM knowledge.personal_knowledge_fts))"
             ).fetchone()[0],
         }
+        for table, timestamp_column in (
+            ("lots", "start_time"),
+            ("process_runs", "run_time"),
+            ("sensor_readings", "sample_time"),
+            ("equipment_state_intervals", "start_time"),
+            ("equipment_events", "event_time"),
+            ("defect_records", "detected_time"),
+            ("wafer_maps", "detected_time"),
+        ):
+            if metadata_end_date:
+                checks[f"forecast_{table}"] = connection.execute(
+                    f"SELECT COUNT(*) FROM {table} WHERE date({timestamp_column}) >= date(?) "
+                    f"AND date({timestamp_column}) <= date(?)",
+                    (metadata_forecast_start, metadata_end_date),
+                ).fetchone()[0]
+                checks[f"beyond_horizon_{table}"] = connection.execute(
+                    f"SELECT COUNT(*) FROM {table} WHERE date({timestamp_column}) > date(?)",
+                    (metadata_end_date,),
+                ).fetchone()[0]
+            else:
+                checks[f"forecast_{table}"] = 0
+                checks[f"beyond_horizon_{table}"] = connection.execute(
+                    f"SELECT COUNT(*) FROM {table} WHERE date({timestamp_column}) > date('now')"
+                ).fetchone()[0]
+        # Keep this legacy manifest key while the declared horizon supersedes a wall-clock future check.
+        checks["future_wafer_maps"] = checks["forecast_wafer_maps"]
     return checks
 
 

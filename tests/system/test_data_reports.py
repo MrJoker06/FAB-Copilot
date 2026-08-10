@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import tempfile
@@ -15,12 +16,31 @@ isolated_system_environment()
 from app.database import db_session, department_paths, initialize, sqlite_journal_mode
 from app.processes import MANUFACTURING_STEPS
 from app.reports import defect_pareto, equipment_health, equipment_productivity, process_capability, recent_excursions, report_bundle, timestamp_bounds
-from app.seed import seed_reference_data
+from app.seed import MARKET_PROFILE, MARKET_PROFILE_ID, seed_reference_data
 
 class DataReportsSystemTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         seed_reference_data()
+        # Reference snapshots predate DATA-016; make their disposable copy declare the
+        # same bounded synthetic profile without touching repository data files.
+        with db_session() as connection:
+            start_date = connection.execute("SELECT MIN(date(start_time)) FROM lots").fetchone()[0]
+            connection.execute("DELETE FROM simulation_metadata")
+            connection.execute(
+                """INSERT INTO simulation_metadata(
+                       singleton_id, profile_id, classification, start_date, end_date, forecast_start,
+                       generated_at, seed, source_basis_json, engineering_assumptions_json
+                   ) VALUES (1, ?, 'synthetic_non_production', ?, '2026-12-25',
+                             '2026-08-11', '2026-08-10T00:00:00+00:00', 20260712, ?, ?)""",
+                (
+                    MARKET_PROFILE_ID,
+                    start_date,
+                    json.dumps(MARKET_PROFILE["source_basis"], sort_keys=True),
+                    json.dumps(MARKET_PROFILE["engineering_assumptions"], sort_keys=True),
+                ),
+            )
+            connection.commit()
 
     def test_dashboard_has_manufacturing_data(self):
         dashboard = report_bundle()
@@ -117,14 +137,18 @@ class DataReportsSystemTests(unittest.TestCase):
         self.assertEqual({row[0] for row in signal_coverage}, set(MANUFACTURING_STEPS))
         self.assertTrue(all(row[1] >= 6 for row in signal_coverage))
 
-    def test_history_contains_no_future_process_records(self):
+    def test_history_declares_its_synthetic_forecast_horizon(self):
         with db_session() as connection:
             max_run = connection.execute("SELECT MAX(date(run_time)) FROM process_runs").fetchone()[0]
             max_defect = connection.execute("SELECT MAX(date(detected_time)) FROM defect_records").fetchone()[0]
             max_wafer_map = connection.execute("SELECT MAX(date(detected_time)) FROM wafer_maps").fetchone()[0]
-        self.assertLessEqual(max_run, date.today().isoformat())
-        self.assertLessEqual(max_defect, date.today().isoformat())
-        self.assertLessEqual(max_wafer_map, date.today().isoformat())
+            metadata = connection.execute(
+                "SELECT classification, end_date FROM simulation_metadata WHERE singleton_id = 1"
+            ).fetchone()
+        self.assertEqual(tuple(metadata), ("synthetic_non_production", "2026-12-25"))
+        self.assertLessEqual(max_run, metadata["end_date"])
+        self.assertLessEqual(max_defect, metadata["end_date"])
+        self.assertLessEqual(max_wafer_map, metadata["end_date"])
 
     def test_department_databases_are_physically_separated(self):
         paths = department_paths()

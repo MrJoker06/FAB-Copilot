@@ -3,13 +3,44 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import random
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
 from .config import PROJECT_DIR
 from .database import db_session, department_paths, ensure_department_databases, initialize, writable_table
 from .processes import MANUFACTURING_STEPS
+
+
+DEFAULT_SIMULATION_END_DATE = "2026-12-25"
+MARKET_PROFILE_ID = "public-2026-market-anchors-v1"
+MARKET_PROFILE = {
+    "profile_id": MARKET_PROFILE_ID,
+    "classification": "synthetic_non_production",
+    "forecast_start": "2026-08-11",
+    "source_basis": {
+        "semi_world_fab_forecast": {
+            "url": "https://www.semi.org/en/products-services/market-data/world-fab-forecast",
+            "anchor": "installed capacity trend approximately +5% in 2026 and 2027",
+        },
+        "tsmc_2025_annual_report": {
+            "url": "https://investor.tsmc.com/static/annualReports/2025/english/index.html",
+            "anchor": "2026 shipment outlook 16-17 million 12-inch equivalent wafers; capacity 17-18 million",
+        },
+        "umc_2025q2_results": {
+            "url": "https://www.umc.com/en/News/press_release/Content/investor/20250730",
+            "anchor": "2025 Q2 utilization 76%; 22/28nm revenue share 40%",
+        },
+    },
+    "engineering_assumptions": {
+        "scope": "Synthetic non-production fab records; not real fab records or operating guidance.",
+        "technology_mix": "28nm targets approximately 40% of lots; remaining 14nm and 40nm are synthetic mix assumptions.",
+        "productive_utilization": "Daily equipment productive utilization targets 76-86%, with E10 nonproductive variation.",
+        "volume_ramp": "Deterministic approximately 5% compound annual lot-volume ramp.",
+        "yield_cycle_recipe_sensor": "Yield, cycle time, recipes, scenarios, sensors, specifications and root causes are engineering assumptions.",
+    },
+}
 
 
 PRODUCTS = [
@@ -254,13 +285,53 @@ def seed_reference_data(path: Path | None = None) -> dict:
     return {"knowledge_chunks": knowledge_count, "historical_cases": case_count}
 
 
-def generate_database(path: Path | None = None, days: int = 730, seed: int = 20260712) -> dict:
+def _parse_end_date(value: date | str | None) -> date:
+    """Resolve an explicit simulation horizon without a wall-clock fallback."""
+    if value is None:
+        value = os.getenv("FAB_SIMULATION_END_DATE", DEFAULT_SIMULATION_END_DATE)
+    if isinstance(value, datetime):
+        raise ValueError("end_date must be an ISO date (YYYY-MM-DD), not a datetime")
+    if isinstance(value, date):
+        return value
+    if not isinstance(value, str):
+        raise ValueError("end_date must be a date, ISO date string, or None")
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError("end_date must be a strict ISO date (YYYY-MM-DD)") from exc
+    if parsed.isoformat() != value:
+        raise ValueError("end_date must be a strict ISO date (YYYY-MM-DD)")
+    return parsed
+
+
+def _scenario_anchor_day(end_day: date, forecast_start: date) -> date:
+    """Keep deterministic detectable scenarios in the observed, non-forecast segment."""
+    return min(end_day, forecast_start - timedelta(days=1))
+
+
+def _scenario_window(start_day: date, anchor_day: date, active_days: int) -> tuple[date, date] | None:
+    scenario_start = max(start_day, anchor_day - timedelta(days=active_days - 1))
+    return (scenario_start, anchor_day) if scenario_start <= anchor_day else None
+
+
+def generate_database(
+    path: Path | None = None,
+    days: int = 730,
+    seed: int = 20260712,
+    end_date: date | str | None = None,
+) -> dict:
+    if days <= 0:
+        raise ValueError("days must be positive")
     initialize(path)
     db_path = path or department_paths()["main"]
     rng = random.Random(seed)
-    end_day = date.today()
+    end_day = _parse_end_date(end_date)
     as_of = datetime.combine(end_day, time(23, 59, 59))
     start_day = end_day - timedelta(days=days - 1)
+    profile_forecast_start = date.fromisoformat(MARKET_PROFILE["forecast_start"])
+    forecast_start = min(max(profile_forecast_start, start_day), end_day)
+    scenario_anchor_day = _scenario_anchor_day(end_day, forecast_start)
+    generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     lots: list[tuple] = []
     runs: list[tuple] = []
     events: list[tuple] = []
@@ -272,16 +343,16 @@ def generate_database(path: Path | None = None, days: int = 730, seed: int = 202
     for day_index in range(days):
         current_day = start_day + timedelta(days=day_index)
         seasonal = math.sin(day_index / 34) * 0.006
-        daily_lots = rng.randint(10, 16)
+        # Expected volume follows a deterministic 5% compound annual ramp.
+        daily_lots = max(1, round(rng.uniform(11, 15) * (1.05 ** (day_index / 365))))
         for _ in range(daily_lots):
             product, node, route, baseline_yield = rng.choices(
-                PRODUCTS, weights=[25, 18, 22, 15, 20], k=1
+                PRODUCTS, weights=[24, 16, 22, 14, 24], k=1
             )[0]
             lot_id = f"L{current_day:%y%m%d}-{lot_sequence:05d}"
             lot_sequence += 1
             wafer_count = 25
             start_dt = datetime.combine(current_day, time(rng.randint(0, 23), rng.randint(0, 59)))
-            age_days = (end_day - current_day).days
             priority = rng.choices(["Normal", "Hot", "Super Hot"], [84, 13, 3], k=1)[0]
             base_cycle = {28: 118, 14: 151, 40: 96}[node]
             hold_hours = max(0.0, rng.gauss(3.2, 5.0)) if rng.random() < 0.22 else 0.0
@@ -349,8 +420,9 @@ def generate_database(path: Path | None = None, days: int = 730, seed: int = 202
 
                 definition = SCENARIO_DEFINITIONS[step]
                 defined_id, affected_equipment, active_days, scenario_code, _, _ = definition
-                if equipment == affected_equipment and age_days < active_days:
-                    drift = (active_days - age_days) / active_days
+                scenario_age_days = (scenario_anchor_day - run_dt.date()).days
+                if equipment == affected_equipment and 0 <= scenario_age_days < active_days:
+                    drift = (active_days - scenario_age_days) / active_days
                     scenario_id = defined_id
                     if step == "LITHO":
                         measurement_value += 3.8 * drift
@@ -446,20 +518,22 @@ def generate_database(path: Path | None = None, days: int = 730, seed: int = 202
             runs.extend(lot_runs)
 
         for equipment in [item for values in STEPS.values() for item in values]:
-            state_start = datetime.combine(current_day, time(0, rng.randint(0, 20)))
-            productive_minutes = rng.uniform(860, 1330)
-            equipment_states.append((equipment, rng.choice(["A", "B"]), state_start.isoformat(timespec="seconds"), round(productive_minutes, 1), "Productive", "Production lots"))
-            if rng.random() < 0.62:
-                other_state = rng.choices(
-                    ["Standby", "Engineering", "Scheduled Downtime", "Unscheduled Downtime", "Non-Scheduled"],
-                    [46, 18, 19, 7, 10], k=1,
-                )[0]
-                equipment_states.append((
-                    equipment, rng.choice(["A", "B"]),
-                    (state_start + timedelta(minutes=productive_minutes)).isoformat(timespec="seconds"),
-                    round(max(10.0, 1440.0 - productive_minutes), 1), other_state,
-                    {"Standby": "No production demand", "Engineering": "Process qualification", "Scheduled Downtime": "Preventive maintenance", "Unscheduled Downtime": "Equipment fault", "Non-Scheduled": "Facility calendar"}[other_state],
-                ))
+            state_start = datetime.combine(current_day, time.min)
+            productive_minutes = rng.uniform(0.76 * 1440, 0.86 * 1440)
+            other_state = rng.choices(
+                ["Standby", "Engineering", "Scheduled Downtime", "Unscheduled Downtime", "Non-Scheduled"],
+                [46, 18, 19, 7, 10], k=1,
+            )[0]
+            # Round only after calculating the complement, preserving exactly 1,440 minutes.
+            productive_minutes = round(productive_minutes, 1)
+            nonproductive_minutes = round(1440.0 - productive_minutes, 1)
+            chamber = rng.choice(["A", "B"])
+            equipment_states.append((equipment, chamber, state_start.isoformat(timespec="seconds"), productive_minutes, "Productive", "Production lots"))
+            equipment_states.append((
+                equipment, chamber,
+                (state_start + timedelta(minutes=productive_minutes)).isoformat(timespec="seconds"), nonproductive_minutes, other_state,
+                {"Standby": "No production demand", "Engineering": "Process qualification", "Scheduled Downtime": "Preventive maintenance", "Unscheduled Downtime": "Equipment fault", "Non-Scheduled": "Facility calendar"}[other_state],
+            ))
             if rng.random() < 0.018:
                 event_type = rng.choices(["Alarm", "PM", "Unscheduled Down"], [54, 31, 15], k=1)[0]
                 severity = {"Alarm": "Medium", "PM": "Info", "Unscheduled Down": "High"}[event_type]
@@ -476,11 +550,13 @@ def generate_database(path: Path | None = None, days: int = 730, seed: int = 202
         tables = {name: writable_table(name, path) for name in (
             "lots", "process_runs", "sensor_readings", "equipment_state_intervals",
             "equipment_events", "defect_records", "wafer_maps", "simulation_scenarios",
+            "simulation_metadata",
         )}
         connection.execute(f"DELETE FROM {tables['sensor_readings']}")
         connection.execute(f"DELETE FROM {tables['wafer_maps']}")
         connection.execute(f"DELETE FROM {tables['equipment_state_intervals']}")
         connection.execute(f"DELETE FROM {tables['simulation_scenarios']}")
+        connection.execute(f"DELETE FROM {tables['simulation_metadata']}")
         connection.execute(f"DELETE FROM {tables['defect_records']}")
         connection.execute(f"DELETE FROM {tables['process_runs']}")
         connection.execute(f"DELETE FROM {tables['equipment_events']}")
@@ -523,9 +599,13 @@ def generate_database(path: Path | None = None, days: int = 730, seed: int = 202
         scenario_rows = []
         for step, definition in SCENARIO_DEFINITIONS.items():
             scenario_id, equipment_id, active_days, scenario_type, root_cause, signals = definition
+            scenario_window = _scenario_window(start_day, scenario_anchor_day, active_days)
+            if scenario_window is None:
+                continue
+            scenario_start, scenario_end = scenario_window
             scenario_rows.append((
                 scenario_id, step, equipment_id, scenario_type,
-                (end_day - timedelta(days=active_days - 1)).isoformat(), end_day.isoformat(),
+                scenario_start.isoformat(), scenario_end.isoformat(),
                 root_cause, signals, "SECOM-shape + SEMI-E10 + WM-811K-patterns + NIST-SPC", 0,
             ))
         connection.executemany(
@@ -534,6 +614,18 @@ def generate_database(path: Path | None = None, days: int = 730, seed: int = 202
                    end_date, root_cause, observable_signals, source_profile, visible_to_agent
                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             scenario_rows,
+        )
+        connection.execute(
+            f"""INSERT INTO {tables['simulation_metadata']}(
+                   singleton_id, profile_id, classification, start_date, end_date, forecast_start,
+                   generated_at, seed, source_basis_json, engineering_assumptions_json
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                1, MARKET_PROFILE_ID, MARKET_PROFILE["classification"], start_day.isoformat(), end_day.isoformat(),
+                forecast_start.isoformat(), generated_at, seed,
+                json.dumps(MARKET_PROFILE["source_basis"], sort_keys=True, separators=(",", ":")),
+                json.dumps(MARKET_PROFILE["engineering_assumptions"], sort_keys=True, separators=(",", ":")),
+            ),
         )
 
         sensor_count = 0
@@ -560,7 +652,9 @@ def generate_database(path: Path | None = None, days: int = 730, seed: int = 202
                     if unit == "R2":
                         value = _clip(value, 0.0, 1.0)
                     value = round(value, 6)
-                sample_time = datetime.fromisoformat(run["run_time"]) + timedelta(seconds=signal_index * 3)
+                sample_time = min(
+                    datetime.fromisoformat(run["run_time"]) + timedelta(seconds=signal_index * 3), as_of
+                )
                 sensor_batch.append((
                     run["lot_id"], run["operation_seq"], run["process_step"], run["equipment_id"],
                     run["chamber"], sample_time.isoformat(timespec="seconds"), signal_name, value,
@@ -592,6 +686,9 @@ def generate_database(path: Path | None = None, days: int = 730, seed: int = 202
     return {
         "database": str(db_path),
         "date_range": [start_day.isoformat(), end_day.isoformat()],
+        "horizon": {"start_date": start_day.isoformat(), "end_date": end_day.isoformat()},
+        "forecast_boundary": forecast_start.isoformat(),
+        "profile_id": MARKET_PROFILE_ID,
         "lots": len(lots),
         "process_runs": len(runs),
         "equipment_events": len(events),
@@ -599,17 +696,22 @@ def generate_database(path: Path | None = None, days: int = 730, seed: int = 202
         "defect_records": len(defects),
         "sensor_readings": sensor_count,
         "wafer_maps": len(wafer_maps),
-        "simulation_scenarios": len(SCENARIO_DEFINITIONS),
+        "simulation_scenarios": len(scenario_rows),
         "knowledge_chunks": knowledge_count,
         "historical_cases": case_count,
     }
 
 
-if __name__ == "__main__":
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate deterministic semiconductor fab history")
     parser.add_argument("--days", type=int, default=730)
+    parser.add_argument("--end-date", type=_parse_end_date, default=None, help="Strict ISO horizon end date (YYYY-MM-DD)")
     parser.add_argument("--force", action="store_true", help="Regenerate even when the database exists")
-    args = parser.parse_args()
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
     ensure_department_databases()
     with db_session() as connection:
         has_data = bool(connection.execute("SELECT EXISTS(SELECT 1 FROM lots LIMIT 1)").fetchone()[0])
@@ -617,4 +719,9 @@ if __name__ == "__main__":
         paths = ", ".join(str(path) for path in department_paths().values())
         print(f"Department databases already exist: {paths}. Use --force to regenerate.")
     else:
-        print(generate_database(days=args.days))
+        print(generate_database(days=args.days, end_date=args.end_date))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
