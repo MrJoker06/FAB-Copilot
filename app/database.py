@@ -425,6 +425,7 @@ AGENT_TOOL_EVENT_COLUMNS = {
 # MODEL-015 has an independent migration contract.  Do not couple it to later
 # cross-department schema releases.
 MODEL_CAPABILITIES_SCHEMA_VERSION = 10
+MODEL_COMPATIBILITY_SCHEMA_VERSION = 12
 
 
 def _migrate_agent_runs(connection: sqlite3.Connection) -> None:
@@ -493,6 +494,19 @@ def _migrate_model_catalog_capabilities(connection: sqlite3.Connection) -> None:
         "INSERT OR IGNORE INTO schema_migrations(version, description) VALUES (?, ?)",
         (MODEL_CAPABILITIES_SCHEMA_VERSION, "model catalog capabilities"),
     )
+
+
+def _migrate_model_catalog_compatibility(connection: sqlite3.Connection) -> None:
+    tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    if "model_catalog" not in tables:
+        return
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(model_catalog)")}
+    if "compatibility_json" not in columns:
+        connection.execute("ALTER TABLE model_catalog ADD COLUMN compatibility_json TEXT NOT NULL DEFAULT '{}'")
+    if "compatibility_checked_at" not in columns:
+        connection.execute("ALTER TABLE model_catalog ADD COLUMN compatibility_checked_at TEXT")
+    connection.execute("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, description TEXT NOT NULL)")
+    connection.execute("INSERT OR IGNORE INTO schema_migrations(version, description) VALUES (?, ?)", (MODEL_COMPATIBILITY_SCHEMA_VERSION, "model publication compatibility"))
 
 
 # Bootstrap data for a fresh database. Runtime matching reads the database tables,
@@ -606,6 +620,7 @@ def _initialize_legacy(path: Path) -> None:
         _migrate_agent_runs(connection)
         _migrate_agent_tool_events(connection)
         _migrate_model_catalog_capabilities(connection)
+        _migrate_model_catalog_compatibility(connection)
         connection.execute(
             """INSERT INTO schema_migrations(version, description) VALUES (?, 'legacy schema')
                ON CONFLICT(version) DO UPDATE SET description = excluded.description""",
@@ -644,6 +659,7 @@ def _initialize_departments() -> None:
                 _migrate_agent_runs(connection)
                 _migrate_agent_tool_events(connection)
                 _migrate_model_catalog_capabilities(connection)
+                _migrate_model_catalog_compatibility(connection)
                 connection.execute(
                     "CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_messages_client_id "
                     "ON chat_messages(session_id, client_message_id) "

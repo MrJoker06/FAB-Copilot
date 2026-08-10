@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app.database import MODEL_CAPABILITIES_SCHEMA_VERSION, _migrate_model_catalog_capabilities
+from app.database import MODEL_CAPABILITIES_SCHEMA_VERSION, MODEL_COMPATIBILITY_SCHEMA_VERSION, _migrate_model_catalog_capabilities, _migrate_model_catalog_compatibility
 from app.model_registry import MODEL_CAPABILITY_DEFAULTS, _decode_model, normalize_capabilities
 
 
@@ -52,3 +52,18 @@ class ModelCapabilitiesTests(unittest.TestCase):
         self.assertEqual(json.loads(first["array"]), MODEL_CAPABILITY_DEFAULTS)
         self.assertEqual(MODEL_CAPABILITIES_SCHEMA_VERSION, 10)
         self.assertEqual(migration[0], 10)
+
+    def test_compatibility_migration_is_additive_and_preserves_v10(self):
+        connection = sqlite3.connect(":memory:")
+        connection.execute("CREATE TABLE model_catalog (model_id TEXT PRIMARY KEY, capabilities_json TEXT NOT NULL)")
+        connection.execute("INSERT INTO model_catalog VALUES ('old', '{}')")
+        _migrate_model_catalog_capabilities(connection)
+        _migrate_model_catalog_compatibility(connection)
+        _migrate_model_catalog_compatibility(connection)
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(model_catalog)")}
+        rows = dict(connection.execute("SELECT version, description FROM schema_migrations"))
+        connection.close()
+        self.assertIn("compatibility_json", columns)
+        self.assertIn("compatibility_checked_at", columns)
+        self.assertEqual(rows[MODEL_CAPABILITIES_SCHEMA_VERSION], "model catalog capabilities")
+        self.assertEqual(rows[MODEL_COMPATIBILITY_SCHEMA_VERSION], "model publication compatibility")

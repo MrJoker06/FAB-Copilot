@@ -68,7 +68,7 @@ class SimulationProfileTests(unittest.TestCase):
                     )
                 }
                 migrations = dict(connection.execute(
-                    "SELECT version, description FROM schema_migrations WHERE version IN (10, 11)"
+                    "SELECT version, description FROM schema_migrations WHERE version IN (10, 12, 13)"
                 ).fetchall())
             finally:
                 connection.close()
@@ -76,7 +76,7 @@ class SimulationProfileTests(unittest.TestCase):
             connection = sqlite3.connect(path)
             try:
                 second_migrations = dict(connection.execute(
-                    "SELECT version, description FROM schema_migrations WHERE version IN (10, 11)"
+                    "SELECT version, description FROM schema_migrations WHERE version IN (10, 12, 13)"
                 ).fetchall())
             finally:
                 connection.close()
@@ -94,7 +94,7 @@ class SimulationProfileTests(unittest.TestCase):
         self.assertLessEqual(utilization[1], 0.86)
         self.assertEqual(coverage, (1440.0, 1440.0))
         self.assertTrue(all(value <= "2026-12-25" for value in maxima.values()))
-        self.assertEqual(migrations, {10: "model catalog capabilities", 11: "legacy schema"})
+        self.assertEqual(migrations, {10: "model catalog capabilities", 12: "model publication compatibility", 13: "legacy schema"})
         self.assertEqual(second_migrations, migrations)
 
     def test_validator_reports_declared_forecasts_and_horizon_violations(self):
@@ -123,7 +123,7 @@ class SimulationProfileTests(unittest.TestCase):
             agent_connection = sqlite3.connect(agent_path)
             try:
                 migrations = dict(agent_connection.execute(
-                    "SELECT version, description FROM schema_migrations WHERE version IN (10, 11)"
+                    "SELECT version, description FROM schema_migrations WHERE version IN (10, 12, 13)"
                 ).fetchall())
             finally:
                 agent_connection.close()
@@ -131,7 +131,7 @@ class SimulationProfileTests(unittest.TestCase):
             agent_connection = sqlite3.connect(agent_path)
             try:
                 second_migrations = dict(agent_connection.execute(
-                    "SELECT version, description FROM schema_migrations WHERE version IN (10, 11)"
+                    "SELECT version, description FROM schema_migrations WHERE version IN (10, 12, 13)"
                 ).fetchall())
             finally:
                 agent_connection.close()
@@ -162,8 +162,8 @@ class SimulationProfileTests(unittest.TestCase):
                 )
                 connection.commit()
             checks = validate_department_databases()
-        self.assertEqual(SCHEMA_VERSION, 11)
-        self.assertEqual(migrations, {10: "model catalog capabilities", 11: "department schema: agent"})
+        self.assertEqual(SCHEMA_VERSION, 13)
+        self.assertEqual(migrations, {10: "model catalog capabilities", 12: "model publication compatibility", 13: "department schema: agent"})
         self.assertEqual(second_migrations, migrations)
         self.assertEqual(missing_checks["simulation_metadata_status"], "missing")
         self.assertEqual(missing_checks["forecast_process_runs"], 0)

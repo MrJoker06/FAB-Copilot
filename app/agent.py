@@ -12,6 +12,7 @@ from datetime import date, datetime, timezone
 from typing import Any, Callable
 
 import httpx
+from .model_compatibility import provider_request_options
 
 from .answer_synthesizer import (
     MODEL_KNOWLEDGE_DISCLOSURE,
@@ -684,6 +685,7 @@ async def _stream_completion(
     stream_state = stream_state if stream_state is not None else {}
     payload = {**request_payload, "stream": True, "stream_options": {"include_usage": True}}
     content_parts: list[str] = []
+    reasoning_parts: list[str] = []
     pending_answer_parts: list[str] = []
     pending_answer_length = 0
     answer_started = False
@@ -736,6 +738,7 @@ async def _stream_completion(
             delta = choice.get("delta") or {}
             reasoning_content = delta.get("reasoning_content")
             if isinstance(reasoning_content, str) and reasoning_content:
+                reasoning_parts.append(reasoning_content)
                 stream_state["reasoning_length"] = (
                     int(stream_state.get("reasoning_length", 0)) + len(reasoning_content)
                 )
@@ -780,6 +783,10 @@ async def _stream_completion(
     assistant = {"role": "assistant", "content": "".join(content_parts)}
     if tool_parts:
         assistant["tool_calls"] = [tool_parts[index] for index in sorted(tool_parts)]
+        # DeepSeek requires this only for the immediate tool-call continuation.
+        # It remains in-memory and is stripped from audit/SSE/session payloads.
+        if reasoning_parts:
+            assistant["reasoning_content"] = "".join(reasoning_parts)
     elif not answer_started and not suppress_pending_content():
         if pending_answer_parts:
             required_disclosure = str(stream_state.get("required_disclosure") or "")
@@ -796,6 +803,11 @@ async def _stream_completion(
     stream_state["finish_reason"] = finish_reason
     stream_state["stream_duration_ms"] = round((time.perf_counter() - stream_started) * 1000, 1)
     return assistant, usage, response_id
+
+
+def _audit_assistant(assistant: dict) -> dict:
+    """Reasoning traces are provider continuation data, never observability data."""
+    return {key: value for key, value in assistant.items() if key != "reasoning_content"}
 
 
 def _retryable_model_error(exc: Exception) -> bool:
@@ -997,7 +1009,7 @@ async def _resolve_conversation_turn(
                     **({
                         "error_message": str(exc),
                         "traceback": traceback.format_exc(),
-                        "response": assistant,
+                        "response": _audit_assistant(assistant),
                     } if CONTENT_MODE == "full" else {}),
                 )
                 if will_retry:
@@ -1057,7 +1069,7 @@ async def _resolve_conversation_turn(
                 finish_reason=context_stream_state.get("finish_reason") or "stop",
                 reasoning_length=int(context_stream_state.get("reasoning_length", 0)),
                 response_id=response_id,
-                **({"response": assistant, "context_resolution": resolution.to_dict()} if CONTENT_MODE == "full" else {}),
+                **({"response": _audit_assistant(assistant), "context_resolution": resolution.to_dict()} if CONTENT_MODE == "full" else {}),
             )
             emit(
                 "question_context_classified",
@@ -1091,6 +1103,7 @@ async def _run_agent_impl(
     history: list[dict] | None,
     run_id: str,
     progress: ProgressCallback | None = None,
+    thinking: bool = False,
 ) -> dict:
     settings = effective_agent_settings(get_settings())
     direct_route = route_question(question)
@@ -1473,6 +1486,7 @@ async def _run_agent_impl(
                 "model": connection.model,
                 "messages": messages,
                 "temperature": 0.15,
+                **provider_request_options(connection.provider, thinking),
             }
             if intent_route.intent not in {"general_knowledge", "conversation"}:
                 request_payload["tools"] = (
@@ -1566,7 +1580,7 @@ async def _run_agent_impl(
                     content_delta_count=stream_state.get("content_delta_count", 0),
                     content_chars=stream_state.get("content_chars", 0),
                     stream_duration_ms=stream_state.get("stream_duration_ms"),
-                    **({"response": assistant} if CONTENT_MODE == "full" else {}),
+                    **({"response": _audit_assistant(assistant)} if CONTENT_MODE == "full" else {}),
                 )
                 break
             for key in total_usage:
@@ -1868,6 +1882,8 @@ async def run_agent(
     question: str,
     history: list[dict] | None = None,
     progress: ProgressCallback | None = None,
+    *,
+    thinking: bool = False,
 ) -> dict:
     run_id = str(uuid.uuid4())
     started = time.perf_counter()
@@ -1889,7 +1905,7 @@ async def run_agent(
     )
     await tracked_progress({"event": "run_started", "run_id": run_id, "message": "分析任务已创建"})
     try:
-        result = await _run_agent_impl(question, history, run_id, tracked_progress)
+        result = await _run_agent_impl(question, history, run_id, tracked_progress, thinking)
         result["run_id"] = run_id
         result["status"] = "success"
         result["started_at"] = started_at

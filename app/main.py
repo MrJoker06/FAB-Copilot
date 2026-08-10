@@ -19,7 +19,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .agent import run_agent
 from .audit import CONTENT_MODE, GIT_COMMIT, current_request_id, emit, monitoring_summary, read_events
-from .config import APP_VERSION, PROJECT_DIR, get_settings
+from .config import APP_VERSION, PROJECT_DIR, ModelConnection, get_settings
 from .database import db_session, department_paths, ensure_department_databases
 from .enterprise_data import EnterpriseDataError, get_enterprise_provider
 from .execution_store import RunExecutionRecorder, get_run_audit, recover_interrupted_executions
@@ -31,7 +31,9 @@ from .model_registry import (
     publish_model,
     select_user_model,
     set_model_status,
+    validate_model_definition,
 )
+from .model_compatibility import ModelCompatibilityError, check_model_compatibility
 from .processes import MANUFACTURING_STEPS, PROCESS_STEP_PATTERN
 from .personal_knowledge import (
     PersonalDocumentPatch,
@@ -484,11 +486,17 @@ def admin_models(_: Annotated[str, Depends(current_admin)]) -> list[dict]:
 
 
 @app.post("/api/admin/models", status_code=201)
-def admin_publish_model(
+async def admin_publish_model(
     request: AdminModelPublishRequest,
     admin_user: Annotated[str, Depends(current_admin)],
 ) -> dict:
     try:
+        validate_model_definition(request.model_id, request.display_name, request.provider, request.provider_model, request.base_url)
+        configured = get_settings().model_connection
+        report = await check_model_compatibility(
+            ModelConnection(request.provider, configured.api_key, request.base_url.rstrip("/"), request.provider_model),
+            request.capabilities.model_dump(),
+        )
         model = publish_model(
             request.model_id,
             request.display_name,
@@ -497,11 +505,16 @@ def admin_publish_model(
             request.base_url,
             request.capabilities.model_dump(),
             admin_user,
+            report,
         )
+    except ModelCompatibilityError as exc:
+        emit("model_compatibility_checked", f"model-{uuid.uuid4()}", status="error", model_id=request.model_id, error_category=exc.category, retryable=exc.retryable)
+        raise http_problem(422, "MODEL_COMPATIBILITY_FAILED", exc.summary, exc.retryable) from exc
     except ValueError as exc:
         message = str(exc)
         status_code = 409 if "已经存在" in message else 400
         raise http_problem(status_code, "MODEL_PUBLICATION_FAILED", message, False) from exc
+    emit("model_compatibility_checked", f"model-{uuid.uuid4()}", status="success", model_id=model["model_id"], checks=[item.get("name") for item in report.get("checks", [])], duration_ms=report.get("duration_ms"))
     emit(
         "model_published",
         f"model-{uuid.uuid4()}",
@@ -515,15 +528,33 @@ def admin_publish_model(
 
 
 @app.patch("/api/admin/models/{model_id}")
-def admin_update_model_status(
+async def admin_update_model_status(
     model_id: str,
     request: AdminModelStatusRequest,
     admin_user: Annotated[str, Depends(current_admin)],
 ) -> dict:
     try:
-        model = set_model_status(model_id, request.status)
+        report = None
+        if request.status == "published":
+            with db_session() as connection:
+                row = connection.execute("SELECT display_name, provider, provider_model, base_url, capabilities_json FROM agent.model_catalog WHERE model_id = ? AND status = 'retired'", (model_id,)).fetchone()
+            if row is None:
+                raise ValueError("模型不存在或不是已停用状态")
+            validate_model_definition(model_id, row["display_name"], row["provider"], row["provider_model"], row["base_url"], allow_retired_id=model_id)
+            try:
+                capabilities = json.loads(row["capabilities_json"] or "{}")
+            except (TypeError, json.JSONDecodeError):
+                capabilities = {}
+            configured = get_settings().model_connection
+            report = await check_model_compatibility(ModelConnection(row["provider"], configured.api_key, row["base_url"], row["provider_model"]), capabilities)
+        model = set_model_status(model_id, request.status, report)
+    except ModelCompatibilityError as exc:
+        emit("model_compatibility_checked", f"model-{uuid.uuid4()}", status="error", model_id=model_id, error_category=exc.category, retryable=exc.retryable)
+        raise http_problem(422, "MODEL_COMPATIBILITY_FAILED", exc.summary, exc.retryable) from exc
     except ValueError as exc:
         raise http_problem(400, "MODEL_STATUS_UPDATE_FAILED", str(exc), False) from exc
+    if report:
+        emit("model_compatibility_checked", f"model-{uuid.uuid4()}", status="success", model_id=model_id, checks=[item.get("name") for item in report.get("checks", [])], duration_ms=report.get("duration_ms"))
     emit(
         "model_status_changed",
         f"model-{uuid.uuid4()}",
@@ -769,6 +800,7 @@ async def chat(request: ChatRequest) -> dict:
             request.message,
             history or [item.model_dump() for item in request.history],
             recorder.observe,
+            thinking=request.thinking,
         )
         recorder.complete(result)
         result["session_id"] = session_id
@@ -971,7 +1003,7 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             await queue.put((event, enqueued_at))
             await asyncio.sleep(0)
 
-        task = asyncio.create_task(run_agent(request.message, history, progress))
+        task = asyncio.create_task(run_agent(request.message, history, progress, thinking=request.thinking))
         try:
             while not task.done() or not queue.empty():
                 try:

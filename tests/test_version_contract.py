@@ -46,3 +46,8 @@ class VersionContractTests(unittest.TestCase):
                 self.assertTrue(resource_versions)
                 self.assertTrue(all(version == APP_VERSION for version in resource_versions))
                 self.assertNotIn("__APP_VERSION__", html)
+
+    def test_admin_compatibility_contract(self):
+        root = Path(__file__).parents[1] / "app" / "static"
+        self.assertIn("兼容性", (root / "admin.html").read_text(encoding="utf-8"))
+        self.assertIn("正在执行兼容性检查", (root / "admin.js").read_text(encoding="utf-8"))

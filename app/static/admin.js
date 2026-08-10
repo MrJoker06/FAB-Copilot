@@ -110,7 +110,8 @@ function renderModels(models) {
   const published = models.filter(model => model.status === 'published').length;
   $('#modelCatalogCount').textContent = `${models.length} 个版本 · ${published} 个可供用户选择`;
   const capabilityLabels = model => FabModelCapabilities.labels(model.capabilities).map(escapeHtml).join(' · ') || '无';
-  $('#modelCatalogBody').innerHTML = models.map(model => `<tr><td><div class="identity-cell"><strong>${escapeHtml(model.display_name)}</strong><span>${escapeHtml(model.base_url)}</span></div></td><td>${escapeHtml(model.model_id)}</td><td>${escapeHtml(model.provider)}</td><td>${escapeHtml(model.provider_model)}</td><td>${capabilityLabels(model)}</td><td>${formatNumber(model.selected_user_count)}</td><td>${statusChip(model.status)}</td><td>${formatDate(model.published_at)}</td><td><div class="catalog-actions"><button class="quiet-button" type="button" data-model-id="${escapeHtml(model.model_id)}" data-model-status="${model.status === 'published' ? 'retired' : 'published'}">${model.status === 'published' ? '停用' : '重新发布'}</button></div></td></tr>`).join('') || '<tr><td class="empty-row" colspan="9">模型目录为空</td></tr>';
+  const compatibility = model => model.compatibility?.status === 'passed' ? `已验证 · ${formatDate(model.compatibility_checked_at)}` : (model.compatibility?.summary || '未验证');
+  $('#modelCatalogBody').innerHTML = models.map(model => `<tr><td><div class="identity-cell"><strong>${escapeHtml(model.display_name)}</strong><span>${escapeHtml(model.base_url)}</span></div></td><td>${escapeHtml(model.model_id)}</td><td>${escapeHtml(model.provider)}</td><td>${escapeHtml(model.provider_model)}</td><td>${capabilityLabels(model)}</td><td>${escapeHtml(compatibility(model))}</td><td>${formatNumber(model.selected_user_count)}</td><td>${statusChip(model.status)}</td><td>${formatDate(model.published_at)}</td><td><div class="catalog-actions"><button class="quiet-button" type="button" data-model-id="${escapeHtml(model.model_id)}" data-model-status="${model.status === 'published' ? 'retired' : 'published'}">${model.status === 'published' ? '停用' : '重新发布'}</button></div></td></tr>`).join('') || '<tr><td class="empty-row" colspan="10">模型目录为空</td></tr>';
 }
 
 async function loadModels() {
@@ -129,6 +130,7 @@ async function publishModel(event) {
     capabilities: FabModelCapabilities.publishPayload({streaming: $('#publishStreaming').checked, tool_calls: $('#publishToolCalls').checked, thinking: $('#publishThinking').checked, native_multimodal: $('#publishNativeMultimodal').checked}),
   };
   try {
+    $('#publishModelMessage').textContent = '正在执行兼容性检查，请稍候…'; $('#publishModelMessage').hidden = false;
     await adminApi('/api/admin/models', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
     $('#publishModelDialog').close(); $('#publishModelForm').reset(); $('#publishBaseUrl').value = 'https://api.deepseek.com'; $('#publishStreaming').checked = true; $('#publishToolCalls').checked = true; $('#publishThinking').checked = false; $('#publishNativeMultimodal').checked = false;
     await loadModels(); showToast(`模型 ${payload.display_name} 已发布`);
@@ -139,6 +141,7 @@ async function publishModel(event) {
 async function updateModelStatus(modelId, status, button) {
   button.disabled = true;
   try {
+    if (status === 'published') showToast('正在执行兼容性检查，请稍候…');
     await adminApi(`/api/admin/models/${encodeURIComponent(modelId)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})});
     await loadModels(); showToast(status === 'published' ? '模型已重新发布' : '模型已停用');
   } catch (error) { showNotice('#modelNotice', error.message, true); button.disabled = false; }

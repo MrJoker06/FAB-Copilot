@@ -59,7 +59,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             with patch.dict(os.environ, {
                 "FAB_ADMIN_API_TOKEN": admin_token,
                 "DEEPSEEK_API_KEY": "server-managed-test-key",
-            }), TestClient(app) as client:
+            }), patch("app.main.check_model_compatibility", new=AsyncMock(return_value={"status": "passed", "checked_at": "2026-08-11T00:00:00+00:00", "checks": []})), TestClient(app) as client:
                 self.assertEqual(client.get("/api/admin/models").status_code, 401)
                 admin_headers = {"Authorization": f"Bearer {admin_token}"}
                 published = client.post(
@@ -116,6 +116,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                     chat_response = client.post("/api/chat", headers=user_a, json={"message": "查看工厂总览", "thinking": True})
                 self.assertEqual(chat_response.status_code, 200, chat_response.text)
                 self.assertEqual(captured["payload"]["model"], "enterprise-test-v1")
+                self.assertEqual(captured["payload"]["reasoning_effort"], "high")
                 self.assertEqual(captured["endpoint"], "https://models.example.test/v1/chat/completions")
                 self.assertEqual(captured["headers"]["Authorization"], "Bearer server-managed-test-key")
                 client.delete(f"/api/sessions/{chat_response.json()['session_id']}/permanent", headers=user_a)

@@ -70,6 +70,11 @@ def _decode_model(row) -> dict:
     except (TypeError, json.JSONDecodeError):
         capabilities = {}
     item["capabilities"] = normalize_capabilities(capabilities)
+    try:
+        item["compatibility"] = json.loads(item.pop("compatibility_json", "{}") or "{}")
+    except (TypeError, json.JSONDecodeError):
+        item["compatibility"] = {}
+    item["compatibility_checked_at"] = item.get("compatibility_checked_at")
     item["selectable"] = item["status"] == "published"
     return item
 
@@ -177,6 +182,25 @@ def effective_agent_settings(settings):
     )
 
 
+def validate_model_definition(
+    model_id: str, display_name: str, provider: str, provider_model: str, base_url: str,
+    *, allow_retired_id: str | None = None,
+) -> tuple[str, str, str, str]:
+    """Pure/read-only publication validation; call before any upstream probe."""
+    cleaned_model_id, cleaned_display_name = model_id.strip(), display_name.strip()
+    cleaned_provider_model, cleaned_url = provider_model.strip(), base_url.strip().rstrip("/")
+    if not MODEL_ID_PATTERN.fullmatch(cleaned_model_id): raise ValueError("模型编号格式不正确")
+    if len(cleaned_display_name) < 2: raise ValueError("模型显示名称不能少于 2 个字符")
+    if len(cleaned_provider_model) < 2: raise ValueError("Provider Model 不能少于 2 个字符")
+    if provider not in MODEL_PROVIDERS: raise ValueError("不支持的模型提供方")
+    if not cleaned_url.startswith(("https://", "http://")): raise ValueError("模型 API 地址必须使用 http:// 或 https://")
+    with db_session() as connection:
+        row = connection.execute("SELECT status FROM model_catalog WHERE model_id = ?", (cleaned_model_id,)).fetchone()
+    if row is not None and cleaned_model_id != allow_retired_id: raise ValueError("模型编号已经存在")
+    if allow_retired_id and (row is None or row["status"] != "retired"): raise ValueError("模型不存在或不是已停用状态")
+    return cleaned_model_id, cleaned_display_name, cleaned_provider_model, cleaned_url
+
+
 def publish_model(
     model_id: str,
     display_name: str,
@@ -185,21 +209,11 @@ def publish_model(
     base_url: str,
     capabilities: dict | None,
     created_by: str,
+    compatibility: dict | None = None,
 ) -> dict:
-    cleaned_model_id = model_id.strip()
-    cleaned_display_name = display_name.strip()
-    cleaned_provider_model = provider_model.strip()
-    if not MODEL_ID_PATTERN.fullmatch(cleaned_model_id):
-        raise ValueError("模型编号格式不正确")
-    if len(cleaned_display_name) < 2:
-        raise ValueError("模型显示名称不能少于 2 个字符")
-    if len(cleaned_provider_model) < 2:
-        raise ValueError("Provider Model 不能少于 2 个字符")
-    if provider not in MODEL_PROVIDERS:
-        raise ValueError("不支持的模型提供方")
-    cleaned_url = base_url.strip().rstrip("/")
-    if not cleaned_url.startswith(("https://", "http://")):
-        raise ValueError("模型 API 地址必须使用 http:// 或 https://")
+    cleaned_model_id, cleaned_display_name, cleaned_provider_model, cleaned_url = validate_model_definition(model_id, display_name, provider, provider_model, base_url)
+    if not isinstance(compatibility, dict) or compatibility.get("status") != "passed":
+        raise ValueError("模型兼容性检查未通过")
     timestamp = _now()
     with db_session() as connection:
         exists = connection.execute(
@@ -211,8 +225,8 @@ def publish_model(
         connection.execute(
             """INSERT INTO agent.model_catalog(
                    model_id, display_name, provider, provider_model, base_url, status,
-                   capabilities_json, created_by, created_at, updated_at, published_at
-               ) VALUES (?, ?, ?, ?, ?, 'published', ?, ?, ?, ?, ?)""",
+                   capabilities_json, compatibility_json, compatibility_checked_at, created_by, created_at, updated_at, published_at
+               ) VALUES (?, ?, ?, ?, ?, 'published', ?, ?, ?, ?, ?, ?, ?)""",
             (
                 cleaned_model_id,
                 cleaned_display_name,
@@ -220,6 +234,8 @@ def publish_model(
                 cleaned_provider_model,
                 cleaned_url,
                 json.dumps(normalize_capabilities(capabilities), separators=(",", ":")),
+                json.dumps(compatibility or {}, separators=(",", ":")),
+                (compatibility or {}).get("checked_at"),
                 created_by,
                 timestamp,
                 timestamp,
@@ -234,9 +250,11 @@ def publish_model(
     return _decode_model(row)
 
 
-def set_model_status(model_id: str, status: str) -> dict:
+def set_model_status(model_id: str, status: str, compatibility: dict | None = None) -> dict:
     if status not in {"published", "retired"}:
         raise ValueError("模型状态不正确")
+    if status == "published" and (not isinstance(compatibility, dict) or compatibility.get("status") != "passed"):
+        raise ValueError("模型兼容性检查未通过")
     with db_session() as connection:
         if status == "retired":
             published_count = connection.execute(
@@ -253,12 +271,14 @@ def set_model_status(model_id: str, status: str) -> dict:
         cursor = connection.execute(
             """UPDATE agent.model_catalog
                SET status = ?, updated_at = ?,
+                   compatibility_json = CASE WHEN ? = 'published' THEN ? ELSE compatibility_json END,
+                   compatibility_checked_at = CASE WHEN ? = 'published' THEN ? ELSE compatibility_checked_at END,
                    published_at = CASE WHEN ? = 'published' THEN ? ELSE published_at END
-               WHERE model_id = ?""",
-            (status, timestamp, status, timestamp, model_id),
+               WHERE model_id = ? AND (? != 'published' OR status = 'retired')""",
+            (status, timestamp, status, json.dumps(compatibility or {}, separators=(",", ":")), status, (compatibility or {}).get("checked_at"), status, timestamp, model_id, status),
         )
         if cursor.rowcount == 0:
-            raise ValueError("模型不存在")
+            raise ValueError("模型不存在或状态已变化")
         connection.commit()
         row = connection.execute("SELECT * FROM model_catalog WHERE model_id = ?", (model_id,)).fetchone()
     return _decode_model(row)
