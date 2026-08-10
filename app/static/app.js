@@ -11,6 +11,7 @@ const processLabels = { LITHO: '光刻', ETCH: '刻蚀', CVD: '化学气相沉�
 const toolLabels = { get_enterprise_data_manifest: '查询企业数据目录', get_enterprise_fab_summary: '聚合企业模拟数据', query_enterprise_data: '抽取企业模拟数据', get_fab_overview: '查询工厂总览', get_yield_trend: '查询良率趋势', get_equipment_health: '查询设备健康', get_equipment_productivity: '查询设备生产状态', get_process_capability: '查询制程能力', get_defect_pareto: '查询缺陷 Pareto', get_recent_excursions: '查询近期异常', get_sensor_summary: '查询传感器摘要', search_knowledge: '检索知识与案例', query_manufacturing_data: '执行制造数据查询' };
 const sourcePresenter = globalThis.FabSourcePresenter;
 const personalKnowledgeMetadata = globalThis.FabPersonalKnowledgeMetadata;
+const thinkingControl = globalThis.FabThinkingControl;
 
 function isoDate(date) { return date.toISOString().slice(0, 10); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
@@ -643,6 +644,29 @@ function renderModelConfig(config) {
   const select = $('#modelSelect');
   const options = config.model_options?.length ? config.model_options : config.allowed_models.map(model => ({model_id:model, display_name:model, provider_model:model}));
   select.innerHTML = options.map(model => `<option value="${escapeHtml(model.model_id)}" ${model.model_id === config.model ? 'selected' : ''}>${escapeHtml(model.display_name)} · ${escapeHtml(model.provider_model)}</option>`).join('');
+  syncThinkingToggle();
+}
+
+function syncThinkingToggle() {
+  const toggle = $('#thinkingToggle');
+  const next = thinkingControl.reconcile(state.modelConfig, toggle.getAttribute('aria-pressed') === 'true');
+  toggle.setAttribute('aria-pressed', String(next.enabled));
+  toggle.setAttribute('aria-disabled', String(!next.supported));
+  toggle.title = next.supported ? (next.enabled ? '已开启 Thinking' : '开启 Thinking') : '当前模型不支持 Thinking';
+}
+
+function thinkingEnabled() {
+  return thinkingControl.reconcile(state.modelConfig, $('#thinkingToggle').getAttribute('aria-pressed') === 'true').enabled;
+}
+
+function toggleThinking() {
+  const toggle = $('#thinkingToggle');
+  if (!thinkingControl.supportsThinking(state.modelConfig)) {
+    showToast('当前模型不支持 Thinking，已保持关闭');
+    return;
+  }
+  toggle.setAttribute('aria-pressed', String(!thinkingEnabled()));
+  syncThinkingToggle();
 }
 
 async function loadModelConfig() {
@@ -1352,10 +1376,11 @@ function updateLiveAnalysis(live, event) {
   renderLiveAnalysis(live);
 }
 
-async function streamAgent(message, clientMessageId, onProgress, diagnostics) {
+async function streamAgent(message, clientMessageId, onProgress, diagnostics, useThinking = false) {
   let response;
   try {
-    response = await fetch('/api/chat/stream', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message, session_id:state.sessionId, client_message_id:clientMessageId})});
+    const payload = thinkingControl.requestPayload({message, session_id:state.sessionId, client_message_id:clientMessageId}, state.modelConfig, useThinking);
+    response = await fetch('/api/chat/stream', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
   } catch {
     throw new FabApiError('无法连接 Fab Insight 服务', {code:'NETWORK_ERROR', retryable:true});
   }
@@ -1446,7 +1471,7 @@ function renderAgentRequestError(live, error, retry) {
   live.el.querySelector('.live-indicator').textContent = '失败';
 }
 
-async function sendChat(message, {clientMessageId = newClientMessageId(), isRetry = false} = {}) {
+async function sendChat(message, {clientMessageId = newClientMessageId(), isRetry = false, useThinking = thinkingEnabled()} = {}) {
   const text = message.trim(); if (!text || state.streaming) return;
   if (!state.sessionId) await createConversation();
   $('.suggestions')?.remove();
@@ -1458,7 +1483,7 @@ async function sendChat(message, {clientMessageId = newClientMessageId(), isRetr
   $('#sendButton').disabled = true; state.streaming = true;
   const live = createLiveAnalysis();
   try {
-    const result = await streamAgent(text, clientMessageId, event => updateLiveAnalysis(live, event), live.telemetry);
+    const result = await streamAgent(text, clientMessageId, event => updateLiveAnalysis(live, event), live.telemetry, useThinking);
     await finishLiveAnswer(live, result.answer);
     reportStreamTelemetry(live, result.answer);
     renderAssistantInto(live.el, result.answer, result);
@@ -1469,7 +1494,7 @@ async function sendChat(message, {clientMessageId = newClientMessageId(), isRetr
     updateLiveAnalysis(live, {event:'run_failed', message:error.message});
     renderAgentRequestError(live, error, () => {
       live.el.remove();
-      sendChat(text, {clientMessageId, isRetry:true});
+      sendChat(text, {clientMessageId, isRetry:true, useThinking});
     });
   }
   finally {
@@ -1774,6 +1799,7 @@ async function init() {
     else if (suggestion) sendChat(suggestion.textContent);
   });
   $('#chatForm').addEventListener('submit', e => { e.preventDefault(); sendChat($('#chatInput').value); });
+  $('#thinkingToggle').addEventListener('click', toggleThinking);
   $('#chatInput').addEventListener('keydown', event => {
     if (event.key !== 'Enter' || event.shiftKey || event.isComposing || event.keyCode === 229) return;
     event.preventDefault();

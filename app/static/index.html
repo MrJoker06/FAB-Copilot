@@ -187,7 +187,7 @@
       </div>
       <form id="chatForm" class="chat-form">
         <textarea id="chatInput" rows="3" maxlength="4000" placeholder="询问良率、设备、批次或制程异常…" required></textarea>
-        <div class="chat-actions"><span id="chatHint">基于历史数据库与厂内知识</span><button id="sendButton" type="submit" class="send-btn" aria-label="发送">发送</button></div>
+        <div class="chat-actions"><span id="chatHint">基于历史数据库与厂内知识</span><div class="chat-action-buttons"><button id="thinkingToggle" type="button" class="thinking-toggle" aria-pressed="false" aria-disabled="true" title="当前模型不支持 Thinking">Thinking</button><button id="sendButton" type="submit" class="send-btn" aria-label="发送">发送</button></div></div>
       </form>
     </aside>
   </div>
@@ -277,6 +277,7 @@
   <script src="/static/source_presenter.js?v=__APP_VERSION__" defer></script>
   <script src="/static/personal_upload_queue.js?v=__APP_VERSION__" defer></script>
   <script src="/static/personal_knowledge_metadata.js?v=__APP_VERSION__" defer></script>
+  <script src="/static/thinking_control.js?v=__APP_VERSION__" defer></script>
   <script src="/static/app.js?v=__APP_VERSION__" defer></script>
 </body>
 </html>

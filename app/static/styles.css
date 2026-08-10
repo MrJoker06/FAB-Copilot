@@ -294,6 +294,10 @@ tbody tr:hover { background: #f8fbfa; }
 .chat-form textarea:focus { border-color: #67a99a; box-shadow: 0 0 0 2px rgba(8,127,112,.08); }
 .chat-actions { margin-top: 7px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .chat-actions span { color: #8a9592; font-size: 8px; }
+.chat-action-buttons { display: flex; align-items: center; gap: 7px; }
+.thinking-toggle { height: 30px; padding: 0 10px; border: 1px solid #91bdb4; border-radius: 4px; color: #176d61; background: #f4fbf9; font-weight: 650; font-size: 11px; cursor: pointer; }
+.thinking-toggle[aria-pressed="true"] { color: #fff; border-color: var(--teal); background: var(--teal); }
+.thinking-toggle[aria-disabled="true"] { color: #9ba6a3; border-color: #d6dddb; background: #f3f5f4; cursor: not-allowed; }
 .send-btn { height: 30px; padding: 0 13px; }
 .send-btn:disabled { opacity: .5; cursor: wait; }
 

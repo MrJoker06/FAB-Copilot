@@ -133,7 +133,7 @@ run.bat
 - `deepseekv4-flash`
 - `deepseekv4-pro`
 
-管理员可以在 `/admin` 发布新的 DeepSeek 或 OpenAI Compatible 模型。模型目录持久化保存 `model_id`、显示名称、Provider Model、Base URL、能力与发布状态；能力字段为 `streaming`、`tool_calls`、`thinking` 与 `native_multimodal`，前两项默认开启、后两项默认关闭，旧目录会无损补全。用户模型目录会返回当前模型和每个选项的能力；请求 `thinking=true` 时，服务端会在创建会话或运行记录前拒绝不支持该能力的模型。停用模型会立即从用户选择列表移除。
+管理员可以在 `/admin` 发布新的 DeepSeek 或 OpenAI Compatible 模型。模型目录持久化保存 `model_id`、显示名称、Provider Model、Base URL、能力与发布状态；能力字段为 `streaming`、`tool_calls`、`thinking` 与 `native_multimodal`，前两项默认开启、后两项默认关闭，旧目录会无损补全。用户模型目录会返回当前模型和每个选项的能力；聊天输入区的 Thinking 开关只会在当前模型声明支持时启用，切换至不支持模型会自动关闭并在点击时显示应用内提示。请求 `thinking=true` 时，服务端会在创建会话或运行记录前拒绝不支持该能力的模型。停用模型会立即从用户选择列表移除。
 
 也可以直接调用：
 

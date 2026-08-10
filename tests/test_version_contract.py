@@ -21,6 +21,8 @@ class VersionContractTests(unittest.TestCase):
         self.assertIn('id="knowledgeUploadQueue"', html)
         self.assertIn('/static/personal_upload_queue.js?v=__APP_VERSION__', html)
         self.assertIn('/static/personal_knowledge_metadata.js?v=__APP_VERSION__', html)
+        self.assertIn('/static/thinking_control.js?v=__APP_VERSION__', html)
+        self.assertIn('id="thinkingToggle"', html)
         self.assertIn('id="editPersonalKnowledge"', html)
         self.assertIn('id="personalKnowledgeMetadataDialog"', html)
         self.assertNotIn('id="renamePersonalKnowledge"', html)
