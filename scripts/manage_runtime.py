@@ -151,9 +151,34 @@ def apply_prune_plan(root: Path, plan: list[dict]) -> list[str]:
     for item in plan:
         if item["action"] != "delete":
             continue
-        path = Path(item["path"]).resolve()
-        if path.parent != root or path.is_symlink():
+        candidate = Path(item["path"])
+        if (
+            candidate.name != item.get("instance_id")
+            or candidate.is_symlink()
+            or candidate.parent.resolve() != root
+        ):
+            raise RuntimeError(f"Refusing to delete path outside runtime root: {candidate}")
+        path = candidate.resolve()
+        if path.parent != root:
             raise RuntimeError(f"Refusing to delete path outside runtime root: {path}")
+        try:
+            current = inspect_instance(path)
+        except (FileNotFoundError, OSError) as exc:
+            raise RuntimeError(f"Refusing to delete unavailable runtime instance: {path}") from exc
+        expected_snapshot = {
+            "instance_id": item.get("instance_id"),
+            "git_commit": item.get("git_commit"),
+            "port": item.get("port"),
+            "modified_at": item.get("modified_at"),
+        }
+        current_snapshot = {
+            "instance_id": current.instance_id,
+            "git_commit": current.git_commit,
+            "port": current.port,
+            "modified_at": current.modified_at.isoformat(timespec="seconds"),
+        }
+        if not current.valid_manifest or current.active or current_snapshot != expected_snapshot:
+            raise RuntimeError(f"Refusing to delete changed or unsafe runtime instance: {path}")
         if remove_inactive_instance(path):
             removed.append(item["instance_id"])
     return removed

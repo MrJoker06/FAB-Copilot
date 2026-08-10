@@ -12,6 +12,7 @@ from scripts.manage_runtime import (
     apply_prune_plan,
     build_prune_plan,
     discover_instances,
+    inspect_instance,
     remove_inactive_instance,
 )
 
@@ -64,6 +65,64 @@ class RuntimeManagerTests(unittest.TestCase):
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                 self.assertFalse(remove_inactive_instance(active))
             self.assertTrue(active.exists())
+
+    def test_invalid_manifest_missing_lock_and_boundaries_are_kept(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            invalid = root / "invalid"
+            invalid.mkdir()
+            (invalid / "instance.json").write_text("{broken", encoding="utf-8")
+            newest = self.create_instance(root, "newest", 0)
+            boundary = self.create_instance(root, "boundary", 3)
+            (boundary / "service.lock").unlink()
+            now = datetime.now(timezone.utc)
+            os.utime(boundary / "instance.json", ((now - timedelta(days=3)).timestamp(),) * 2)
+            plan = build_prune_plan(discover_instances(root), 1, 3, {"boundary"}, now=now)
+            decisions = {item["instance_id"]: (item["action"], item["reason"]) for item in plan}
+            self.assertEqual(decisions[invalid.name], ("keep", "invalid_manifest"))
+            self.assertEqual(decisions[newest.name], ("keep", "newest_retention"))
+            self.assertEqual(decisions[boundary.name], ("keep", "explicitly_protected"))
+            self.assertFalse(inspect_instance(boundary).active)
+
+    def test_apply_refuses_symlink_outside_root_and_id_path_mismatch(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "runtime"
+            root.mkdir()
+            outside = Path(temporary) / "outside"
+            outside.mkdir()
+            (outside / "service.lock").touch()
+            link = root / "linked"
+            link.symlink_to(outside, target_is_directory=True)
+            with self.assertRaises(RuntimeError):
+                apply_prune_plan(root, [{"action": "delete", "path": str(link), "instance_id": "linked"}])
+            child = self.create_instance(root, "child", 10)
+            with self.assertRaises(RuntimeError):
+                apply_prune_plan(root, [{"action": "delete", "path": str(child), "instance_id": "other"}])
+            self.assertTrue(outside.exists())
+            self.assertTrue(child.exists())
+
+    def test_apply_does_not_remove_delete_candidate_when_lock_is_missing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            candidate = self.create_instance(root, "candidate", 10)
+            plan = build_prune_plan(discover_instances(root), 0, 0, set())
+            (candidate / "service.lock").unlink()
+            self.assertEqual(apply_prune_plan(root, plan), [])
+            self.assertTrue(candidate.exists())
+
+    def test_apply_refuses_stale_plan_after_manifest_changes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.create_instance(root, "newest", 0)
+            candidate = self.create_instance(root, "candidate", 10)
+            plan = build_prune_plan(discover_instances(root), 1, 0, set())
+            manifest_path = candidate / "instance.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["port"] = 9999
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "changed or unsafe"):
+                apply_prune_plan(root, plan)
+            self.assertTrue(candidate.exists())
 
 
 if __name__ == "__main__":

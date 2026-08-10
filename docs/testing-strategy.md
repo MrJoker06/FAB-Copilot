@@ -2,7 +2,7 @@
 
 ## QA-001 审计基线（2026-08-01）
 
-审计前有 166 个 Python 测试、19 个 JavaScript 断言和 15 条 RAG 黄金集。完整宿主 Python 回归当时有 2 个失败；`app` 分支覆盖率为 81%。低覆盖重点为 `seed.py`（25%）、`database.py`（76%）、`agent.py`（77%）、`context_resolver.py`（78%）和 `personal_knowledge.py`（80%）。在 coverage run 中，`scripts/evaluate_rag.py`、`scripts/manage_databases.py` 和 `scripts/smoke_stream.py` 均为 0%；其中 RAG 评估另以独立命令实际通过 15/15，`smoke_stream.py` 会触发真实模型，不能进入自动门。
+审计前有 166 个 Python 测试、19 个 JavaScript 断言和 15 条 RAG 黄金集。完整宿主 Python 回归当时有 2 个失败；`app` 分支覆盖率为 81%。低覆盖重点为 `seed.py`（25%）、`database.py`（76%）、`agent.py`（77%）、`context_resolver.py`（78%）和 `personal_knowledge.py`（80%）。在 coverage run 中，`scripts/evaluate_rag.py`、`scripts/manage_databases.py` 和 `scripts/smoke_stream.py` 均为 0%；其中 RAG 评估另以独立命令实际通过 15/15。
 
 系统测试现有 54 项，按数据报表、知识与个人上传、HTTP/企业契约、模型治理、会话与流式拆分至 `tests/system/`。完整门为每个模块启动独立进程：fixture 在导入 app 前以 SQLite backup 创建参考部门数据库的一致临时快照，并使用独立个人知识目录、日志目录，进程退出时清理。前端约 99 个事件绑定目前仅有 19 个 JS 纯函数断言，尚无 DOM 或浏览器链路覆盖。
 
@@ -14,6 +14,16 @@
 - 测试必须确定、隔离和可重复，负向路径与边界值和正常路径同等重要。测试日志可记录完整轨迹，但 API Key、Authorization、Password、Secret、Cookie 和 Token 始终脱敏。
 
 在受限沙箱中，FastAPI 的同步端点会由 `anyio.to_thread` 调度；测试应避免把该调度限制误判为 API 契约失败，并不得以真实模型或浏览器依赖绕过隔离。
+
+## QA-003 脚本契约
+
+`tests/test_startup_script.py` 在临时 Git 仓库中复制 `run.sh`，用假 Conda 记录 seed 和 uvicorn 调用，因此不会启动真实服务或网络；同时验证默认 8888 端口、运行实例隔离、快照标记和锁失败。`tests/test_database_manager.py` 只使用临时 SQLite 库，覆盖只读检查、在线备份的 staging 原子发布、失败清理、迁移和 checkpoint。`tests/test_runtime_manager.py` 覆盖无效 manifest、锁、保留边界、路径和符号链接拒绝。`tests/test_smoke_stream.py` 通过 fake transport 覆盖 NDJSON 成功和协议/HTTP 失败，无真实模型调用。
+
+可单独运行这些离线脚本契约：
+
+```bash
+python -m unittest tests.test_startup_script tests.test_database_manager tests.test_runtime_manager tests.test_smoke_stream
+```
 
 ## 本地质量门
 
