@@ -48,7 +48,7 @@
         <div id="modelNotice" class="admin-notice" role="status" hidden></div>
         <section class="admin-panel model-catalog-panel">
           <div class="panel-heading"><div><h2>模型版本</h2><p id="modelCatalogCount">正在加载</p></div><button id="refreshModels" class="quiet-button" type="button">刷新</button></div>
-          <div class="admin-table-wrap"><table><thead><tr><th>显示名称</th><th>模型编号</th><th>提供方</th><th>Provider Model</th><th>使用用户</th><th>状态</th><th>发布时间</th><th>操作</th></tr></thead><tbody id="modelCatalogBody"></tbody></table></div>
+          <div class="admin-table-wrap"><table><thead><tr><th>显示名称</th><th>模型编号</th><th>提供方</th><th>Provider Model</th><th>能力</th><th>使用用户</th><th>状态</th><th>发布时间</th><th>操作</th></tr></thead><tbody id="modelCatalogBody"></tbody></table></div>
         </section>
       </section>
     </main>
@@ -72,7 +72,7 @@
         <label><span>提供方</span><select id="publishProvider"><option value="deepseek">DeepSeek</option><option value="openai-compatible">OpenAI Compatible</option></select></label>
         <label><span>Provider Model</span><input id="publishProviderModel" type="text" maxlength="120" required></label>
         <label class="full-field"><span>API Base URL</span><input id="publishBaseUrl" type="url" maxlength="500" value="https://api.deepseek.com" required></label>
-        <div class="capability-options full-field"><label><input id="publishStreaming" type="checkbox" checked> Streaming</label><label><input id="publishToolCalls" type="checkbox" checked> Tool calls</label></div>
+        <div class="capability-options full-field"><label><input id="publishStreaming" type="checkbox" checked> Streaming</label><label><input id="publishToolCalls" type="checkbox" checked> Tool calls</label><label><input id="publishThinking" type="checkbox"> Thinking</label><label><input id="publishNativeMultimodal" type="checkbox"> 原生多模态</label></div>
         <div id="publishModelMessage" class="form-message full-field" role="alert" hidden></div>
       </div>
       <div class="dialog-actions"><button id="cancelPublishModel" class="quiet-button" type="button">取消</button><button id="confirmPublishModel" class="primary-button" type="submit">发布</button></div>
@@ -80,6 +80,7 @@
   </dialog>
 
   <div id="adminToast" class="admin-toast" role="status" hidden></div>
+  <script src="/static/model_capabilities.js?v=__APP_VERSION__" defer></script>
   <script src="/static/admin.js?v=__APP_VERSION__" defer></script>
 </body>
 </html>

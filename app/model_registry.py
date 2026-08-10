@@ -12,6 +12,21 @@ from .identity import Principal, current_principal
 
 MODEL_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{1,63}$")
 MODEL_PROVIDERS = {"deepseek", "openai-compatible"}
+MODEL_CAPABILITY_DEFAULTS = {
+    "streaming": True,
+    "tool_calls": True,
+    "thinking": False,
+    "native_multimodal": False,
+}
+
+
+def normalize_capabilities(value: object | None) -> dict:
+    """Preserve extension keys while providing the complete public contract."""
+    source = value if isinstance(value, dict) else {}
+    normalized = dict(source)
+    for key, default in MODEL_CAPABILITY_DEFAULTS.items():
+        normalized[key] = source.get(key) if isinstance(source.get(key), bool) else default
+    return normalized
 
 
 def _now() -> str:
@@ -29,7 +44,7 @@ def ensure_model_catalog() -> None:
             MODEL_API_NAMES[model_id],
             settings.model_connection.base_url,
             "published",
-            json.dumps({"streaming": True, "tool_calls": True}, separators=(",", ":")),
+            json.dumps(MODEL_CAPABILITY_DEFAULTS, separators=(",", ":")),
             "system",
             timestamp,
             timestamp,
@@ -51,9 +66,10 @@ def ensure_model_catalog() -> None:
 def _decode_model(row) -> dict:
     item = dict(row)
     try:
-        item["capabilities"] = json.loads(item.pop("capabilities_json") or "{}")
-    except json.JSONDecodeError:
-        item["capabilities"] = {}
+        capabilities = json.loads(item.pop("capabilities_json") or "{}")
+    except (TypeError, json.JSONDecodeError):
+        capabilities = {}
+    item["capabilities"] = normalize_capabilities(capabilities)
     item["selectable"] = item["status"] == "published"
     return item
 
@@ -107,6 +123,7 @@ def public_user_model_config(principal: Principal | None = None) -> dict:
         "provider": selected["provider"],
         "provider_model": selected["provider_model"],
         "base_url": selected["base_url"],
+        "capabilities": selected["capabilities"],
         "allowed_models": [item["model_id"] for item in models],
         "model_options": [
             {
@@ -202,7 +219,7 @@ def publish_model(
                 provider,
                 cleaned_provider_model,
                 cleaned_url,
-                json.dumps(capabilities or {"streaming": True, "tool_calls": True}, separators=(",", ":")),
+                json.dumps(normalize_capabilities(capabilities), separators=(",", ":")),
                 created_by,
                 timestamp,
                 timestamp,

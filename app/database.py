@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -446,6 +447,35 @@ def _migrate_agent_tool_events(connection: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_model_catalog_capabilities(connection: sqlite3.Connection) -> None:
+    """Normalize catalog capability JSON without changing catalog columns or extensions."""
+    tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    if "model_catalog" not in tables:
+        return
+    from .model_registry import normalize_capabilities
+
+    rows = connection.execute("SELECT model_id, capabilities_json FROM model_catalog").fetchall()
+    for row in rows:
+        try:
+            parsed = json.loads(row[1] or "{}")
+        except (TypeError, json.JSONDecodeError):
+            parsed = {}
+        normalized = normalize_capabilities(parsed)
+        encoded = json.dumps(normalized, separators=(",", ":"))
+        if encoded != (row[1] or ""):
+            connection.execute(
+                "UPDATE model_catalog SET capabilities_json = ? WHERE model_id = ?",
+                (encoded, row[0]),
+            )
+    connection.execute(
+        "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, description TEXT NOT NULL)"
+    )
+    connection.execute(
+        "INSERT OR IGNORE INTO schema_migrations(version, description) VALUES (?, ?)",
+        (SCHEMA_VERSION, "model catalog capabilities"),
+    )
+
+
 # Bootstrap data for a fresh database. Runtime matching reads the database tables,
 # so operators can add or change types without changing application code.
 DEFAULT_DEFECT_TYPE_ALIASES = {
@@ -556,6 +586,7 @@ def _initialize_legacy(path: Path) -> None:
                 connection.execute(f"ALTER TABLE chat_messages ADD COLUMN {name} {definition}")
         _migrate_agent_runs(connection)
         _migrate_agent_tool_events(connection)
+        _migrate_model_catalog_capabilities(connection)
         connection.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_messages_client_id "
             "ON chat_messages(session_id, client_message_id) "
@@ -588,6 +619,7 @@ def _initialize_departments() -> None:
                         connection.execute(f"ALTER TABLE chat_messages ADD COLUMN {name} {definition}")
                 _migrate_agent_runs(connection)
                 _migrate_agent_tool_events(connection)
+                _migrate_model_catalog_capabilities(connection)
                 connection.execute(
                     "CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_messages_client_id "
                     "ON chat_messages(session_id, client_message_id) "

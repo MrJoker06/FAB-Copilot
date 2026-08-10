@@ -14,7 +14,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPE
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from starlette.concurrency import run_in_threadpool
 
 from .agent import run_agent
@@ -23,7 +23,7 @@ from .config import APP_VERSION, PROJECT_DIR, get_settings
 from .database import db_session, department_paths, ensure_department_databases
 from .enterprise_data import EnterpriseDataError, get_enterprise_provider
 from .execution_store import RunExecutionRecorder, get_run_audit, recover_interrupted_executions
-from .identity import PrincipalContextMiddleware, current_principal
+from .identity import Principal, PrincipalContextMiddleware, current_principal
 from .model_registry import (
     ensure_model_catalog,
     list_models,
@@ -179,6 +179,7 @@ class ChatRequest(BaseModel):
     history: list[ChatMessage] = Field(default_factory=list, max_length=20)
     session_id: str | None = None
     client_message_id: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    thinking: StrictBool = False
 
 
 class StreamTelemetryRequest(BaseModel):
@@ -210,13 +211,23 @@ class ModelConfigRequest(BaseModel):
     model: str = Field(min_length=2, max_length=64)
 
 
+class ModelCapabilitiesRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    streaming: StrictBool = True
+    tool_calls: StrictBool = True
+    thinking: StrictBool = False
+    native_multimodal: StrictBool = False
+
+
 class AdminModelPublishRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     model_id: str = Field(min_length=2, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]+$")
     display_name: str = Field(min_length=2, max_length=100)
     provider: str = Field(pattern=r"^(deepseek|openai-compatible)$")
     provider_model: str = Field(min_length=2, max_length=120)
     base_url: str = Field(min_length=8, max_length=500, pattern=r"^https?://")
-    capabilities: dict[str, bool] = Field(default_factory=lambda: {"streaming": True, "tool_calls": True})
+    capabilities: ModelCapabilitiesRequest = Field(default_factory=ModelCapabilitiesRequest)
 
 
 class AdminModelStatusRequest(BaseModel):
@@ -484,7 +495,7 @@ def admin_publish_model(
             request.provider,
             request.provider_model,
             request.base_url,
-            request.capabilities,
+            request.capabilities.model_dump(),
             admin_user,
         )
     except ValueError as exc:
@@ -740,13 +751,12 @@ def rag_search(
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest) -> dict:
+    principal, selected_model = _validate_chat_model_capabilities(request)
     session_id, history, cached, user_message = _prepare_chat(request)
     if cached:
         cached["session_id"] = session_id
         cached["request_id"] = current_request_id()
         return cached
-    principal = current_principal()
-    selected_model = public_user_model_config(principal)["model"]
     recorder = RunExecutionRecorder(
         session_id,
         user_message["message_id"] if user_message else None,
@@ -884,6 +894,20 @@ def _prepare_chat(request: ChatRequest) -> tuple[str, list[dict], dict | None, d
     return session_id, history, None, user_message
 
 
+def _validate_chat_model_capabilities(request: ChatRequest) -> tuple[Principal, str]:
+    """Reject unsupported request modes before any session or run write."""
+    principal = current_principal()
+    config = public_user_model_config(principal)
+    if request.thinking and not config["capabilities"].get("thinking", False):
+        raise http_problem(
+            400,
+            "MODEL_CAPABILITY_UNSUPPORTED",
+            "当前模型不支持 Thinking 请求",
+            False,
+        )
+    return principal, config["model"]
+
+
 def _model_status_error(exc: httpx.HTTPStatusError) -> tuple[str, bool]:
     status_code = exc.response.status_code
     detail = f"模型 API 返回 {status_code}"
@@ -898,9 +922,8 @@ def _model_status_error(exc: httpx.HTTPStatusError) -> tuple[str, bool]:
 
 @app.post("/api/chat/stream")
 async def chat_stream(request: ChatRequest) -> StreamingResponse:
+    principal, selected_model = _validate_chat_model_capabilities(request)
     session_id, history, cached, user_message = _prepare_chat(request)
-    principal = current_principal()
-    selected_model = public_user_model_config(principal)["model"]
     recorder = RunExecutionRecorder(
         session_id,
         user_message["message_id"] if user_message else None,

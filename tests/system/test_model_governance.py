@@ -34,6 +34,8 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             self.assertEqual(initial.json()["credential_scope"], "server_managed")
             self.assertNotIn("api_key_masked", initial.json())
             self.assertNotIn("api_key_source", initial.json())
+            self.assertEqual(initial.json()["capabilities"], {"streaming": True, "tool_calls": True, "thinking": False, "native_multimodal": False})
+            self.assertEqual(initial.json()["model_options"][0]["capabilities"]["thinking"], False)
             response = client.post("/api/settings/model", json={"model": "deepseekv4-pro"})
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["model"], "deepseekv4-pro")
@@ -69,11 +71,13 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                         "provider": "openai-compatible",
                         "provider_model": "enterprise-test-v1",
                         "base_url": "https://models.example.test/v1",
-                        "capabilities": {"streaming": True, "tool_calls": True},
+                        "capabilities": {"streaming": True, "tool_calls": True, "thinking": True, "native_multimodal": True},
                     },
                 )
                 self.assertEqual(published.status_code, 201, published.text)
                 self.assertEqual(published.json()["status"], "published")
+                self.assertTrue(published.json()["capabilities"]["thinking"])
+                self.assertTrue(published.json()["capabilities"]["native_multimodal"])
                 invalid = client.post(
                     "/api/admin/models",
                     headers=admin_headers,
@@ -91,6 +95,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                 user_b = {"X-Tenant-ID": "model-fab", "X-User-ID": "user-b"}
                 catalog = client.get("/api/settings/model", headers=user_a)
                 self.assertIn(model_id, catalog.json()["allowed_models"])
+                self.assertTrue(next(item for item in catalog.json()["model_options"] if item["model_id"] == model_id)["capabilities"]["thinking"])
                 selected = client.post(
                     "/api/settings/model",
                     headers=user_a,
@@ -108,7 +113,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                     return ({"role": "assistant", "content": "模型作用域验证完成"}, {"total_tokens": 3}, "response-model-scope")
 
                 with patch("app.agent._stream_completion", new=fake_model_stream):
-                    chat_response = client.post("/api/chat", headers=user_a, json={"message": "查看工厂总览"})
+                    chat_response = client.post("/api/chat", headers=user_a, json={"message": "查看工厂总览", "thinking": True})
                 self.assertEqual(chat_response.status_code, 200, chat_response.text)
                 self.assertEqual(captured["payload"]["model"], "enterprise-test-v1")
                 self.assertEqual(captured["endpoint"], "https://models.example.test/v1/chat/completions")
@@ -128,6 +133,37 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                 connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
                 connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
                 connection.commit()
+
+    def test_invalid_capabilities_and_unsupported_thinking_have_no_writes(self):
+        admin_token = "capability-admin-token"
+        with patch.dict(os.environ, {"FAB_ADMIN_API_TOKEN": admin_token}), TestClient(app) as client:
+            headers = {"Authorization": f"Bearer {admin_token}"}
+            invalid = client.post("/api/admin/models", headers=headers, json={
+                "model_id": "invalid-capability", "display_name": "Invalid Capability",
+                "provider": "deepseek", "provider_model": "invalid-capability",
+                "base_url": "https://models.example.test", "capabilities": {"thinking": "yes"},
+            })
+            self.assertEqual(invalid.status_code, 422, invalid.text)
+            unknown = client.post("/api/admin/models", headers=headers, json={
+                "model_id": "unknown-capability", "display_name": "Unknown Capability",
+                "provider": "deepseek", "provider_model": "unknown-capability",
+                "base_url": "https://models.example.test", "capabilities": {"unknown": True},
+            })
+            self.assertEqual(unknown.status_code, 422, unknown.text)
+            with db_session() as connection:
+                before = connection.execute("SELECT COUNT(*) FROM agent.chat_sessions").fetchone()[0]
+                messages_before = connection.execute("SELECT COUNT(*) FROM agent.chat_messages").fetchone()[0]
+                runs_before = connection.execute("SELECT COUNT(*) FROM agent.agent_runs").fetchone()[0]
+            for endpoint in ("/api/chat", "/api/chat/stream"):
+                response = client.post(endpoint, json={"message": "请求推理模式", "thinking": True})
+                self.assertEqual(response.status_code, 400, response.text)
+                self.assertEqual(response.json()["error_code"], "MODEL_CAPABILITY_UNSUPPORTED")
+            with db_session() as connection:
+                self.assertEqual(connection.execute("SELECT COUNT(*) FROM agent.chat_sessions").fetchone()[0], before)
+                self.assertEqual(connection.execute("SELECT COUNT(*) FROM agent.chat_messages").fetchone()[0], messages_before)
+                self.assertEqual(connection.execute("SELECT COUNT(*) FROM agent.agent_runs").fetchone()[0], runs_before)
+            invalid_thinking = client.post("/api/chat", json={"message": "错误推理字段", "thinking": "false"})
+            self.assertEqual(invalid_thinking.status_code, 422, invalid_thinking.text)
 
     def test_unknown_model_is_rejected(self):
         with TestClient(app) as client:

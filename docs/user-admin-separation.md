@@ -36,10 +36,12 @@ GET   /api/monitor/events
 
 - 稳定的 `model_id` 和显示名称。
 - Provider、Provider Model 与 API Base URL。
-- Streaming、Tool calls 等能力声明。
+- `streaming`、`tool_calls`、`thinking` 和 `native_multimodal` 能力声明（旧模型默认前两项为真、后两项为假）。
 - `published` 或 `retired` 状态、发布人与时间。
 
 管理员发布后，模型立即进入用户端选择列表。停用后新请求不能再选择该模型；已有用户偏好会自动回退到其他已发布模型。系统阻止停用最后一个已发布模型。
+
+用户模型目录会返回当前模型及各可选模型的完整能力字段。`thinking=true` 的聊天请求仅可由声明 `thinking=true` 的当前模型处理；否则服务端会在创建 Session、消息和 Agent Run 前以稳定错误码拒绝请求。原生多模态目前仅为目录元数据，不开放上传或多模态消息输入。
 
 `user_model_preferences` 使用 `(tenant_id, user_id)` 作为主键。用户切换模型不会影响其他用户。用户端只能选择管理端已发布的 `model_id`，不能提交模型名称、API 地址或 API Key；模型凭据由服务端环境或模型网关统一管理。
 

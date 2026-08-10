@@ -102,6 +102,7 @@ class HttpContractsSystemTests(unittest.TestCase):
             self.assertIn(f'id="{element_id}"', response.text)
         self.assertIn('<div id="adminWorkspace" class="admin-workspace" hidden>', response.text)
         self.assertIn(f"/static/admin.js?v={APP_VERSION}", response.text)
+        self.assertIn(f"/static/model_capabilities.js?v={APP_VERSION}", response.text)
         script = (PROJECT_DIR / "app" / "static" / "admin.js").read_text(encoding="utf-8")
         self.assertIn("/api/admin/overview", script)
         self.assertIn("/api/admin/models", script)
@@ -110,6 +111,10 @@ class HttpContractsSystemTests(unittest.TestCase):
         self.assertIn("run.question_preview", script)
         self.assertIn("run.session_id", script)
         self.assertIn("问题 / Session", response.text)
+        self.assertIn('id="publishThinking"', response.text)
+        self.assertIn('id="publishNativeMultimodal"', response.text)
+        self.assertIn("native_multimodal", script)
+        self.assertIn("capabilityLabels", script)
 
     def test_health_endpoint(self):
         with TestClient(app) as client:
