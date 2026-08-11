@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import os
 import unittest
+from contextlib import ExitStack, contextmanager
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -16,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from app.audit import sanitize
 from app import agent as agent_module
+from app.config import ModelConnection, get_settings
 from app.database import db_session
 from app.main import app
 from app.model_compatibility import ModelCompatibilityError
@@ -33,6 +36,12 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             self.assertEqual(initial.json()["allowed_models"], ["deepseekv4-flash", "deepseekv4-pro"])
             self.assertEqual(len(initial.json()["model_options"]), 2)
             self.assertEqual(initial.json()["credential_scope"], "server_managed")
+            self.assertIn("health", initial.json())
+            self.assertIn("status", initial.json()["health"])
+            self.assertIn("consecutive_failures", initial.json()["health"])
+            self.assertTrue(all("health" in item for item in initial.json()["model_options"]))
+            self.assertTrue(all("status" in item["health"] for item in initial.json()["model_options"]))
+            self.assertTrue(all("consecutive_failures" in item["health"] for item in initial.json()["model_options"]))
             self.assertNotIn("api_key_masked", initial.json())
             self.assertNotIn("api_key_source", initial.json())
             self.assertEqual(initial.json()["capabilities"], {"streaming": True, "tool_calls": True, "thinking": False, "native_multimodal": False})
@@ -211,6 +220,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             ), TestClient(app) as client:
                 payload = {"model_id": model_id, "display_name": "Model 016 Failure", "provider": "openai-compatible", "provider_model": "model-016", "base_url": "https://models.example.test/v1", "capabilities": {"streaming": True, "tool_calls": True, "thinking": True, "native_multimodal": False}}
                 self.assertEqual(client.post("/api/admin/models", headers=headers, json=payload).status_code, 201)
+                before = next(item for item in client.get("/api/admin/models", headers=headers).json() if item["model_id"] == model_id)["health"]
                 response = client.post(f"/api/admin/models/{model_id}/compatibility-check", headers=headers)
                 self.assertEqual(response.status_code, 422, response.text)
                 self.assertEqual(response.json()["error_code"], "MODEL_COMPATIBILITY_FAILED")
@@ -218,6 +228,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                 self.assertEqual(model["status"], "published")
                 self.assertTrue(model["capabilities"]["thinking"])
                 self.assertEqual(model["compatibility"]["status"], "failed")
+                self.assertEqual(model["health"], before)
                 self.assertNotIn("test-key", str(model["compatibility"]))
         finally:
             with db_session() as connection:
@@ -307,6 +318,131 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             with self.assertRaises(httpx.HTTPStatusError):
                 asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-no-retry-test"))
         self.assertEqual(attempts, 1)
+
+    def _health_settings(self, *, retries: int = 0):
+        base = get_settings()
+        return replace(
+            base,
+            model_connection=ModelConnection("test", "test-key", "https://example.test", "test-model"),
+            model_max_retries=retries,
+        )
+
+    @contextmanager
+    def _health_patches(self, settings, claim):
+        with ExitStack() as stack:
+            stack.enter_context(patch("app.agent.get_settings", return_value=settings))
+            stack.enter_context(patch("app.agent.public_user_model_config", return_value={"model": "test-model"}))
+            stack.enter_context(patch("app.agent.get_model_health", return_value={"status": "unknown"}))
+            stack.enter_context(patch("app.agent.claim_model_call", side_effect=claim))
+            yield
+
+    def test_open_circuit_skips_model_call_and_uses_local_rules(self):
+        settings = self._health_settings()
+        calls = 0
+
+        async def stream(*args):
+            nonlocal calls
+            calls += 1
+            raise AssertionError("open circuit must not call upstream")
+
+        with self._health_patches(settings, [(False, {"status": "open"}, None)]), patch("app.agent._stream_completion", new=stream):
+            result = asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-open-circuit"))
+        self.assertEqual(calls, 0)
+        self.assertEqual(result["model"], "local-rules")
+        self.assertEqual(result["model_health"]["fallback_reason"], "circuit_open")
+
+    def test_final_retryable_failure_records_once_and_falls_back(self):
+        settings = self._health_settings(retries=1)
+        request = httpx.Request("POST", "https://example.test/chat/completions")
+        error = httpx.HTTPStatusError("down", request=request, response=httpx.Response(500, request=request))
+
+        async def stream(*args):
+            raise error
+
+        with self._health_patches(settings, [(True, {"status": "healthy"}, None)]), patch("app.agent._stream_completion", new=stream), patch("app.agent.record_model_failure", return_value=({"status": "degraded"}, None)) as failure, patch("app.agent.asyncio.sleep", new=AsyncMock()):
+            result = asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-final-failure"))
+        self.assertEqual(failure.call_count, 1)
+        self.assertEqual(result["model"], "local-rules")
+        self.assertEqual(result["model_health"]["fallback_reason"], "upstream_unavailable")
+
+    def test_partial_response_failure_records_once_and_does_not_fallback(self):
+        settings = self._health_settings()
+        request = httpx.Request("POST", "https://example.test/chat/completions")
+        error = httpx.HTTPStatusError("down", request=request, response=httpx.Response(500, request=request))
+
+        async def stream(*args):
+            args[-1]["answer_emitted"] = True
+            raise error
+
+        with self._health_patches(settings, [(True, {"status": "healthy"}, None)]), patch("app.agent._stream_completion", new=stream), patch("app.agent.record_model_failure", return_value=({"status": "degraded"}, None)) as failure, patch("app.agent._offline_answer") as offline:
+            with self.assertRaises(httpx.HTTPStatusError):
+                asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-partial-failure"))
+        self.assertEqual(failure.call_count, 1)
+        offline.assert_not_called()
+
+    def test_non_retryable_4xx_does_not_change_health_or_fallback(self):
+        settings = self._health_settings()
+        request = httpx.Request("POST", "https://example.test/chat/completions")
+        error = httpx.HTTPStatusError("bad request", request=request, response=httpx.Response(400, request=request))
+
+        async def stream(*args):
+            raise error
+
+        with self._health_patches(settings, [(True, {"status": "healthy"}, None)]), patch("app.agent._stream_completion", new=stream), patch("app.agent.record_model_failure") as failure, patch("app.agent._offline_answer") as offline:
+            with self.assertRaises(httpx.HTTPStatusError):
+                asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-4xx"))
+        failure.assert_not_called()
+        offline.assert_not_called()
+
+    def test_successful_call_records_health_success(self):
+        settings = self._health_settings()
+
+        async def stream(*args):
+            return {"role": "assistant", "content": "OK"}, {"total_tokens": 1}, "response"
+
+        with self._health_patches(settings, [(True, {"status": "healthy"}, None)]), patch("app.agent._stream_completion", new=stream), patch("app.agent.record_model_success", return_value=({"status": "healthy"}, None)) as success:
+            result = asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-health-success"))
+        self.assertEqual(result["answer"], "OK")
+        self.assertEqual(success.call_count, 1)
+
+    def test_half_open_recovery_trial_has_no_transport_retry(self):
+        settings = self._health_settings(retries=2)
+        attempts = 0
+        request = httpx.Request("POST", "https://example.test/chat/completions")
+        error = httpx.HTTPStatusError("down", request=request, response=httpx.Response(500, request=request))
+
+        async def stream(*args):
+            nonlocal attempts
+            attempts += 1
+            raise error
+
+        with self._health_patches(settings, [(True, {"status": "half_open"}, "recovery_started")]), patch("app.agent._stream_completion", new=stream), patch("app.agent.record_model_failure", return_value=({"status": "open"}, "opened")):
+            result = asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-half-open-once"))
+        self.assertEqual(attempts, 1)
+        self.assertEqual(result["model"], "local-rules")
+
+    def test_context_availability_failure_opens_circuit_before_main_completion(self):
+        settings = self._health_settings()
+        calls = 0
+        request = httpx.Request("POST", "https://example.test/chat/completions")
+        error = httpx.HTTPStatusError("down", request=request, response=httpx.Response(500, request=request))
+
+        async def stream(*args):
+            nonlocal calls
+            calls += 1
+            raise error
+
+        history = [{"role": "user", "content": "昨天 CMP-03 的异常如何处理？"}]
+        claims = [
+            (True, {"status": "healthy"}, None),
+            (False, {"status": "open"}, None),
+        ]
+        with self._health_patches(settings, claims), patch("app.agent._stream_completion", new=stream), patch("app.agent.record_model_failure", return_value=({"status": "open"}, "opened")) as failure:
+            result = asyncio.run(agent_module._run_agent_impl("查看 CMP-03 当前健康", history, "run-context-opens-circuit"))
+        self.assertEqual(calls, 1)
+        self.assertEqual(failure.call_count, 1)
+        self.assertEqual(result["model"], "local-rules")
+        self.assertEqual(result["model_health"]["fallback_reason"], "circuit_open")
 
 if __name__ == "__main__":
     unittest.main()

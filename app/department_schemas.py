@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 15
 
 SCHEMA_METADATA = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -336,6 +336,19 @@ CREATE TABLE IF NOT EXISTS model_catalog (
     published_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS model_health (
+    model_id TEXT PRIMARY KEY REFERENCES model_catalog(model_id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'unknown' CHECK(status IN ('unknown', 'healthy', 'degraded', 'open', 'half_open')),
+    consecutive_failures INTEGER NOT NULL DEFAULT 0 CHECK(consecutive_failures >= 0),
+    opened_at TEXT,
+    open_until TEXT,
+    recovery_claimed_at TEXT,
+    last_success_at TEXT,
+    last_failure_at TEXT,
+    last_error_category TEXT,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS user_model_preferences (
     tenant_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
@@ -498,6 +511,7 @@ TABLE_DEPARTMENTS = {
     "personal_knowledge_chunks": "knowledge",
     "personal_knowledge_jobs": "knowledge",
     "model_catalog": "agent",
+    "model_health": "agent",
     "user_model_preferences": "agent",
     "chat_sessions": "agent",
     "chat_messages": "agent",

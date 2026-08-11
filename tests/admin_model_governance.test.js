@@ -32,6 +32,8 @@ test('model catalog uses a responsive fixed layout and capability chips', () => 
   assert.match(script, /capability-chip capability-chip-\$\{key\}/);
   assert.match(script, /capability-chip capability-chip-empty">无/);
   assert.match(script, /data-label="兼容性"/);
+  assert.match(script, /data-label="健康"/);
+  assert.match(script, /health-chip health-/);
   assert.match(script, /\$\{escapeHtml\(label\)\}/);
   assert.match(css, /\.model-catalog-wrap \{ overflow-x: hidden; \}/);
   assert.match(css, /\.model-catalog-table \{ width: 100%; table-layout: fixed; white-space: normal; \}/);
@@ -47,13 +49,13 @@ test('model catalog uses a responsive fixed layout and capability chips', () => 
 });
 
 test('model catalog header is semantic, Chinese, and visually distinct', () => {
-  assert.equal((html.match(/<th scope="col">/g) || []).length, 10);
+  assert.equal((html.match(/<th scope="col">/g) || []).length, 11);
   assert.match(html, /<th scope="col">提供方模型<\/th>/);
   assert.doesNotMatch(html, />Provider Model</);
   assert.match(css, /\.model-catalog-table th \{[^}]*height: 44px;[^}]*color: #465957;[^}]*background: #f1f5f4;[^}]*font-size: 10px;[^}]*font-weight: 700;[^}]*text-transform: none;/);
   assert.match(css, /\.model-catalog-table th \{[^}]*border-bottom: 2px solid #c5d3d0;/);
-  assert.match(css, /\.model-catalog-table th:nth-child\(7\), .model-catalog-table td:nth-child\(7\), .model-catalog-table th:nth-child\(8\), .model-catalog-table td:nth-child\(8\) \{ text-align: center; \}/);
-  assert.match(css, /\.model-catalog-table th:nth-child\(10\), .model-catalog-table td:nth-child\(10\) \{ text-align: left; \}/);
+  assert.match(css, /\.model-catalog-table th:nth-child\(8\), .model-catalog-table td:nth-child\(8\), .model-catalog-table th:nth-child\(9\), .model-catalog-table td:nth-child\(9\) \{ text-align: center; \}/);
+  assert.match(css, /\.model-catalog-table th:nth-child\(11\), .model-catalog-table td:nth-child\(11\) \{ text-align: left; \}/);
   assert.match(css, /\.model-catalog-table \.catalog-actions \{ justify-content: flex-start; \}/);
   assert.match(css, /\.model-catalog-wrap \{ overflow-x: hidden; \}/);
   assert.match(css, /@media \(max-width: 1180px\) \{[^}]*\.model-catalog-table colgroup, .model-catalog-table thead \{ display: none; \}/);

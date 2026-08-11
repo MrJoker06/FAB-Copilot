@@ -71,6 +71,9 @@ AGENT_LOG_BACKUP_COUNT=5
 AGENT_LOG_CONTENT=metadata
 MODEL_MAX_RETRIES=2
 MODEL_RETRY_BASE_MS=500
+MODEL_CIRCUIT_FAILURE_THRESHOLD=3
+MODEL_CIRCUIT_COOLDOWN_SECONDS=60
+MODEL_CIRCUIT_RECOVERY_LEASE_SECONDS=120
 FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH=data/personal_knowledge
 FAB_PERSONAL_KNOWLEDGE_USER_ID=local-user
 FAB_PERSONAL_KNOWLEDGE_API_TOKEN=
@@ -85,6 +88,8 @@ FAB_MOCK_VIRTUAL_LOTS=25000000
 FAB_MOCK_CURSOR_SECRET=replace-with-a-long-random-secret
 FAB_ADMIN_API_TOKEN=replace-with-a-long-random-admin-token
 ```
+
+模型健康是被动记录：只有实际的上下文或回答请求会更新状态，不会后台联网探测，也不会改写管理员显式兼容性测试结果。`MODEL_CIRCUIT_FAILURE_THRESHOLD` 默认 3、范围 1–10；`MODEL_CIRCUIT_COOLDOWN_SECONDS` 默认 60、范围 1–3600；`MODEL_CIRCUIT_RECOVERY_LEASE_SECONDS` 默认 120、范围 1–3600。仅 HTTP 429、5xx、超时和网络请求失败计数；4xx、协议/JSON/tool-call 契约错误和显式兼容性测试不计数。连续可用性故障达到阈值后会按冷却时间暂停该模型调用，并返回本地规则分析；一次成功的真实调用会恢复健康状态。
 
 模型连接优先读取 `FAB_MODEL_PROVIDER`、`FAB_MODEL_API_KEY`、`FAB_MODEL_BASE_URL` 和 `FAB_MODEL_NAME`。现有部署可继续使用 `DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL` 和 `DEEPSEEK_MODEL` 作为兼容回退；新配置应使用统一变量。凭据仅由服务端托管，不写入模型目录，也不会通过设置 API 或日志暴露。
 

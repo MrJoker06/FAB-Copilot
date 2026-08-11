@@ -24,7 +24,7 @@ from .answer_synthesizer import (
     synthesizer_system_message,
 )
 from .audit import CONTENT_MODE, content_fingerprint, emit
-from .config import get_settings
+from .config import Settings, get_settings
 from .context_resolver import (
     CONTEXTUALIZER_RESPONSE_FORMAT,
     ContextResolution,
@@ -53,7 +53,8 @@ from .knowledge_decision import (
     usable_result,
 )
 from .loop_guard import ToolLoopGuard
-from .model_registry import effective_agent_settings
+from .model_registry import effective_agent_settings, public_user_model_config
+from .model_health import claim_model_call, get_model_health, record_model_failure, record_model_success
 from .planner import ExecutionPlan, create_execution_plan, planner_system_message
 from .processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS
 from .rag import search_agent_knowledge
@@ -193,6 +194,7 @@ def _offline_answer(
     execution_plan: ExecutionPlan,
     loop_guard: ToolLoopGuard,
     context_resolution: ContextResolution | None = None,
+    fallback_reason: str = "missing_api_key",
 ) -> dict:
     if intent_route.intent == "conversation":
         validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, [])
@@ -307,8 +309,9 @@ def _offline_answer(
     if intent_route.intent == "general_knowledge":
         validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, [])
         contract = create_answer_contract(validation)
+        notice = "当前未配置可用的模型 API，无法生成通用知识回答。请检查服务端模型配置后重试。" if fallback_reason == "missing_api_key" else "模型暂时不可用，已启用本地规则；通用知识问题暂不能由本地规则可靠回答。"
         synthesis = synthesize_legacy_answer(
-            "当前未配置可用的模型 API，无法生成通用知识回答。请检查服务端模型配置后重试。",
+            notice,
             contract,
         )
         return {
@@ -349,7 +352,8 @@ def _offline_answer(
     equipment = run_local_tool("get_equipment_health", equipment_health)
     loop_guard.finish_round()
     risky = (equipment or [])[:3]
-    lines = ["当前未配置可用的模型 API，因此返回本地规则分析。"]
+    unavailable = fallback_reason != "missing_api_key"
+    lines = ["模型暂时不可用，已启用本地规则分析。" if unavailable else "当前未配置可用的模型 API，因此返回本地规则分析。"]
     if overview is not None:
         lines.append(
             f"最近90天共完成 {overview['lots']} 个批次，综合良率 {overview['yield_pct']}%，"
@@ -360,7 +364,7 @@ def _offline_answer(
     if risky:
         names = "、".join(f"{row['equipment_id']}（{row['health']}，{row['excursions']}次异常）" for row in risky)
         lines.append(f"优先关注设备：{names}。")
-    lines.append("配置根目录 .env 的 FAB_MODEL_API_KEY 后，可获得针对问题的多轮工具分析。")
+    lines.append("模型恢复后可获得针对问题的多轮工具分析。" if unavailable else "配置根目录 .env 的 FAB_MODEL_API_KEY 后，可获得针对问题的多轮工具分析。")
     validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, observations)
     contract = create_answer_contract(validation)
     synthesis = synthesize_legacy_answer("\n\n".join(lines), contract)
@@ -817,6 +821,12 @@ def _retryable_model_error(exc: Exception) -> bool:
     return isinstance(exc, httpx.RequestError)
 
 
+def _model_error_category(exc: Exception) -> str:
+    if isinstance(exc, httpx.HTTPStatusError):
+        return "rate_limit" if exc.response.status_code == 429 else "upstream_5xx"
+    return "timeout" if isinstance(exc, httpx.TimeoutException) else "network"
+
+
 def _model_retry_delay(base_seconds: float, retry_number: int, exc: Exception) -> float:
     if isinstance(exc, httpx.HTTPStatusError):
         retry_after = exc.response.headers.get("retry-after")
@@ -917,6 +927,8 @@ async def _resolve_conversation_turn(
     progress: ProgressCallback | None,
     direct_route: IntentRoute | None = None,
     thinking: bool = False,
+    health_model_id: str | None = None,
+    health_recovery_trial: bool = False,
 ) -> tuple[ContextResolution, dict]:
     deterministic = resolve_question_context(question, history)
     connection = settings.model_connection
@@ -986,12 +998,12 @@ async def _resolve_conversation_turn(
                 if protocol_error:
                     protocol_failures += 1
                     retryable = True
-                    will_retry = protocol_failures < 2
+                    will_retry = protocol_failures < 2 and not health_recovery_trial
                 else:
                     retryable = _retryable_model_error(exc)
                     if retryable:
                         transport_failures += 1
-                    will_retry = retryable and transport_failures <= settings.model_max_retries
+                    will_retry = retryable and transport_failures <= settings.model_max_retries and not health_recovery_trial
                 emit(
                     "model_call_finished",
                     run_id,
@@ -1030,6 +1042,19 @@ async def _resolve_conversation_turn(
                             _model_retry_delay(settings.model_retry_base_seconds, transport_failures, exc)
                         )
                     continue
+                if health_model_id and _retryable_model_error(exc):
+                    health, transition = record_model_failure(
+                        health_model_id, _model_error_category(exc),
+                        threshold=settings.model_circuit_failure_threshold,
+                        cooldown_seconds=settings.model_circuit_cooldown_seconds,
+                    )
+                    emit("model_health_failure_recorded", run_id, model_id=health_model_id, health=health, transition=transition)
+                elif health_model_id and protocol_error is not None:
+                    # The provider delivered a response; an invalid local context
+                    # contract must not strand a half-open availability trial.
+                    health, transition = record_model_success(health_model_id)
+                    if transition:
+                        emit("model_circuit_recovered", run_id, model_id=health_model_id, health=health)
                 emit(
                     "question_context_resolution_failed",
                     run_id,
@@ -1073,6 +1098,10 @@ async def _resolve_conversation_turn(
                 response_id=response_id,
                 **({"response": _audit_assistant(assistant), "context_resolution": resolution.to_dict()} if CONTENT_MODE == "full" else {}),
             )
+            if health_model_id:
+                health, transition = record_model_success(health_model_id)
+                if transition:
+                    emit("model_circuit_recovered", run_id, model_id=health_model_id, health=health)
             emit(
                 "question_context_classified",
                 run_id,
@@ -1108,16 +1137,32 @@ async def _run_agent_impl(
     thinking: bool = False,
 ) -> dict:
     settings = effective_agent_settings(get_settings())
+    health_enabled = isinstance(settings, Settings)
+    selected_model_id = public_user_model_config()["model"] if health_enabled else settings.model_connection.model
     direct_route = route_question(question)
-    context_resolution, context_usage = await _resolve_conversation_turn(
-        question,
-        history,
-        settings,
-        run_id,
-        progress,
-        direct_route,
-        thinking,
-    )
+    context_needs_upstream = bool(settings.model_connection.api_key) and bool(history or direct_route.intent == "unknown") and not resolve_question_context(question, history).applied
+    context_allowed, model_health = True, {"status": "unknown"}
+    if health_enabled:
+        model_health = get_model_health(selected_model_id)
+    context_recovery_trial = False
+    if context_needs_upstream and health_enabled:
+        context_allowed, model_health, transition = claim_model_call(
+            selected_model_id,
+            cooldown_seconds=settings.model_circuit_cooldown_seconds,
+            lease_seconds=settings.model_circuit_recovery_lease_seconds,
+        )
+        if transition:
+            context_recovery_trial = transition in {"recovery_started", "recovery_reclaimed"}
+            emit("model_circuit_recovery_started", run_id, model_id=selected_model_id, health=model_health)
+    if context_needs_upstream and not context_allowed:
+        context_resolution, context_usage = unresolved_context(question, "circuit_open"), {}
+        emit("model_local_fallback_context_bypassed", run_id, model_id=selected_model_id, health=model_health)
+    else:
+        context_resolution, context_usage = await _resolve_conversation_turn(
+            question, history, settings, run_id, progress, direct_route, thinking,
+            selected_model_id if context_needs_upstream and health_enabled else None,
+            context_recovery_trial,
+        )
     analysis_question = context_resolution.resolved_question
     if context_resolution.applied:
         emit(
@@ -1306,9 +1351,26 @@ async def _run_agent_impl(
         await _stream_answer(progress, result["answer"])
         return result
     connection = settings.model_connection
-    if not connection.api_key:
+    # Contextualization may have exhausted the final retry budget and opened the
+    # circuit; do not start the main completion in that case.
+    model_health = get_model_health(selected_model_id) if health_enabled else {"status": "unknown"}
+    health_allowed = True
+    main_recovery_trial = False
+    if connection.api_key and health_enabled:
+        health_allowed, model_health, transition = claim_model_call(
+            selected_model_id,
+            cooldown_seconds=settings.model_circuit_cooldown_seconds,
+            lease_seconds=settings.model_circuit_recovery_lease_seconds,
+        )
+        if transition:
+            main_recovery_trial = transition in {"recovery_started", "recovery_reclaimed"}
+            emit("model_circuit_recovery_started", run_id, model_id=selected_model_id, health=model_health)
+    if not connection.api_key or not health_allowed:
         await _notify(progress, {"event": "stage", "stage": "planning", "message": "正在使用本地规则规划分析路径"})
-        result = _offline_answer(analysis_question, intent_route, playbook_selection, execution_plan, loop_guard)
+        fallback_reason = "missing_api_key" if not connection.api_key else "circuit_open"
+        if fallback_reason == "circuit_open":
+            emit("model_local_fallback_activated", run_id, model_id=selected_model_id, reason=fallback_reason, health=model_health)
+        result = _offline_answer(analysis_question, intent_route, playbook_selection, execution_plan, loop_guard, fallback_reason=fallback_reason)
         _emit_evidence_validation(run_id, 1, result["evidence_validation"])
         emit(
             "answer_synthesis_completed",
@@ -1338,6 +1400,7 @@ async def _run_agent_impl(
         await _notify(progress, {"event": "stage", "stage": "synthesis", "message": "正在汇总本地分析结果"})
         await _stream_answer(progress, result["answer"])
         result["model"] = "local-rules"
+        result["model_health"] = {"requested_model_id": selected_model_id, "fallback_reason": fallback_reason, **model_health}
         result["usage"] = {}
         result["context_resolution"] = context_resolution.to_dict()
         return result
@@ -1368,6 +1431,7 @@ async def _run_agent_impl(
         for key in ("prompt_tokens", "completion_tokens", "total_tokens")
     }
     applied_synthesis_reason: str | None = None
+    health = model_health
     knowledge_fallback = {"used": False, "reason": None, "disclosure": None}
     fallback_announced = False
     retrieval_decision_payload: dict[str, Any] = {
@@ -1503,7 +1567,8 @@ async def _run_agent_impl(
                     )
                 if synthesis_only and answer_contract.status == "required":
                     request_payload["max_tokens"] = 8192
-            for attempt in range(1, settings.model_max_retries + 2):
+            retry_budget = 0 if main_recovery_trial else settings.model_max_retries
+            for attempt in range(1, retry_budget + 2):
                 model_started = time.perf_counter()
                 emit(
                     "model_call_started",
@@ -1529,8 +1594,9 @@ async def _run_agent_impl(
                         stream_state,
                     )
                 except Exception as exc:
-                    retryable = _retryable_model_error(exc) and not stream_state["answer_emitted"]
-                    will_retry = retryable and attempt <= settings.model_max_retries
+                    availability_failure = _retryable_model_error(exc)
+                    retryable = availability_failure and not stream_state["answer_emitted"]
+                    will_retry = retryable and attempt <= retry_budget
                     emit(
                         "model_call_finished",
                         run_id,
@@ -1546,6 +1612,29 @@ async def _run_agent_impl(
                         **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
                     )
                     if not will_retry:
+                        if availability_failure and health_enabled:
+                            health, transition = record_model_failure(
+                                selected_model_id, _model_error_category(exc),
+                                threshold=settings.model_circuit_failure_threshold,
+                                cooldown_seconds=settings.model_circuit_cooldown_seconds,
+                            )
+                            emit("model_health_failure_recorded", run_id, model_id=selected_model_id, health=health, transition=transition)
+                        if availability_failure and not stream_state["answer_emitted"]:
+                            emit("model_local_fallback_activated", run_id, model_id=selected_model_id, reason="upstream_unavailable", health=health)
+                            result = _offline_answer(
+                                analysis_question, intent_route, playbook_selection, execution_plan, loop_guard,
+                                context_resolution, fallback_reason="upstream_unavailable",
+                            )
+                            result.update({
+                                "model": "local-rules", "usage": total_usage,
+                                "context_resolution": context_resolution.to_dict(),
+                                "model_health": {"requested_model_id": selected_model_id, "fallback_reason": "upstream_unavailable", **health},
+                            })
+                            for item in result["tool_trace"]:
+                                await _notify(progress, {"event": "tool_started", "tool": item["tool"], "arguments": {}})
+                                await _notify(progress, {"event": "tool_finished", **item})
+                            await _stream_answer(progress, result["answer"])
+                            return result
                         raise
                     delay_seconds = _model_retry_delay(settings.model_retry_base_seconds, attempt, exc)
                     emit(
@@ -1586,6 +1675,10 @@ async def _run_agent_impl(
                     stream_duration_ms=stream_state.get("stream_duration_ms"),
                     **({"response": _audit_assistant(assistant)} if CONTENT_MODE == "full" else {}),
                 )
+                if health_enabled:
+                    health, transition = record_model_success(selected_model_id)
+                    if transition:
+                        emit("model_circuit_recovered", run_id, model_id=selected_model_id, health=health)
                 break
             for key in total_usage:
                 total_usage[key] += int(usage.get(key, 0) or 0)

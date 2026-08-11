@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from .config import ALLOWED_MODELS, MODEL_API_NAMES, ModelConnection, Settings, get_settings
 from .database import db_session
 from .identity import Principal, current_principal
+from .model_health import ensure_model_health
 
 
 MODEL_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{1,63}$")
@@ -60,6 +61,8 @@ def ensure_model_catalog() -> None:
                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             rows,
         )
+        for model_id, *_ in rows:
+            ensure_model_health(model_id, connection)
         connection.commit()
 
 
@@ -75,6 +78,15 @@ def _decode_model(row) -> dict:
     except (TypeError, json.JSONDecodeError):
         item["compatibility"] = {}
     item["compatibility_checked_at"] = item.get("compatibility_checked_at")
+    item["health"] = {
+        "status": item.pop("health_status", None) or "unknown",
+        "consecutive_failures": int(item.pop("health_failures", 0) or 0),
+        "opened_at": item.pop("health_opened_at", None),
+        "open_until": item.pop("health_open_until", None),
+        "last_success_at": item.pop("health_last_success_at", None),
+        "last_failure_at": item.pop("health_last_failure_at", None),
+        "last_error_category": item.pop("health_error_category", None),
+    }
     item["selectable"] = item["status"] == "published"
     return item
 
@@ -83,8 +95,13 @@ def list_models(include_retired: bool = False) -> list[dict]:
     where = "" if include_retired else "WHERE m.status = 'published'"
     with db_session() as connection:
         rows = connection.execute(
-            f"""SELECT m.*, COUNT(p.user_id) AS selected_user_count
+            f"""SELECT m.*, COUNT(p.user_id) AS selected_user_count,
+                       h.status AS health_status, h.consecutive_failures AS health_failures,
+                       h.opened_at AS health_opened_at, h.open_until AS health_open_until,
+                       h.last_success_at AS health_last_success_at, h.last_failure_at AS health_last_failure_at,
+                       h.last_error_category AS health_error_category
                 FROM model_catalog m
+                LEFT JOIN model_health h ON h.model_id = m.model_id
                 LEFT JOIN user_model_preferences p ON p.model_id = m.model_id
                 {where}
                 GROUP BY m.model_id
@@ -97,16 +114,25 @@ def list_models(include_retired: bool = False) -> list[dict]:
 def _selected_model(principal: Principal) -> dict:
     with db_session() as connection:
         row = connection.execute(
-            """SELECT m.* FROM user_model_preferences p
+            """SELECT m.*, h.status AS health_status, h.consecutive_failures AS health_failures,
+                      h.opened_at AS health_opened_at, h.open_until AS health_open_until,
+                      h.last_success_at AS health_last_success_at, h.last_failure_at AS health_last_failure_at,
+                      h.last_error_category AS health_error_category
+               FROM user_model_preferences p
                JOIN model_catalog m ON m.model_id = p.model_id
+               LEFT JOIN model_health h ON h.model_id = m.model_id
                WHERE p.tenant_id = ? AND p.user_id = ? AND m.status = 'published'""",
             (principal.tenant_id, principal.user_id),
         ).fetchone()
         if row is None:
             configured = get_settings().model_connection.model
             row = connection.execute(
-                """SELECT * FROM model_catalog
-                   WHERE status = 'published'
+                """SELECT m.*, h.status AS health_status, h.consecutive_failures AS health_failures,
+                          h.opened_at AS health_opened_at, h.open_until AS health_open_until,
+                          h.last_success_at AS health_last_success_at, h.last_failure_at AS health_last_failure_at,
+                          h.last_error_category AS health_error_category FROM model_catalog m
+                   LEFT JOIN model_health h ON h.model_id = m.model_id
+                   WHERE m.status = 'published'
                    ORDER BY CASE WHEN provider_model = ? THEN 0 ELSE 1 END,
                             published_at DESC, model_id
                    LIMIT 1""",
@@ -129,6 +155,7 @@ def public_user_model_config(principal: Principal | None = None) -> dict:
         "provider_model": selected["provider_model"],
         "base_url": selected["base_url"],
         "capabilities": selected["capabilities"],
+        "health": selected["health"],
         "allowed_models": [item["model_id"] for item in models],
         "model_options": [
             {
@@ -137,6 +164,7 @@ def public_user_model_config(principal: Principal | None = None) -> dict:
                 "provider": item["provider"],
                 "provider_model": item["provider_model"],
                 "capabilities": item["capabilities"],
+                "health": item["health"],
             }
             for item in models
         ],
@@ -162,6 +190,7 @@ def select_user_model(model_id: str, principal: Principal | None = None) -> dict
                    model_id = excluded.model_id, updated_at = excluded.updated_at""",
             (principal.tenant_id, principal.user_id, model_id, _now()),
         )
+        ensure_model_health(model_id, connection)
         connection.commit()
     return public_user_model_config(principal)
 

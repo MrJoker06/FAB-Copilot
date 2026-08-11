@@ -26,6 +26,7 @@ class HttpContractsSystemTests(unittest.TestCase):
             payload = client.get("/api/health").json()
 
         self.assertIn("instance", payload)
+        self.assertIn("model_health", payload)
         self.assertTrue(payload["instance"]["id"])
         self.assertTrue(payload["instance"]["root"])
         self.assertTrue(payload["instance"]["source_root"])
@@ -107,6 +108,9 @@ class HttpContractsSystemTests(unittest.TestCase):
         script = (PROJECT_DIR / "app" / "static" / "admin.js").read_text(encoding="utf-8")
         self.assertIn("/api/admin/overview", script)
         self.assertIn("/api/admin/models", script)
+        self.assertIn('<th scope="col">健康</th>', (PROJECT_DIR / "app" / "static" / "admin.html").read_text(encoding="utf-8"))
+        self.assertIn('data-label="健康"', script)
+        self.assertIn("health-chip", (PROJECT_DIR / "app" / "static" / "admin.css").read_text(encoding="utf-8"))
         self.assertIn("$('#adminWorkspace').hidden = true", script)
         self.assertIn("$('#adminWorkspace').hidden = false", script)
         self.assertIn("run.question_preview", script)
@@ -115,7 +119,7 @@ class HttpContractsSystemTests(unittest.TestCase):
         self.assertIn('id="publishThinking"', response.text)
         self.assertIn('id="publishNativeMultimodal"', response.text)
         self.assertIn("native_multimodal", script)
-        self.assertIn("capabilityLabels", script)
+        self.assertIn("FabModelCapabilities.enabledEntries(model.capabilities)", script)
 
     def test_health_endpoint(self):
         with TestClient(app) as client:

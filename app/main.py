@@ -364,6 +364,7 @@ def health() -> dict:
             for name, path in department_paths().items()
         },
         "model": model_config["provider_model"],
+        "model_health": model_config.get("health", {}),
         "agent_configured": model_config["api_key_configured"],
         "build": {"version": APP_VERSION, "git_commit": GIT_COMMIT},
         "instance": {

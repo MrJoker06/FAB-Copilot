@@ -7,7 +7,7 @@ from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 WORKSPACE_DIR = PROJECT_DIR.parent.parent
-APP_VERSION = "20260811-8"
+APP_VERSION = "20260811-9"
 
 
 def _load_env(path: Path) -> None:
@@ -54,6 +54,9 @@ class Settings:
     api_timeout_seconds: float
     model_max_retries: int
     model_retry_base_seconds: float
+    model_circuit_failure_threshold: int
+    model_circuit_cooldown_seconds: int
+    model_circuit_recovery_lease_seconds: int
     personal_knowledge_storage_path: Path
     personal_knowledge_user_id: str
     personal_knowledge_api_token: str
@@ -120,6 +123,9 @@ def get_settings() -> Settings:
         api_timeout_seconds=float(os.getenv("API_TIMEOUT_MS", "60000")) / 1000,
         model_max_retries=max(0, min(int(os.getenv("MODEL_MAX_RETRIES", "2")), 4)),
         model_retry_base_seconds=max(0.05, min(float(os.getenv("MODEL_RETRY_BASE_MS", "500")) / 1000, 5.0)),
+        model_circuit_failure_threshold=max(1, min(int(os.getenv("MODEL_CIRCUIT_FAILURE_THRESHOLD", "3")), 10)),
+        model_circuit_cooldown_seconds=max(1, min(int(os.getenv("MODEL_CIRCUIT_COOLDOWN_SECONDS", "60")), 3600)),
+        model_circuit_recovery_lease_seconds=max(1, min(int(os.getenv("MODEL_CIRCUIT_RECOVERY_LEASE_SECONDS", "120")), 3600)),
         personal_knowledge_storage_path=personal_storage,
         personal_knowledge_user_id=os.getenv("FAB_PERSONAL_KNOWLEDGE_USER_ID", "local-user").strip() or "local-user",
         personal_knowledge_api_token=os.getenv("FAB_PERSONAL_KNOWLEDGE_API_TOKEN", "").strip(),
