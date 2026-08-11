@@ -13,3 +13,14 @@ test('labels use fixed friendly order and do not expose extensions', () => {
     '流式输出', 'Thinking', '原生多模态',
   ]);
 });
+
+test('enabled entries provide stable keys and labels while labels remain compatible', () => {
+  const values = {streaming: true, tool_calls: true, thinking: true, native_multimodal: true};
+  assert.deepEqual(capabilities.enabledEntries(values), [
+    {key: 'streaming', label: '流式输出'},
+    {key: 'tool_calls', label: '工具调用'},
+    {key: 'thinking', label: 'Thinking'},
+    {key: 'native_multimodal', label: '原生多模态'},
+  ]);
+  assert.deepEqual(capabilities.labels(values), capabilities.enabledEntries(values).map(entry => entry.label));
+});

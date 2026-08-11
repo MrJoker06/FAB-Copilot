@@ -37,6 +37,21 @@ class ModelCompatibilityTests(unittest.TestCase):
             self.assertEqual(len(report["checks"]), 4)
         asyncio.run(run())
 
+    def test_tool_arguments_require_ok_true(self):
+        for arguments in ("{}", '{"ok": false}'):
+            def handler(request):
+                body = json.loads(request.content)
+                delta = {"tool_calls": [{"index": 0, "function": {"name": "compatibility_probe", "arguments": arguments}}]} if body.get("tools") else {"content": "ok"}
+                stream = f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\ndata: [DONE]\n\n"
+                return httpx.Response(200, text=stream, headers={"content-type": "text/event-stream"})
+            async def run():
+                async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                    with self.assertRaises(ModelCompatibilityError) as raised:
+                        await check_model_compatibility(self.connection(), {"streaming": True, "tool_calls": True}, client=client, context_chars=1024)
+                self.assertEqual(raised.exception.category, "tool_arguments")
+                self.assertEqual(raised.exception.summary, "模型未返回符合契约的 JSON 参数（要求 ok=true）")
+            asyncio.run(run())
+
     def test_malformed_sse_is_rejected_and_provider_options_follow_contract(self):
         async def run():
             async with httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200, text="data: nope\n\ndata: [DONE]\n\n", headers={"content-type": "text/event-stream"}))) as client:
@@ -84,31 +99,55 @@ class ModelCompatibilityTests(unittest.TestCase):
         audit = _audit_assistant(assistant)
         self.assertNotIn("reasoning_content", audit); self.assertIn("reasoning_content", assistant); self.assertIsNot(audit, assistant)
 
-    def test_deepseek_thinking_tool_probe_omits_tool_choice(self):
+    def test_deepseek_thinking_probes_are_isolated_and_keep_tool_contract(self):
         requests = []
         def handler(request):
             body = json.loads(request.content); requests.append(body)
-            delta = ({"tool_calls": [{"index": 0, "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}], "reasoning_content": "thinking"}
-                     if body.get("tools") else {"content": "ok", "reasoning_content": "thinking"})
+            content = body["messages"][0]["content"]
+            if body.get("tools"):
+                delta = {"tool_calls": [{"index": 0, "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}], "reasoning_content": "thinking"}
+            elif isinstance(content, list):
+                delta = {"content": "BLACK"}
+            elif content == "Reply ok":
+                delta = {"content": "ok", "reasoning_content": "thinking"}
+            elif len(content) >= 1024:
+                delta = {"reasoning_content": "thinking"} if body["thinking"] == {"type": "enabled"} else {"content": "ok"}
+            else:
+                delta = {"content": "ok"}
             stream = f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\ndata: [DONE]\n\n"
             return httpx.Response(200, text=stream, headers={"content-type": "text/event-stream"})
         async def run():
             connection = SimpleNamespace(provider="deepseek", api_key="test-key", base_url="https://model.test/v1", model="test")
             async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-                await check_model_compatibility(connection, {"streaming": True, "tool_calls": True, "thinking": True}, client=client, context_chars=1024)
+                await check_model_compatibility(connection, {"streaming": True, "tool_calls": True, "thinking": True, "native_multimodal": True}, client=client, context_chars=1024)
         asyncio.run(run())
         tool_request = next(item for item in requests if item.get("tools"))
+        thinking_request = next(item for item in requests if item["messages"][0]["content"] == "Reply ok")
+        basic_request = next(item for item in requests if item["messages"][0]["content"] == "Reply exactly: ok")
+        context_request = next(item for item in requests if isinstance(item["messages"][0]["content"], str) and len(item["messages"][0]["content"]) >= 1024)
+        image_request = next(item for item in requests if isinstance(item["messages"][0]["content"], list))
         self.assertNotIn("tool_choice", tool_request)
+        self.assertEqual(tool_request["max_tokens"], 512)
         self.assertEqual(tool_request["thinking"], {"type": "enabled"})
-        self.assertTrue(all(item["thinking"] == {"type": "enabled"} for item in requests))
+        self.assertEqual(thinking_request["max_tokens"], 512)
+        self.assertEqual(thinking_request["thinking"], {"type": "enabled"})
+        self.assertEqual(basic_request["thinking"], {"type": "disabled"})
+        self.assertEqual(context_request["thinking"], {"type": "disabled"})
+        self.assertEqual(image_request["thinking"], {"type": "disabled"})
 
     def test_deepseek_non_thinking_probes_explicitly_disable_thinking(self):
         requests = []
         def handler(request):
             body = json.loads(request.content); requests.append(body)
-            delta = ({"tool_calls": [{"index": 0, "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}]}
-                     if body.get("tools") else {"content": "ok"})
-            stream = f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\ndata: [DONE]\n\n"
+            if body.get("tools"):
+                arguments = '{"' if body["max_tokens"] < 512 else '{"ok":true}'
+                deltas = [
+                    {"tool_calls": [{"index": 0, "function": {"name": "compatibility_probe", "arguments": arguments[:2]}}]},
+                    {"tool_calls": [{"index": 0, "function": {"arguments": arguments[2:]}}]},
+                ]
+            else:
+                deltas = [{"content": "ok"}]
+            stream = "".join(f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\n" for delta in deltas) + "data: [DONE]\n\n"
             return httpx.Response(200, text=stream, headers={"content-type": "text/event-stream"})
         async def run():
             connection = SimpleNamespace(provider="deepseek", api_key="test-key", base_url="https://model.test/v1", model="test")
@@ -116,4 +155,60 @@ class ModelCompatibilityTests(unittest.TestCase):
                 await check_model_compatibility(connection, {"streaming": True, "tool_calls": True, "thinking": False}, client=client, context_chars=1024)
         asyncio.run(run())
         self.assertEqual(len(requests), 3)
+        tool_requests = [item for item in requests if item.get("tools")]
+        self.assertEqual(len(tool_requests), 1)
+        self.assertEqual(tool_requests[0]["max_tokens"], 512)
+        self.assertEqual(tool_requests[0]["tools"][0]["function"]["parameters"]["additionalProperties"], False)
         self.assertTrue(all(item["thinking"] == {"type": "disabled"} for item in requests))
+
+    def test_multimodal_capability_failures_are_specific_and_safe(self):
+        def is_image_request(body):
+            return isinstance(body["messages"][0]["content"], list)
+
+        def success_response(body):
+            delta = ({"tool_calls": [{"index": 0, "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}]}
+                     if body.get("tools") else {"content": "ok"})
+            stream = f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\ndata: [DONE]\n\n"
+            return httpx.Response(200, text=stream, headers={"content-type": "text/event-stream"})
+
+        async def check_image_failure(outcome):
+            def handler(request):
+                body = json.loads(request.content)
+                if is_image_request(body):
+                    if outcome == "network":
+                        raise httpx.ConnectError("offline", request=request)
+                    return httpx.Response(outcome, headers={"content-type": "text/event-stream"})
+                return success_response(body)
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                with self.assertRaises(ModelCompatibilityError) as raised:
+                    await check_model_compatibility(self.connection(), {"streaming": True, "tool_calls": True, "native_multimodal": True}, client=client, context_chars=1024)
+            return raised.exception
+
+        rejected = asyncio.run(check_image_failure(400))
+        self.assertEqual(rejected.category, "multimodal")
+        self.assertEqual(rejected.summary, "模型不具备原生多模态能力（图片输入被模型拒绝）")
+        self.assertFalse(rejected.retryable)
+        self.assertEqual(rejected.http_status, 400)
+        for outcome, category, retryable in ((401, "http", False), (429, "http", True), ("network", "network", True)):
+            error = asyncio.run(check_image_failure(outcome))
+            self.assertEqual(error.category, category)
+            self.assertEqual(error.retryable, retryable)
+
+    def test_multimodal_content_must_recognize_image(self):
+        def handler(request):
+            body = json.loads(request.content)
+            if body.get("tools"):
+                delta = {"tool_calls": [{"index": 0, "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}]}
+            elif isinstance(body["messages"][0]["content"], list):
+                delta = {"content": "WHITE"}
+            else:
+                delta = {"content": "ok"}
+            stream = f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\ndata: [DONE]\n\n"
+            return httpx.Response(200, text=stream, headers={"content-type": "text/event-stream"})
+        async def run():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                with self.assertRaises(ModelCompatibilityError) as raised:
+                    await check_model_compatibility(self.connection(), {"streaming": True, "tool_calls": True, "native_multimodal": True}, client=client, context_chars=1024)
+            self.assertEqual(raised.exception.category, "multimodal")
+            self.assertEqual(raised.exception.summary, "模型不具备原生多模态能力（图片内容识别未通过）")
+        asyncio.run(run())

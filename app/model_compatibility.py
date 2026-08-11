@@ -16,6 +16,8 @@ MAX_SSE_EVENTS = 256
 MAX_SSE_BYTES = 256 * 1024
 DEFAULT_TIMEOUT_SECONDS = 12.0
 DEFAULT_CONTEXT_CHARS = 32768
+TOOL_PROBE_MAX_TOKENS = 512
+THINKING_PROBE_MAX_TOKENS = 512
 
 
 @dataclass
@@ -23,6 +25,7 @@ class ModelCompatibilityError(ValueError):
     summary: str
     retryable: bool = False
     category: str = "protocol"
+    http_status: int | None = None
 
     def __str__(self) -> str:
         return self.summary
@@ -97,7 +100,8 @@ async def _stream_probe(client: httpx.AsyncClient, endpoint: str, headers: dict,
     except ModelCompatibilityError:
         raise
     except httpx.HTTPStatusError as exc:
-        raise ModelCompatibilityError(f"模型兼容性请求失败（HTTP {exc.response.status_code}）", exc.response.status_code >= 500 or exc.response.status_code == 429, "http") from exc
+        status_code = exc.response.status_code
+        raise ModelCompatibilityError(f"模型兼容性请求失败（HTTP {status_code}）", status_code >= 500 or status_code == 429, "http", status_code) from exc
     except (httpx.TimeoutException, httpx.RequestError) as exc:
         raise ModelCompatibilityError("无法在限定时间内连接模型服务", True, "network") from exc
     if not saw_done:
@@ -125,19 +129,21 @@ async def check_model_compatibility(
     owned_client = client is None
     client = client or httpx.AsyncClient(timeout=httpx.Timeout(timeout_seconds), follow_redirects=False)
     checks: list[dict] = []
-    probe_options = provider_request_options(connection.provider, bool(capabilities.get("thinking")))
+    standard_probe_options = provider_request_options(connection.provider, False)
     try:
         basic = await _stream_probe(client, endpoint, headers, {
-            "model": connection.model, "messages": [{"role": "user", "content": "Reply exactly: ok"}], "max_tokens": 8, **probe_options,
+            "model": connection.model, "messages": [{"role": "user", "content": "Reply exactly: ok"}], "max_tokens": 8, **standard_probe_options,
         })
         if not basic["content"].strip():
             raise ModelCompatibilityError("模型未返回有效的流式增量内容", False, "streaming")
         checks.append({"name": "connectivity_streaming", "status": "passed"})
         tool_name = "compatibility_probe"
         tool_payload = {
-            "model": connection.model, "messages": [{"role": "user", "content": "Call the required function."}], "max_tokens": 16,
-            "tools": [{"type": "function", "function": {"name": tool_name, "description": "Compatibility probe", "parameters": {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}}}],
-            **probe_options,
+            "model": connection.model,
+            "messages": [{"role": "user", "content": "Call compatibility_probe with valid JSON arguments: {\"ok\": true}."}],
+            "max_tokens": TOOL_PROBE_MAX_TOKENS,
+            "tools": [{"type": "function", "function": {"name": tool_name, "description": "Compatibility probe", "parameters": {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"], "additionalProperties": False}}}],
+            **provider_request_options(connection.provider, bool(capabilities.get("thinking"))),
         }
         deepseek_thinking_tool_probe = capabilities.get("thinking") and connection.provider == "deepseek"
         if deepseek_thinking_tool_probe:
@@ -151,26 +157,32 @@ async def check_model_compatibility(
         if len(calls) != 1 or calls[0]["function"]["name"] != tool_name:
             raise ModelCompatibilityError("模型没有返回要求的函数调用", False, "tool_calls")
         try:
-            if not isinstance(json.loads(calls[0]["function"]["arguments"]), dict):
-                raise ValueError("not object")
+            arguments = json.loads(calls[0]["function"]["arguments"])
+            if not isinstance(arguments, dict) or arguments.get("ok") is not True:
+                raise ValueError("missing or false ok")
         except (TypeError, ValueError, json.JSONDecodeError) as exc:
-            raise ModelCompatibilityError("模型函数调用参数不是合法 JSON 对象", False, "tool_arguments") from exc
+            raise ModelCompatibilityError("模型未返回符合契约的 JSON 参数（要求 ok=true）", False, "tool_arguments") from exc
         checks.append({"name": "tool_calls", "status": "passed"})
         context = await _stream_probe(client, endpoint, headers, {
-            "model": connection.model, "messages": [{"role": "user", "content": ("x " * ((context_chars // 2) + 1))[:context_chars]}], "max_tokens": 4, **probe_options,
+            "model": connection.model, "messages": [{"role": "user", "content": ("x " * ((context_chars // 2) + 1))[:context_chars]}], "max_tokens": 4, **standard_probe_options,
         })
         if not context["content"].strip():
             raise ModelCompatibilityError("模型未通过最低上下文负载检查", False, "context")
         checks.append({"name": "context", "status": "passed"})
         if capabilities.get("thinking"):
-            thinking = await _stream_probe(client, endpoint, headers, {"model": connection.model, "messages": [{"role": "user", "content": "Reply ok"}], "max_tokens": 8, **probe_options})
+            thinking = await _stream_probe(client, endpoint, headers, {"model": connection.model, "messages": [{"role": "user", "content": "Reply ok"}], "max_tokens": THINKING_PROBE_MAX_TOKENS, **provider_request_options(connection.provider, True)})
             if not thinking["content"].strip() or (connection.provider == "deepseek" and not thinking["reasoning_content"].strip()):
                 raise ModelCompatibilityError("Thinking 探针未返回有效响应", False, "thinking")
             checks.append({"name": "thinking", "status": "passed"})
         if capabilities.get("native_multimodal"):
-            image = await _stream_probe(client, endpoint, headers, {"model": connection.model, "messages": [{"role": "user", "content": [{"type": "text", "text": "Identify the 1px black image. Reply exactly BLACK."}, {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL1JwAAAABJRU5ErkJggg=="}}]}], "max_tokens": 8, **probe_options})
+            try:
+                image = await _stream_probe(client, endpoint, headers, {"model": connection.model, "messages": [{"role": "user", "content": [{"type": "text", "text": "Identify the 1px black image. Reply exactly BLACK."}, {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL1JwAAAABJRU5ErkJggg=="}}]}], "max_tokens": 8, **standard_probe_options})
+            except ModelCompatibilityError as exc:
+                if exc.category == "http" and exc.http_status in {400, 404, 415, 422}:
+                    raise ModelCompatibilityError("模型不具备原生多模态能力（图片输入被模型拒绝）", False, "multimodal", exc.http_status) from exc
+                raise
             if "BLACK" not in image["content"].upper():
-                raise ModelCompatibilityError("多模态探针未返回有效响应", False, "multimodal")
+                raise ModelCompatibilityError("模型不具备原生多模态能力（图片内容识别未通过）", False, "multimodal")
             checks.append({"name": "native_multimodal", "status": "passed"})
     finally:
         if owned_client:

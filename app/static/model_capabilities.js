@@ -13,5 +13,8 @@
   function labels(capabilities = {}) {
     return definitions.filter(([key]) => capabilities[key] === true).map(([, label]) => label);
   }
-  return {publishPayload, labels};
+  function enabledEntries(capabilities = {}) {
+    return definitions.filter(([key]) => capabilities[key] === true).map(([key, label]) => ({key, label}));
+  }
+  return {publishPayload, labels, enabledEntries};
 });
