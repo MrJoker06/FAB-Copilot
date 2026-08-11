@@ -451,6 +451,22 @@ class ContextResolverTests(unittest.TestCase):
         self.assertEqual(resolution.failure_reason, "invalid_json")
         self.assertEqual(usage, {})
 
+    def test_deepseek_contextualizer_declares_thinking_mode(self):
+        captured = []
+        async def invalid_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            captured.append(request_payload.copy())
+            return ({"role": "assistant", "content": "not json"}, {}, "context")
+        settings = _settings()
+        settings.model_connection = SimpleNamespace(provider="deepseek", api_key="test-key", base_url="https://example.test", model="test-model")
+        history = [{"role": "user", "content": "分析 CMP-02 报警"}, {"role": "assistant", "content": "已给出初步结论。"}]
+        with patch("app.agent._stream_completion", new=invalid_stream):
+            asyncio.run(agent_module._resolve_conversation_turn("是更前面的一个", history, settings, "run-context-deepseek-false", None))
+        self.assertTrue(all(item["thinking"] == {"type": "disabled"} for item in captured))
+        captured.clear()
+        with patch("app.agent._stream_completion", new=invalid_stream):
+            asyncio.run(agent_module._resolve_conversation_turn("是更前面的一个", history, settings, "run-context-deepseek-true", None, thinking=True))
+        self.assertTrue(all(item["thinking"] == {"type": "enabled"} for item in captured))
+
     def test_context_json_protocol_ignores_unknown_fields(self):
         assistant, _, _ = _context_response(
             "standalone",

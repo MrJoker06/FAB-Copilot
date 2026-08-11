@@ -49,5 +49,12 @@ class VersionContractTests(unittest.TestCase):
 
     def test_admin_compatibility_contract(self):
         root = Path(__file__).parents[1] / "app" / "static"
-        self.assertIn("兼容性", (root / "admin.html").read_text(encoding="utf-8"))
-        self.assertIn("正在执行兼容性检查", (root / "admin.js").read_text(encoding="utf-8"))
+        html = (root / "admin.html").read_text(encoding="utf-8")
+        script = (root / "admin.js").read_text(encoding="utf-8")
+        self.assertIn('id="editCapabilitiesDialog"', html)
+        self.assertIn("兼容性测试需主动执行", html)
+        self.assertIn('data-action="compatibility"', script)
+        self.assertIn('data-action="capabilities"', script)
+        self.assertIn("/compatibility-check", script)
+        self.assertIn("/capabilities", script)
+        self.assertNotIn("正在执行兼容性检查", script)

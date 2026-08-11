@@ -209,12 +209,12 @@ def publish_model(
     base_url: str,
     capabilities: dict | None,
     created_by: str,
-    compatibility: dict | None = None,
 ) -> dict:
     cleaned_model_id, cleaned_display_name, cleaned_provider_model, cleaned_url = validate_model_definition(model_id, display_name, provider, provider_model, base_url)
-    if not isinstance(compatibility, dict) or compatibility.get("status") != "passed":
-        raise ValueError("模型兼容性检查未通过")
     timestamp = _now()
+    compatibility = {
+        "status": "unverified", "summary": "尚未进行兼容性测试"
+    }
     with db_session() as connection:
         exists = connection.execute(
             "SELECT 1 FROM model_catalog WHERE model_id = ?",
@@ -250,11 +250,9 @@ def publish_model(
     return _decode_model(row)
 
 
-def set_model_status(model_id: str, status: str, compatibility: dict | None = None) -> dict:
+def set_model_status(model_id: str, status: str) -> dict:
     if status not in {"published", "retired"}:
         raise ValueError("模型状态不正确")
-    if status == "published" and (not isinstance(compatibility, dict) or compatibility.get("status") != "passed"):
-        raise ValueError("模型兼容性检查未通过")
     with db_session() as connection:
         if status == "retired":
             published_count = connection.execute(
@@ -271,14 +269,67 @@ def set_model_status(model_id: str, status: str, compatibility: dict | None = No
         cursor = connection.execute(
             """UPDATE agent.model_catalog
                SET status = ?, updated_at = ?,
-                   compatibility_json = CASE WHEN ? = 'published' THEN ? ELSE compatibility_json END,
-                   compatibility_checked_at = CASE WHEN ? = 'published' THEN ? ELSE compatibility_checked_at END,
                    published_at = CASE WHEN ? = 'published' THEN ? ELSE published_at END
                WHERE model_id = ? AND (? != 'published' OR status = 'retired')""",
-            (status, timestamp, status, json.dumps(compatibility or {}, separators=(",", ":")), status, (compatibility or {}).get("checked_at"), status, timestamp, model_id, status),
+            (status, timestamp, status, timestamp, model_id, status),
         )
         if cursor.rowcount == 0:
             raise ValueError("模型不存在或状态已变化")
+        connection.commit()
+        row = connection.execute("SELECT * FROM model_catalog WHERE model_id = ?", (model_id,)).fetchone()
+    return _decode_model(row)
+
+
+def update_model_capabilities(model_id: str, capabilities: dict) -> dict:
+    """Persist the administrator's complete capability declaration without probing."""
+    if set(capabilities) != set(MODEL_CAPABILITY_DEFAULTS) or not all(
+        isinstance(capabilities[key], bool) for key in MODEL_CAPABILITY_DEFAULTS
+    ):
+        raise ValueError("能力配置必须包含且仅包含四项布尔值")
+    timestamp = _now()
+    unverified = {"status": "unverified", "summary": "能力配置已变更，请按需重新测试"}
+    with db_session() as connection:
+        cursor = connection.execute(
+            """UPDATE agent.model_catalog
+               SET capabilities_json = ?, compatibility_json = ?, compatibility_checked_at = NULL,
+                   updated_at = ? WHERE model_id = ?""",
+            (json.dumps(capabilities, separators=(",", ":")), json.dumps(unverified, separators=(",", ":")), timestamp, model_id),
+        )
+        if cursor.rowcount == 0:
+            raise ValueError("模型不存在")
+        connection.commit()
+        row = connection.execute("SELECT * FROM model_catalog WHERE model_id = ?", (model_id,)).fetchone()
+    return _decode_model(row)
+
+
+def save_model_compatibility_report(model_id: str, report: dict) -> dict:
+    """Store only an explicit, bounded probe result; never changes model state."""
+    if not isinstance(report, dict) or report.get("status") not in {"passed", "failed"}:
+        raise ValueError("兼容性报告格式不正确")
+    timestamp = _now()
+    checked_at = report.get("checked_at") if isinstance(report.get("checked_at"), str) else timestamp
+    if report["status"] == "failed":
+        # Failed reports are deliberately a small public-safe envelope: never retain
+        # upstream response bodies, request data, or any accidental credential field.
+        stored = {
+            "status": "failed",
+            "summary": str(report.get("summary") or "兼容性测试失败")[:500],
+            "category": str(report.get("category") or "protocol")[:80],
+            "retryable": bool(report.get("retryable")),
+            "checked_at": checked_at,
+        }
+    else:
+        stored = dict(report)
+        stored["checked_at"] = checked_at
+    with db_session() as connection:
+        cursor = connection.execute(
+            """UPDATE agent.model_catalog
+               SET compatibility_json = ?, compatibility_checked_at = ?, updated_at = ?
+               WHERE model_id = ?""",
+            (json.dumps(stored, separators=(",", ":")), checked_at, timestamp, model_id),
+        )
+        if cursor.rowcount == 0:
+            raise ValueError("模型不存在")
         connection.commit()
         row = connection.execute("SELECT * FROM model_catalog WHERE model_id = ?", (model_id,)).fetchone()
     return _decode_model(row)

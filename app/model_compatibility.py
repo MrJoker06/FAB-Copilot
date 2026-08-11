@@ -30,11 +30,11 @@ class ModelCompatibilityError(ValueError):
 
 def provider_request_options(provider: str, thinking: bool = False) -> dict:
     """The only provider-specific request options used by runtime and probes."""
-    if not thinking:
-        return {}
     if provider == "deepseek":
-        return {"thinking": {"type": "enabled"}, "reasoning_effort": "high"}
-    return {"reasoning_effort": "high"}
+        return {"thinking": {"type": "enabled" if thinking else "disabled"}} if not thinking else {
+            "thinking": {"type": "enabled"}, "reasoning_effort": "high"
+        }
+    return {"reasoning_effort": "high"} if thinking else {}
 
 
 def compatibility_limits(timeout_seconds: float | None, context_chars: int | None) -> tuple[float, int]:
@@ -125,9 +125,10 @@ async def check_model_compatibility(
     owned_client = client is None
     client = client or httpx.AsyncClient(timeout=httpx.Timeout(timeout_seconds), follow_redirects=False)
     checks: list[dict] = []
+    probe_options = provider_request_options(connection.provider, bool(capabilities.get("thinking")))
     try:
         basic = await _stream_probe(client, endpoint, headers, {
-            "model": connection.model, "messages": [{"role": "user", "content": "Reply exactly: ok"}], "max_tokens": 8,
+            "model": connection.model, "messages": [{"role": "user", "content": "Reply exactly: ok"}], "max_tokens": 8, **probe_options,
         })
         if not basic["content"].strip():
             raise ModelCompatibilityError("模型未返回有效的流式增量内容", False, "streaming")
@@ -136,9 +137,13 @@ async def check_model_compatibility(
         tool_payload = {
             "model": connection.model, "messages": [{"role": "user", "content": "Call the required function."}], "max_tokens": 16,
             "tools": [{"type": "function", "function": {"name": tool_name, "description": "Compatibility probe", "parameters": {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}}}],
-            "tool_choice": {"type": "function", "function": {"name": tool_name}},
+            **probe_options,
         }
-        if capabilities.get("thinking") and connection.provider == "deepseek": tool_payload.update(provider_request_options(connection.provider, True))
+        deepseek_thinking_tool_probe = capabilities.get("thinking") and connection.provider == "deepseek"
+        if deepseek_thinking_tool_probe:
+            tool_payload.update(provider_request_options(connection.provider, True))
+        else:
+            tool_payload["tool_choice"] = {"type": "function", "function": {"name": tool_name}}
         tool = await _stream_probe(client, endpoint, headers, tool_payload)
         if capabilities.get("thinking") and connection.provider == "deepseek" and not tool["reasoning_content"].strip():
             raise ModelCompatibilityError("Thinking 工具调用未返回 reasoning 内容", False, "thinking_tool")
@@ -152,18 +157,18 @@ async def check_model_compatibility(
             raise ModelCompatibilityError("模型函数调用参数不是合法 JSON 对象", False, "tool_arguments") from exc
         checks.append({"name": "tool_calls", "status": "passed"})
         context = await _stream_probe(client, endpoint, headers, {
-            "model": connection.model, "messages": [{"role": "user", "content": ("x " * ((context_chars // 2) + 1))[:context_chars]}], "max_tokens": 4,
+            "model": connection.model, "messages": [{"role": "user", "content": ("x " * ((context_chars // 2) + 1))[:context_chars]}], "max_tokens": 4, **probe_options,
         })
         if not context["content"].strip():
             raise ModelCompatibilityError("模型未通过最低上下文负载检查", False, "context")
         checks.append({"name": "context", "status": "passed"})
         if capabilities.get("thinking"):
-            thinking = await _stream_probe(client, endpoint, headers, {"model": connection.model, "messages": [{"role": "user", "content": "Reply ok"}], "max_tokens": 8, **provider_request_options(connection.provider, True)})
+            thinking = await _stream_probe(client, endpoint, headers, {"model": connection.model, "messages": [{"role": "user", "content": "Reply ok"}], "max_tokens": 8, **probe_options})
             if not thinking["content"].strip() or (connection.provider == "deepseek" and not thinking["reasoning_content"].strip()):
                 raise ModelCompatibilityError("Thinking 探针未返回有效响应", False, "thinking")
             checks.append({"name": "thinking", "status": "passed"})
         if capabilities.get("native_multimodal"):
-            image = await _stream_probe(client, endpoint, headers, {"model": connection.model, "messages": [{"role": "user", "content": [{"type": "text", "text": "Identify the 1px black image. Reply exactly BLACK."}, {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL1JwAAAABJRU5ErkJggg=="}}]}], "max_tokens": 8})
+            image = await _stream_probe(client, endpoint, headers, {"model": connection.model, "messages": [{"role": "user", "content": [{"type": "text", "text": "Identify the 1px black image. Reply exactly BLACK."}, {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL1JwAAAABJRU5ErkJggg=="}}]}], "max_tokens": 8, **probe_options})
             if "BLACK" not in image["content"].upper():
                 raise ModelCompatibilityError("多模态探针未返回有效响应", False, "multimodal")
             checks.append({"name": "native_multimodal", "status": "passed"})

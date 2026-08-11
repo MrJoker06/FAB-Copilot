@@ -18,6 +18,7 @@ from app.audit import sanitize
 from app import agent as agent_module
 from app.database import db_session
 from app.main import app
+from app.model_compatibility import ModelCompatibilityError
 from app.seed import seed_reference_data
 
 class ModelGovernanceSystemTests(unittest.TestCase):
@@ -68,7 +69,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                     json={
                         "model_id": model_id,
                         "display_name": "Enterprise Test Model",
-                        "provider": "openai-compatible",
+                        "provider": "deepseek",
                         "provider_model": "enterprise-test-v1",
                         "base_url": "https://models.example.test/v1",
                         "capabilities": {"streaming": True, "tool_calls": True, "thinking": True, "native_multimodal": True},
@@ -117,6 +118,8 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                 self.assertEqual(chat_response.status_code, 200, chat_response.text)
                 self.assertEqual(captured["payload"]["model"], "enterprise-test-v1")
                 self.assertEqual(captured["payload"]["reasoning_effort"], "high")
+                self.assertEqual(captured["payload"]["thinking"], {"type": "enabled"})
+                self.assertNotIn("tool_choice", captured["payload"])
                 self.assertEqual(captured["endpoint"], "https://models.example.test/v1/chat/completions")
                 self.assertEqual(captured["headers"]["Authorization"], "Bearer server-managed-test-key")
                 client.delete(f"/api/sessions/{chat_response.json()['session_id']}/permanent", headers=user_a)
@@ -165,6 +168,62 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                 self.assertEqual(connection.execute("SELECT COUNT(*) FROM agent.agent_runs").fetchone()[0], runs_before)
             invalid_thinking = client.post("/api/chat", json={"message": "错误推理字段", "thinking": "false"})
             self.assertEqual(invalid_thinking.status_code, 422, invalid_thinking.text)
+
+    def test_admin_declaration_paths_never_probe_and_explicit_check_is_the_only_probe(self):
+        model_id, token = "model-016-governance", "model-016-admin-token"
+        with db_session() as connection:
+            connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
+            connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
+            connection.commit()
+        headers = {"Authorization": f"Bearer {token}"}
+        try:
+            with patch.dict(os.environ, {"FAB_ADMIN_API_TOKEN": token}), patch(
+                "app.main.check_model_compatibility", new=AsyncMock(side_effect=AssertionError("declaration must not probe"))
+            ) as checker, TestClient(app) as client:
+                payload = {"model_id": model_id, "display_name": "Model 016 Governance", "provider": "deepseek", "provider_model": "model-016", "base_url": "https://models.example.test/v1", "capabilities": {"streaming": True, "tool_calls": True, "thinking": False, "native_multimodal": False}}
+                published = client.post("/api/admin/models", headers=headers, json=payload)
+                self.assertEqual(published.status_code, 201, published.text)
+                self.assertEqual(published.json()["compatibility"]["status"], "unverified")
+                self.assertEqual(client.patch(f"/api/admin/models/{model_id}", headers=headers, json={"status": "retired"}).status_code, 200)
+                self.assertEqual(client.patch(f"/api/admin/models/{model_id}", headers=headers, json={"status": "published"}).status_code, 200)
+                changed = client.patch(f"/api/admin/models/{model_id}/capabilities", headers=headers, json={"streaming": True, "tool_calls": True, "thinking": True, "native_multimodal": False})
+                self.assertEqual(changed.status_code, 200, changed.text)
+                self.assertEqual(changed.json()["status"], "published")
+                self.assertEqual(changed.json()["compatibility"]["status"], "unverified")
+                self.assertEqual(checker.await_count, 0)
+        finally:
+            with db_session() as connection:
+                connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
+                connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
+                connection.commit()
+
+    def test_explicit_compatibility_failure_persists_without_changing_model_state(self):
+        model_id, token = "model-016-failure", "model-016-failure-token"
+        with db_session() as connection:
+            connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
+            connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
+            connection.commit()
+        headers = {"Authorization": f"Bearer {token}"}
+        try:
+            error = ModelCompatibilityError("safe failure", True, "network")
+            with patch.dict(os.environ, {"FAB_ADMIN_API_TOKEN": token}), patch(
+                "app.main.check_model_compatibility", new=AsyncMock(side_effect=error)
+            ), TestClient(app) as client:
+                payload = {"model_id": model_id, "display_name": "Model 016 Failure", "provider": "openai-compatible", "provider_model": "model-016", "base_url": "https://models.example.test/v1", "capabilities": {"streaming": True, "tool_calls": True, "thinking": True, "native_multimodal": False}}
+                self.assertEqual(client.post("/api/admin/models", headers=headers, json=payload).status_code, 201)
+                response = client.post(f"/api/admin/models/{model_id}/compatibility-check", headers=headers)
+                self.assertEqual(response.status_code, 422, response.text)
+                self.assertEqual(response.json()["error_code"], "MODEL_COMPATIBILITY_FAILED")
+                model = next(item for item in client.get("/api/admin/models", headers=headers).json() if item["model_id"] == model_id)
+                self.assertEqual(model["status"], "published")
+                self.assertTrue(model["capabilities"]["thinking"])
+                self.assertEqual(model["compatibility"]["status"], "failed")
+                self.assertNotIn("test-key", str(model["compatibility"]))
+        finally:
+            with db_session() as connection:
+                connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
+                connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
+                connection.commit()
 
     def test_unknown_model_is_rejected(self):
         with TestClient(app) as client:

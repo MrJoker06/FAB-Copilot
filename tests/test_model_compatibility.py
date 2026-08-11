@@ -37,7 +37,7 @@ class ModelCompatibilityTests(unittest.TestCase):
             self.assertEqual(len(report["checks"]), 4)
         asyncio.run(run())
 
-    def test_malformed_sse_is_rejected_and_options_do_not_disable_thinking(self):
+    def test_malformed_sse_is_rejected_and_provider_options_follow_contract(self):
         async def run():
             async with httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200, text="data: nope\n\ndata: [DONE]\n\n", headers={"content-type": "text/event-stream"}))) as client:
                 with self.assertRaises(ModelCompatibilityError) as raised:
@@ -45,6 +45,7 @@ class ModelCompatibilityTests(unittest.TestCase):
             self.assertEqual(raised.exception.category, "malformed_sse")
         asyncio.run(run())
         self.assertEqual(provider_request_options("openai-compatible", False), {})
+        self.assertEqual(provider_request_options("deepseek", False), {"thinking": {"type": "disabled"}})
         self.assertEqual(provider_request_options("deepseek", True)["thinking"], {"type": "enabled"})
 
     def test_missing_key_http_and_configuration_fail_safely(self):
@@ -82,3 +83,37 @@ class ModelCompatibilityTests(unittest.TestCase):
         self.assertEqual(assistant["reasoning_content"], "hidden")
         audit = _audit_assistant(assistant)
         self.assertNotIn("reasoning_content", audit); self.assertIn("reasoning_content", assistant); self.assertIsNot(audit, assistant)
+
+    def test_deepseek_thinking_tool_probe_omits_tool_choice(self):
+        requests = []
+        def handler(request):
+            body = json.loads(request.content); requests.append(body)
+            delta = ({"tool_calls": [{"index": 0, "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}], "reasoning_content": "thinking"}
+                     if body.get("tools") else {"content": "ok", "reasoning_content": "thinking"})
+            stream = f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\ndata: [DONE]\n\n"
+            return httpx.Response(200, text=stream, headers={"content-type": "text/event-stream"})
+        async def run():
+            connection = SimpleNamespace(provider="deepseek", api_key="test-key", base_url="https://model.test/v1", model="test")
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                await check_model_compatibility(connection, {"streaming": True, "tool_calls": True, "thinking": True}, client=client, context_chars=1024)
+        asyncio.run(run())
+        tool_request = next(item for item in requests if item.get("tools"))
+        self.assertNotIn("tool_choice", tool_request)
+        self.assertEqual(tool_request["thinking"], {"type": "enabled"})
+        self.assertTrue(all(item["thinking"] == {"type": "enabled"} for item in requests))
+
+    def test_deepseek_non_thinking_probes_explicitly_disable_thinking(self):
+        requests = []
+        def handler(request):
+            body = json.loads(request.content); requests.append(body)
+            delta = ({"tool_calls": [{"index": 0, "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}]}
+                     if body.get("tools") else {"content": "ok"})
+            stream = f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\ndata: [DONE]\n\n"
+            return httpx.Response(200, text=stream, headers={"content-type": "text/event-stream"})
+        async def run():
+            connection = SimpleNamespace(provider="deepseek", api_key="test-key", base_url="https://model.test/v1", model="test")
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                await check_model_compatibility(connection, {"streaming": True, "tool_calls": True, "thinking": False}, client=client, context_chars=1024)
+        asyncio.run(run())
+        self.assertEqual(len(requests), 3)
+        self.assertTrue(all(item["thinking"] == {"type": "disabled"} for item in requests))

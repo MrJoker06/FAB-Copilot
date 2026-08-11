@@ -1,4 +1,4 @@
-const adminState = { token: sessionStorage.getItem('fabInsightAdminToken') || '', activeView: 'runtime', refreshTimer: null };
+const adminState = { token: sessionStorage.getItem('fabInsightAdminToken') || '', activeView: 'runtime', refreshTimer: null, models: [] };
 const $ = selector => document.querySelector(selector);
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[character]));
 const formatNumber = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString('zh-CN') : '—';
@@ -46,6 +46,7 @@ function showNotice(selector, message, error = false) {
 function showAuth(message = '') {
   $('#adminWorkspace').hidden = true;
   if ($('#publishModelDialog').open) $('#publishModelDialog').close();
+  if ($('#editCapabilitiesDialog').open) $('#editCapabilitiesDialog').close();
   $('#adminToast').hidden = true;
   setConnection(false);
   $('#adminAuthMessage').textContent = message;
@@ -107,11 +108,12 @@ async function loadOverview() {
 }
 
 function renderModels(models) {
+  adminState.models = models;
   const published = models.filter(model => model.status === 'published').length;
   $('#modelCatalogCount').textContent = `${models.length} 个版本 · ${published} 个可供用户选择`;
   const capabilityLabels = model => FabModelCapabilities.labels(model.capabilities).map(escapeHtml).join(' · ') || '无';
   const compatibility = model => model.compatibility?.status === 'passed' ? `已验证 · ${formatDate(model.compatibility_checked_at)}` : (model.compatibility?.summary || '未验证');
-  $('#modelCatalogBody').innerHTML = models.map(model => `<tr><td><div class="identity-cell"><strong>${escapeHtml(model.display_name)}</strong><span>${escapeHtml(model.base_url)}</span></div></td><td>${escapeHtml(model.model_id)}</td><td>${escapeHtml(model.provider)}</td><td>${escapeHtml(model.provider_model)}</td><td>${capabilityLabels(model)}</td><td>${escapeHtml(compatibility(model))}</td><td>${formatNumber(model.selected_user_count)}</td><td>${statusChip(model.status)}</td><td>${formatDate(model.published_at)}</td><td><div class="catalog-actions"><button class="quiet-button" type="button" data-model-id="${escapeHtml(model.model_id)}" data-model-status="${model.status === 'published' ? 'retired' : 'published'}">${model.status === 'published' ? '停用' : '重新发布'}</button></div></td></tr>`).join('') || '<tr><td class="empty-row" colspan="10">模型目录为空</td></tr>';
+  $('#modelCatalogBody').innerHTML = models.map(model => `<tr><td><div class="identity-cell"><strong>${escapeHtml(model.display_name)}</strong><span>${escapeHtml(model.base_url)}</span></div></td><td>${escapeHtml(model.model_id)}</td><td>${escapeHtml(model.provider)}</td><td>${escapeHtml(model.provider_model)}</td><td>${capabilityLabels(model)}</td><td>${escapeHtml(compatibility(model))}</td><td>${formatNumber(model.selected_user_count)}</td><td>${statusChip(model.status)}</td><td>${formatDate(model.published_at)}</td><td><div class="catalog-actions"><button class="quiet-button" type="button" data-action="status" data-model-id="${escapeHtml(model.model_id)}" data-model-status="${model.status === 'published' ? 'retired' : 'published'}">${model.status === 'published' ? '停用' : '重新发布'}</button><button class="quiet-button" type="button" data-action="capabilities" data-model-id="${escapeHtml(model.model_id)}">编辑能力</button><button class="quiet-button" type="button" data-action="compatibility" data-model-id="${escapeHtml(model.model_id)}">兼容性测试</button></div></td></tr>`).join('') || '<tr><td class="empty-row" colspan="10">模型目录为空</td></tr>';
 }
 
 async function loadModels() {
@@ -130,10 +132,9 @@ async function publishModel(event) {
     capabilities: FabModelCapabilities.publishPayload({streaming: $('#publishStreaming').checked, tool_calls: $('#publishToolCalls').checked, thinking: $('#publishThinking').checked, native_multimodal: $('#publishNativeMultimodal').checked}),
   };
   try {
-    $('#publishModelMessage').textContent = '正在执行兼容性检查，请稍候…'; $('#publishModelMessage').hidden = false;
     await adminApi('/api/admin/models', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
     $('#publishModelDialog').close(); $('#publishModelForm').reset(); $('#publishBaseUrl').value = 'https://api.deepseek.com'; $('#publishStreaming').checked = true; $('#publishToolCalls').checked = true; $('#publishThinking').checked = false; $('#publishNativeMultimodal').checked = false;
-    await loadModels(); showToast(`模型 ${payload.display_name} 已发布`);
+    await loadModels(); showToast(`模型 ${payload.display_name} 已发布（尚未验证）`);
   } catch (error) { $('#publishModelMessage').textContent = error.message; $('#publishModelMessage').hidden = false; }
   finally { button.disabled = false; }
 }
@@ -141,10 +142,33 @@ async function publishModel(event) {
 async function updateModelStatus(modelId, status, button) {
   button.disabled = true;
   try {
-    if (status === 'published') showToast('正在执行兼容性检查，请稍候…');
     await adminApi(`/api/admin/models/${encodeURIComponent(modelId)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})});
     await loadModels(); showToast(status === 'published' ? '模型已重新发布' : '模型已停用');
   } catch (error) { showNotice('#modelNotice', error.message, true); button.disabled = false; }
+}
+
+function openCapabilities(modelId) {
+  const model = adminState.models.find(item => item.model_id === modelId); if (!model) return;
+  $('#editCapabilitiesModelId').value = modelId;
+  $('#editCapabilitiesTitle').textContent = `编辑能力：${model.display_name}`;
+  ['Streaming','ToolCalls','Thinking','NativeMultimodal'].forEach(name => { $(`#edit${name}`).checked = !!model.capabilities?.[{Streaming:'streaming',ToolCalls:'tool_calls',Thinking:'thinking',NativeMultimodal:'native_multimodal'}[name]]; });
+  $('#editCapabilitiesMessage').hidden = true; $('#editCapabilitiesDialog').showModal();
+}
+
+async function saveCapabilities(event) {
+  event.preventDefault(); const button = $('#confirmCapabilities'); button.disabled = true;
+  const modelId = $('#editCapabilitiesModelId').value;
+  const payload = {streaming:$('#editStreaming').checked, tool_calls:$('#editToolCalls').checked, thinking:$('#editThinking').checked, native_multimodal:$('#editNativeMultimodal').checked};
+  try { await adminApi(`/api/admin/models/${encodeURIComponent(modelId)}/capabilities`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)}); $('#editCapabilitiesDialog').close(); await loadModels(); showToast('能力声明已保存，兼容性状态已失效'); }
+  catch (error) { $('#editCapabilitiesMessage').textContent = error.message; $('#editCapabilitiesMessage').hidden = false; }
+  finally { button.disabled = false; }
+}
+
+async function runCompatibilityCheck(modelId, button) {
+  button.disabled = true; const original = button.textContent; button.textContent = '测试中…';
+  try { await adminApi(`/api/admin/models/${encodeURIComponent(modelId)}/compatibility-check`, {method:'POST'}); await loadModels(); showToast('兼容性测试通过'); }
+  catch (error) { try { await loadModels(); } catch {} showNotice('#modelNotice', `兼容性测试失败：${error.message}`, true); }
+  finally { button.disabled = false; button.textContent = original; }
 }
 
 function showView(name) {
@@ -176,7 +200,10 @@ function init() {
   $('#closePublishModel').addEventListener('click', () => $('#publishModelDialog').close());
   $('#cancelPublishModel').addEventListener('click', () => $('#publishModelDialog').close());
   $('#publishModelForm').addEventListener('submit', publishModel);
-  $('#modelCatalogBody').addEventListener('click', event => { const button = event.target.closest('[data-model-id]'); if (button) updateModelStatus(button.dataset.modelId, button.dataset.modelStatus, button); });
+  $('#closeCapabilities').addEventListener('click', () => $('#editCapabilitiesDialog').close());
+  $('#cancelCapabilities').addEventListener('click', () => $('#editCapabilitiesDialog').close());
+  $('#editCapabilitiesForm').addEventListener('submit', saveCapabilities);
+  $('#modelCatalogBody').addEventListener('click', event => { const button = event.target.closest('[data-action]'); if (!button) return; if (button.dataset.action === 'status') updateModelStatus(button.dataset.modelId, button.dataset.modelStatus, button); else if (button.dataset.action === 'capabilities') openCapabilities(button.dataset.modelId); else if (button.dataset.action === 'compatibility') runCompatibilityCheck(button.dataset.modelId, button); });
   if (adminState.token) loadOverview().then(showWorkspace).catch(() => {}); else showAuth();
   adminState.refreshTimer = window.setInterval(() => adminState.token && adminState.activeView === 'runtime' && loadOverview().catch(() => {}), 10000);
 }

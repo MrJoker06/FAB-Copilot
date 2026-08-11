@@ -42,7 +42,7 @@
 
       <section id="modelsView" class="admin-view">
         <div class="admin-page-heading">
-          <div><p class="admin-eyebrow">MODEL GOVERNANCE</p><h1>模型目录</h1><p>面向用户端的可选模型</p></div>
+          <div><p class="admin-eyebrow">MODEL GOVERNANCE</p><h1>模型目录</h1><p>管理员声明模型能力；兼容性测试需主动执行，不阻止发布</p></div>
           <button id="openPublishModel" class="primary-button" type="button">＋ 发布模型</button>
         </div>
         <div id="modelNotice" class="admin-notice" role="status" hidden></div>
@@ -72,10 +72,18 @@
         <label><span>提供方</span><select id="publishProvider"><option value="deepseek">DeepSeek</option><option value="openai-compatible">OpenAI Compatible</option></select></label>
         <label><span>Provider Model</span><input id="publishProviderModel" type="text" maxlength="120" required></label>
         <label class="full-field"><span>API Base URL</span><input id="publishBaseUrl" type="url" maxlength="500" value="https://api.deepseek.com" required></label>
-        <div class="capability-options full-field"><label><input id="publishStreaming" type="checkbox" checked> Streaming</label><label><input id="publishToolCalls" type="checkbox" checked> Tool calls</label><label><input id="publishThinking" type="checkbox"> Thinking</label><label><input id="publishNativeMultimodal" type="checkbox"> 原生多模态</label></div>
+        <div class="capability-options full-field"><label><input id="publishStreaming" type="checkbox" checked> Streaming</label><label><input id="publishToolCalls" type="checkbox" checked> Tool calls</label><label><input id="publishThinking" type="checkbox"> Thinking</label><label><input id="publishNativeMultimodal" type="checkbox"> 原生多模态</label><p class="field-hint">能力由管理员声明。保存发布不会联网；可随后按需执行兼容性测试。</p></div>
         <div id="publishModelMessage" class="form-message full-field" role="alert" hidden></div>
       </div>
       <div class="dialog-actions"><button id="cancelPublishModel" class="quiet-button" type="button">取消</button><button id="confirmPublishModel" class="primary-button" type="submit">发布</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="editCapabilitiesDialog" class="admin-dialog publish-dialog">
+    <form id="editCapabilitiesForm">
+      <div class="dialog-heading"><div><p class="admin-eyebrow">CAPABILITY DECLARATION</p><h2 id="editCapabilitiesTitle">编辑能力</h2></div><button id="closeCapabilities" class="icon-button" type="button" aria-label="关闭">×</button></div>
+      <div class="dialog-body"><input id="editCapabilitiesModelId" type="hidden"><p class="field-hint">这是管理员声明；保存不会联网，并会使此前兼容性测试结果失效。</p><div class="capability-options"><label><input id="editStreaming" type="checkbox"> Streaming</label><label><input id="editToolCalls" type="checkbox"> Tool calls</label><label><input id="editThinking" type="checkbox"> Thinking</label><label><input id="editNativeMultimodal" type="checkbox"> 原生多模态</label></div><div id="editCapabilitiesMessage" class="form-message" role="alert" hidden></div></div>
+      <div class="dialog-actions"><button id="cancelCapabilities" class="quiet-button" type="button">取消</button><button id="confirmCapabilities" class="primary-button" type="submit">保存声明</button></div>
     </form>
   </dialog>
 

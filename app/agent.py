@@ -916,6 +916,7 @@ async def _resolve_conversation_turn(
     run_id: str,
     progress: ProgressCallback | None,
     direct_route: IntentRoute | None = None,
+    thinking: bool = False,
 ) -> tuple[ContextResolution, dict]:
     deterministic = resolve_question_context(question, history)
     connection = settings.model_connection
@@ -935,6 +936,7 @@ async def _resolve_conversation_turn(
         "temperature": 0,
         "response_format": CONTEXTUALIZER_RESPONSE_FORMAT,
         "max_tokens": 1200,
+        **provider_request_options(connection.provider, thinking),
     }
     endpoint = f"{connection.base_url}/chat/completions"
     headers = {
@@ -1114,6 +1116,7 @@ async def _run_agent_impl(
         run_id,
         progress,
         direct_route,
+        thinking,
     )
     analysis_question = context_resolution.resolved_question
     if context_resolution.applied:
@@ -1494,9 +1497,10 @@ async def _run_agent_impl(
                     if synthesis_only and answer_contract.status == "required"
                     else TOOLS
                 )
-                request_payload["tool_choice"] = (
-                    "none" if synthesis_only and answer_contract.status != "required" else "auto"
-                )
+                if not (connection.provider == "deepseek" and thinking):
+                    request_payload["tool_choice"] = (
+                        "none" if synthesis_only and answer_contract.status != "required" else "auto"
+                    )
                 if synthesis_only and answer_contract.status == "required":
                     request_payload["max_tokens"] = 8192
             for attempt in range(1, settings.model_max_retries + 2):

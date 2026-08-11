@@ -133,9 +133,9 @@ run.bat
 - `deepseekv4-flash`
 - `deepseekv4-pro`
 
-管理员可以在 `/admin` 发布新的 DeepSeek 或 OpenAI Compatible 模型。发布和重新发布会先使用服务端托管凭据执行有界兼容性探针：SSE 增量与完成、强制函数调用、最低上下文负载，以及声明的 Thinking/原生多模态；任一失败都不会写入或重新发布目录。探针会产生少量模型调用成本，失败摘要和最近检查时间仅在管理目录中可见。模型目录持久化保存 `model_id`、显示名称、Provider Model、Base URL、能力与发布状态；能力字段为 `streaming`、`tool_calls`、`thinking` 与 `native_multimodal`，前两项默认开启、后两项默认关闭，旧目录会无损补全。用户模型目录会返回当前模型和每个选项的能力；聊天输入区的 Thinking 开关只会在当前模型声明支持时启用，切换至不支持模型会自动关闭并在点击时显示应用内提示。请求 `thinking=true` 时，服务端会在创建会话或运行记录前拒绝不支持该能力的模型。停用模型会立即从用户选择列表移除。
+管理员可以在 `/admin` 发布新的 DeepSeek 或 OpenAI Compatible 模型，并声明四项能力。发布、重新发布和能力编辑均只写本地目录，不会访问上游模型服务，也不会被兼容性结果阻止。管理员可按需主动执行有界兼容性测试：它使用服务端托管凭据，检查 SSE 增量与完成、工具调用、最低上下文负载，以及已声明的 Thinking/原生多模态；每次测试会产生少量模型调用成本。测试结果仅记录最近一次通过或失败摘要和时间，不自动更改能力或发布状态。模型目录持久化保存 `model_id`、显示名称、Provider Model、Base URL、能力与发布状态；能力字段为 `streaming`、`tool_calls`、`thinking` 与 `native_multimodal`，前两项默认开启、后两项默认关闭，旧目录会无损补全。用户模型目录会返回当前模型和每个选项的能力；聊天输入区的 Thinking 开关只会在当前模型声明支持时启用，切换至不支持模型会自动关闭并在点击时显示应用内提示。请求 `thinking=true` 时，服务端会在创建会话或运行记录前拒绝不支持该能力的模型。停用模型会立即从用户选择列表移除。
 
-探针默认每项最多 12 秒、上下文 32768 字符；可通过 `MODEL_COMPATIBILITY_TIMEOUT_SECONDS`（1-60）和 `MODEL_COMPATIBILITY_CONTEXT_CHARS`（1024-65536）调整。每次发布会进行少量短输出请求，应按所选 Provider 的实际计费评估额度。
+探针默认每项最多 12 秒、上下文 32768 字符；可通过 `MODEL_COMPATIBILITY_TIMEOUT_SECONDS`（1-60）和 `MODEL_COMPATIBILITY_CONTEXT_CHARS`（1024-65536）调整。每次手动测试会进行少量短输出请求，应按所选 Provider 的实际计费评估额度。
 
 也可以直接调用：
 
