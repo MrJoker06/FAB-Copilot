@@ -11,6 +11,13 @@ from typing import Any
 
 import httpx
 
+from .context_resolver import (
+    CONTEXTUALIZER_RESPONSE_FORMAT,
+    ContextPayloadValidationError,
+    build_contextualizer_messages,
+    validate_contextualizer_payload,
+)
+
 
 MAX_SSE_EVENTS = 256
 MAX_SSE_BYTES = 256 * 1024
@@ -92,7 +99,17 @@ async def _stream_probe(client: httpx.AsyncClient, endpoint: str, headers: dict,
                     try: index = int(item.get("index", 0))
                     except (TypeError, ValueError) as exc: raise ModelCompatibilityError("模型 SSE tool index 无效", False, "protocol") from exc
                     if index < 0 or index > 64: raise ModelCompatibilityError("模型 SSE tool index 超出范围", False, "protocol")
-                    target = tool_calls.setdefault(index, {"function": {"name": "", "arguments": ""}})
+                    target = tool_calls.setdefault(index, {"id": "", "type": "", "function": {"name": "", "arguments": ""}})
+                    if item.get("id"):
+                        item_id = str(item["id"])
+                        if target["id"] and target["id"] != item_id:
+                            raise ModelCompatibilityError("模型 SSE tool id 前后不一致", False, "protocol")
+                        target["id"] = item_id
+                    if item.get("type"):
+                        item_type = str(item["type"])
+                        if target["type"] and target["type"] != item_type:
+                            raise ModelCompatibilityError("模型 SSE tool type 前后不一致", False, "protocol")
+                        target["type"] = item_type
                     function = item.get("function") or {}
                     if not isinstance(function, dict): raise ModelCompatibilityError("模型 SSE tool function 无效", False, "protocol")
                     target["function"]["name"] += str(function.get("name") or "")
@@ -107,6 +124,25 @@ async def _stream_probe(client: httpx.AsyncClient, endpoint: str, headers: dict,
     if not saw_done:
         raise ModelCompatibilityError("模型流式响应未正常完成", True, "incomplete_sse")
     return {"content": "".join(content), "reasoning_content": "".join(reasoning), "tool_calls": [tool_calls[key] for key in sorted(tool_calls)]}
+
+
+def _validated_probe_tool_call(probe: dict, tool_name: str) -> dict:
+    calls = probe["tool_calls"]
+    if (
+        len(calls) != 1
+        or calls[0].get("id") == ""
+        or calls[0].get("type") != "function"
+        or calls[0].get("function", {}).get("name") != tool_name
+        or not isinstance(calls[0].get("function", {}).get("arguments"), str)
+    ):
+        raise ModelCompatibilityError("模型没有返回可用于运行时续接的函数调用", False, "tool_calls")
+    try:
+        arguments = json.loads(calls[0]["function"]["arguments"])
+        if not isinstance(arguments, dict) or arguments.get("ok") is not True:
+            raise ValueError("missing or false ok")
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise ModelCompatibilityError("模型未返回符合契约的 JSON 参数（要求 ok=true）", False, "tool_arguments") from exc
+    return calls[0]
 
 
 async def check_model_compatibility(
@@ -153,27 +189,54 @@ async def check_model_compatibility(
         tool = await _stream_probe(client, endpoint, headers, tool_payload)
         if capabilities.get("thinking") and connection.provider == "deepseek" and not tool["reasoning_content"].strip():
             raise ModelCompatibilityError("Thinking 工具调用未返回 reasoning 内容", False, "thinking_tool")
-        calls = tool["tool_calls"]
-        if len(calls) != 1 or calls[0]["function"]["name"] != tool_name:
-            raise ModelCompatibilityError("模型没有返回要求的函数调用", False, "tool_calls")
-        try:
-            arguments = json.loads(calls[0]["function"]["arguments"])
-            if not isinstance(arguments, dict) or arguments.get("ok") is not True:
-                raise ValueError("missing or false ok")
-        except (TypeError, ValueError, json.JSONDecodeError) as exc:
-            raise ModelCompatibilityError("模型未返回符合契约的 JSON 参数（要求 ok=true）", False, "tool_arguments") from exc
+        tool_call = _validated_probe_tool_call(tool, tool_name)
         checks.append({"name": "tool_calls", "status": "passed"})
         context = await _stream_probe(client, endpoint, headers, {
             "model": connection.model, "messages": [{"role": "user", "content": ("x " * ((context_chars // 2) + 1))[:context_chars]}], "max_tokens": 4, **standard_probe_options,
         })
         if not context["content"].strip():
             raise ModelCompatibilityError("模型未通过最低上下文负载检查", False, "context")
-        checks.append({"name": "context", "status": "passed"})
+        checks.append({"name": "context_load", "status": "passed"})
+        structured = await _stream_probe(client, endpoint, headers, {
+            "model": connection.model,
+            "messages": build_contextualizer_messages(
+                "请将当前问题作为独立问题返回。",
+                [{"message_id": 1, "role": "user", "content": "介绍光刻基本原理"}, {"message_id": 2, "role": "assistant", "content": "已完成介绍。"}],
+            ),
+            "temperature": 0,
+            "response_format": CONTEXTUALIZER_RESPONSE_FORMAT,
+            "max_tokens": 1200,
+            **standard_probe_options,
+        })
+        try:
+            validate_contextualizer_payload(json.loads(structured["content"]))
+        except (TypeError, ValueError, json.JSONDecodeError, ContextPayloadValidationError) as exc:
+            raise ModelCompatibilityError("结构化上下文契约未通过", False, "structured_context") from exc
+        checks.append({"name": "structured_context", "status": "passed"})
         if capabilities.get("thinking"):
             thinking = await _stream_probe(client, endpoint, headers, {"model": connection.model, "messages": [{"role": "user", "content": "Reply ok"}], "max_tokens": THINKING_PROBE_MAX_TOKENS, **provider_request_options(connection.provider, True)})
             if not thinking["content"].strip() or (connection.provider == "deepseek" and not thinking["reasoning_content"].strip()):
-                raise ModelCompatibilityError("Thinking 探针未返回有效响应", False, "thinking")
-            checks.append({"name": "thinking", "status": "passed"})
+                raise ModelCompatibilityError("Thinking 答案探针未返回有效响应", False, "thinking_answer")
+            checks.append({"name": "thinking_answer", "status": "passed"})
+            assistant_message = {"role": "assistant", "content": "", "tool_calls": [tool_call]}
+            if connection.provider == "deepseek":
+                assistant_message["reasoning_content"] = tool["reasoning_content"]
+            roundtrip_payload = {
+                "model": connection.model,
+                "messages": [
+                    tool_payload["messages"][0], assistant_message,
+                    {"role": "tool", "tool_call_id": tool_call["id"], "content": '{"ok":true}'},
+                ],
+                "tools": tool_payload["tools"],
+                "max_tokens": THINKING_PROBE_MAX_TOKENS,
+                **provider_request_options(connection.provider, True),
+            }
+            if connection.provider != "deepseek":
+                roundtrip_payload["tool_choice"] = "auto"
+            roundtrip = await _stream_probe(client, endpoint, headers, roundtrip_payload)
+            if not roundtrip["content"].strip() or roundtrip["tool_calls"]:
+                raise ModelCompatibilityError("Thinking 工具续接未返回最终正文", False, "thinking_tool_roundtrip")
+            checks.append({"name": "thinking_tool_roundtrip", "status": "passed"})
         if capabilities.get("native_multimodal"):
             try:
                 image = await _stream_probe(client, endpoint, headers, {"model": connection.model, "messages": [{"role": "user", "content": [{"type": "text", "text": "Identify the 1px black image. Reply exactly BLACK."}, {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL1JwAAAABJRU5ErkJggg=="}}]}], "max_tokens": 8, **standard_probe_options})

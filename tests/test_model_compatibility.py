@@ -24,8 +24,10 @@ class ModelCompatibilityTests(unittest.TestCase):
     def test_success_requires_sse_tool_json_and_context(self):
         def handler(request):
             body = json.loads(request.content)
-            if body.get("tools"):
-                delta = {"tool_calls": [{"index": 0, "function": {"name": "compatibility_probe", "arguments": '{\"ok\":true}'}}]}
+            if body.get("response_format"):
+                delta = {"content": '{"relation":"standalone","resolved_question":"介绍光刻基本原理","topic_anchor":"","target_message_ids":[],"confidence":1,"intent_hint":"general_knowledge"}'}
+            elif body.get("tools"):
+                delta = {"tool_calls": [{"index": 0, "id": "call-1", "type": "function", "function": {"name": "compatibility_probe", "arguments": '{\"ok\":true}'}}]}
             else:
                 delta = {"content": "ok"}
             stream = f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\ndata: [DONE]\n\n"
@@ -34,14 +36,14 @@ class ModelCompatibilityTests(unittest.TestCase):
             async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
                 report = await check_model_compatibility(self.connection(), {"streaming": True, "tool_calls": True}, client=client, context_chars=1024)
             self.assertEqual(report["status"], "passed")
-            self.assertEqual(len(report["checks"]), 4)
+            self.assertEqual([item["name"] for item in report["checks"]], ["connectivity_streaming", "tool_calls", "context_load", "structured_context", "limits"])
         asyncio.run(run())
 
     def test_tool_arguments_require_ok_true(self):
         for arguments in ("{}", '{"ok": false}'):
             def handler(request):
                 body = json.loads(request.content)
-                delta = {"tool_calls": [{"index": 0, "function": {"name": "compatibility_probe", "arguments": arguments}}]} if body.get("tools") else {"content": "ok"}
+                delta = {"tool_calls": [{"index": 0, "id": "call-1", "type": "function", "function": {"name": "compatibility_probe", "arguments": arguments}}]} if body.get("tools") else {"content": "ok"}
                 stream = f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\ndata: [DONE]\n\n"
                 return httpx.Response(200, text=stream, headers={"content-type": "text/event-stream"})
             async def run():
@@ -51,6 +53,56 @@ class ModelCompatibilityTests(unittest.TestCase):
                 self.assertEqual(raised.exception.category, "tool_arguments")
                 self.assertEqual(raised.exception.summary, "模型未返回符合契约的 JSON 参数（要求 ok=true）")
             asyncio.run(run())
+
+    def test_tool_call_requires_id_type_and_reassembles_fragments(self):
+        def handler(request):
+            body = json.loads(request.content)
+            if body.get("response_format"):
+                deltas = [{"content": '{"relation":"standalone","resolved_question":"介绍光刻基本原理","topic_anchor":"","target_message_ids":[],"confidence":1,"intent_hint":"general_knowledge"}'}]
+            elif body.get("tools"):
+                deltas = [
+                    {"tool_calls": [{"index": 0, "id": "call-1", "type": "function", "function": {"name": "compatibility_", "arguments": '{"'}}]},
+                    {"tool_calls": [{"index": 0, "function": {"name": "probe", "arguments": 'ok":true}'}}]},
+                ]
+            else:
+                deltas = [{"content": "ok"}]
+            stream = "".join(f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\n" for delta in deltas) + "data: [DONE]\n\n"
+            return httpx.Response(200, text=stream, headers={"content-type": "text/event-stream"})
+        async def run():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                report = await check_model_compatibility(self.connection(), {"streaming": True, "tool_calls": True}, client=client, context_chars=1024)
+            self.assertEqual(report["status"], "passed")
+        asyncio.run(run())
+
+        def missing_type_handler(request):
+            body = json.loads(request.content)
+            delta = {"tool_calls": [{"index": 0, "id": "call-1", "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}]} if body.get("tools") else {"content": "ok"}
+            return httpx.Response(200, text=f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\ndata: [DONE]\n\n", headers={"content-type": "text/event-stream"})
+        async def reject_missing_type():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(missing_type_handler)) as client:
+                with self.assertRaises(ModelCompatibilityError) as raised:
+                    await check_model_compatibility(self.connection(), {"streaming": True, "tool_calls": True}, client=client, context_chars=1024)
+            self.assertEqual(raised.exception.category, "tool_calls")
+        asyncio.run(reject_missing_type())
+
+    def test_structured_context_failure_is_categorized_without_response_leakage(self):
+        secret = "response-secret-must-not-be-persisted"
+        def handler(request):
+            body = json.loads(request.content)
+            if body.get("response_format"):
+                delta = {"content": secret}
+            elif body.get("tools"):
+                delta = {"tool_calls": [{"index": 0, "id": "call-1", "type": "function", "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}]}
+            else:
+                delta = {"content": "ok"}
+            return httpx.Response(200, text=f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\ndata: [DONE]\n\n", headers={"content-type": "text/event-stream"})
+        async def run():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                with self.assertRaises(ModelCompatibilityError) as raised:
+                    await check_model_compatibility(self.connection(), {"streaming": True, "tool_calls": True}, client=client, context_chars=1024)
+            self.assertEqual(raised.exception.category, "structured_context")
+            self.assertNotIn(secret, raised.exception.summary)
+        asyncio.run(run())
 
     def test_malformed_sse_is_rejected_and_provider_options_follow_contract(self):
         async def run():
@@ -104,8 +156,12 @@ class ModelCompatibilityTests(unittest.TestCase):
         def handler(request):
             body = json.loads(request.content); requests.append(body)
             content = body["messages"][0]["content"]
-            if body.get("tools"):
-                delta = {"tool_calls": [{"index": 0, "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}], "reasoning_content": "thinking"}
+            if body.get("response_format"):
+                delta = {"content": '{"relation":"standalone","resolved_question":"介绍光刻基本原理","topic_anchor":"","target_message_ids":[],"confidence":1,"intent_hint":"general_knowledge"}'}
+            elif body.get("tools") and body["messages"][-1]["role"] == "tool":
+                delta = {"content": "final", "reasoning_content": "continued thinking"}
+            elif body.get("tools"):
+                delta = {"tool_calls": [{"index": 0, "id": "call-1", "type": "function", "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}], "reasoning_content": "thinking"}
             elif isinstance(content, list):
                 delta = {"content": "BLACK"}
             elif content == "Reply ok":
@@ -122,11 +178,13 @@ class ModelCompatibilityTests(unittest.TestCase):
                 await check_model_compatibility(connection, {"streaming": True, "tool_calls": True, "thinking": True, "native_multimodal": True}, client=client, context_chars=1024)
         asyncio.run(run())
         tool_request = next(item for item in requests if item.get("tools"))
+        roundtrip_request = next(item for item in requests if item.get("tools") and item["messages"][-1]["role"] == "tool")
         thinking_request = next(item for item in requests if item["messages"][0]["content"] == "Reply ok")
         basic_request = next(item for item in requests if item["messages"][0]["content"] == "Reply exactly: ok")
         context_request = next(item for item in requests if isinstance(item["messages"][0]["content"], str) and len(item["messages"][0]["content"]) >= 1024)
         image_request = next(item for item in requests if isinstance(item["messages"][0]["content"], list))
         self.assertNotIn("tool_choice", tool_request)
+        self.assertNotIn("tool_choice", roundtrip_request)
         self.assertEqual(tool_request["max_tokens"], 512)
         self.assertEqual(tool_request["thinking"], {"type": "enabled"})
         self.assertEqual(thinking_request["max_tokens"], 512)
@@ -134,15 +192,24 @@ class ModelCompatibilityTests(unittest.TestCase):
         self.assertEqual(basic_request["thinking"], {"type": "disabled"})
         self.assertEqual(context_request["thinking"], {"type": "disabled"})
         self.assertEqual(image_request["thinking"], {"type": "disabled"})
+        structured_request = next(item for item in requests if item.get("response_format"))
+        self.assertEqual(structured_request["response_format"], {"type": "json_object"})
+        self.assertEqual(structured_request["max_tokens"], 1200)
+        self.assertEqual(structured_request["thinking"], {"type": "disabled"})
+        self.assertEqual(roundtrip_request["messages"][1]["tool_calls"][0]["id"], "call-1")
+        self.assertEqual(roundtrip_request["messages"][2]["tool_call_id"], "call-1")
+        self.assertEqual(roundtrip_request["messages"][1]["reasoning_content"], "thinking")
 
     def test_deepseek_non_thinking_probes_explicitly_disable_thinking(self):
         requests = []
         def handler(request):
             body = json.loads(request.content); requests.append(body)
-            if body.get("tools"):
-                arguments = '{"' if body["max_tokens"] < 512 else '{"ok":true}'
+            if body.get("response_format"):
+                deltas = [{"content": '{"relation":"standalone","resolved_question":"介绍光刻基本原理","topic_anchor":"","target_message_ids":[],"confidence":1,"intent_hint":"general_knowledge"}'}]
+            elif body.get("tools"):
+                arguments = '{"ok":true}'
                 deltas = [
-                    {"tool_calls": [{"index": 0, "function": {"name": "compatibility_probe", "arguments": arguments[:2]}}]},
+                    {"tool_calls": [{"index": 0, "id": "call-1", "type": "function", "function": {"name": "compatibility_probe", "arguments": arguments[:2]}}]},
                     {"tool_calls": [{"index": 0, "function": {"arguments": arguments[2:]}}]},
                 ]
             else:
@@ -154,7 +221,7 @@ class ModelCompatibilityTests(unittest.TestCase):
             async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
                 await check_model_compatibility(connection, {"streaming": True, "tool_calls": True, "thinking": False}, client=client, context_chars=1024)
         asyncio.run(run())
-        self.assertEqual(len(requests), 3)
+        self.assertEqual(len(requests), 4)
         tool_requests = [item for item in requests if item.get("tools")]
         self.assertEqual(len(tool_requests), 1)
         self.assertEqual(tool_requests[0]["max_tokens"], 512)
@@ -166,8 +233,9 @@ class ModelCompatibilityTests(unittest.TestCase):
             return isinstance(body["messages"][0]["content"], list)
 
         def success_response(body):
-            delta = ({"tool_calls": [{"index": 0, "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}]}
-                     if body.get("tools") else {"content": "ok"})
+            delta = ({"content": '{"relation":"standalone","resolved_question":"介绍光刻基本原理","topic_anchor":"","target_message_ids":[],"confidence":1,"intent_hint":"general_knowledge"}'}
+                     if body.get("response_format") else ({"tool_calls": [{"index": 0, "id": "call-1", "type": "function", "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}]}
+                     if body.get("tools") else {"content": "ok"}))
             stream = f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\ndata: [DONE]\n\n"
             return httpx.Response(200, text=stream, headers={"content-type": "text/event-stream"})
 
@@ -197,8 +265,10 @@ class ModelCompatibilityTests(unittest.TestCase):
     def test_multimodal_content_must_recognize_image(self):
         def handler(request):
             body = json.loads(request.content)
-            if body.get("tools"):
-                delta = {"tool_calls": [{"index": 0, "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}]}
+            if body.get("response_format"):
+                delta = {"content": '{"relation":"standalone","resolved_question":"介绍光刻","topic_anchor":"","target_message_ids":[],"confidence":1,"intent_hint":"general_knowledge"}'}
+            elif body.get("tools"):
+                delta = {"tool_calls": [{"index": 0, "id": "call-1", "type": "function", "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}]}
             elif isinstance(body["messages"][0]["content"], list):
                 delta = {"content": "WHITE"}
             else:

@@ -34,6 +34,8 @@ from .context_resolver import (
     resolve_question_context,
     semantic_context_resolution,
     unresolved_context,
+    validate_contextualizer_payload,
+    ContextPayloadValidationError,
 )
 from .domain_playbooks import PlaybookSelection, playbook_system_message, select_playbook
 from .evidence_validator import EvidenceObservation, validate_evidence, validator_system_message
@@ -879,44 +881,10 @@ def _context_json_arguments(assistant: dict) -> dict:
         arguments = json.loads(cleaned)
     except json.JSONDecodeError as exc:
         raise ContextProtocolError("invalid_json", "上下文解析结果不是合法 JSON", content) from exc
-    if not isinstance(arguments, dict):
-        raise ContextProtocolError("invalid_object", "上下文解析结果必须是 JSON 对象", content)
-    required_fields = {
-        "relation",
-        "resolved_question",
-        "topic_anchor",
-        "target_message_ids",
-        "confidence",
-        "intent_hint",
-    }
-    missing_fields = required_fields - set(arguments)
-    if missing_fields:
-        raise ContextProtocolError(
-            "missing_field",
-            f"上下文解析结果缺少字段：{', '.join(sorted(missing_fields))}",
-            content,
-        )
-    relation = arguments["relation"]
-    intent_hint = arguments["intent_hint"]
-    confidence = arguments["confidence"]
-    target_ids = arguments["target_message_ids"]
-    valid = (
-        isinstance(relation, str)
-        and relation in {"standalone", "followup", "correction", "recall"}
-        and isinstance(arguments["resolved_question"], str)
-        and bool(arguments["resolved_question"].strip())
-        and isinstance(arguments["topic_anchor"], str)
-        and isinstance(target_ids, list)
-        and all(isinstance(item, int) and not isinstance(item, bool) for item in target_ids)
-        and isinstance(confidence, (int, float))
-        and not isinstance(confidence, bool)
-        and 0 <= confidence <= 1
-        and isinstance(intent_hint, str)
-        and intent_hint in {"conversation", "general_knowledge", "manufacturing_analysis", "unclear"}
-    )
-    if not valid:
-        raise ContextProtocolError("invalid_field_type", "上下文解析结果字段类型或枚举值非法", content)
-    return arguments
+    try:
+        return validate_contextualizer_payload(arguments)
+    except ContextPayloadValidationError as exc:
+        raise ContextProtocolError(exc.code, str(exc), content) from exc
 
 
 def _context_protocol_correction(error: ContextProtocolError) -> dict:

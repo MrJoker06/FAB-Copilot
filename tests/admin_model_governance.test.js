@@ -18,7 +18,10 @@ test('admin catalog exposes separate declaration and explicit compatibility acti
 test('compatibility success toast is centered without changing normal toast placement', () => {
   assert.match(script, /function showToast\(message, \{ centered = false \} = \{\}\)/);
   assert.match(script, /classList\.toggle\('admin-toast-centered', centered\)/);
-  assert.match(script, /showToast\('兼容性测试通过', \{centered:true\}\)/);
+  assert.match(script, /showToast\('能力探针通过', \{centered:true\}\)/);
+  assert.match(script, /能力探针通过 · \$\{formatDate\(model\.compatibility_checked_at\)\}/);
+  assert.match(script, /button\.textContent = '探针中…'/);
+  assert.match(script, /能力探针失败：\$\{error\.message\}/);
   assert.match(script, /showToast\(`模型 \$\{payload\.display_name\} 已发布（尚未验证）`\)/);
   assert.match(css, /\.admin-toast \{[^}]*right: 18px;[^}]*bottom: 18px;/);
   assert.match(css, /\.admin-toast\.admin-toast-centered \{[^}]*top: 50%;[^}]*right: auto;[^}]*bottom: auto;[^}]*left: 50%;[^}]*max-width: min\(360px, calc\(100vw - 28px\)\);[^}]*transform: translate\(-50%, -50%\);/);
@@ -32,6 +35,9 @@ test('model catalog uses a responsive fixed layout and capability chips', () => 
   assert.match(script, /capability-chip capability-chip-\$\{key\}/);
   assert.match(script, /capability-chip capability-chip-empty">无/);
   assert.match(script, /data-label="兼容性"/);
+  assert.match(script, /data-label="提供方模型"/);
+  assert.match(script, /compatibility-details/);
+  assert.match(script, /structured_context:'结构化上下文'/);
   assert.match(script, /data-label="健康"/);
   assert.match(script, /health-chip health-/);
   assert.match(script, /\$\{escapeHtml\(label\)\}/);

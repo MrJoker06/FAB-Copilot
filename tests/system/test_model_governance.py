@@ -242,6 +242,37 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                 connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
                 connection.commit()
 
+    def test_explicit_compatibility_success_persists_without_changing_model_state(self):
+        model_id, token = "model-018-success", "model-018-success-token"
+        with db_session() as connection:
+            connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
+            connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
+            connection.commit()
+        headers = {"Authorization": f"Bearer {token}"}
+        report = {
+            "status": "passed", "checked_at": "2026-08-12T00:00:00.000+00:00", "duration_ms": 12.3,
+            "checks": [{"name": "structured_context", "status": "passed"}, {"name": "limits", "status": "passed"}],
+        }
+        try:
+            with patch.dict(os.environ, {"FAB_ADMIN_API_TOKEN": token}), patch(
+                "app.main.check_model_compatibility", new=AsyncMock(return_value=report)
+            ), TestClient(app) as client:
+                payload = {"model_id": model_id, "display_name": "Model 018 Success", "provider": "deepseek", "provider_model": "model-018", "base_url": "https://models.example.test/v1", "capabilities": {"streaming": True, "tool_calls": True, "thinking": True, "native_multimodal": False}}
+                self.assertEqual(client.post("/api/admin/models", headers=headers, json=payload).status_code, 201)
+                before = next(item for item in client.get("/api/admin/models", headers=headers).json() if item["model_id"] == model_id)
+                response = client.post(f"/api/admin/models/{model_id}/compatibility-check", headers=headers)
+                self.assertEqual(response.status_code, 200, response.text)
+                model = next(item for item in client.get("/api/admin/models", headers=headers).json() if item["model_id"] == model_id)
+                self.assertEqual(model["status"], before["status"])
+                self.assertEqual(model["capabilities"], before["capabilities"])
+                self.assertEqual(model["health"], before["health"])
+                self.assertEqual(model["compatibility"], report)
+        finally:
+            with db_session() as connection:
+                connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
+                connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
+                connection.commit()
+
     def test_unknown_model_is_rejected(self):
         with TestClient(app) as client:
             response = client.post("/api/settings/model", json={"model": "unknown-model"})

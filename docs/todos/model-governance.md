@@ -13,10 +13,10 @@
 - [x] `MODEL-015` 模型目录与后台发布支持 Thinking、原生多模态能力；迁移无损补全能力契约，用户目录返回能力，服务端在落库前拒绝不支持的 Thinking 请求。
 - [x] `MODEL-016` 模型能力由管理员本地声明；发布、重新发布和能力编辑不触发上游调用，兼容性测试改为显式管理操作且仅记录结果，不改变能力或发布状态。
 - [x] `MODEL-017` 工具参数兼容性探针使用有界输出预算，并严格验证 `ok=true`，避免参数截断造成假阴性。
+- [x] `MODEL-018` 管理员显式兼容测试补充 shared structured context、Thinking answer 与 Thinking tool roundtrip；不自动联网、不改变能力声明、发布或健康状态，且报告不保存模型响应或推理正文。
 
 ## 待做
 
-- [ ] `MODEL-018` 管理员显式兼容测试补充 structured context、Thinking answer 与 Thinking tool roundtrip；不自动联网、不改变能力声明或发布状态。
 - [ ] `MODEL-008` 接入企业 Secret Manager 或模型网关，并在目录中只保存凭据引用。
 - [x] `MODEL-009` 管理员可主动执行连通性、流式输出、工具调用和上下文长度兼容测试，并记录最近结果。
 - [ ] `MODEL-010` 增加模型发布审批、版本说明、变更记录和回滚流程。

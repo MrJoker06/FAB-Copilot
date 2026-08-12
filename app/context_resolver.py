@@ -56,6 +56,37 @@ _MARKDOWN_PATTERN = re.compile(r"[*_`#]+")
 
 CONTEXTUALIZER_RESPONSE_FORMAT = {"type": "json_object"}
 
+
+class ContextPayloadValidationError(ValueError):
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+def validate_contextualizer_payload(arguments: object) -> dict:
+    """Validate the shared structured-context contract while allowing safe extensions."""
+    if not isinstance(arguments, dict):
+        raise ContextPayloadValidationError("invalid_object", "上下文解析结果必须是 JSON 对象")
+    required_fields = {"relation", "resolved_question", "topic_anchor", "target_message_ids", "confidence", "intent_hint"}
+    missing_fields = required_fields - set(arguments)
+    if missing_fields:
+        raise ContextPayloadValidationError("missing_field", f"上下文解析结果缺少字段：{', '.join(sorted(missing_fields))}")
+    relation = arguments["relation"]
+    intent_hint = arguments["intent_hint"]
+    confidence = arguments["confidence"]
+    target_ids = arguments["target_message_ids"]
+    valid = (
+        isinstance(relation, str) and relation in {"standalone", "followup", "correction", "recall"}
+        and isinstance(arguments["resolved_question"], str) and bool(arguments["resolved_question"].strip())
+        and isinstance(arguments["topic_anchor"], str)
+        and isinstance(target_ids, list) and all(isinstance(item, int) and not isinstance(item, bool) for item in target_ids)
+        and isinstance(confidence, (int, float)) and not isinstance(confidence, bool) and 0 <= confidence <= 1
+        and isinstance(intent_hint, str) and intent_hint in {"conversation", "general_knowledge", "manufacturing_analysis", "unclear"}
+    )
+    if not valid:
+        raise ContextPayloadValidationError("invalid_field_type", "上下文解析结果字段类型或枚举值非法")
+    return arguments
+
 CONTEXTUALIZER_PROMPT = """你是 Agent Loop 的会话上下文解析器，不负责回答用户问题。
 
 读取最近会话和本轮输入后，只返回一个 JSON 对象，不得输出解释或 Markdown。JSON 必须包含：

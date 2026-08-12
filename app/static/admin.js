@@ -113,9 +113,17 @@ function renderModels(models) {
   const published = models.filter(model => model.status === 'published').length;
   $('#modelCatalogCount').textContent = `${models.length} 个版本 · ${published} 个可供用户选择`;
   const capabilityChips = model => FabModelCapabilities.enabledEntries(model.capabilities).map(({key, label}) => `<span class="capability-chip capability-chip-${key}">${escapeHtml(label)}</span>`).join('') || '<span class="capability-chip capability-chip-empty">无</span>';
-  const compatibility = model => model.compatibility?.status === 'passed' ? `已验证 · ${formatDate(model.compatibility_checked_at)}` : (model.compatibility?.summary || '未验证');
+  const compatibilityLabels = {connectivity_streaming:'基础流式连接', tool_calls:'工具调用', context:'上下文负载', context_load:'上下文负载', structured_context:'结构化上下文', thinking:'Thinking', thinking_answer:'Thinking 回答', thinking_tool_roundtrip:'Thinking 工具续接', native_multimodal:'原生多模态', limits:'安全上限'};
+  const compatibility = model => {
+    const report = model.compatibility || {};
+    const summary = report.status === 'passed' ? `能力探针通过 · ${formatDate(model.compatibility_checked_at)}` : (report.summary || '未验证');
+    const checks = Array.isArray(report.checks) ? report.checks : [];
+    if (!checks.length) return escapeHtml(summary);
+    const items = checks.map(check => `<li>${escapeHtml(compatibilityLabels[check?.name] || check?.name || '兼容性检查')}：${check?.status === 'passed' ? '通过' : '未通过'}</li>`).join('');
+    return `<details class="compatibility-details"><summary>${escapeHtml(summary)}</summary><ul>${items}</ul></details>`;
+  };
   const health = model => { const item = model.health || {}; const names = {unknown:'未知',healthy:'正常',degraded:'降级',open:'熔断中',half_open:'恢复试探'}; const detail = item.status === 'open' && item.open_until ? `至 ${formatDate(item.open_until)}` : item.consecutive_failures ? `${item.consecutive_failures} 次失败` : ''; return `<div class="model-health"><span class="health-chip health-${escapeHtml(item.status || 'unknown')}">${escapeHtml(names[item.status] || '未知')}</span>${detail ? `<small>${escapeHtml(detail)}</small>` : ''}</div>`; };
-  $('#modelCatalogBody').innerHTML = models.map(model => `<tr><td data-label="显示名称"><div class="identity-cell"><strong>${escapeHtml(model.display_name)}</strong><span>${escapeHtml(model.base_url)}</span></div></td><td data-label="模型编号">${escapeHtml(model.model_id)}</td><td data-label="提供方">${escapeHtml(model.provider)}</td><td data-label="Provider Model">${escapeHtml(model.provider_model)}</td><td data-label="能力"><div class="capability-chips">${capabilityChips(model)}</div></td><td data-label="兼容性">${escapeHtml(compatibility(model))}</td><td data-label="健康">${health(model)}</td><td data-label="使用用户">${formatNumber(model.selected_user_count)}</td><td data-label="状态">${statusChip(model.status)}</td><td data-label="发布时间">${formatDate(model.published_at)}</td><td data-label="操作"><div class="catalog-actions"><button class="quiet-button" type="button" data-action="status" data-model-id="${escapeHtml(model.model_id)}" data-model-status="${model.status === 'published' ? 'retired' : 'published'}">${model.status === 'published' ? '停用' : '重新发布'}</button><button class="quiet-button" type="button" data-action="capabilities" data-model-id="${escapeHtml(model.model_id)}">编辑能力</button><button class="quiet-button" type="button" data-action="compatibility" data-model-id="${escapeHtml(model.model_id)}">兼容性测试</button></div></td></tr>`).join('') || '<tr><td class="empty-row" colspan="11">模型目录为空</td></tr>';
+  $('#modelCatalogBody').innerHTML = models.map(model => `<tr><td data-label="显示名称"><div class="identity-cell"><strong>${escapeHtml(model.display_name)}</strong><span>${escapeHtml(model.base_url)}</span></div></td><td data-label="模型编号">${escapeHtml(model.model_id)}</td><td data-label="提供方">${escapeHtml(model.provider)}</td><td data-label="提供方模型">${escapeHtml(model.provider_model)}</td><td data-label="能力"><div class="capability-chips">${capabilityChips(model)}</div></td><td data-label="兼容性">${compatibility(model)}</td><td data-label="健康">${health(model)}</td><td data-label="使用用户">${formatNumber(model.selected_user_count)}</td><td data-label="状态">${statusChip(model.status)}</td><td data-label="发布时间">${formatDate(model.published_at)}</td><td data-label="操作"><div class="catalog-actions"><button class="quiet-button" type="button" data-action="status" data-model-id="${escapeHtml(model.model_id)}" data-model-status="${model.status === 'published' ? 'retired' : 'published'}">${model.status === 'published' ? '停用' : '重新发布'}</button><button class="quiet-button" type="button" data-action="capabilities" data-model-id="${escapeHtml(model.model_id)}">编辑能力</button><button class="quiet-button" type="button" data-action="compatibility" data-model-id="${escapeHtml(model.model_id)}">兼容性探针</button></div></td></tr>`).join('') || '<tr><td class="empty-row" colspan="11">模型目录为空</td></tr>';
 }
 
 async function loadModels() {
@@ -167,9 +175,9 @@ async function saveCapabilities(event) {
 }
 
 async function runCompatibilityCheck(modelId, button) {
-  button.disabled = true; const original = button.textContent; button.textContent = '测试中…';
-  try { await adminApi(`/api/admin/models/${encodeURIComponent(modelId)}/compatibility-check`, {method:'POST'}); await loadModels(); showToast('兼容性测试通过', {centered:true}); }
-  catch (error) { try { await loadModels(); } catch {} showNotice('#modelNotice', `兼容性测试失败：${error.message}`, true); }
+  button.disabled = true; const original = button.textContent; button.textContent = '探针中…';
+  try { await adminApi(`/api/admin/models/${encodeURIComponent(modelId)}/compatibility-check`, {method:'POST'}); await loadModels(); showToast('能力探针通过', {centered:true}); }
+  catch (error) { try { await loadModels(); } catch {} showNotice('#modelNotice', `能力探针失败：${error.message}`, true); }
   finally { button.disabled = false; button.textContent = original; }
 }
 

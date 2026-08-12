@@ -19,7 +19,7 @@
 
 ## 当前串行队列
 
-`DATA-016`、`UX-017`、`UX-028`、`MODEL-009`、`MODEL-016`、`MODEL-017`、`MODEL-013` 和 `AGENT-033` 已完成；下一项为 `MODEL-018`，后续恢复以下既有串行队列，不改变其中任务的依赖关系。
+`DATA-016`、`UX-017`、`UX-028`、`MODEL-009`、`MODEL-016`、`MODEL-017`、`MODEL-013`、`AGENT-033` 和 `MODEL-018` 已完成；下一项为 `UX-012`，后续恢复以下既有串行队列，不改变其中任务的依赖关系。
 
 ### 下一补丁插队队列
 
@@ -70,7 +70,7 @@
 | 14 | `MODEL-017`（已完成） | `MODEL-016` | 工具参数探针预算 | 有界工具输出预算避免截断，并严格验证函数参数 `ok=true` |
 | 15 | `MODEL-013`（已完成） | `MODEL-009`、`MODEL-016` | 模型健康与本地降级 | 被动健康状态可见，失败触发每模型有限熔断和已有本地规则降级，成功调用恢复；不自动探测 |
 | 16 | `AGENT-033`（已完成） | `AGENT-031`、`AGENT-032` | Thinking 与上下文隔离 | 上下文分类强制关闭 Thinking、总 deadline 降级、预算耗尽原因归一化且不保存推理正文 |
-| 17 | `MODEL-018` | `AGENT-033` | 显式兼容测试覆盖 | 管理员手动测试 structured context、Thinking answer 和 Thinking tool roundtrip；不自动联网、不改能力或发布状态 |
+| 17 | `MODEL-018`（已完成） | `AGENT-033` | 显式兼容测试覆盖 | 管理员手动测试 structured context、Thinking answer 和 Thinking tool roundtrip；不自动联网、不改能力、发布或健康状态 |
 | 18 | `UX-012` | 当前用户端和管理端 | Playwright 基础回归 | 桌面与移动视口可启动，页面非空、无关键重叠，并可在本地重复运行 |
 | 19 | `RAG-011` | `UX-012` | OCR 处理链 | 扫描 PDF 和图片进入 OCR；保留页码并覆盖中英文、表格、公式和设备截图样例 |
 | 20 | `RAG-012` | `RAG-011` | OCR 质量门槛 | 建立人工抽检集，按文档类型输出准确率指标，不达门槛的文档不能静默入库 |
@@ -89,9 +89,9 @@
 
 ### 检查点 B：模型运行可靠性
 
-完成 `MODEL-014`、`MODEL-015`、`UX-017`、`MODEL-009`、`MODEL-016`、`MODEL-017`、`MODEL-013` 后，验证管理员能力声明、显式兼容性测试、工具参数预算与严格校验、DeepSeek Thinking enabled/disabled 请求契约、现有模型、Thinking 能力约束和离线降级。
+完成 `MODEL-014`、`MODEL-015`、`UX-017`、`MODEL-009`、`MODEL-016`、`MODEL-017`、`MODEL-013` 和 `MODEL-018` 后，验证管理员能力声明、显式兼容性测试、工具参数预算与严格校验、structured context、DeepSeek Thinking answer/tool roundtrip 的 enabled/disabled 请求契约、现有模型、Thinking 能力约束和离线降级。
 
-2026-08-11 已完成该检查点：全量质量门通过（253 个 Python 发现项；189 个非系统测试，系统数据 12、HTTP 15、知识 12、模型 16、会话 9；分支覆盖率 86%），Node 30 项断言、RAG 15/15 与 Playbook 12/12 均通过。模型运行可靠性检查点已完成。
+2026-08-12 已完成该检查点：宿主 full 质量门全通过（263 个 Python 发现项；198 个非系统测试，系统数据 12、HTTP 15、知识 12、模型 17、会话 9；分支覆盖率 86%），Node 32 项断言、RAG 15/15 与 Playbook 12/12 均通过。模型运行可靠性检查点已完成。
 
 ### 检查点 C：OCR 与浏览器交互
 
