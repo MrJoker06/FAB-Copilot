@@ -1,10 +1,10 @@
 # 非企业级 TODO 执行计划
 
-状态基线：`experiment/parallel-platform`，2026-08-12。
+状态基线：`experiment/parallel-platform`，2026-08-13。
 
 本计划只安排当前单机样例和产品能力建设。企业 SSO、真实制造系统、分布式数据基础设施、多实例治理、网关和生产部署统一暂缓，未经重新确认不进入开发。
 
-完成状态仍只在各分类 TODO 中使用 `[x]` / `[ ]` 维护；本文件只维护执行顺序和范围，避免形成第二套完成状态。
+完成状态仍只在各分类 TODO 中使用 `[x]` / `[ ]` 维护；`OPTIONAL` 为可选候选/不一定需要，不使用勾选状态、不排期、不构成依赖，只有用户明确激活后才转为 `[ ]`。本文件只维护执行顺序和范围，避免形成第二套完成状态。
 
 ## 执行规则
 
@@ -20,6 +20,14 @@
 ## 当前串行队列
 
 `DATA-016`、`UX-017`、`UX-028`、`MODEL-009`、`MODEL-016`、`MODEL-017`、`MODEL-013`、`AGENT-033`、`MODEL-018`、`UX-012` 和 `RAG-011` 已完成；下一项为 `RAG-012`，后续恢复以下既有串行队列，不改变其中任务的依赖关系。`UX-012` 至 `UX-015` 当前均只覆盖桌面端；移动端统一由用户暂缓的 `UX-029` 后续处理。
+
+## 可选候选（不一定需要）
+
+以下候选不进入当前串行队列、检查点或企业级暂缓清单，也不计入主任务统计；只有用户明确激活后才排期。
+
+| 任务 | 状态 | 排期 | 候选范围 |
+|---|---|---|---|
+| `RAG-024` | `OPTIONAL` | 不排期 | 评估是否接入 Ragas；在保留现有确定性 Hit Rate/MRR/Source Coverage/Forbidden Hits/ACL/引用页码门的基础上，候选观察 Context Precision/Recall、Faithfulness/Response Groundedness、Answer Relevancy、Factual Correctness、Noise Sensitivity。评审模型和 embedding 固定且显式配置，禁止隐式联网；稳定后才可考虑阻断门。 |
 
 ### 下一补丁插队队列
 
