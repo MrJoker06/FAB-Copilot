@@ -7,7 +7,7 @@ from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 WORKSPACE_DIR = PROJECT_DIR.parent.parent
-APP_VERSION = "20260811-10"
+APP_VERSION = "20260812-1"
 
 
 def _load_env(path: Path) -> None:
@@ -52,6 +52,7 @@ class Settings:
     agent_database_path: Path
     model_connection: ModelConnection
     api_timeout_seconds: float
+    model_context_timeout_seconds: float
     model_max_retries: int
     model_retry_base_seconds: float
     model_circuit_failure_threshold: int
@@ -121,6 +122,7 @@ def get_settings() -> Settings:
         agent_database_path=department_path("FAB_AGENT_DATABASE_PATH", "ai_operations.db"),
         model_connection=connection,
         api_timeout_seconds=float(os.getenv("API_TIMEOUT_MS", "60000")) / 1000,
+        model_context_timeout_seconds=max(1.0, min(float(os.getenv("MODEL_CONTEXT_TIMEOUT_MS", "15000")) / 1000, 60.0)),
         model_max_retries=max(0, min(int(os.getenv("MODEL_MAX_RETRIES", "2")), 4)),
         model_retry_base_seconds=max(0.05, min(float(os.getenv("MODEL_RETRY_BASE_MS", "500")) / 1000, 5.0)),
         model_circuit_failure_threshold=max(1, min(int(os.getenv("MODEL_CIRCUIT_FAILURE_THRESHOLD", "3")), 10)),

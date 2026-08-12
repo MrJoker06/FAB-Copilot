@@ -1,12 +1,12 @@
 # Fab Insight Agent TODO
 
-状态基线：`experiment/parallel-platform`，2026-08-11。
+状态基线：`experiment/parallel-platform`，2026-08-12。
 
-当前统计：共 163 个独立任务，已完成 115 个，待做 48 个。
+当前统计：共 165 个独立任务，已完成 116 个，待做 49 个。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
-当前结论：`DATA-016`、`UX-017`、`UX-028`、`MODEL-009`、`MODEL-016`、`MODEL-017` 和 `MODEL-013` 已完成；下一项为 `UX-012`，当前执行顺序见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)，39 项企业级任务继续暂缓。
+当前结论：`AGENT-033` 已完成：Thinking 仅用于主推理/答案，上下文分类强制关闭并有总 deadline；下一项为 `MODEL-018`，用于管理员显式兼容测试覆盖，不自动联网且不改能力或发布状态。当前执行顺序见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)，39 项企业级任务继续暂缓。
 
 ## 标记规则
 

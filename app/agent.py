@@ -827,6 +827,17 @@ def _model_error_category(exc: Exception) -> str:
     return "timeout" if isinstance(exc, httpx.TimeoutException) else "network"
 
 
+def _model_failure_reason(exc: Exception) -> str:
+    """Classify audits without presenting local protocol faults as network failures."""
+    if isinstance(exc, ContextProtocolError):
+        return exc.code
+    if _retryable_model_error(exc):
+        return _model_error_category(exc)
+    if isinstance(exc, (ValueError, json.JSONDecodeError)):
+        return "protocol_error"
+    return "internal_error"
+
+
 def _model_retry_delay(base_seconds: float, retry_number: int, exc: Exception) -> float:
     if isinstance(exc, httpx.HTTPStatusError):
         retry_after = exc.response.headers.get("retry-after")
@@ -919,6 +930,16 @@ def _context_protocol_correction(error: ContextProtocolError) -> dict:
     }
 
 
+def _normalized_context_protocol_error(error: ContextProtocolError, finish_reason: str | None) -> ContextProtocolError:
+    """Expose budget exhaustion consistently without retaining reasoning text."""
+    if error.code == "empty_response" and finish_reason == "length":
+        normalized = ContextProtocolError("context_budget_exhausted", str(error))
+        normalized.response_length = error.response_length
+        normalized.response_fingerprint = error.response_fingerprint
+        return normalized
+    return error
+
+
 async def _resolve_conversation_turn(
     question: str,
     history: list[dict] | None,
@@ -948,18 +969,72 @@ async def _resolve_conversation_turn(
         "temperature": 0,
         "response_format": CONTEXTUALIZER_RESPONSE_FORMAT,
         "max_tokens": 1200,
-        **provider_request_options(connection.provider, thinking),
+        **provider_request_options(connection.provider, False),
     }
     endpoint = f"{connection.base_url}/chat/completions"
     headers = {
         "Authorization": f"Bearer {connection.api_key}",
         "Content-Type": "application/json",
     }
+    context_timeout_seconds = float(getattr(settings, "model_context_timeout_seconds", 15.0))
+    deadline = time.perf_counter() + context_timeout_seconds
+
+    async def context_failure_fallback(
+        exc: Exception,
+        protocol_error: ContextProtocolError | None = None,
+    ) -> tuple[ContextResolution, dict]:
+        failure_reason = _model_failure_reason(exc)
+        if health_model_id and _retryable_model_error(exc):
+            health, transition = record_model_failure(
+                health_model_id, _model_error_category(exc),
+                threshold=settings.model_circuit_failure_threshold,
+                cooldown_seconds=settings.model_circuit_cooldown_seconds,
+            )
+            emit("model_health_failure_recorded", run_id, model_id=health_model_id, health=health, transition=transition)
+        elif health_model_id and protocol_error is not None:
+            # The provider delivered a response; an invalid local context
+            # contract must not strand a half-open availability trial.
+            health, transition = record_model_success(health_model_id)
+            if transition:
+                emit("model_circuit_recovered", run_id, model_id=health_model_id, health=health)
+        emit(
+            "question_context_resolution_failed",
+            run_id,
+            error_type=type(exc).__name__,
+            failure_reason=failure_reason,
+        )
+        await _notify(progress, {
+            "event": "stage",
+            "stage": "context",
+            "message": "未能可靠恢复上文指代",
+        })
+        fallback_route = direct_route or route_question(question)
+        if history and (
+            fallback_route.intent == "unknown"
+            or fallback_route.clarification_needed
+            or (
+                protocol_error is not None
+                and protocol_error.code in {"empty_response", "context_budget_exhausted"}
+                and fallback_route.intent == "general_knowledge"
+            )
+            or (
+                fallback_route.intent == "general_knowledge"
+                and len(question.strip()) <= 32
+                and failure_reason in {"timeout", "network"}
+            )
+        ):
+            return context_clarification_resolution(question, history, failure_reason), {}
+        return unresolved_context(question, "fallback"), {}
+
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
         attempt = 0
         protocol_failures = 0
         transport_failures = 0
         while True:
+            if deadline <= time.perf_counter():
+                return await context_failure_fallback(
+                    httpx.ReadTimeout("contextualization deadline exceeded")
+                )
             attempt += 1
             started = time.perf_counter()
             assistant: dict | None = None
@@ -971,17 +1046,24 @@ async def _resolve_conversation_turn(
                 attempt=attempt,
                 model=connection.model,
                 message_count=len(request_payload["messages"]),
+                thinking_requested=thinking,
+                thinking_effective=False,
+                reasoning_effort=request_payload.get("reasoning_effort"),
                 **({"request": request_payload} if CONTENT_MODE == "full" else {}),
             )
             try:
-                assistant, usage, response_id = await _stream_completion(
-                    client,
-                    endpoint,
-                    headers,
-                    request_payload,
-                    None,
-                    context_stream_state,
-                )
+                remaining_seconds = deadline - time.perf_counter()
+                if remaining_seconds <= 0:
+                    raise httpx.ReadTimeout("contextualization deadline exceeded")
+                async with asyncio.timeout(remaining_seconds):
+                    assistant, usage, response_id = await _stream_completion(
+                        client,
+                        endpoint,
+                        headers,
+                        request_payload,
+                        None,
+                        context_stream_state,
+                    )
                 resolution = semantic_context_resolution(
                     question,
                     _context_json_arguments(assistant),
@@ -994,16 +1076,37 @@ async def _resolve_conversation_turn(
                         str(assistant.get("content") or ""),
                     )
             except Exception as exc:
+                if isinstance(exc, TimeoutError):
+                    exc = httpx.ReadTimeout("contextualization deadline exceeded")
                 protocol_error = exc if isinstance(exc, ContextProtocolError) else None
+                if protocol_error:
+                    protocol_error = _normalized_context_protocol_error(
+                        protocol_error, context_stream_state.get("finish_reason")
+                    )
+                    exc = protocol_error
                 if protocol_error:
                     protocol_failures += 1
                     retryable = True
-                    will_retry = protocol_failures < 2 and not health_recovery_trial
+                    will_retry = (
+                        protocol_failures < 2
+                        and not health_recovery_trial
+                        and deadline > time.perf_counter()
+                    )
                 else:
                     retryable = _retryable_model_error(exc)
                     if retryable:
                         transport_failures += 1
-                    will_retry = retryable and transport_failures <= settings.model_max_retries and not health_recovery_trial
+                    retry_delay = (
+                        _model_retry_delay(settings.model_retry_base_seconds, transport_failures, exc)
+                        if retryable else 0.0
+                    )
+                    remaining_seconds = deadline - time.perf_counter()
+                    will_retry = (
+                        retryable
+                        and transport_failures <= settings.model_max_retries
+                        and not health_recovery_trial
+                        and retry_delay < remaining_seconds
+                    )
                 emit(
                     "model_call_finished",
                     run_id,
@@ -1020,6 +1123,11 @@ async def _resolve_conversation_turn(
                     response_fingerprint=protocol_error.response_fingerprint if protocol_error else None,
                     finish_reason=context_stream_state.get("finish_reason"),
                     reasoning_length=int(context_stream_state.get("reasoning_length", 0)),
+                    content_length=len(str((assistant or {}).get("content") or "")),
+                    thinking_requested=thinking,
+                    thinking_effective=False,
+                    reasoning_effort=request_payload.get("reasoning_effort"),
+                    failure_reason=_model_failure_reason(exc),
                     **({
                         "error_message": str(exc),
                         "traceback": traceback.format_exc(),
@@ -1028,7 +1136,7 @@ async def _resolve_conversation_turn(
                 )
                 if will_retry:
                     if protocol_error:
-                        if protocol_error.code == "empty_response":
+                        if protocol_error.code in {"empty_response", "context_budget_exhausted"}:
                             request_payload["max_tokens"] = min(
                                 max(int(request_payload.get("max_tokens", 1200)) * 2, 2400),
                                 2400,
@@ -1038,49 +1146,9 @@ async def _resolve_conversation_turn(
                             _context_protocol_correction(protocol_error),
                         ]
                     else:
-                        await asyncio.sleep(
-                            _model_retry_delay(settings.model_retry_base_seconds, transport_failures, exc)
-                        )
+                        await asyncio.sleep(retry_delay)
                     continue
-                if health_model_id and _retryable_model_error(exc):
-                    health, transition = record_model_failure(
-                        health_model_id, _model_error_category(exc),
-                        threshold=settings.model_circuit_failure_threshold,
-                        cooldown_seconds=settings.model_circuit_cooldown_seconds,
-                    )
-                    emit("model_health_failure_recorded", run_id, model_id=health_model_id, health=health, transition=transition)
-                elif health_model_id and protocol_error is not None:
-                    # The provider delivered a response; an invalid local context
-                    # contract must not strand a half-open availability trial.
-                    health, transition = record_model_success(health_model_id)
-                    if transition:
-                        emit("model_circuit_recovered", run_id, model_id=health_model_id, health=health)
-                emit(
-                    "question_context_resolution_failed",
-                    run_id,
-                    error_type=type(exc).__name__,
-                )
-                await _notify(progress, {
-                    "event": "stage",
-                    "stage": "context",
-                    "message": "未能可靠恢复上文指代",
-                })
-                fallback_route = direct_route or route_question(question)
-                if history and (
-                    fallback_route.intent == "unknown"
-                    or fallback_route.clarification_needed
-                    or (
-                        protocol_error is not None
-                        and protocol_error.code == "empty_response"
-                        and fallback_route.intent == "general_knowledge"
-                    )
-                ):
-                    return context_clarification_resolution(
-                        question,
-                        history,
-                        protocol_error.code if protocol_error else type(exc).__name__,
-                    ), {}
-                return unresolved_context(question, "fallback"), {}
+                return await context_failure_fallback(exc, protocol_error)
 
             emit(
                 "model_call_finished",
@@ -1095,6 +1163,10 @@ async def _resolve_conversation_turn(
                 total_tokens=usage.get("total_tokens", 0),
                 finish_reason=context_stream_state.get("finish_reason") or "stop",
                 reasoning_length=int(context_stream_state.get("reasoning_length", 0)),
+                content_length=len(str(assistant.get("content") or "")),
+                thinking_requested=thinking,
+                thinking_effective=False,
+                reasoning_effort=request_payload.get("reasoning_effort"),
                 response_id=response_id,
                 **({"response": _audit_assistant(assistant), "context_resolution": resolution.to_dict()} if CONTENT_MODE == "full" else {}),
             )
@@ -1138,6 +1210,7 @@ async def _run_agent_impl(
 ) -> dict:
     settings = effective_agent_settings(get_settings())
     health_enabled = isinstance(settings, Settings)
+    thinking_answer_effective = False
     selected_model_id = public_user_model_config()["model"] if health_enabled else settings.model_connection.model
     direct_route = route_question(question)
     context_needs_upstream = bool(settings.model_connection.api_key) and bool(history or direct_route.intent == "unknown") and not resolve_question_context(question, history).applied
@@ -1527,6 +1600,11 @@ async def _run_agent_impl(
             "context_resolution": context_resolution.to_dict(),
             "knowledge_fallback": knowledge_fallback,
             "retrieval_decision": retrieval_decision_payload,
+            "thinking_policy": {
+                "requested": thinking,
+                "context_effective": False,
+                "answer_effective": thinking_answer_effective,
+            },
         }
 
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
@@ -1573,10 +1651,14 @@ async def _run_agent_impl(
                 emit(
                     "model_call_started",
                     run_id,
+                    phase="agent_loop",
                     iteration=iteration + 1,
                     attempt=attempt,
                     model=connection.model,
                     message_count=len(messages),
+                    thinking_requested=thinking,
+                    thinking_effective=thinking,
+                    reasoning_effort=request_payload.get("reasoning_effort"),
                     **({"request": request_payload} if CONTENT_MODE == "full" else {}),
                 )
                 stream_state = {
@@ -1606,9 +1688,15 @@ async def _run_agent_impl(
                         model=connection.model,
                         duration_ms=round((time.perf_counter() - model_started) * 1000, 1),
                         error_type=type(exc).__name__,
+                        phase="agent_loop",
                         retryable=retryable,
                         will_retry=will_retry,
                         answer_emitted=stream_state["answer_emitted"],
+                        content_length=int(stream_state.get("content_chars", 0)),
+                        thinking_requested=thinking,
+                        thinking_effective=thinking,
+                        reasoning_effort=request_payload.get("reasoning_effort"),
+                        failure_reason=_model_failure_reason(exc),
                         **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
                     )
                     if not will_retry:
@@ -1659,6 +1747,7 @@ async def _run_agent_impl(
                     "model_call_finished",
                     run_id,
                     status="success",
+                    phase="agent_loop",
                     iteration=iteration + 1,
                     attempt=attempt,
                     model=connection.model,
@@ -1666,15 +1755,23 @@ async def _run_agent_impl(
                     input_tokens=usage.get("prompt_tokens", 0),
                     output_tokens=usage.get("completion_tokens", 0),
                     total_tokens=usage.get("total_tokens", 0),
-                    finish_reason="tool_calls" if assistant.get("tool_calls") else "stop",
+                    finish_reason=stream_state.get("finish_reason") or (
+                        "tool_calls" if assistant.get("tool_calls") else "stop"
+                    ),
                     response_id=response_id,
                     first_content_ms=stream_state.get("first_content_ms"),
                     max_content_gap_ms=stream_state.get("max_content_gap_ms", 0),
                     content_delta_count=stream_state.get("content_delta_count", 0),
                     content_chars=stream_state.get("content_chars", 0),
                     stream_duration_ms=stream_state.get("stream_duration_ms"),
+                    reasoning_length=int(stream_state.get("reasoning_length", 0)),
+                    content_length=len(str(assistant.get("content") or "")),
+                    thinking_requested=thinking,
+                    thinking_effective=thinking,
+                    reasoning_effort=request_payload.get("reasoning_effort"),
                     **({"response": _audit_assistant(assistant)} if CONTENT_MODE == "full" else {}),
                 )
+                thinking_answer_effective = thinking_answer_effective or thinking
                 if health_enabled:
                     health, transition = record_model_success(selected_model_id)
                     if transition:
@@ -1998,11 +2095,17 @@ async def run_agent(
         question_length=len(question),
         question_fingerprint=content_fingerprint(question),
         history_messages=len(history or []),
+        thinking_policy={"requested": thinking, "context_effective": False, "answer_effective": False},
         **({"question": question, "history": history or []} if CONTENT_MODE == "full" else {}),
     )
     await tracked_progress({"event": "run_started", "run_id": run_id, "message": "分析任务已创建"})
     try:
         result = await _run_agent_impl(question, history, run_id, tracked_progress, thinking)
+        result.setdefault("thinking_policy", {
+            "requested": thinking,
+            "context_effective": False,
+            "answer_effective": False,
+        })
         result["run_id"] = run_id
         result["status"] = "success"
         result["started_at"] = started_at

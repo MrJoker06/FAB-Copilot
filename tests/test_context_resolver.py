@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 import unittest
+import httpx
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -451,21 +453,31 @@ class ContextResolverTests(unittest.TestCase):
         self.assertEqual(resolution.failure_reason, "invalid_json")
         self.assertEqual(usage, {})
 
-    def test_deepseek_contextualizer_declares_thinking_mode(self):
+    def test_deepseek_contextualizer_disables_thinking_but_audits_request(self):
         captured = []
+        events: list[tuple[str, dict]] = []
+
+        def capture(event_type: str, run_id: str, **fields) -> None:
+            events.append((event_type, fields))
+
         async def invalid_stream(client, endpoint, headers, request_payload, progress, stream_state):
             captured.append(request_payload.copy())
             return ({"role": "assistant", "content": "not json"}, {}, "context")
         settings = _settings()
         settings.model_connection = SimpleNamespace(provider="deepseek", api_key="test-key", base_url="https://example.test", model="test-model")
         history = [{"role": "user", "content": "分析 CMP-02 报警"}, {"role": "assistant", "content": "已给出初步结论。"}]
-        with patch("app.agent._stream_completion", new=invalid_stream):
+        with patch("app.agent._stream_completion", new=invalid_stream), patch("app.agent.emit", new=capture):
             asyncio.run(agent_module._resolve_conversation_turn("是更前面的一个", history, settings, "run-context-deepseek-false", None))
         self.assertTrue(all(item["thinking"] == {"type": "disabled"} for item in captured))
         captured.clear()
-        with patch("app.agent._stream_completion", new=invalid_stream):
+        events.clear()
+        with patch("app.agent._stream_completion", new=invalid_stream), patch("app.agent.emit", new=capture):
             asyncio.run(agent_module._resolve_conversation_turn("是更前面的一个", history, settings, "run-context-deepseek-true", None, thinking=True))
-        self.assertTrue(all(item["thinking"] == {"type": "enabled"} for item in captured))
+        self.assertTrue(all(item["thinking"] == {"type": "disabled"} for item in captured))
+        calls = [fields for event, fields in events if event == "model_call_started"]
+        self.assertTrue(calls)
+        self.assertTrue(all(item["thinking_requested"] for item in calls))
+        self.assertTrue(all(not item["thinking_effective"] for item in calls))
 
     def test_context_json_protocol_ignores_unknown_fields(self):
         assistant, _, _ = _context_response(
@@ -617,7 +629,159 @@ class ContextResolverTests(unittest.TestCase):
             ))
 
         self.assertEqual(resolution.strategy, "context_clarification")
-        self.assertEqual(resolution.failure_reason, "empty_response")
+        self.assertEqual(resolution.failure_reason, "context_budget_exhausted")
+
+    def test_context_budget_exhaustion_audits_normalized_reason_and_never_records_reasoning(self):
+        events: list[tuple[str, dict]] = []
+
+        async def empty_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            stream_state["reasoning_length"] = int(request_payload["max_tokens"])
+            stream_state["finish_reason"] = "length"
+            return ({"role": "assistant", "content": "", "reasoning_content": "private"}, {}, "empty-context")
+
+        def capture(event_type: str, run_id: str, **fields) -> None:
+            events.append((event_type, fields))
+
+        with patch("app.agent._stream_completion", new=empty_stream), patch("app.agent.emit", new=capture):
+            resolution, _ = asyncio.run(agent_module._resolve_conversation_turn(
+                "你在上一个问题中理解的主题是什么",
+                [{"message_id": 91, "role": "user", "content": "介绍光刻基本原理"}],
+                _settings(), "run-context-budget-audit-test", None,
+            ))
+
+        self.assertEqual(resolution.failure_reason, "context_budget_exhausted")
+        failures = [fields for event, fields in events if event == "model_call_finished"]
+        self.assertEqual([item["failure_reason"] for item in failures], ["context_budget_exhausted", "context_budget_exhausted"])
+        self.assertEqual([item["reasoning_length"] for item in failures], [1200, 2400])
+        self.assertTrue(all("reasoning_content" not in item for item in failures))
+
+    def test_context_deadline_stops_transport_retries_and_falls_back(self):
+        calls = 0
+        events: list[tuple[str, dict]] = []
+        settings = _settings()
+        settings.model_max_retries = 4
+        settings.model_context_timeout_seconds = 0.05
+        settings.model_circuit_failure_threshold = 3
+        settings.model_circuit_cooldown_seconds = 60
+
+        async def timeout_stream(client, endpoint, headers, request_payload, progress, stream_state):
+            nonlocal calls
+            calls += 1
+            raise httpx.ReadTimeout("simulated")
+
+        def capture(event_type: str, run_id: str, **fields) -> None:
+            events.append((event_type, fields))
+
+        ticks = iter((0.0, 0.001, 0.002, 0.003, 0.004, 0.005, 0.06))
+        with (
+            patch("app.agent._stream_completion", new=timeout_stream),
+            patch("app.agent._model_retry_delay", return_value=0.01),
+            patch("app.agent.asyncio.sleep", new=AsyncMock()),
+            patch("app.agent.time.perf_counter", side_effect=lambda: next(ticks)),
+            patch("app.agent.emit", new=capture),
+            patch("app.agent.record_model_failure", return_value=({"status": "degraded"}, None)) as record_failure,
+        ):
+            resolution, usage = asyncio.run(agent_module._resolve_conversation_turn(
+                "是更前面的一个",
+                [{"message_id": 91, "role": "user", "content": "介绍光刻基本原理"}],
+                settings, "run-context-deadline-test", None, health_model_id="context-model",
+            ))
+
+        self.assertEqual(calls, 1)
+        self.assertEqual(usage, {})
+        self.assertEqual(resolution.strategy, "context_clarification")
+        self.assertEqual(sum(event == "model_call_started" for event, _ in events), 1)
+        failures = [fields for event, fields in events if event == "question_context_resolution_failed"]
+        self.assertEqual(failures[-1]["failure_reason"], "timeout")
+        record_failure.assert_called_once()
+        self.assertEqual(record_failure.call_args.args[:2], ("context-model", "timeout"))
+
+    def test_context_deadline_does_not_sleep_when_backoff_exceeds_remaining_budget(self):
+        calls = 0
+        settings = _settings()
+        settings.model_max_retries = 4
+        settings.model_retry_base_seconds = 1.0
+        settings.model_context_timeout_seconds = 0.05
+
+        async def timeout_stream(*args):
+            nonlocal calls
+            calls += 1
+            raise httpx.ReadTimeout("simulated")
+
+        sleep = AsyncMock()
+        with patch("app.agent._stream_completion", new=timeout_stream), patch("app.agent.asyncio.sleep", new=sleep):
+            resolution, _ = asyncio.run(agent_module._resolve_conversation_turn(
+                "是更前面的一个",
+                [{"message_id": 91, "role": "user", "content": "介绍光刻基本原理"}],
+                settings, "run-context-backoff-deadline-test", None,
+            ))
+
+        self.assertEqual(calls, 1)
+        sleep.assert_not_awaited()
+        self.assertEqual(resolution.strategy, "context_clarification")
+
+    def test_context_deadline_cancels_slow_request_and_falls_back(self):
+        calls = 0
+        settings = _settings()
+        settings.model_context_timeout_seconds = 0.05
+
+        async def slow_stream(*args):
+            nonlocal calls
+            calls += 1
+            await asyncio.sleep(0.2)
+            return _context_response("standalone", "ignored")
+
+        started = time.perf_counter()
+        with patch("app.agent._stream_completion", new=slow_stream):
+            resolution, _ = asyncio.run(agent_module._resolve_conversation_turn(
+                "是更前面的一个",
+                [{"message_id": 91, "role": "user", "content": "介绍光刻基本原理"}],
+                settings, "run-context-async-deadline-test", None,
+            ))
+
+        self.assertEqual(calls, 1)
+        self.assertLess(time.perf_counter() - started, 0.15)
+        self.assertEqual(resolution.strategy, "context_clarification")
+
+    def test_non_retryable_context_error_is_not_audited_as_network(self):
+        events: list[tuple[str, dict]] = []
+
+        async def invalid_stream(*args):
+            raise ValueError("local parser failed")
+
+        def capture(event_type: str, run_id: str, **fields) -> None:
+            events.append((event_type, fields))
+
+        with patch("app.agent._stream_completion", new=invalid_stream), patch("app.agent.emit", new=capture):
+            asyncio.run(agent_module._resolve_conversation_turn(
+                "是更前面的一个",
+                [{"message_id": 91, "role": "user", "content": "介绍光刻基本原理"}],
+                _settings(), "run-context-local-error-test", None,
+            ))
+
+        failure = next(fields for event, fields in events if event == "model_call_finished")
+        self.assertEqual(failure["failure_reason"], "protocol_error")
+
+    def test_thinking_policy_marks_answer_effective_only_after_main_model_success(self):
+        async def successful_stream(*args):
+            return ({"role": "assistant", "content": "模型回答"}, {"total_tokens": 1}, "answer")
+
+        with patch("app.agent.get_settings", return_value=_settings()), patch("app.agent._stream_completion", new=successful_stream):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "介绍半导体制程", [], "run-thinking-answer-success", thinking=True,
+            ))
+        self.assertTrue(result["thinking_policy"]["requested"])
+        self.assertTrue(result["thinking_policy"]["answer_effective"])
+
+        async def context_only_stream(*args):
+            return _context_response("standalone", "帮我看看这个情况", confidence=0.9, intent_hint="unclear")
+
+        with patch("app.agent.get_settings", return_value=_settings()), patch("app.agent._stream_completion", new=context_only_stream):
+            clarification = asyncio.run(agent_module.run_agent(
+                "帮我看看这个情况", [], thinking=True,
+            ))
+        self.assertTrue(clarification["thinking_policy"]["requested"])
+        self.assertFalse(clarification["thinking_policy"]["answer_effective"])
 
     def test_context_protocol_failure_retries_only_once_even_with_larger_model_budget(self):
         calls = 0

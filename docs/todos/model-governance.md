@@ -16,6 +16,7 @@
 
 ## 待做
 
+- [ ] `MODEL-018` 管理员显式兼容测试补充 structured context、Thinking answer 与 Thinking tool roundtrip；不自动联网、不改变能力声明或发布状态。
 - [ ] `MODEL-008` 接入企业 Secret Manager 或模型网关，并在目录中只保存凭据引用。
 - [x] `MODEL-009` 管理员可主动执行连通性、流式输出、工具调用和上下文长度兼容测试，并记录最近结果。
 - [ ] `MODEL-010` 增加模型发布审批、版本说明、变更记录和回滚流程。

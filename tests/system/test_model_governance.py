@@ -131,7 +131,13 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                 self.assertNotIn("tool_choice", captured["payload"])
                 self.assertEqual(captured["endpoint"], "https://models.example.test/v1/chat/completions")
                 self.assertEqual(captured["headers"]["Authorization"], "Bearer server-managed-test-key")
-                client.delete(f"/api/sessions/{chat_response.json()['session_id']}/permanent", headers=user_a)
+                expected_policy = {"requested": True, "context_effective": False, "answer_effective": True}
+                self.assertEqual(chat_response.json()["thinking_policy"], expected_policy)
+                session_id = chat_response.json()["session_id"]
+                restored = client.get(f"/api/sessions/{session_id}", headers=user_a)
+                self.assertEqual(restored.status_code, 200, restored.text)
+                self.assertEqual(restored.json()["messages"][-1]["metadata"]["thinking_policy"], expected_policy)
+                client.delete(f"/api/sessions/{session_id}/permanent", headers=user_a)
 
                 client.post("/api/settings/model", headers=user_a, json={"model": "deepseekv4-flash"})
                 retired = client.patch(
@@ -367,18 +373,25 @@ class ModelGovernanceSystemTests(unittest.TestCase):
 
     def test_partial_response_failure_records_once_and_does_not_fallback(self):
         settings = self._health_settings()
+        events: list[tuple[str, dict]] = []
         request = httpx.Request("POST", "https://example.test/chat/completions")
         error = httpx.HTTPStatusError("down", request=request, response=httpx.Response(500, request=request))
 
         async def stream(*args):
             args[-1]["answer_emitted"] = True
+            args[-1]["content_chars"] = 17
             raise error
 
-        with self._health_patches(settings, [(True, {"status": "healthy"}, None)]), patch("app.agent._stream_completion", new=stream), patch("app.agent.record_model_failure", return_value=({"status": "degraded"}, None)) as failure, patch("app.agent._offline_answer") as offline:
+        def capture(event_type: str, run_id: str, **fields) -> None:
+            events.append((event_type, fields))
+
+        with self._health_patches(settings, [(True, {"status": "healthy"}, None)]), patch("app.agent._stream_completion", new=stream), patch("app.agent.record_model_failure", return_value=({"status": "degraded"}, None)) as failure, patch("app.agent._offline_answer") as offline, patch("app.agent.emit", new=capture):
             with self.assertRaises(httpx.HTTPStatusError):
                 asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-partial-failure"))
         self.assertEqual(failure.call_count, 1)
         offline.assert_not_called()
+        failure_event = next(fields for event, fields in events if event == "model_call_finished")
+        self.assertEqual(failure_event["content_length"], 17)
 
     def test_non_retryable_4xx_does_not_change_health_or_fallback(self):
         settings = self._health_settings()

@@ -69,6 +69,7 @@ AGENT_RUN_LOG_DIR=logs/agent
 AGENT_LOG_MAX_BYTES=5242880
 AGENT_LOG_BACKUP_COUNT=5
 AGENT_LOG_CONTENT=metadata
+MODEL_CONTEXT_TIMEOUT_MS=15000
 MODEL_MAX_RETRIES=2
 MODEL_RETRY_BASE_MS=500
 MODEL_CIRCUIT_FAILURE_THRESHOLD=3
@@ -88,6 +89,8 @@ FAB_MOCK_VIRTUAL_LOTS=25000000
 FAB_MOCK_CURSOR_SECRET=replace-with-a-long-random-secret
 FAB_ADMIN_API_TOKEN=replace-with-a-long-random-admin-token
 ```
+
+`MODEL_CONTEXT_TIMEOUT_MS` 的默认值为 15000，允许范围为 1000 至 60000 毫秒。用户开启 Thinking 时，只有主推理/答案循环会启用它；结构化上下文分类始终关闭 Thinking，并在该总时限（跨协议纠正与网络重试）到期后保守降级。审计只记录推理字符数、结束原因和 Thinking 策略，不记录 `reasoning_content` 正文。
 
 模型健康是被动记录：只有实际的上下文或回答请求会更新状态，不会后台联网探测，也不会改写管理员显式兼容性测试结果。`MODEL_CIRCUIT_FAILURE_THRESHOLD` 默认 3、范围 1–10；`MODEL_CIRCUIT_COOLDOWN_SECONDS` 默认 60、范围 1–3600；`MODEL_CIRCUIT_RECOVERY_LEASE_SECONDS` 默认 120、范围 1–3600。仅 HTTP 429、5xx、超时和网络请求失败计数；4xx、协议/JSON/tool-call 契约错误和显式兼容性测试不计数。连续可用性故障达到阈值后会按冷却时间暂停该模型调用，并返回本地规则分析；一次成功的真实调用会恢复健康状态。
 

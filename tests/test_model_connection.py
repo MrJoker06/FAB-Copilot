@@ -16,6 +16,7 @@ MODEL_ENVIRONMENT = {
     "DEEPSEEK_API_KEY",
     "DEEPSEEK_BASE_URL",
     "DEEPSEEK_MODEL",
+    "MODEL_CONTEXT_TIMEOUT_MS",
 }
 
 
@@ -63,6 +64,18 @@ class ModelConnectionTests(unittest.TestCase):
         with self.assertRaises(FrozenInstanceError):
             connection.model = "other"
         self.assertNotIn("must-not-appear", repr(connection))
+
+    def test_context_timeout_uses_default_and_clamps_milliseconds(self):
+        with self._environment({}):
+            self.assertEqual(get_settings().model_context_timeout_seconds, 15.0)
+        with self._environment({"MODEL_CONTEXT_TIMEOUT_MS": "1000"}):
+            self.assertEqual(get_settings().model_context_timeout_seconds, 1.0)
+        with self._environment({"MODEL_CONTEXT_TIMEOUT_MS": "60000"}):
+            self.assertEqual(get_settings().model_context_timeout_seconds, 60.0)
+        with self._environment({"MODEL_CONTEXT_TIMEOUT_MS": "10"}):
+            self.assertEqual(get_settings().model_context_timeout_seconds, 1.0)
+        with self._environment({"MODEL_CONTEXT_TIMEOUT_MS": "999999"}):
+            self.assertEqual(get_settings().model_context_timeout_seconds, 60.0)
 
 
 if __name__ == "__main__":
