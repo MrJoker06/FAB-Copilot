@@ -1,4 +1,4 @@
-"""Run the deterministic local quality gate without browser or model dependencies."""
+"""Run the deterministic local quality gate; full includes isolated browser coverage."""
 from __future__ import annotations
 
 import argparse
@@ -171,6 +171,7 @@ def quality_commands(mode: str) -> list[list[str]]:
         [sys.executable, "scripts/evaluate_playbooks.py"],
     ])
     if mode == "full":
+        commands.append(["npm", "run", "test:e2e"])
         commands.append([sys.executable, "-m", "coverage", "report", "--include", "app/*", "--fail-under=80"])
     return commands
 

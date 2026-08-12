@@ -19,6 +19,8 @@ class QualityGateTests(unittest.TestCase):
         self.assertFalse(any(module.startswith("tests.system.") for module in quick[0]))
         self.assertIn([sys.executable, "-m", "coverage", "run", "--branch", "--source=app", "-m", "unittest", *run_quality_gate.python_test_modules(False)], full)
         self.assertEqual(full[-1], [sys.executable, "-m", "coverage", "report", "--include", "app/*", "--fail-under=80"])
+        self.assertEqual(full.count(["npm", "run", "test:e2e"]), 1)
+        self.assertEqual(quick.count(["npm", "run", "test:e2e"]), 0)
         self.assertEqual(quick[-2:], [
             [sys.executable, "scripts/evaluate_rag.py"],
             [sys.executable, "scripts/evaluate_playbooks.py"],

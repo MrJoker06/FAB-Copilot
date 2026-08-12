@@ -183,6 +183,14 @@ conda run -n fab-insight-agent python scripts/run_quality_gate.py quick
 
 完整质量门会先覆盖非系统 Python，再以独立进程逐个运行 `tests/system/` 的五个领域模块并合并 coverage。每个模块在导入应用前通过 SQLite backup 创建部门参考数据库的一致临时快照，个人知识、日志和数据库状态不会跨模块共享；耗时预算与结果报告分别位于 `evaluations/system_test_budgets.json` 和 `runtime/quality/system_test_timings.json`。
 
+浏览器回归首次使用前安装固定的 Node 依赖和 Chromium；它在独立的 `127.0.0.1:8899` 启动当前工作树、为五个部门库创建临时 SQLite 快照，并禁用真实模型凭据，因此不会使用 8888 的手工实例或调用上游模型：
+
+```bash
+npm ci
+npm run install:chromium
+npm run test:e2e
+```
+
 完整质量门会运行全部 Python 分支覆盖率（`app/*` 不低于 80%）及同一组前端、RAG 与 Playbook 检查：
 
 ```bash
