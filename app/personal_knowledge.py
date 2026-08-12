@@ -18,11 +18,12 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 from .audit import emit
 from .config import get_settings
 from .database import db_session
+from .ocr import OCRFailedError, OCRUnavailableError, extract_image_text
 from .processes import MANUFACTURING_STEPS, PROCESS_ALIASES, process_query_terms
 
 
-PARSER_VERSION = "personal-v1"
-SUPPORTED_SUFFIXES = {".pdf", ".docx", ".md", ".txt", ".csv", ".xlsx"}
+PARSER_VERSION = "personal-v2-ocr"
+SUPPORTED_SUFFIXES = {".pdf", ".docx", ".md", ".txt", ".csv", ".xlsx", ".png", ".jpg", ".jpeg", ".tif", ".tiff"}
 MIME_TYPES = {
     ".pdf": "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -30,7 +31,23 @@ MIME_TYPES = {
     ".txt": "text/plain",
     ".csv": "text/csv",
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".tif": "image/tiff",
+    ".tiff": "image/tiff",
 }
+IMAGE_FORMATS = {
+    ".png": "PNG",
+    ".jpg": "JPEG",
+    ".jpeg": "JPEG",
+    ".tif": "TIFF",
+    ".tiff": "TIFF",
+}
+MAX_OCR_PDF_PAGES = 100
+MAX_OCR_IMAGE_PIXELS = 20_000_000
+MAX_OCR_RENDERED_PIXELS = 80_000_000
+MIN_NATIVE_PDF_TEXT = 20
 
 # Canonical, reviewable vocabulary used for deterministic metadata extraction.
 DOCUMENT_TYPE_TAGS = {
@@ -256,6 +273,26 @@ def _validate_file(filename: str, data: bytes) -> tuple[str, str]:
             if b"\x00" in data[:8192]:
                 raise ValueError("binary content")
             data.decode("utf-8-sig")
+        if suffix in IMAGE_FORMATS:
+            from PIL import Image, UnidentifiedImageError
+            try:
+                with Image.open(io.BytesIO(data)) as image:
+                    image.verify()
+                with Image.open(io.BytesIO(data)) as image:
+                    frame_count = getattr(image, "n_frames", 1)
+                    if image.format != IMAGE_FORMATS[suffix] or frame_count > MAX_OCR_PDF_PAGES:
+                        raise ValueError("invalid image content")
+                    rendered_pixels = 0
+                    for frame_index in range(frame_count):
+                        image.seek(frame_index)
+                        pixels = image.width * image.height
+                        if pixels > MAX_OCR_IMAGE_PIXELS:
+                            raise ValueError("invalid image content")
+                        rendered_pixels += pixels
+                    if rendered_pixels > MAX_OCR_RENDERED_PIXELS:
+                        raise ValueError("invalid image content")
+            except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
+                raise ValueError("invalid image content") from exc
     except (UnicodeDecodeError, ValueError, zipfile.BadZipFile) as exc:
         raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "文件内容与声明类型不匹配或已经损坏") from exc
     return suffix, MIME_TYPES[suffix]
@@ -496,16 +533,71 @@ def _extract_sections(path: Path, suffix: str, title: str) -> list[ExtractedSect
     if suffix == ".pdf":
         from pypdf import PdfReader
 
-        reader = PdfReader(str(path))
+        try:
+            reader = PdfReader(str(path))
+        except Exception as exc:
+            raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "PDF 文件已经损坏，无法解析") from exc
         if reader.is_encrypted and not reader.decrypt(""):
             raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "PDF 已加密，无法解析")
-        sections = [
-            ExtractedSection(index, f"第 {index} 页", (page.extract_text() or "").strip())
-            for index, page in enumerate(reader.pages, start=1)
-        ]
-        if sum(len(section.content) for section in sections) < 20:
-            raise PersonalKnowledgeError(422, "OCR_REQUIRED", "该文件需要 OCR，当前版本暂不支持")
-        return [section for section in sections if section.content]
+        if len(reader.pages) > MAX_OCR_PDF_PAGES:
+            raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "PDF 页数超过安全限制")
+        try:
+            native = [(page.extract_text() or "").strip() for page in reader.pages]
+        except Exception as exc:
+            raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "PDF 文件已经损坏，无法解析") from exc
+        try:
+            import pymupdf
+        except ImportError as exc:
+            raise PersonalKnowledgeError(503, "OCR_UNAVAILABLE", "离线 OCR 引擎不可用", True) from exc
+        sections = []
+        rendered_pixels = 0
+        try:
+            document = pymupdf.open(path)
+        except Exception as exc:
+            raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "PDF 文件已经损坏，无法解析") from exc
+        try:
+            for index, text in enumerate(native, start=1):
+                if len(text) >= MIN_NATIVE_PDF_TEXT:
+                    sections.append(ExtractedSection(index, f"第 {index} 页", text))
+                    continue
+                page = document.load_page(index - 1)
+                pixmap = page.get_pixmap(matrix=pymupdf.Matrix(2, 2), alpha=False)
+                rendered_pixels += pixmap.width * pixmap.height
+                if rendered_pixels > MAX_OCR_RENDERED_PIXELS:
+                    raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "OCR 渲染内容超过安全限制")
+                try:
+                    text = extract_image_text(pixmap.tobytes("png"))
+                except OCRUnavailableError as exc:
+                    raise PersonalKnowledgeError(503, "OCR_UNAVAILABLE", "离线 OCR 引擎不可用", True) from exc
+                except OCRFailedError as exc:
+                    raise PersonalKnowledgeError(422, "OCR_FAILED", "离线 OCR 识别失败", True) from exc
+                combined = "\n".join(part for part in (native[index - 1], text) if part).strip()
+                if combined:
+                    sections.append(ExtractedSection(index, f"第 {index} 页", combined))
+        finally:
+            document.close()
+        return sections
+    if suffix in IMAGE_FORMATS:
+        from PIL import Image, ImageOps
+        try:
+            with Image.open(path) as image:
+                sections = []
+                rendered_pixels = 0
+                for frame_index in range(getattr(image, "n_frames", 1)):
+                    image.seek(frame_index)
+                    frame = ImageOps.exif_transpose(image).convert("RGB")
+                    pixels = frame.width * frame.height
+                    rendered_pixels += pixels
+                    if pixels > MAX_OCR_IMAGE_PIXELS or rendered_pixels > MAX_OCR_RENDERED_PIXELS:
+                        raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "图片像素超过安全限制")
+                    text = extract_image_text(frame.copy())
+                    if text:
+                        sections.append(ExtractedSection(frame_index + 1, f"第 {frame_index + 1} 页", text))
+        except OCRUnavailableError as exc:
+            raise PersonalKnowledgeError(503, "OCR_UNAVAILABLE", "离线 OCR 引擎不可用", True) from exc
+        except OCRFailedError as exc:
+            raise PersonalKnowledgeError(422, "OCR_FAILED", "离线 OCR 识别失败", True) from exc
+        return sections
     if suffix == ".docx":
         from docx import Document
 

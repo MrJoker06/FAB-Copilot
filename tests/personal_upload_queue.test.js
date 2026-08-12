@@ -19,6 +19,7 @@ test('validates extension and size per file', () => {
   assert.equal(queue.hasInvalid(result.items), true);
   assert.equal(queue.canUpload(result.items), false);
   assert.equal(queue.canUpload(queue.merge([], [file('ok.txt')]).items), true);
+  assert.equal(queue.validateFile(file('equipment.tiff', 10, 1, 'image/tiff')), '');
 });
 
 test('uploads in order, continues after failure, and retries only failures', async () => {

@@ -338,7 +338,7 @@ class KnowledgeUploadsSystemTests(unittest.TestCase):
                 )
                 self.assertEqual(authenticated.status_code, 200)
 
-    def test_personal_knowledge_scanned_pdf_requires_ocr(self):
+    def test_personal_knowledge_blank_scanned_pdf_fails_without_silent_indexing(self):
         from pypdf import PdfWriter
 
         output = io.BytesIO()
@@ -348,14 +348,14 @@ class KnowledgeUploadsSystemTests(unittest.TestCase):
         with TestClient(app) as client:
             uploaded = client.post(
                 "/api/knowledge/personal/documents",
-                headers={"Idempotency-Key": "ocr-required-test"},
+                headers={"Idempotency-Key": "blank-ocr-test"},
                 files={"file": ("scanned.pdf", output.getvalue(), "application/pdf")},
             )
             self.assertEqual(uploaded.status_code, 202, uploaded.text)
             job = client.get(f"/api/knowledge/jobs/{uploaded.json()['job_id']}")
             self.assertEqual(job.status_code, 200)
             self.assertEqual(job.json()["status"], "failed")
-            self.assertEqual(job.json()["error"]["error_code"], "OCR_REQUIRED")
+            self.assertEqual(job.json()["error"]["error_code"], "INVALID_FILE_CONTENT")
             deleted = client.delete(f"/api/knowledge/personal/documents/{uploaded.json()['document_id']}")
             self.assertEqual(deleted.status_code, 202)
 

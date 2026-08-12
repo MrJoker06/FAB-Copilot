@@ -43,6 +43,8 @@ python scripts/run_quality_gate.py quick
 
 2026-08-12 `UX-012` 宿主 full 实测全通过：发现 267 个 Python 测试，其中 202 个非系统测试；系统模块分别为数据报表 12、HTTP/企业契约 15、知识与个人上传 12、模型治理 17、会话与流式 9；`app` 分支覆盖率 86%，Node 33 项、RAG 15/15、Playbook 12/12，Playwright 桌面 2/2。
 
+2026-08-12 `RAG-011` 宿主 full 实测全通过：发现 276 个 Python 测试，其中 211 个非系统测试；系统模块分别为数据报表 12、HTTP/企业契约 15、知识与个人上传 12、模型治理 17、会话与流式 9；`app` 分支覆盖率 86%，Node 33 项、RAG 15/15、Playbook 12/12，Playwright 桌面 2/2。结构化系统耗时报告总计约 149.0 秒，所有模块及总计均低于预算。
+
 ```bash
 python scripts/run_quality_gate.py full
 ```

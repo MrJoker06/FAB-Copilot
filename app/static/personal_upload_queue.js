@@ -4,7 +4,7 @@
   root.FabPersonalUploadQueue = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function() {
   const MAX_BYTES = 50 * 1024 * 1024;
-  const ALLOWED_EXTENSIONS = new Set(['pdf', 'docx', 'md', 'txt', 'csv', 'xlsx']);
+  const ALLOWED_EXTENSIONS = new Set(['pdf', 'docx', 'md', 'txt', 'csv', 'xlsx', 'png', 'jpg', 'jpeg', 'tif', 'tiff']);
 
   function fileKey(file) { return [file.name, file.size, file.lastModified, file.type].join('|'); }
   function extension(file) { return String(file.name || '').split('.').pop().toLowerCase(); }

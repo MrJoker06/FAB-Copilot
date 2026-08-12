@@ -28,12 +28,14 @@ class VersionContractTests(unittest.TestCase):
         self.assertNotIn('id="renamePersonalKnowledge"', html)
         self.assertNotIn('id="personalKnowledgeRenameDialog"', html)
         self.assertNotIn('id="knowledgeUploadTitle"', html)
+        self.assertIn('.png,.jpg,.jpeg,.tif,.tiff', upload_input.group(0))
         script = (Path(__file__).parents[1] / "app" / "static" / "app.js").read_text(encoding="utf-8")
         self.assertNotIn('personalKnowledgeAdd', script)
         self.assertIn('personal-knowledge-upload-more', script)
         self.assertIn('data-open-knowledge-upload', script)
         self.assertIn("${tags || '无标签'}", script)
         self.assertIn("信息已保存，但列表刷新失败", script)
+        self.assertNotIn("OCR 尚未启用", script)
 
     def test_rendered_pages_share_the_active_build_version(self):
         for page in ("index", "admin"):
