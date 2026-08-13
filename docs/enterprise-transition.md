@@ -88,7 +88,15 @@ def page(entity: str, principal: Principal, limit: int, cursor: str | None, filt
 - 每页最多 500 行；Agent 优先读取聚合结果，不把原始大页直接塞入模型上下文。
 - 对 MES/EDA/FDC 分别设置超时、熔断、重试和限流，失败时返回数据源级错误，不静默混用模拟数据。
 
-## 5. 任务跟踪
+## 5. 环境数据边界
+
+上层 API 和 Agent 工具接口保持不变。SQLite 是开发和测试环境的可复现 surrogate；Oracle 是生产制造事实来源，但只能经用户已有的接口或适配器访问，不要求也不允许开发环境直连 Oracle。
+
+企业制造数据与应用自有状态必须区分治理：前者后续按 MES、EDA/FDC、YMS 等业务域逐一映射到既有生产接口；后者是否保留在应用存储或迁移到其他受管服务另行确定。不默认所有 SQLite 表都应直接搬入 Oracle。
+
+生产接口切换、回滚及其配置仅能在获授权的生产或集成环境验证；默认开发和测试保持离线，并使用脱敏固定夹具和契约回放。生产配置缺失或接口不可用时必须 fail-closed，不能静默回退到模拟数据。
+
+## 6. 任务跟踪
 
 本文只维护企业数据边界、模拟契约和提供器替换原则，不重复维护演进任务状态。相关任务统一记录在：
 
@@ -97,7 +105,7 @@ def page(entity: str, principal: Principal, limit: int, cursor: str | None, filt
 - [RAG 与知识库 TODO](todos/rag-knowledge.md)
 - [部署与服务拆分 TODO](todos/deployment-architecture.md)
 
-## 6. 运行隔离
+## 7. 运行隔离
 
 - 当前分支默认监听 `127.0.0.1:8888`，与 `8765` 路线并行。
 - 数据、个人知识和日志默认位于本 worktree 的 `data/` 与 `logs/`，不会复用另一 worktree 的运行文件。

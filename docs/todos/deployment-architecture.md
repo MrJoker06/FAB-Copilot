@@ -15,7 +15,7 @@
 
 - [ ] `DEPLOY-008` 将用户前端和管理前端拆成可独立构建、部署和版本化的工程。
 - [ ] `DEPLOY-009` 将用户 API、管理 API、Agent Runtime 和 Retrieval Service 拆成独立部署单元。
-- [ ] `DEPLOY-010` 将 SQLite 迁移为生产数据库，并建立正式迁移工具与回滚流程。
+- [ ] `DEPLOY-010` 依赖 `DATA-017`，实施 Oracle 生产接口切换、配置与回滚流程，并在适用时维护迁移账本；不将 SQLite 笼统直迁为生产库，开发环境仍使用 SQLite。
 - [ ] `DEPLOY-011` 提供容器镜像、Compose 或 Kubernetes 本地集成环境。
 - [ ] `DEPLOY-012` 建立 CI，包括格式、静态检查、单元测试、集成测试和浏览器测试。
 - [ ] `DEPLOY-013` 建立 CD、配置分层、密钥注入、健康检查和滚动回滚。
