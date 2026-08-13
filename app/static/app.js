@@ -443,7 +443,11 @@ async function setKnowledgeMode(mode) {
   stopPersonalJobEvents({complete:true});
   window.clearTimeout(state.personalKnowledgePollTimer);
   state.personalKnowledgePollTimer = null;
-  document.querySelectorAll('[data-knowledge-mode]').forEach(button => button.classList.toggle('active', button.dataset.knowledgeMode === mode));
+  document.querySelectorAll('[data-knowledge-mode]').forEach(button => {
+    const active = button.dataset.knowledgeMode === mode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
   $('#knowledgeIndexTitle').textContent = mode === 'personal' ? '我的文档' : '文档目录';
   $('#knowledgeIndexHint').textContent = mode === 'personal' ? '仅当前用户可见' : '按文档浏览章节';
   $('#knowledgeFilter').placeholder = mode === 'personal' ? '搜索我的文档' : '筛选文档或章节';
@@ -788,7 +792,7 @@ async function loadModelConfig() {
 
 async function openModelSettings() {
   const message = $('#modelSettingsMessage'); message.hidden = true; message.classList.remove('error');
-  try { await loadModelConfig(); $('#modelDialog').showModal(); }
+  try { await loadModelConfig(); $('#modelDialog').showModal(); $('#modelSelect').focus(); }
   catch (error) { alert(`无法加载模型配置：${error.message}`); }
 }
 
@@ -1622,6 +1626,8 @@ function showView(name) {
   if (name !== 'knowledge') stopPersonalJobEvents({complete:true});
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item[data-view]').forEach(v => v.removeAttribute('aria-current'));
+  document.querySelector(`[data-view="${name}"]`)?.setAttribute('aria-current', 'page');
   $(`#${name}View`).classList.add('active'); document.querySelector(`[data-view="${name}"]`)?.classList.add('active');
   const historyActive = name === 'sessions';
   $('#sessionHistoryButton').classList.toggle('active', historyActive);
@@ -1791,6 +1797,11 @@ async function init() {
   });
   $('#knowledgeUploadForm').addEventListener('submit', uploadPersonalKnowledge);
   $('#knowledgeUploadFile').addEventListener('change', event => { mergeKnowledgeUploadFiles(event.target.files); event.target.value = ''; });
+  $('#knowledgeUploadDrop').addEventListener('keydown', event => {
+    if (!['Enter', ' '].includes(event.key) || state.personalUploadInProgress) return;
+    event.preventDefault();
+    $('#knowledgeUploadFile').click();
+  });
   $('#knowledgeUploadDrop').addEventListener('dragover', event => { event.preventDefault(); event.currentTarget.classList.add('dragging'); });
   $('#knowledgeUploadDrop').addEventListener('dragleave', event => event.currentTarget.classList.remove('dragging'));
   $('#knowledgeUploadDrop').addEventListener('drop', event => {

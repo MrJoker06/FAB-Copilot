@@ -185,6 +185,10 @@ function showView(name) {
   adminState.activeView = name;
   document.querySelectorAll('.admin-view').forEach(view => view.classList.toggle('active', view.id === `${name}View`));
   document.querySelectorAll('.admin-nav').forEach(button => button.classList.toggle('active', button.dataset.adminView === name));
+  document.querySelectorAll('.admin-nav').forEach(button => {
+    if (button.dataset.adminView === name) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  });
   if (name === 'models') loadModels().catch(() => {}); else loadOverview().catch(() => {});
 }
 
@@ -201,12 +205,13 @@ async function authenticate(event) {
 
 function init() {
   document.querySelectorAll('[data-admin-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.adminView)));
+  $('#adminAuthDialog').addEventListener('cancel', event => event.preventDefault());
   $('#adminAuthForm').addEventListener('submit', authenticate);
   $('#adminLogout').addEventListener('click', () => { adminState.token = ''; sessionStorage.removeItem('fabInsightAdminToken'); showAuth(); });
   $('#refreshRuntime').addEventListener('click', () => loadOverview().catch(() => {}));
   $('#runtimeHours').addEventListener('change', () => loadOverview().catch(() => {}));
   $('#refreshModels').addEventListener('click', () => loadModels().catch(() => {}));
-  $('#openPublishModel').addEventListener('click', () => { $('#publishModelMessage').hidden = true; $('#publishModelDialog').showModal(); });
+  $('#openPublishModel').addEventListener('click', () => { $('#publishModelMessage').hidden = true; $('#publishModelDialog').showModal(); $('#publishDisplayName').focus(); });
   $('#closePublishModel').addEventListener('click', () => $('#publishModelDialog').close());
   $('#cancelPublishModel').addEventListener('click', () => $('#publishModelDialog').close());
   $('#publishModelForm').addEventListener('submit', publishModel);

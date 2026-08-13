@@ -4,7 +4,7 @@
 
 审计前有 166 个 Python 测试、19 个 JavaScript 断言和 15 条 RAG 黄金集。完整宿主 Python 回归当时有 2 个失败；`app` 分支覆盖率为 81%。低覆盖重点为 `seed.py`（25%）、`database.py`（76%）、`agent.py`（77%）、`context_resolver.py`（78%）和 `personal_knowledge.py`（80%）。在 coverage run 中，`scripts/evaluate_rag.py`、`scripts/manage_databases.py` 和 `scripts/smoke_stream.py` 均为 0%；其中 RAG 评估另以独立命令实际通过 15/15。
 
-系统测试现有 54 项，按数据报表、知识与个人上传、HTTP/企业契约、模型治理、会话与流式拆分至 `tests/system/`。完整门为每个模块启动独立进程：fixture 在导入 app 前以 SQLite backup 创建参考部门数据库的一致临时快照，并使用独立个人知识目录、日志目录，进程退出时清理。Playwright 覆盖 1440x900 Chromium 的用户总览、管理端锁定/已认证工作区，以及真实隔离 FastAPI 上的模型 Thinking 能力切换、个人知识上传就绪、Thinking 流式回答与会话归档。它使用 8899 临时服务、隔离快照和固定测试令牌，不调用真实模型；临时 AI 运营库固定提供一个不支持和一个支持 Thinking 的已发布模型。失败时保留 trace 与截图至被 Git 忽略的 `test-results/` 和 `playwright-report/`；移动端、无障碍审计和视觉基线不在本项范围。
+系统测试现有 54 项，按数据报表、知识与个人上传、HTTP/企业契约、模型治理、会话与流式拆分至 `tests/system/`。完整门为每个模块启动独立进程：fixture 在导入 app 前以 SQLite backup 创建参考部门数据库的一致临时快照，并使用独立个人知识目录、日志目录，进程退出时清理。Playwright 覆盖 1440x900 Chromium 的用户总览、管理端锁定/已认证工作区，以及真实隔离 FastAPI 上的模型 Thinking 能力切换、个人知识上传就绪、Thinking 流式回答与会话归档；Axe WCAG 2.0/2.1/2.2 A/AA（含颜色对比度）扫描用户关键视图/模型对话框和管理端认证、运行、模型目录与发布对话框，并验证键盘导航、Dialog 焦点和认证弹窗 Escape 策略。它使用 8899 临时服务、隔离快照和固定测试令牌，不调用真实模型；临时 AI 运营库固定提供一个不支持和一个支持 Thinking 的已发布模型。失败时保留 trace 与截图至被 Git 忽略的 `test-results/` 和 `playwright-report/`；移动端和视觉基线不在本项范围。
 
 ## 分层与原则
 
@@ -52,6 +52,8 @@ python scripts/run_quality_gate.py quick
 2026-08-13 `RAG-016` 宿主 full 实测全通过：发现 324 个 Python 测试，其中 258 个非系统测试；系统模块分别为数据报表 12、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 9；`app` 分支覆盖率 87%，Node 34 项、RAG 15/15、OCR 黄金集 8/8 类别通过、Playbook 12/12，Playwright 桌面 2/2。结构化运行时报告总计 82.9 秒，五个模块及总计均低于版本化预算。
 
 2026-08-13 `UX-013` 宿主 full 实测全通过：发现 326 个 Python 测试，其中 260 个非系统测试；系统模块分别为数据报表 12、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 9；`app` 分支覆盖率 87%，Node 34 项、RAG 15/15、OCR 黄金集 8/8 类别通过、Playbook 12/12，Playwright 桌面 5/5。`runtime/quality/system_test_timings.json` 总计 74.7 秒，五个模块及总计均低于版本化预算。
+
+2026-08-13 `UX-014` 宿主 full 实测全通过：发现 326 个 Python 测试，其中 260 个非系统测试；系统模块分别为数据报表 12、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 9；`app` 分支覆盖率 87%，Node 35 项、RAG 15/15、OCR 黄金集 8/8 类别通过、Playbook 12/12，Playwright 桌面 8/8，Axe WCAG 2.0/2.1/2.2 A/AA 扫描零违规。`runtime/quality/system_test_timings.json` 总计 76.4 秒，五个模块及总计均低于版本化预算。
 
 ```bash
 python scripts/run_quality_gate.py full

@@ -11,13 +11,13 @@
 <body>
   <div id="adminWorkspace" class="admin-workspace" hidden>
   <header class="admin-topbar">
-    <div class="admin-brand"><span class="admin-mark">FI</span><div><strong>Fab Insight</strong><small>企业管理控制台</small></div></div>
+    <div class="admin-brand"><span class="admin-mark" aria-hidden="true">FI</span><div><strong>Fab Insight</strong><small>企业管理控制台</small></div></div>
     <div class="admin-top-actions"><span id="adminConnection" class="connection-state"><i></i>未连接</span><button id="adminLogout" class="quiet-button" type="button">退出管理端</button></div>
   </header>
 
   <div class="admin-shell">
     <aside class="admin-sidebar" aria-label="管理导航">
-      <button class="admin-nav active" data-admin-view="runtime" type="button"><span aria-hidden="true">◉</span><span>运行状态</span></button>
+      <button class="admin-nav active" data-admin-view="runtime" type="button" aria-current="page"><span aria-hidden="true">◉</span><span>运行状态</span></button>
       <button class="admin-nav" data-admin-view="models" type="button"><span aria-hidden="true">▤</span><span>模型目录</span></button>
       <div class="admin-sidebar-meta"><span>PLATFORM OPS</span><small id="adminBuild">等待连接</small></div>
     </aside>
@@ -55,17 +55,17 @@
   </div>
   </div>
 
-  <dialog id="adminAuthDialog" class="admin-dialog auth-dialog">
+  <dialog id="adminAuthDialog" class="admin-dialog auth-dialog" aria-labelledby="adminAuthDialogTitle">
     <form id="adminAuthForm">
-      <div class="dialog-heading"><div><p class="admin-eyebrow">ADMIN ACCESS</p><h2>连接管理端</h2></div></div>
+      <div class="dialog-heading"><div><p class="admin-eyebrow">ADMIN ACCESS</p><h2 id="adminAuthDialogTitle">连接管理端</h2></div></div>
       <div class="dialog-body"><label for="adminToken">管理访问令牌</label><input id="adminToken" type="password" autocomplete="off" required><div id="adminAuthMessage" class="form-message" role="alert" hidden></div></div>
       <div class="dialog-actions"><a class="quiet-button link-button" href="/">返回用户端</a><button class="primary-button" type="submit">连接</button></div>
     </form>
   </dialog>
 
-  <dialog id="publishModelDialog" class="admin-dialog publish-dialog">
+  <dialog id="publishModelDialog" class="admin-dialog publish-dialog" aria-labelledby="publishModelDialogTitle">
     <form id="publishModelForm">
-      <div class="dialog-heading"><div><p class="admin-eyebrow">PUBLISH MODEL</p><h2>发布新模型</h2></div><button id="closePublishModel" class="icon-button" type="button" aria-label="关闭">×</button></div>
+      <div class="dialog-heading"><div><p class="admin-eyebrow">PUBLISH MODEL</p><h2 id="publishModelDialogTitle">发布新模型</h2></div><button id="closePublishModel" class="icon-button" type="button" aria-label="关闭">×</button></div>
       <div class="dialog-body model-form-grid">
         <label><span>显示名称</span><input id="publishDisplayName" type="text" maxlength="100" required></label>
         <label><span>模型编号</span><input id="publishModelId" type="text" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9_.-]+" required></label>
@@ -79,7 +79,7 @@
     </form>
   </dialog>
 
-  <dialog id="editCapabilitiesDialog" class="admin-dialog publish-dialog">
+  <dialog id="editCapabilitiesDialog" class="admin-dialog publish-dialog" aria-labelledby="editCapabilitiesTitle">
     <form id="editCapabilitiesForm">
       <div class="dialog-heading"><div><p class="admin-eyebrow">CAPABILITY DECLARATION</p><h2 id="editCapabilitiesTitle">编辑能力</h2></div><button id="closeCapabilities" class="icon-button" type="button" aria-label="关闭">×</button></div>
       <div class="dialog-body"><input id="editCapabilitiesModelId" type="hidden"><p class="field-hint">这是管理员声明；保存不会联网，并会使此前兼容性测试结果失效。</p><div class="capability-options"><label><input id="editStreaming" type="checkbox"> Streaming</label><label><input id="editToolCalls" type="checkbox"> Tool calls</label><label><input id="editThinking" type="checkbox"> Thinking</label><label><input id="editNativeMultimodal" type="checkbox"> 原生多模态</label></div><div id="editCapabilitiesMessage" class="form-message" role="alert" hidden></div></div>

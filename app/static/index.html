@@ -25,7 +25,7 @@
 
   <div class="app-shell">
     <aside class="sidebar" aria-label="主导航">
-      <button class="nav-item active" data-view="dashboard" title="制造总览"><span aria-hidden="true">▦</span><span>制造总览</span></button>
+      <button class="nav-item active" data-view="dashboard" title="制造总览" aria-current="page"><span aria-hidden="true">▦</span><span>制造总览</span></button>
       <button class="nav-item" data-view="capability" title="制程能力"><span aria-hidden="true">◎</span><span>制程能力</span></button>
       <button class="nav-item" data-view="knowledge" title="知识库"><span aria-hidden="true">▤</span><span>知识库</span></button>
       <button class="nav-item" data-view="cases" title="历史案例库"><span aria-hidden="true">▥</span><span>案例库</span></button>
@@ -89,8 +89,8 @@
           <div><p class="eyebrow">PROCESS KNOWLEDGE</p><h1>制造知识库</h1><p>厂内 SOP、控制计划与分析手册</p></div>
           <div class="knowledge-toolbar">
             <div id="knowledgeSourceTabs" class="segmented knowledge-source-tabs" aria-label="选择知识来源">
-              <button type="button" data-knowledge-mode="factory" class="active">工厂知识</button>
-              <button type="button" data-knowledge-mode="personal">我的知识</button>
+            <button type="button" data-knowledge-mode="factory" class="active" aria-pressed="true">工厂知识</button>
+              <button type="button" data-knowledge-mode="personal" aria-pressed="false">我的知识</button>
             </div>
             <div class="knowledge-search"><input id="knowledgeFilter" type="search" placeholder="筛选文档或章节" aria-label="筛选知识库"><span id="knowledgeCount"></span></div>
           </div>
@@ -194,9 +194,9 @@
 
   <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
 
-  <dialog id="sessionRenameDialog" class="settings-dialog session-rename-dialog">
+  <dialog id="sessionRenameDialog" class="settings-dialog session-rename-dialog" aria-labelledby="sessionRenameDialogTitle">
     <form id="sessionRenameForm">
-      <div class="dialog-heading"><div><p class="eyebrow">RENAME CONVERSATION</p><h2>重命名会话</h2></div><button id="closeSessionRenameDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="dialog-heading"><div><p class="eyebrow">RENAME CONVERSATION</p><h2 id="sessionRenameDialogTitle">重命名会话</h2></div><button id="closeSessionRenameDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
       <div class="dialog-body">
         <label class="field-label" for="sessionRenameInput">会话标题</label>
         <input id="sessionRenameInput" class="dialog-text-input" type="text" maxlength="80" autocomplete="off" aria-describedby="sessionRenameCount sessionRenameMessage" required>
@@ -207,17 +207,17 @@
     </form>
   </dialog>
 
-  <dialog id="sessionDeleteDialog" class="settings-dialog session-delete-dialog">
+  <dialog id="sessionDeleteDialog" class="settings-dialog session-delete-dialog" aria-labelledby="sessionDeleteDialogTitle">
     <form id="sessionDeleteForm">
-      <div class="dialog-heading"><div><p class="eyebrow">DELETE CONVERSATION</p><h2>删除会话？</h2></div><button id="closeSessionDeleteDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="dialog-heading"><div><p class="eyebrow">DELETE CONVERSATION</p><h2 id="sessionDeleteDialogTitle">删除会话？</h2></div><button id="closeSessionDeleteDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
       <div class="dialog-body"><p id="sessionDeleteMessage" class="delete-warning"></p><p class="delete-consequence">选中会话的消息、Agent 运行记录、工具调用和来源记录都会立即删除，且无法恢复。</p></div>
       <div class="dialog-actions"><button id="cancelSessionDelete" type="button" class="secondary-btn">取消</button><button id="confirmSessionDelete" type="submit" class="danger-btn">删除</button></div>
     </form>
   </dialog>
 
-  <dialog id="knowledgeUploadDialog" class="settings-dialog knowledge-upload-dialog">
+  <dialog id="knowledgeUploadDialog" class="settings-dialog knowledge-upload-dialog" aria-labelledby="knowledgeUploadDialogTitle">
     <form id="knowledgeUploadForm">
-      <div class="dialog-heading"><div><p class="eyebrow">PRIVATE KNOWLEDGE</p><h2>上传个人文档</h2></div><button id="closeKnowledgeUploadDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="dialog-heading"><div><p class="eyebrow">PRIVATE KNOWLEDGE</p><h2 id="knowledgeUploadDialogTitle">上传个人文档</h2></div><button id="closeKnowledgeUploadDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
       <div class="dialog-body knowledge-upload-body">
         <label id="knowledgeUploadDrop" class="knowledge-upload-drop" for="knowledgeUploadFile" tabindex="0">
           <input id="knowledgeUploadFile" type="file" accept=".pdf,.docx,.md,.txt,.csv,.xlsx,.png,.jpg,.jpeg,.tif,.tiff" multiple>
@@ -238,17 +238,17 @@
     </form>
   </dialog>
 
-  <dialog id="personalKnowledgeDeleteDialog" class="settings-dialog session-delete-dialog">
+  <dialog id="personalKnowledgeDeleteDialog" class="settings-dialog session-delete-dialog" aria-labelledby="personalKnowledgeDeleteDialogTitle">
     <form id="personalKnowledgeDeleteForm">
-      <div class="dialog-heading"><div><p class="eyebrow">DELETE DOCUMENT</p><h2>删除个人文档？</h2></div><button id="closePersonalKnowledgeDeleteDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="dialog-heading"><div><p class="eyebrow">DELETE DOCUMENT</p><h2 id="personalKnowledgeDeleteDialogTitle">删除个人文档？</h2></div><button id="closePersonalKnowledgeDeleteDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
       <div class="dialog-body"><p id="personalKnowledgeDeleteMessage" class="delete-warning"></p><p class="delete-consequence">原始文件、解析内容和个人检索索引都会删除，且无法恢复。</p></div>
       <div class="dialog-actions"><button id="cancelPersonalKnowledgeDelete" type="button" class="secondary-btn">取消</button><button id="confirmPersonalKnowledgeDelete" type="submit" class="danger-btn">删除</button></div>
     </form>
   </dialog>
 
-  <dialog id="personalKnowledgeMetadataDialog" class="settings-dialog personal-knowledge-metadata-dialog">
+  <dialog id="personalKnowledgeMetadataDialog" class="settings-dialog personal-knowledge-metadata-dialog" aria-labelledby="personalKnowledgeMetadataDialogTitle">
     <form id="personalKnowledgeMetadataForm">
-      <div class="dialog-heading"><div><p class="eyebrow">PRIVATE KNOWLEDGE</p><h2>编辑文档信息</h2></div><button id="closePersonalKnowledgeMetadataDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="dialog-heading"><div><p class="eyebrow">PRIVATE KNOWLEDGE</p><h2 id="personalKnowledgeMetadataDialogTitle">编辑文档信息</h2></div><button id="closePersonalKnowledgeMetadataDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
       <div class="dialog-body"><div class="knowledge-form-grid">
         <label><span class="field-label">知识名称</span><input id="personalKnowledgeMetadataTitle" class="dialog-text-input" type="text" maxlength="200" autocomplete="off" required></label>
         <label><span class="field-label">所属制程</span><select id="personalKnowledgeMetadataStep"><option value="">不指定</option><option value="LITHO">光刻</option><option value="ETCH">刻蚀</option><option value="CVD">化学气相沉积</option><option value="PVD">物理气相沉积</option><option value="DIFFUSION">扩散 / 炉管</option><option value="IMPLANT">离子注入</option><option value="CMP">化学机械研磨</option><option value="CLEAN">湿法清洗</option><option value="METROLOGY">量测</option></select></label>
@@ -260,9 +260,9 @@
     </form>
   </dialog>
 
-  <dialog id="modelDialog" class="settings-dialog">
+  <dialog id="modelDialog" class="settings-dialog" aria-labelledby="modelDialogTitle">
     <form id="modelSettingsForm">
-      <div class="dialog-heading"><div><p class="eyebrow">MODEL CATALOG</p><h2>模型设置</h2></div><button id="closeModelDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
+      <div class="dialog-heading"><div><p class="eyebrow">MODEL CATALOG</p><h2 id="modelDialogTitle">模型设置</h2></div><button id="closeModelDialog" type="button" class="icon-btn" aria-label="关闭">×</button></div>
       <div class="dialog-body">
         <label class="field-label" for="modelSelect">模型</label>
         <select id="modelSelect" required></select>

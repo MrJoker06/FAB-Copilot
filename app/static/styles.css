@@ -3,11 +3,11 @@
   --surface: #ffffff;
   --surface-muted: #f8faf9;
   --ink: #17211f;
-  --muted: #697572;
+  --muted: #65716e;
   --line: #dce3e1;
   --teal: #087f70;
   --teal-dark: #08665c;
-  --coral: #c95445;
+  --coral: #b94438;
   --amber: #b87917;
   --green: #2f7d4d;
   --nav: #192522;
@@ -78,7 +78,7 @@ h1 { font-size: 24px; line-height: 1.15; margin: 0; font-weight: 690; }
 .kpi-label { display: block; color: var(--muted); font-size: 11px; margin-bottom: 7px; }
 .kpi-value { font-size: 24px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
 .kpi-unit { margin-left: 3px; font-size: 11px; color: var(--muted); font-weight: 500; }
-.kpi-meta { display: block; margin-top: 8px; color: #86918e; font-size: 9px; }
+.kpi-meta { display: block; margin-top: 8px; color: #65716e; font-size: 9px; }
 
 .report-grid { display: grid; grid-template-columns: minmax(420px, 1.5fr) minmax(260px, .8fr); gap: 14px; }
 .panel { background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: 6px; min-width: 0; }
@@ -293,7 +293,7 @@ tbody tr:hover { background: #f8fbfa; }
 .chat-form textarea { width: 100%; resize: none; border: 1px solid #cfd9d6; border-radius: 4px; padding: 9px 10px; outline: none; color: var(--ink); font-size: 12px; line-height: 1.45; }
 .chat-form textarea:focus { border-color: #67a99a; box-shadow: 0 0 0 2px rgba(8,127,112,.08); }
 .chat-actions { margin-top: 7px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.chat-actions span { color: #8a9592; font-size: 8px; }
+.chat-actions span { color: #62716c; font-size: 8px; }
 .chat-action-buttons { display: flex; align-items: center; gap: 7px; }
 .thinking-toggle { height: 30px; padding: 0 10px; border: 1px solid #91bdb4; border-radius: 4px; color: #176d61; background: #f4fbf9; font-weight: 650; font-size: 11px; cursor: pointer; }
 .thinking-toggle[aria-pressed="true"] { color: #fff; border-color: var(--teal); background: var(--teal); }
@@ -328,6 +328,8 @@ tbody tr:hover { background: #f8fbfa; }
 .knowledge-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 17px; }.knowledge-form-grid label { min-width: 0; }.knowledge-form-grid .field-label { margin-bottom: 6px; }.knowledge-form-grid select { width: 100%; height: 38px; margin: 0; border: 1px solid #cfd9d6; border-radius: 4px; padding: 0 10px; color: var(--ink); background: #fff; font-size: 12px; outline: none; }.knowledge-form-grid select:focus { border-color: #67a99a; box-shadow: 0 0 0 2px rgba(8,127,112,.08); }.knowledge-tags-field { grid-column: 1 / -1; }.knowledge-privacy-note { margin: 15px 0 0; color: #5c6c67; font-size: 9px; line-height: 1.6; }
 .toast-region { position: fixed; left: 50%; bottom: 24px; z-index: 100; width: min(430px, calc(100vw - 24px)); transform: translateX(-50%); pointer-events: none; }.toast { min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 8px 9px 8px 13px; border: 1px solid #394844; border-radius: 5px; color: #f5f8f7; background: #22302c; box-shadow: 0 14px 38px rgba(12,30,25,.25); pointer-events: auto; animation: toast-in .18s ease-out; }.toast-message { min-width: 0; flex: 1; overflow-wrap: anywhere; font-size: 11px; }.toast-action, .toast-close { border: 0; color: #82d1bf; background: transparent; }.toast-action { min-height: 30px; padding: 0 7px; font-size: 11px; font-weight: 700; }.toast-action:hover { color: #b3e8dc; }.toast-close { width: 30px; height: 30px; color: #a9b7b3; font-size: 17px; }.toast-close:hover { color: #fff; }.toast.error { border-color: #8d443c; background: #512e29; }.toast.error .toast-action { color: #ffd3cc; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([tabindex="-1"]):focus-visible { outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 4px #08665c; }
 
 @media (max-width: 1280px) {
   .app-shell { --agent-width: 340px; grid-template-columns: 64px minmax(600px, 1fr) var(--agent-width); }
