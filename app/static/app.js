@@ -18,6 +18,13 @@ function isoDate(date) { return date.toISOString().slice(0, 10); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 function formatNumber(value) { const number = Number(value); return Number.isFinite(number) ? number.toLocaleString('zh-CN') : String(value ?? '—'); }
 function formatFileSize(value) { const bytes = Number(value) || 0; if (bytes < 1024) return `${bytes} B`; if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`; return `${(bytes / 1024 ** 2).toFixed(1)} MB`; }
+function identityHeaders(initial = {}) {
+  const headers = new Headers(initial);
+  const tenantId = localStorage.getItem(TENANT_ID_KEY), userId = localStorage.getItem(USER_ID_KEY);
+  if (tenantId) headers.set('X-Tenant-ID', tenantId);
+  if (userId) headers.set('X-User-ID', userId);
+  return headers;
+}
 
 class FabApiError extends Error {
   constructor(message, {code = 'REQUEST_ERROR', requestId = '', retryable = false, status = 0} = {}) {
@@ -48,11 +55,7 @@ function setInitialDates() {
 }
 
 async function api(url, options) {
-  const headers = new Headers(options?.headers || {});
-  const tenantId = localStorage.getItem(TENANT_ID_KEY);
-  const userId = localStorage.getItem(USER_ID_KEY);
-  if (tenantId) headers.set('X-Tenant-ID', tenantId);
-  if (userId) headers.set('X-User-ID', userId);
+  const headers = identityHeaders(options?.headers || {});
   let response;
   try { response = await fetch(url, {...(options || {}), headers}); }
   catch (error) { throw new FabApiError('无法连接 Fab Insight 服务', {code:'NETWORK_ERROR', retryable:true}); }
@@ -277,10 +280,7 @@ function debouncePersonalKnowledgeEventRefresh() {
 }
 
 function personalJobEventHeaders() {
-  const headers = new Headers({'Accept':'text/event-stream'});
-  const tenantId = localStorage.getItem(TENANT_ID_KEY), userId = localStorage.getItem(USER_ID_KEY);
-  if (tenantId) headers.set('X-Tenant-ID', tenantId);
-  if (userId) headers.set('X-User-ID', userId);
+  const headers = identityHeaders({'Accept':'text/event-stream'});
   if (state.personalJobEventsLastId) headers.set('Last-Event-ID', state.personalJobEventsLastId);
   return headers;
 }
@@ -1491,7 +1491,8 @@ async function streamAgent(message, clientMessageId, onProgress, diagnostics, us
   let response;
   try {
     const payload = thinkingControl.requestPayload({message, session_id:state.sessionId, client_message_id:clientMessageId}, state.modelConfig, useThinking);
-    response = await fetch('/api/chat/stream', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    const headers = identityHeaders({'Content-Type':'application/json'});
+    response = await fetch('/api/chat/stream', {method:'POST', headers, body:JSON.stringify(payload)});
   } catch {
     throw new FabApiError('无法连接 Fab Insight 服务', {code:'NETWORK_ERROR', retryable:true});
   }

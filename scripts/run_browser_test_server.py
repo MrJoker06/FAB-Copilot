@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import closing
+import json
 import os
 from pathlib import Path
 import shutil
@@ -22,6 +23,10 @@ DEPARTMENT_DATABASES = {
 }
 BROWSER_TEST_ADMIN_TOKEN = "browser-test-admin-token"
 DEFAULT_PORT = 8899
+BROWSER_TEST_MODEL_CAPABILITIES = {
+    "deepseekv4-flash": {"streaming": True, "tool_calls": True, "thinking": False, "native_multimodal": False},
+    "deepseekv4-pro": {"streaming": True, "tool_calls": True, "thinking": True, "native_multimodal": False},
+}
 
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
@@ -37,6 +42,31 @@ def backup_database(source: Path, destination: Path) -> None:
         reader.backup(writer)
 
 
+def prepare_browser_test_model_capabilities(database_path: Path) -> None:
+    """Make the disposable model catalog exercise both Thinking capability states."""
+    expected_models = tuple(BROWSER_TEST_MODEL_CAPABILITIES)
+    with closing(sqlite3.connect(database_path)) as connection:
+        rows = connection.execute(
+            f"SELECT model_id FROM model_catalog WHERE model_id IN ({','.join('?' for _ in expected_models)})",
+            expected_models,
+        ).fetchall()
+        present_models = {row[0] for row in rows}
+        missing_models = [model_id for model_id in expected_models if model_id not in present_models]
+        if missing_models:
+            raise RuntimeError(
+                "browser test model capability fixture requires published catalog models: "
+                + ", ".join(missing_models)
+            )
+        connection.executemany(
+            "UPDATE model_catalog SET capabilities_json = ? WHERE model_id = ?",
+            [
+                (json.dumps(capabilities, separators=(",", ":")), model_id)
+                for model_id, capabilities in BROWSER_TEST_MODEL_CAPABILITIES.items()
+            ],
+        )
+        connection.commit()
+
+
 def browser_test_environment(root: Path, environ: dict[str, str] | None = None) -> dict[str, str]:
     """Return deterministic isolated settings without inherited application state."""
     environment = dict(os.environ if environ is None else environ)
@@ -47,6 +77,7 @@ def browser_test_environment(root: Path, environ: dict[str, str] | None = None) 
     snapshots = {key: departments / filename for key, filename in DEPARTMENT_DATABASES.items()}
     for destination in snapshots.values():
         backup_database(REFERENCE_DEPARTMENTS / destination.name, destination)
+    prepare_browser_test_model_capabilities(snapshots["FAB_AGENT_DATABASE_PATH"])
     environment.update({
         "FAB_DATABASE_DIR": str(departments),
         "FAB_DATABASE_PATH": str(root / "legacy.db"),

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -23,7 +24,10 @@ class BrowserTestServerTests(unittest.TestCase):
     def test_environment_removes_hostile_app_values_and_keeps_safe_values(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "isolated"
-            with patch.object(server, "backup_database") as backup:
+            with (
+                patch.object(server, "backup_database") as backup,
+                patch.object(server, "prepare_browser_test_model_capabilities") as prepare,
+            ):
                 environment = server.browser_test_environment(root, {
                     "FAB_MODEL_API_KEY": "secret", "FAB_REQUIRE_IDENTITY": "true", "FAB_DATA_PROVIDER": "live",
                     "DEEPSEEK_API_KEY": "legacy", "DEEPSEEK_MODEL": "host-model", "AGENT_LOG_CONTENT": "full",
@@ -31,6 +35,7 @@ class BrowserTestServerTests(unittest.TestCase):
                     "SAFE": "kept", "PATH": "/safe/path",
                 })
             self.assertEqual(backup.call_count, 5)
+            prepare.assert_called_once_with(Path(environment["FAB_AGENT_DATABASE_PATH"]))
             self.assertEqual(environment["SAFE"], "kept")
             self.assertEqual(environment["PATH"], "/safe/path")
             self.assertEqual(environment["FAB_MODEL_API_KEY"], "")
@@ -44,8 +49,53 @@ class BrowserTestServerTests(unittest.TestCase):
             self.assertEqual(environment["AGENT_LOG_CONTENT"], "metadata")
             self.assertEqual(environment["FAB_INSTANCE_ROOT"], str(root))
             self.assertEqual(environment["FAB_SOURCE_ROOT"], str(server.PROJECT_DIR))
-            for key in (*server.DEPARTMENT_DATABASES, "FAB_DATABASE_PATH", "FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH", "AGENT_LOG_PATH", "AGENT_RUN_LOG_DIR"):
+            isolated_path_keys = (
+                *server.DEPARTMENT_DATABASES,
+                "FAB_DATABASE_PATH",
+                "FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH",
+                "AGENT_LOG_PATH",
+                "AGENT_RUN_LOG_DIR",
+            )
+            for key in isolated_path_keys:
                 self.assertTrue(Path(environment[key]).is_relative_to(root))
+
+    def test_model_capability_fixture_only_updates_the_temporary_agent_snapshot(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "isolated"
+            environment = server.browser_test_environment(root, {})
+            snapshot = Path(environment["FAB_AGENT_DATABASE_PATH"])
+            reference = server.REFERENCE_DEPARTMENTS / "ai_operations.db"
+            with closing(sqlite3.connect(snapshot)) as connection:
+                capabilities = dict(connection.execute(
+                    "SELECT model_id, capabilities_json FROM model_catalog WHERE model_id IN (?, ?)",
+                    tuple(server.BROWSER_TEST_MODEL_CAPABILITIES),
+                ))
+            with closing(sqlite3.connect(reference)) as connection:
+                reference_capabilities = dict(connection.execute(
+                    "SELECT model_id, capabilities_json FROM model_catalog WHERE model_id IN (?, ?)",
+                    tuple(server.BROWSER_TEST_MODEL_CAPABILITIES),
+                ))
+            self.assertEqual(
+                {model_id: json.loads(value) for model_id, value in capabilities.items()},
+                server.BROWSER_TEST_MODEL_CAPABILITIES,
+            )
+            self.assertNotEqual(
+                capabilities["deepseekv4-pro"],
+                reference_capabilities["deepseekv4-pro"],
+            )
+            self.assertEqual(json.loads(reference_capabilities["deepseekv4-pro"])["thinking"], False)
+
+    def test_model_capability_fixture_fails_clearly_when_a_required_model_is_missing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Path(temporary) / "agent.db"
+            with closing(sqlite3.connect(database)) as connection:
+                connection.execute(
+                    "CREATE TABLE model_catalog (model_id TEXT PRIMARY KEY, capabilities_json TEXT NOT NULL)"
+                )
+                connection.execute("INSERT INTO model_catalog VALUES (?, ?)", ("deepseekv4-flash", "{}"))
+                connection.commit()
+            with self.assertRaisesRegex(RuntimeError, "deepseekv4-pro"):
+                server.prepare_browser_test_model_capabilities(database)
 
     def test_backup_uses_read_only_source_and_closes_connections(self):
         with tempfile.TemporaryDirectory() as temporary:
