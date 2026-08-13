@@ -404,6 +404,7 @@ curl -X POST http://127.0.0.1:8888/api/knowledge/personal/documents \
 - 用户不能指定 storage key、所有者、状态、权威等级或可见范围。
 - 文本解析完成后，服务端使用确定性规则生成制程、设备、文档类型和主题 Tag，并将 `tags_source` 记为 `auto`；上传或 PATCH 显式提交 `tags`（包括空数组）会记为 `user`，后续重试和重建索引不会覆盖人工 Tag。
 - 完全重复的文件只在当前用户自己的文档中检查，不进行跨用户去重探测。
+- 处理中的个人文档使用同源 SSE 接收任务快照；断线后重发当前 SQLite 真值，有限重连耗尽时才降级到 1.2 秒轮询。令牌不进入 URL、查询串或本地存储。
 
 ### 10.2 处理状态与失败重试
 
@@ -454,7 +455,7 @@ POST /api/knowledge/personal/documents/{document_id}/retry
 }
 ```
 
-当前前端每 1 至 2 秒轮询任务接口。SSE 进度接口由 `RAG-016` 跟踪，并保持现有任务数据结构兼容。
+`GET /api/knowledge/personal/jobs/events` 为当前用户的每份文档先发送最新任务快照，随后只发送变化；事件 `id` 由 `job_id` 和 `updated_at` 构成，含 `retry: 1200`，约 15 秒空闲时发送注释心跳。恢复始终重发 SQLite 当前真值，不依赖服务器内存历史；所有任务终态后结束流。网页仅在有限重连失败后才回退 1.2 秒轮询，流恢复即停止轮询。
 
 ### 10.3 个人文档管理
 

@@ -1,4 +1,4 @@
-const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, selectedSessionIds: new Set(), sessionBatchMode: false, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionIds: [], toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', modelConfig: null, enterpriseContext: null, knowledgeMode: 'factory', knowledgeDocuments: [], knowledgeIndexPromise: null, personalKnowledgeDocuments: [], selectedPersonalDocumentId: null, selectedPersonalDocument: null, personalKnowledgeRequestId: 0, personalKnowledgePollTimer: null, personalUploadQueue: [], personalUploadInProgress: false, pendingPersonalMetadataId: null, pendingPersonalDeleteId: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
+const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, selectedSessionIds: new Set(), sessionBatchMode: false, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionIds: [], toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', modelConfig: null, enterpriseContext: null, knowledgeMode: 'factory', knowledgeDocuments: [], knowledgeIndexPromise: null, personalKnowledgeDocuments: [], selectedPersonalDocumentId: null, selectedPersonalDocument: null, personalKnowledgeRequestId: 0, personalKnowledgePollTimer: null, personalJobEventsController: null, personalJobEventsRetryTimer: null, personalJobEventsRefreshTimer: null, personalJobEventsProbeTimer: null, personalJobEventsStableTimer: null, personalJobEventsLastId: '', personalJobEventsFallback: false, personalJobEventsPolicy: null, personalUploadQueue: [], personalUploadInProgress: false, pendingPersonalMetadataId: null, pendingPersonalDeleteId: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
 const $ = (selector) => document.querySelector(selector);
 const AGENT_WIDTH_KEY = 'fabInsightAgentWidth';
 const CHAT_DRAFT_KEY = 'fabInsightChatDraft';
@@ -12,6 +12,7 @@ const toolLabels = { get_enterprise_data_manifest: '查询企业数据目录', g
 const sourcePresenter = globalThis.FabSourcePresenter;
 const personalKnowledgeMetadata = globalThis.FabPersonalKnowledgeMetadata;
 const thinkingControl = globalThis.FabThinkingControl;
+const personalJobEvents = globalThis.FabPersonalJobEvents;
 
 function isoDate(date) { return date.toISOString().slice(0, 10); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
@@ -233,7 +234,7 @@ function schedulePersonalKnowledgeRefresh() {
   window.clearTimeout(state.personalKnowledgePollTimer);
   state.personalKnowledgePollTimer = null;
   const processing = state.personalKnowledgeDocuments.some(doc => ['uploaded', 'parsing', 'chunking', 'indexing', 'deleting'].includes(doc.status));
-  if (state.knowledgeMode !== 'personal' || !processing) return;
+  if (state.activeView !== 'knowledge' || state.knowledgeMode !== 'personal' || !processing || !state.personalJobEventsFallback) return;
   state.personalKnowledgePollTimer = window.setTimeout(async () => {
     try {
       await loadPersonalKnowledgeDocuments({selectFirst:false});
@@ -242,6 +243,112 @@ function schedulePersonalKnowledgeRefresh() {
       }
     } catch { /* A later user action can retry the refresh. */ }
   }, 1200);
+}
+
+function personalKnowledgeProcessing() {
+  return state.personalKnowledgeDocuments.some(doc => personalJobEvents.isActive(doc.status));
+}
+
+function stopPersonalJobEvents({keepFallback = false, complete = false} = {}) {
+  state.personalJobEventsController?.abort();
+  state.personalJobEventsController = null;
+  window.clearTimeout(state.personalJobEventsRetryTimer);
+  state.personalJobEventsRetryTimer = null;
+  window.clearTimeout(state.personalJobEventsRefreshTimer);
+  state.personalJobEventsRefreshTimer = null;
+  window.clearTimeout(state.personalJobEventsProbeTimer);
+  state.personalJobEventsProbeTimer = null;
+  window.clearTimeout(state.personalJobEventsStableTimer);
+  state.personalJobEventsStableTimer = null;
+  window.clearTimeout(state.personalKnowledgePollTimer);
+  state.personalKnowledgePollTimer = null;
+  if (!keepFallback) state.personalJobEventsFallback = false;
+  if (complete) { state.personalJobEventsLastId = ''; state.personalJobEventsPolicy = null; }
+}
+
+function debouncePersonalKnowledgeEventRefresh() {
+  window.clearTimeout(state.personalJobEventsRefreshTimer);
+  state.personalJobEventsRefreshTimer = window.setTimeout(async () => {
+    try {
+      await loadPersonalKnowledgeDocuments({selectFirst:false});
+      if (state.selectedPersonalDocumentId) await openPersonalKnowledgeDocument(state.selectedPersonalDocumentId, {scroll:false});
+    } catch { /* Existing screen remains usable; retry/fallback handles transport failures. */ }
+  }, 120);
+}
+
+function personalJobEventHeaders() {
+  const headers = new Headers({'Accept':'text/event-stream'});
+  const tenantId = localStorage.getItem(TENANT_ID_KEY), userId = localStorage.getItem(USER_ID_KEY);
+  if (tenantId) headers.set('X-Tenant-ID', tenantId);
+  if (userId) headers.set('X-User-ID', userId);
+  if (state.personalJobEventsLastId) headers.set('Last-Event-ID', state.personalJobEventsLastId);
+  return headers;
+}
+
+function enablePersonalJobEventsFallback() {
+  state.personalJobEventsFallback = true;
+  schedulePersonalKnowledgeRefresh();
+  window.clearTimeout(state.personalJobEventsProbeTimer);
+  state.personalJobEventsProbeTimer = window.setTimeout(() => {
+    state.personalJobEventsProbeTimer = null;
+    if (state.activeView !== 'knowledge' || state.knowledgeMode !== 'personal' || !personalKnowledgeProcessing()) return;
+    state.personalJobEventsFallback = false;
+    state.personalJobEventsPolicy = null;
+    startPersonalJobEvents();
+  }, 30000);
+}
+
+function startPersonalJobEvents() {
+  if (!personalJobEvents || state.activeView !== 'knowledge' || state.knowledgeMode !== 'personal' || !personalKnowledgeProcessing() || state.personalJobEventsController || state.personalJobEventsFallback) return;
+  state.personalJobEventsFallback = false;
+  window.clearTimeout(state.personalKnowledgePollTimer); state.personalKnowledgePollTimer = null;
+  state.personalJobEventsPolicy ||= personalJobEvents.createReconnectPolicy();
+  const controller = new AbortController();
+  state.personalJobEventsController = controller;
+  (async () => {
+    let sawEvent = false, serverRetry = 1200;
+    try {
+      const response = await fetch('/api/knowledge/personal/jobs/events', {headers: personalJobEventHeaders(), credentials:'same-origin', signal:controller.signal});
+      if (!response.ok || !/^text\/event-stream(?:;|$)/i.test(response.headers.get('content-type') || '') || !response.body) throw new Error('SSE unavailable');
+      state.personalJobEventsStableTimer = window.setTimeout(() => state.personalJobEventsPolicy?.reset(), 15000);
+      const parser = personalJobEvents.createParser(event => {
+        if (event.event !== 'job') return;
+        serverRetry = event.retry || serverRetry;
+        let job; try { job = JSON.parse(event.data); } catch { return; }
+        if (!job || typeof job !== 'object') return;
+        sawEvent = true;
+        if (event.id) state.personalJobEventsLastId = event.id;
+        state.personalKnowledgeDocuments = state.personalKnowledgeDocuments.map(doc => doc.document_id === job.document_id ? {...doc, status:job.status, latest_job:job} : doc);
+        debouncePersonalKnowledgeEventRefresh();
+      });
+      const reader = response.body.getReader(), decoder = new TextDecoder();
+      while (!controller.signal.aborted) {
+        const {value, done} = await reader.read();
+        if (done) break;
+        parser.push(decoder.decode(value, {stream:true}));
+      }
+      parser.push(decoder.decode()); parser.finish();
+      if (!controller.signal.aborted && personalKnowledgeProcessing() && !sawEvent) throw new Error('SSE ended without snapshot');
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      const delay = state.personalJobEventsPolicy.nextDelay(serverRetry);
+      if (delay === null) { enablePersonalJobEventsFallback(); return; }
+      state.personalJobEventsRetryTimer = window.setTimeout(() => { state.personalJobEventsController = null; startPersonalJobEvents(); }, delay);
+      return;
+    } finally {
+      window.clearTimeout(state.personalJobEventsStableTimer);
+      state.personalJobEventsStableTimer = null;
+      if (state.personalJobEventsController === controller) state.personalJobEventsController = null;
+    }
+    if (!controller.signal.aborted && !personalKnowledgeProcessing()) {
+      state.personalJobEventsLastId = '';
+      state.personalJobEventsPolicy = null;
+    } else if (!controller.signal.aborted && personalKnowledgeProcessing()) {
+      const delay = state.personalJobEventsPolicy.nextDelay(serverRetry);
+      if (delay === null) enablePersonalJobEventsFallback();
+      else state.personalJobEventsRetryTimer = window.setTimeout(startPersonalJobEvents, delay);
+    }
+  })();
 }
 
 async function loadPersonalKnowledgeDocuments({selectFirst = true} = {}) {
@@ -257,6 +364,9 @@ async function loadPersonalKnowledgeDocuments({selectFirst = true} = {}) {
   }
   renderPersonalKnowledgeDocuments();
   schedulePersonalKnowledgeRefresh();
+  if (personalKnowledgeProcessing()) {
+    if (!state.personalJobEventsFallback) startPersonalJobEvents();
+  } else stopPersonalJobEvents({complete:true});
   if (selectFirst && !state.selectedPersonalDocumentId && state.personalKnowledgeDocuments.length) {
     await openPersonalKnowledgeDocument(state.personalKnowledgeDocuments[0].document_id, {scroll:false});
   }
@@ -330,6 +440,7 @@ async function openPersonalKnowledgeChunk(chunkId) {
 async function setKnowledgeMode(mode) {
   if (!['factory', 'personal'].includes(mode)) return;
   state.knowledgeMode = mode;
+  stopPersonalJobEvents({complete:true});
   window.clearTimeout(state.personalKnowledgePollTimer);
   state.personalKnowledgePollTimer = null;
   document.querySelectorAll('[data-knowledge-mode]').forEach(button => button.classList.toggle('active', button.dataset.knowledgeMode === mode));
@@ -1507,6 +1618,7 @@ async function sendChat(message, {clientMessageId = newClientMessageId(), isRetr
 function showView(name) {
   if (name !== 'sessions') state.previousView = name;
   state.activeView = name;
+  if (name !== 'knowledge') stopPersonalJobEvents({complete:true});
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(v => v.classList.remove('active'));
   $(`#${name}View`).classList.add('active'); document.querySelector(`[data-view="${name}"]`)?.classList.add('active');

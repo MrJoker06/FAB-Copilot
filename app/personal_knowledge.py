@@ -808,6 +808,27 @@ def get_personal_job(job_id: str, owner_user_id: str) -> dict:
     return _job_dict(row)
 
 
+def list_personal_job_snapshots(owner_user_id: str, limit: int = 100) -> list[dict]:
+    """Return the newest public job state for each of an owner's documents."""
+    with db_session() as connection:
+        rows = connection.execute(
+            """SELECT job_id, document_id, status, stage, progress, attempt,
+                      error_code, error_message, retryable, created_at, updated_at
+               FROM (
+                 SELECT j.*, ROW_NUMBER() OVER (
+                   PARTITION BY document_id
+                   ORDER BY attempt DESC, created_at DESC, job_id DESC
+                 ) AS row_number
+                 FROM personal_knowledge_jobs j
+                 WHERE owner_user_id = ?
+               ) WHERE row_number = 1
+               ORDER BY CASE WHEN status IN ('uploaded', 'parsing', 'chunking', 'indexing', 'deleting') THEN 0 ELSE 1 END,
+                        updated_at DESC, job_id DESC LIMIT ?""",
+            (owner_user_id, limit),
+        ).fetchall()
+    return [_job_dict(row) for row in rows]
+
+
 def _encode_cursor(updated_at: str, document_id: str) -> str:
     raw = json.dumps([updated_at, document_id], separators=(",", ":")).encode("utf-8")
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")

@@ -267,6 +267,7 @@ Agent 在输出 `run_started` 后立即写入运行占位记录，计划生成�
 ```text
 POST   /api/knowledge/personal/documents
 GET    /api/knowledge/jobs/{job_id}
+GET    /api/knowledge/personal/jobs/events
 GET    /api/knowledge/personal/documents
 GET    /api/knowledge/personal/documents/{document_id}
 GET    /api/knowledge/personal/documents/{document_id}/content

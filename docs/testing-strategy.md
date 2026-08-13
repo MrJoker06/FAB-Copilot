@@ -49,6 +49,8 @@ python scripts/run_quality_gate.py quick
 
 2026-08-13 宿主 full 实测全通过：发现 317 个 Python 测试，其中 251 个非系统测试；系统模块分别为数据报表 12、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 9；`app` 分支覆盖率 87%，Node 33 项、RAG 15/15、OCR 黄金集 8/8 类别通过、Playbook 12/12，Playwright 桌面 2/2。系统耗时总计 72.4 秒，五个模块及总计均低于版本化预算。
 
+2026-08-13 `RAG-016` 宿主 full 实测全通过：发现 324 个 Python 测试，其中 258 个非系统测试；系统模块分别为数据报表 12、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 9；`app` 分支覆盖率 87%，Node 34 项、RAG 15/15、OCR 黄金集 8/8 类别通过、Playbook 12/12，Playwright 桌面 2/2。结构化运行时报告总计 82.9 秒，五个模块及总计均低于版本化预算。
+
 ```bash
 python scripts/run_quality_gate.py full
 ```

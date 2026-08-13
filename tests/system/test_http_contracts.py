@@ -53,6 +53,7 @@ class HttpContractsSystemTests(unittest.TestCase):
         self.assertIn(f"/static/source_presenter.js?v={APP_VERSION}", page)
         self.assertIn(f"/static/personal_upload_queue.js?v={APP_VERSION}", page)
         self.assertIn(f"/static/personal_knowledge_metadata.js?v={APP_VERSION}", page)
+        self.assertIn(f"/static/personal_job_events.js?v={APP_VERSION}", page)
         self.assertIn(f"/static/thinking_control.js?v={APP_VERSION}", page)
         self.assertIn(f"/static/app.js?v={APP_VERSION}", page)
         self.assertNotIn('id="monitorView"', page)
