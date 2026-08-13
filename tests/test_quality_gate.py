@@ -21,8 +21,9 @@ class QualityGateTests(unittest.TestCase):
         self.assertEqual(full[-1], [sys.executable, "-m", "coverage", "report", "--include", "app/*", "--fail-under=80"])
         self.assertEqual(full.count(["npm", "run", "test:e2e"]), 1)
         self.assertEqual(quick.count(["npm", "run", "test:e2e"]), 0)
-        self.assertEqual(quick[-2:], [
+        self.assertEqual(quick[-3:], [
             [sys.executable, "scripts/evaluate_rag.py"],
+            [sys.executable, "scripts/evaluate_ocr.py"],
             [sys.executable, "scripts/evaluate_playbooks.py"],
         ])
 

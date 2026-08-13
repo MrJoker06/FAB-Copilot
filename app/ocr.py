@@ -5,8 +5,10 @@ loads those local assets and intentionally has no model download fallback.
 """
 from __future__ import annotations
 
+import math
 import threading
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +19,16 @@ class OCRUnavailableError(RuntimeError):
 
 class OCRFailedError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class OCRResult:
+    text: str
+    scores: tuple[float, ...]
+    line_count: int
+    mean_confidence: float
+    low_confidence_ratio: float
+    has_visible_content: bool
 
 
 _engine: Any | None = None
@@ -37,7 +49,11 @@ def get_ocr_engine() -> Any:
             from rapidocr import RapidOCR
 
             model_dir = Path(rapidocr.__file__).resolve().parent / "models"
-            required_models = ("PP-OCRv6_det_small.onnx", "ch_ppocr_mobile_v2.0_cls_mobile.onnx", "PP-OCRv6_rec_small.onnx")
+            required_models = (
+                "PP-OCRv6_det_small.onnx",
+                "ch_ppocr_mobile_v2.0_cls_mobile.onnx",
+                "PP-OCRv6_rec_small.onnx",
+            )
             if not all((model_dir / model).is_file() for model in required_models):
                 raise OCRUnavailableError("离线 OCR 模型不可用")
 
@@ -82,10 +98,17 @@ def reading_order_text(output: Any) -> str:
             row.append(item)
         else:
             rows.append([item])
-    return "\n".join("\t".join(value[3] for value in sorted(row, key=lambda value: value[1])) for row in rows).strip()
+    return "\n".join(
+        "\t".join(value[3] for value in sorted(row, key=lambda value: value[1]))
+        for row in rows
+    ).strip()
 
 
 def extract_image_text(image: Any, engine: Callable[[Any], Any] | None = None) -> str:
+    return extract_image_result(image, engine).text
+
+
+def extract_image_result(image: Any, engine: Callable[[Any], Any] | None = None) -> OCRResult:
     try:
         if engine is not None:
             result = engine(image)
@@ -94,7 +117,42 @@ def extract_image_text(image: Any, engine: Callable[[Any], Any] | None = None) -
             # not serve concurrent calls. Injected fakes stay isolated in tests.
             with _inference_lock:
                 result = get_ocr_engine()(image)
-        return reading_order_text(result)
+        raw_texts = list(getattr(result, "txts", ()) or ())
+        raw_scores = list(getattr(result, "scores", ()) or ())
+        scores = []
+        for index, value in enumerate(raw_texts):
+            if not str(value).strip():
+                continue
+            score = float(raw_scores[index]) if index < len(raw_scores) else 0.0
+            if not math.isfinite(score) or not 0 <= score <= 1:
+                raise OCRFailedError("离线 OCR 返回无效置信信号")
+            scores.append(score)
+        text = reading_order_text(result)
+        scores = tuple(scores)
+        line_count = len([line for line in text.splitlines() if line.strip()])
+        mean = sum(scores) / len(scores) if scores else 0.0
+        low_ratio = sum(score < 0.60 for score in scores) / len(scores) if scores else 0.0
+        # The caller supplies decoded image/PDF pixels. A non-white thumbnail is
+        # a deliberately limited signal, not an attempt to infer document type.
+        has_visible = bool(scores)
+        if not has_visible:
+            try:
+                import io
+
+                from PIL import Image, ImageStat
+
+                if isinstance(image, bytes):
+                    with Image.open(io.BytesIO(image)) as source:
+                        grayscale = source.convert("L").resize((32, 32))
+                        stats = ImageStat.Stat(grayscale)
+                        has_visible = stats.var[0] > 2 or stats.mean[0] < 245
+                else:
+                    grayscale = image.convert("L").resize((32, 32))
+                    stats = ImageStat.Stat(grayscale)
+                    has_visible = stats.var[0] > 2 or stats.mean[0] < 245
+            except Exception:
+                has_visible = False
+        return OCRResult(text, scores, line_count, mean, low_ratio, has_visible)
     except OCRUnavailableError:
         raise
     except Exception as exc:

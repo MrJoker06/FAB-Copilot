@@ -359,6 +359,56 @@ class KnowledgeUploadsSystemTests(unittest.TestCase):
             deleted = client.delete(f"/api/knowledge/personal/documents/{uploaded.json()['document_id']}")
             self.assertEqual(deleted.status_code, 202)
 
+    def test_personal_knowledge_low_quality_image_is_not_indexed(self):
+        from PIL import Image
+        from app.ocr import OCRResult
+
+        buffer = io.BytesIO()
+        Image.new("RGB", (80, 40), "white").save(buffer, "PNG")
+        low = OCRResult("barely", (0.1,), 1, 0.1, 1.0, True)
+        with patch(
+            "app.personal_knowledge.extract_image_result",
+            return_value=low,
+        ), TestClient(app) as client:
+            uploaded = client.post(
+                "/api/knowledge/personal/documents",
+                headers={"Idempotency-Key": "low-quality-ocr-test"},
+                files={"file": ("low.png", buffer.getvalue(), "image/png")},
+            )
+            self.assertEqual(uploaded.status_code, 202, uploaded.text)
+            document_id, job_id = uploaded.json()["document_id"], uploaded.json()["job_id"]
+            try:
+                job = client.get(f"/api/knowledge/jobs/{job_id}")
+                self.assertEqual(job.json()["status"], "failed")
+                self.assertEqual(job.json()["error"]["error_code"], "OCR_QUALITY_LOW")
+                with db_session() as connection:
+                    chunk_count = connection.execute(
+                        "SELECT COUNT(*) FROM personal_knowledge_chunks "
+                        "WHERE document_id = ?",
+                        (document_id,),
+                    ).fetchone()[0]
+                    fts_count = connection.execute(
+                        "SELECT COUNT(*) FROM personal_knowledge_fts "
+                        "WHERE document_id = ?",
+                        (document_id,),
+                    ).fetchone()[0]
+                    self.assertEqual(chunk_count, 0)
+                    self.assertEqual(fts_count, 0)
+                preview = client.post(
+                    "/api/knowledge/personal/search-preview",
+                    json={"query": "barely", "limit": 10},
+                )
+                self.assertEqual(preview.status_code, 200, preview.text)
+                self.assertNotIn(
+                    document_id,
+                    {item["document_id"] for item in preview.json()["results"]},
+                )
+            finally:
+                deleted = client.delete(
+                    f"/api/knowledge/personal/documents/{document_id}"
+                )
+                self.assertEqual(deleted.status_code, 202)
+
     def test_personal_knowledge_office_and_csv_parsers(self):
         from docx import Document
         from openpyxl import Workbook

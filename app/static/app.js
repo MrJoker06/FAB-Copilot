@@ -278,7 +278,7 @@ function renderPersonalKnowledgeContent(document) {
   const job = document.latest_job;
   const error = job?.error || (document.error_code ? {error_code:document.error_code, detail:document.error_message} : null);
   if (document.status === 'failed') {
-    const ocrNote = error?.error_code === 'OCR_UNAVAILABLE' ? '<p>离线 OCR 引擎当前不可用，请稍后重试。</p>' : error?.error_code === 'OCR_FAILED' ? '<p>离线 OCR 未能识别该文件，请确认图片清晰后重试。</p>' : '';
+    const ocrNote = error?.error_code === 'OCR_UNAVAILABLE' ? '<p>离线 OCR 引擎当前不可用，请稍后重试。</p>' : error?.error_code === 'OCR_FAILED' ? '<p>离线 OCR 未能识别该文件，请确认图片清晰后重试。</p>' : error?.error_code === 'OCR_QUALITY_LOW' ? '<p>文件识别质量不足，未写入知识库；请提供更清晰的原件。</p>' : '';
     return `<div class="knowledge-processing failed"><strong>文档处理失败</strong><p>${escapeHtml(error?.detail || '解析或索引过程未完成。')}</p>${ocrNote}<code>${escapeHtml(error?.error_code || 'PROCESSING_FAILED')}</code></div>`;
   }
   if (document.status !== 'ready') {

@@ -18,7 +18,8 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 from .audit import emit
 from .config import get_settings
 from .database import db_session
-from .ocr import OCRFailedError, OCRUnavailableError, extract_image_text
+from .ocr import OCRFailedError, OCRUnavailableError, extract_image_result
+from .ocr_quality import OCRObservation, POLICY_VERSION, evaluate_observations
 from .processes import MANUFACTURING_STEPS, PROCESS_ALIASES, process_query_terms
 
 
@@ -164,6 +165,7 @@ class ExtractedSection:
     page_number: int | None
     section_path: str
     content: str
+    ocr_observation: OCRObservation | None = None
 
 
 def _now() -> str:
@@ -566,14 +568,24 @@ def _extract_sections(path: Path, suffix: str, title: str) -> list[ExtractedSect
                 if rendered_pixels > MAX_OCR_RENDERED_PIXELS:
                     raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "OCR 渲染内容超过安全限制")
                 try:
-                    text = extract_image_text(pixmap.tobytes("png"))
+                    result = extract_image_result(pixmap.tobytes("png"))
+                    text = result.text
                 except OCRUnavailableError as exc:
                     raise PersonalKnowledgeError(503, "OCR_UNAVAILABLE", "离线 OCR 引擎不可用", True) from exc
                 except OCRFailedError as exc:
                     raise PersonalKnowledgeError(422, "OCR_FAILED", "离线 OCR 识别失败", True) from exc
                 combined = "\n".join(part for part in (native[index - 1], text) if part).strip()
-                if combined:
-                    sections.append(ExtractedSection(index, f"第 {index} 页", combined))
+                sections.append(
+                    ExtractedSection(
+                        index,
+                        f"第 {index} 页",
+                        combined,
+                        OCRObservation(
+                            "mixed_pdf" if native[index - 1] else "scanned_pdf",
+                            result,
+                        ),
+                    )
+                )
         finally:
             document.close()
         return sections
@@ -590,9 +602,17 @@ def _extract_sections(path: Path, suffix: str, title: str) -> list[ExtractedSect
                     rendered_pixels += pixels
                     if pixels > MAX_OCR_IMAGE_PIXELS or rendered_pixels > MAX_OCR_RENDERED_PIXELS:
                         raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "图片像素超过安全限制")
-                    text = extract_image_text(frame.copy())
-                    if text:
-                        sections.append(ExtractedSection(frame_index + 1, f"第 {frame_index + 1} 页", text))
+                    result = extract_image_result(frame.copy())
+                    text = result.text
+                    category = "multipage_tiff" if getattr(image, "n_frames", 1) > 1 else "image"
+                    sections.append(
+                        ExtractedSection(
+                            frame_index + 1,
+                            f"第 {frame_index + 1} 页",
+                            text,
+                            OCRObservation(category, result),
+                        )
+                    )
         except OCRUnavailableError as exc:
             raise PersonalKnowledgeError(503, "OCR_UNAVAILABLE", "离线 OCR 引擎不可用", True) from exc
         except OCRFailedError as exc:
@@ -679,6 +699,27 @@ def process_personal_document(document_id: str, owner_user_id: str, job_id: str)
         if not path.exists():
             raise PersonalKnowledgeError(500, "STORAGE_FILE_MISSING", "原始文件不存在", True)
         sections = _extract_sections(path, path.suffix.lower(), document["title"])
+        observations = [
+            section.ocr_observation
+            for section in sections
+            if section.ocr_observation
+        ]
+        decision = evaluate_observations(observations)
+        if observations:
+            emit(
+                "personal_knowledge_ocr_quality",
+                job_id,
+                status="success" if decision.accepted else "rejected",
+                policy_version=POLICY_VERSION,
+                categories=sorted({item.category for item in observations}),
+                ocr_pages=decision.ocr_pages,
+                recognized_pages=decision.recognized_pages,
+                mean_confidence=decision.mean_confidence,
+                low_confidence_ratio=decision.low_confidence_ratio,
+                reason=decision.reason,
+            )
+        if not decision.accepted:
+            raise PersonalKnowledgeError(422, "OCR_QUALITY_LOW", "OCR 识别质量不足，未写入知识库", False)
         automatic_tags = _automatic_tags(document["title"], document["filename"], sections)
         _update_progress(document_id, owner_user_id, job_id, "chunking", "chunking", 45)
         chunks: list[tuple[int | None, str, str]] = []

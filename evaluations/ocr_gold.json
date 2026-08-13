@@ -1,0 +1,14 @@
+{
+  "version":"ocr-gold-v2",
+  "thresholds":{"global":{"cer_max":0.55},"categories":{"chinese":{},"english":{"wer_max":0.6},"device_screenshot":{"field_recall_min":1.0},"table":{"cell_recall_min":0.75},"formula":{"formula_token_recall_min":1.0},"scanned_pdf":{"page_retention_min":1.0,"field_recall_min":1.0},"mixed_pdf":{"page_retention_min":1.0,"field_recall_min":1.0},"multipage_tiff":{"page_retention_min":1.0,"field_recall_min":1.0}}},
+  "cases":[
+    {"id":"chinese","category":"chinese","path":"chinese.png","expected_text":"中文 检查 通过","pages":[1]},
+    {"id":"english","category":"english","path":"english.png","expected_text":"ETCH EQ-01 PASS","pages":[1]},
+    {"id":"device","category":"device_screenshot","path":"device.png","expected_text":"设备 EQ-01 检查 PASS","fields":["EQ-01","PASS"],"pages":[1]},
+    {"id":"table","category":"table","path":"table.png","expected_text":"项目 结果 TEMP PASS","cells":["项目","结果","TEMP","PASS"],"pages":[1]},
+    {"id":"formula","category":"formula","path":"formula.png","expected_text":"E=mc2","formula_tokens":["E","mc2"],"pages":[1]},
+    {"id":"scanned","category":"scanned_pdf","path":"scanned.pdf","expected_text":"设备 EQ-01 检查 PASS","fields":["EQ-01","PASS"],"pages":[1]},
+    {"id":"mixed","category":"mixed_pdf","path":"mixed.pdf","expected_text":"Native PDF text page retained for mixed OCR validation. 设备 EQ-01 检查 PASS","fields":["Native","EQ-01","PASS"],"pages":[1,2]},
+    {"id":"tiff","category":"multipage_tiff","path":"multi.tiff","expected_text":"中文 检查 通过 设备 EQ-01 检查 PASS","fields":["EQ-01","PASS"],"pages":[1,2]}
+  ]
+}

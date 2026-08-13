@@ -168,6 +168,7 @@ def quality_commands(mode: str) -> list[list[str]]:
     commands.extend([["node", "--check", str(path)] for path in static_scripts])
     commands.extend([
         [sys.executable, "scripts/evaluate_rag.py"],
+        [sys.executable, "scripts/evaluate_ocr.py"],
         [sys.executable, "scripts/evaluate_playbooks.py"],
     ])
     if mode == "full":

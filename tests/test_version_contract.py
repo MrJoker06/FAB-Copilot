@@ -36,6 +36,7 @@ class VersionContractTests(unittest.TestCase):
         self.assertIn("${tags || '无标签'}", script)
         self.assertIn("信息已保存，但列表刷新失败", script)
         self.assertNotIn("OCR 尚未启用", script)
+        self.assertIn("OCR_QUALITY_LOW", script)
 
     def test_rendered_pages_share_the_active_build_version(self):
         for page in ("index", "admin"):
