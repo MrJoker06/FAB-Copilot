@@ -2,13 +2,13 @@
 
 状态基线：`experiment/parallel-platform`，2026-08-19。
 
-当前统计：共 167 个独立任务，已完成 123 个，待做 44 个。
+当前统计：共 167 个独立任务，已完成 124 个，待做 43 个。
 
 另有 1 项 `OPTIONAL` 可选候选，不计入上述主统计。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
-当前结论：`UX-014` 已完成，下一项为桌面端视觉回归 `UX-015`。当前队列共 3 项，另有用户暂缓 1 项、企业级暂缓 40 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
+当前结论：`UX-015` 已完成，下一项为完整日志到期治理 `OBS-014`。当前队列共 2 项，另有用户暂缓 1 项、企业级暂缓 40 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
 
 ## 标记规则
 
@@ -23,12 +23,12 @@
 
 | 类型 | 任务 | 当前结论 |
 |---|---|---|
-| 当前队列 | `UX-015` → `OBS-014` → `DEPLOY-012` | 严格串行，下一项为 `UX-015` |
+| 当前队列 | `OBS-014` → `DEPLOY-012` | 严格串行，下一项为 `OBS-014` |
 | 用户暂缓 | `UX-029` | 移动端需求暂不进入当前队列 |
 | 企业级暂缓 | 40 项 | 等待身份提供方、真实数据接口、部署环境和运维边界明确 |
 | 可选候选 | `RAG-024` `OPTIONAL` | 不计入主统计，只在用户明确激活后排期 |
 
-最近一次完整质量门为 2026-08-13 `UX-014` 宿主 full：326 个 Python 发现项、分支覆盖率 87%、Playwright 8/8，Axe WCAG 2.0/2.1/2.2 A/AA 扫描零违规。完整基线见 [测试策略](docs/testing-strategy.md)。
+最近一次完整质量门为 2026-08-19 `UX-015` 宿主 full：327 个 Python 发现项、分支覆盖率 87%、Playwright 10/10，并复验两张桌面视觉基线。完整基线见 [测试策略](docs/testing-strategy.md)。
 
 ## 工作流清单
 
@@ -40,7 +40,7 @@
 | RAG 与知识库 | [知识库 TODO](docs/todos/rag-knowledge.md) | L0 本地 RAG、中文双语制程召回治理、自动 Tag 人工保护和离线 OCR 已完成；分布式 RAG 属于企业级暂缓 |
 | 企业数据 | [企业数据 TODO](docs/todos/enterprise-data.md) | SQLite 开发替身与大规模模拟契约已完成；通过既有 Oracle 生产接口的适配 `DATA-017` 属于企业级暂缓 |
 | 日志与运行监控 | [可观测性 TODO](docs/todos/observability.md) | 单实例监控与端到端流式聚合诊断已完成；当前队列包含 `OBS-014` 完整日志到期治理 |
-| 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 桌面端关键工作流和无障碍治理已完成；下一项为 `UX-015` 桌面端视觉回归，移动端 `UX-029` 由用户暂缓 |
+| 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 桌面端关键工作流、无障碍治理和视觉回归已完成；移动端 `UX-029` 由用户暂缓 |
 | 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接及运行快照治理已完成；当前队列以 `DEPLOY-012` CI 质量门收口 |
 | 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 本地分层质量门、全量审计策略、QA-002 系统测试隔离与 QA-003 启动/迁移/运维脚本风险路径已完成 |
 

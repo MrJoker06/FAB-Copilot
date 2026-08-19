@@ -27,6 +27,51 @@ BROWSER_TEST_MODEL_CAPABILITIES = {
     "deepseekv4-flash": {"streaming": True, "tool_calls": True, "thinking": False, "native_multimodal": False},
     "deepseekv4-pro": {"streaming": True, "tool_calls": True, "thinking": True, "native_multimodal": False},
 }
+BROWSER_TEST_VISUAL_TENANT_ID = "browser-test"
+BROWSER_TEST_VISUAL_USER_ID = "browser-test-user"
+BROWSER_TEST_VISUAL_SESSION_ID = "ux015-visual-session"
+BROWSER_TEST_VISUAL_DOCUMENT_ID = "ux015-visual-document"
+BROWSER_TEST_VISUAL_CHUNK_ID = "ux015-visual-chunk-0001"
+BROWSER_TEST_VISUAL_TIMESTAMP = "2026-08-19T09:30:00+00:00"
+BROWSER_TEST_VISUAL_DOCUMENT_FILENAME = (
+    "2026-Q3-CMP-Polishing-超长文件名-多语言术语-"
+    "wafer-surface-defect-SPC-control-plan-设备维护与异常处置指南-v1.0.txt"
+)
+BROWSER_TEST_VISUAL_DOCUMENT_TITLE = "CMP 抛光表面缺陷 SPC 控制计划与设备维护指南"
+BROWSER_TEST_VISUAL_DOCUMENT_CONTENT = """# CMP 抛光异常处置 / CMP polishing response
+
+当 wafer surface defect、particle 与 scratch 指标连续偏离控制线时，先核对 CMP-02 的 slurry flow、pad conditioning 和 endpoint trace。
+
+## 固定检查清单
+
+1. 对比 SPC control chart 与最近三批 lot 的 removal rate。
+2. 检查 polishing pad 使用寿命、conditioning disk 和 filter differential pressure。
+3. 记录工程师复核结论，并在 shift handoff 中同步中英文术语。
+"""
+BROWSER_TEST_VISUAL_ASSISTANT_ANSWER = """# CVD-02 膜厚漂移复核建议
+
+## 结论
+
+当前批次的 **thickness trend** 显示轻微上移，但尚不足以单独判定为制程失控。建议把 CVD-02 的 chamber A 与 chamber B 分开复核，并以 SPC 控制图、recipe revision 和 wafer map 作为同一时间窗内的证据。
+
+## 建议的工程动作
+
+1. **确认数据窗口**：按 lot、recipe、chamber 分组，对比近三周 deposition rate、uniformity 和 particle count；不要把 maintenance 后的首批 wafer 与稳定批次直接混合。
+2. **核对设备状态**：检查 MFC、RF power、temperature controller 与 pressure trace；若出现 alarm 或 preventive maintenance，记录其开始和结束时间。
+3. **复核统计边界**：对每个 chamber 分别计算 mean、sigma、Cp/Cpk，并将异常点回溯到工艺变更、gas line purge 或 fixture 更换。
+4. **安排验证**：在下一次 engineering run 前固定 monitor wafer，并同步量测 recipe、椭偏仪校准状态和 shift handoff 内容。
+
+> 风险提示：若膜厚偏移与颗粒数同时上升，应优先排查 chamber clean、showerhead 和 gas delivery；若只有单腔偏移，则先限制该 chamber 的高风险产品。
+
+### 交接模板
+
+| 项目 | 需要记录的证据 |
+| --- | --- |
+| CVD-02 / chamber | lot、recipe、maintenance 状态 |
+| Thickness | target、mean、3σ、wafer map 摘要 |
+| SPC | rule violation、行动负责人、完成时间 |
+
+请在工程评审前保留原始 trend、设备 trace 和复核签名，避免仅依据单一平均值做结论。"""
 
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
@@ -67,6 +112,71 @@ def prepare_browser_test_model_capabilities(database_path: Path) -> None:
         connection.commit()
 
 
+def prepare_browser_test_visual_fixtures(agent_database_path: Path, knowledge_database_path: Path) -> None:
+    """Seed deterministic UX-015 content only into disposable browser-test snapshots."""
+    with closing(sqlite3.connect(agent_database_path)) as connection:
+        connection.execute(
+            """INSERT OR REPLACE INTO chat_sessions(
+                   session_id, tenant_id, owner_user_id, title, created_at, updated_at, model, last_message_preview
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                BROWSER_TEST_VISUAL_SESSION_ID, BROWSER_TEST_VISUAL_TENANT_ID, BROWSER_TEST_VISUAL_USER_ID,
+                "CVD-02 膜厚漂移复核", BROWSER_TEST_VISUAL_TIMESTAMP, BROWSER_TEST_VISUAL_TIMESTAMP,
+                "deepseekv4-pro", "请复核 CVD-02 的膜厚漂移与 SPC 风险。",
+            ),
+        )
+        connection.execute("DELETE FROM chat_messages WHERE session_id = ?", (BROWSER_TEST_VISUAL_SESSION_ID,))
+        connection.executemany(
+            """INSERT INTO chat_messages(session_id, role, content, metadata_json, client_message_id, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            [
+                (BROWSER_TEST_VISUAL_SESSION_ID, "user", "请复核 CVD-02 的膜厚漂移与 SPC 风险。", "{}", "ux015-user-message", BROWSER_TEST_VISUAL_TIMESTAMP),
+                (BROWSER_TEST_VISUAL_SESSION_ID, "assistant", BROWSER_TEST_VISUAL_ASSISTANT_ANSWER, "{}", None, BROWSER_TEST_VISUAL_TIMESTAMP),
+            ],
+        )
+        connection.commit()
+    with closing(sqlite3.connect(knowledge_database_path)) as connection:
+        connection.execute("DELETE FROM personal_knowledge_fts WHERE document_id = ?", (BROWSER_TEST_VISUAL_DOCUMENT_ID,))
+        connection.execute("DELETE FROM personal_knowledge_chunks WHERE document_id = ?", (BROWSER_TEST_VISUAL_DOCUMENT_ID,))
+        connection.execute("DELETE FROM personal_knowledge_jobs WHERE document_id = ?", (BROWSER_TEST_VISUAL_DOCUMENT_ID,))
+        connection.execute("DELETE FROM personal_knowledge_documents WHERE document_id = ?", (BROWSER_TEST_VISUAL_DOCUMENT_ID,))
+        connection.execute(
+            """INSERT INTO personal_knowledge_documents(
+                   document_id, owner_user_id, filename, title, mime_type, size_bytes, checksum_sha256,
+                   process_steps_json, equipment_ids_json, effective_date, tags_json, tags_source, status,
+                   storage_key, parser_version, idempotency_key, created_at, updated_at
+               ) VALUES (?, ?, ?, ?, 'text/plain', ?, ?, ?, ?, ?, ?, 'user', 'ready', ?, ?, ?, ?, ?)""",
+            (
+                BROWSER_TEST_VISUAL_DOCUMENT_ID, BROWSER_TEST_VISUAL_USER_ID, BROWSER_TEST_VISUAL_DOCUMENT_FILENAME,
+                BROWSER_TEST_VISUAL_DOCUMENT_TITLE, len(BROWSER_TEST_VISUAL_DOCUMENT_CONTENT.encode("utf-8")),
+                "ux015-visual-checksum", '["CMP"]', '["CMP-02"]', "2026-08-19", '["SPC", "多语言"]',
+                "ux015/visual/original.txt", "browser-test-v1", "ux015-visual-idempotency",
+                BROWSER_TEST_VISUAL_TIMESTAMP, BROWSER_TEST_VISUAL_TIMESTAMP,
+            ),
+        )
+        connection.execute(
+            """INSERT INTO personal_knowledge_chunks(
+                   chunk_id, document_id, owner_user_id, page_number, section_path, chunk_index, content, token_count, created_at
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (BROWSER_TEST_VISUAL_CHUNK_ID, BROWSER_TEST_VISUAL_DOCUMENT_ID, BROWSER_TEST_VISUAL_USER_ID, 1,
+             "CMP 抛光异常处置", 0, BROWSER_TEST_VISUAL_DOCUMENT_CONTENT, 92, BROWSER_TEST_VISUAL_TIMESTAMP),
+        )
+        connection.execute(
+            """INSERT INTO personal_knowledge_jobs(
+                   job_id, document_id, owner_user_id, status, stage, progress, attempt, created_at, updated_at
+               ) VALUES (?, ?, ?, 'ready', 'complete', 100, 1, ?, ?)""",
+            ("ux015-visual-job", BROWSER_TEST_VISUAL_DOCUMENT_ID, BROWSER_TEST_VISUAL_USER_ID,
+             BROWSER_TEST_VISUAL_TIMESTAMP, BROWSER_TEST_VISUAL_TIMESTAMP),
+        )
+        connection.execute(
+            """INSERT INTO personal_knowledge_fts(title, section_path, content, owner_user_id, document_id, chunk_id)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (BROWSER_TEST_VISUAL_DOCUMENT_TITLE, "CMP 抛光异常处置", BROWSER_TEST_VISUAL_DOCUMENT_CONTENT,
+             BROWSER_TEST_VISUAL_USER_ID, BROWSER_TEST_VISUAL_DOCUMENT_ID, BROWSER_TEST_VISUAL_CHUNK_ID),
+        )
+        connection.commit()
+
+
 def browser_test_environment(root: Path, environ: dict[str, str] | None = None) -> dict[str, str]:
     """Return deterministic isolated settings without inherited application state."""
     environment = dict(os.environ if environ is None else environ)
@@ -78,6 +188,9 @@ def browser_test_environment(root: Path, environ: dict[str, str] | None = None) 
     for destination in snapshots.values():
         backup_database(REFERENCE_DEPARTMENTS / destination.name, destination)
     prepare_browser_test_model_capabilities(snapshots["FAB_AGENT_DATABASE_PATH"])
+    prepare_browser_test_visual_fixtures(
+        snapshots["FAB_AGENT_DATABASE_PATH"], snapshots["FAB_KNOWLEDGE_DATABASE_PATH"]
+    )
     environment.update({
         "FAB_DATABASE_DIR": str(departments),
         "FAB_DATABASE_PATH": str(root / "legacy.db"),

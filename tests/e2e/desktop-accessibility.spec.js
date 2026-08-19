@@ -12,6 +12,9 @@ async function expectNoAxeViolations(page) {
 async function readyUser(page) {
   await page.goto('/');
   await expect(page.locator('#kpiGrid')).not.toBeEmpty();
+  // The initial HTML has a static welcome message, but suggestions are rendered
+  // only after init awaits restoreConversation (or creates a fresh session).
+  await expect(page.locator('#chatMessages .suggestions')).toBeVisible();
 }
 
 async function tabUntilFocused(page, locator, limit = 16) {

@@ -37,7 +37,7 @@
 |---:|---|---|
 | 1-8 | `AGENT-009`、`AGENT-010`、`AGENT-011`、`AGENT-016`、`AGENT-012`、`AGENT-013`、`AGENT-014`、`AGENT-015` | Router、Playbook、Planner、预算、Validator、Synthesizer、持久化与黄金集 |
 | 9-17 | `MODEL-014`、`MODEL-015`、`UX-017`、`MODEL-009`、`MODEL-016`、`MODEL-017`、`MODEL-013`、`AGENT-033`、`MODEL-018` | Provider、能力、Thinking、兼容测试与模型可靠性 |
-| 18-23 | `UX-012`、`RAG-011`、`RAG-012`、`RAG-016`、`UX-013`、`UX-014` | 桌面 Playwright、OCR、进度 SSE、关键工作流与无障碍 |
+| 18-24 | `UX-012`、`RAG-011`、`RAG-012`、`RAG-016`、`UX-013`、`UX-014`、`UX-015` | 桌面 Playwright、OCR、进度 SSE、关键工作流、无障碍与视觉回归 |
 
 `DATA-016` 的市场锚点模拟数据和 `UX-028` 的回答复制顺序也在这一阶段完成；它们的状态分别以企业数据和用户体验分类 TODO 为准。
 
@@ -50,5 +50,9 @@
 ### 检查点 B：模型运行可靠性
 
 2026-08-12 宿主 full 质量门全通过：263 个 Python 发现项，198 个非系统测试；系统数据 12、HTTP 15、知识 12、模型 17、会话 9；分支覆盖率 86%，Node 32，RAG 15/15，Playbook 12/12。管理员能力声明、显式兼容性测试、structured context、DeepSeek Thinking answer/tool roundtrip、能力约束和离线降级已收口。
+
+### 检查点 C：OCR 与浏览器交互
+
+2026-08-19 `UX-015` 宿主 full 质量门全通过：327 个 Python 发现项，261 个非系统测试；系统数据 12、HTTP 15、知识 13、模型 17、会话 9；分支覆盖率 87%，Node 35、RAG 15/15、OCR 黄金集 8/8、Playbook 12/12、Playwright 10/10。桌面长回答和个人知识超长多语言文件名的两张 Chromium 视觉基线已生成、人工检查并在非更新模式复验，系统测试总耗时 75.1 秒且低于预算。
 
 更新的完整测试基线统一保留在 [测试策略](../testing-strategy.md)。

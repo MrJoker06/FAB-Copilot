@@ -27,6 +27,7 @@ class BrowserTestServerTests(unittest.TestCase):
             with (
                 patch.object(server, "backup_database") as backup,
                 patch.object(server, "prepare_browser_test_model_capabilities") as prepare,
+                patch.object(server, "prepare_browser_test_visual_fixtures") as prepare_visual,
             ):
                 environment = server.browser_test_environment(root, {
                     "FAB_MODEL_API_KEY": "secret", "FAB_REQUIRE_IDENTITY": "true", "FAB_DATA_PROVIDER": "live",
@@ -36,6 +37,9 @@ class BrowserTestServerTests(unittest.TestCase):
                 })
             self.assertEqual(backup.call_count, 5)
             prepare.assert_called_once_with(Path(environment["FAB_AGENT_DATABASE_PATH"]))
+            prepare_visual.assert_called_once_with(
+                Path(environment["FAB_AGENT_DATABASE_PATH"]), Path(environment["FAB_KNOWLEDGE_DATABASE_PATH"])
+            )
             self.assertEqual(environment["SAFE"], "kept")
             self.assertEqual(environment["PATH"], "/safe/path")
             self.assertEqual(environment["FAB_MODEL_API_KEY"], "")
@@ -84,6 +88,45 @@ class BrowserTestServerTests(unittest.TestCase):
                 reference_capabilities["deepseekv4-pro"],
             )
             self.assertEqual(json.loads(reference_capabilities["deepseekv4-pro"])["thinking"], False)
+
+    def test_visual_fixtures_only_update_temporary_agent_and_knowledge_snapshots(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "isolated"
+            agent_snapshot = root / "agent.db"
+            knowledge_snapshot = root / "knowledge.db"
+            server.backup_database(server.REFERENCE_DEPARTMENTS / "ai_operations.db", agent_snapshot)
+            server.backup_database(server.REFERENCE_DEPARTMENTS / "process_knowledge.db", knowledge_snapshot)
+            server.prepare_browser_test_visual_fixtures(agent_snapshot, knowledge_snapshot)
+            with closing(sqlite3.connect(agent_snapshot)) as connection:
+                session = connection.execute(
+                    "SELECT tenant_id, owner_user_id FROM chat_sessions WHERE session_id = ?",
+                    (server.BROWSER_TEST_VISUAL_SESSION_ID,),
+                ).fetchone()
+                answer = connection.execute(
+                    "SELECT content FROM chat_messages WHERE session_id = ? AND role = 'assistant'",
+                    (server.BROWSER_TEST_VISUAL_SESSION_ID,),
+                ).fetchone()
+            with closing(sqlite3.connect(knowledge_snapshot)) as connection:
+                document = connection.execute(
+                    "SELECT filename, status FROM personal_knowledge_documents WHERE document_id = ?",
+                    (server.BROWSER_TEST_VISUAL_DOCUMENT_ID,),
+                ).fetchone()
+                chunk = connection.execute(
+                    "SELECT content FROM personal_knowledge_chunks WHERE document_id = ?",
+                    (server.BROWSER_TEST_VISUAL_DOCUMENT_ID,),
+                ).fetchone()
+            self.assertEqual(tuple(session), (server.BROWSER_TEST_VISUAL_TENANT_ID, server.BROWSER_TEST_VISUAL_USER_ID))
+            self.assertIn("CVD-02", answer[0])
+            self.assertEqual(tuple(document), (server.BROWSER_TEST_VISUAL_DOCUMENT_FILENAME, "ready"))
+            self.assertIn("CMP polishing response", chunk[0])
+            with closing(sqlite3.connect(server.REFERENCE_DEPARTMENTS / "ai_operations.db")) as connection:
+                self.assertIsNone(connection.execute(
+                    "SELECT 1 FROM chat_sessions WHERE session_id = ?", (server.BROWSER_TEST_VISUAL_SESSION_ID,)
+                ).fetchone())
+            with closing(sqlite3.connect(server.REFERENCE_DEPARTMENTS / "process_knowledge.db")) as connection:
+                self.assertIsNone(connection.execute(
+                    "SELECT 1 FROM personal_knowledge_documents WHERE document_id = ?", (server.BROWSER_TEST_VISUAL_DOCUMENT_ID,)
+                ).fetchone())
 
     def test_model_capability_fixture_fails_clearly_when_a_required_model_is_missing(self):
         with tempfile.TemporaryDirectory() as temporary:
