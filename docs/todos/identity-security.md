@@ -9,7 +9,7 @@
 - [x] `AUTH-005` 用户端不允许提交模型 API Key、Base URL 或任意模型名称。
 - [x] `AUTH-006` 日志对 Authorization、API Key、Token、密码和 Secret 强制脱敏。
 
-## 待做
+## 企业级暂缓
 
 - [ ] `AUTH-007` 接入 OIDC/企业 SSO，并由可信网关验证 JWT。
 - [ ] `AUTH-008` 禁止客户端直接声明可信身份，将 Principal 只映射自已验证声明。

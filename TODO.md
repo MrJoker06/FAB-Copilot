@@ -1,6 +1,6 @@
 # Fab Insight Agent TODO
 
-状态基线：`experiment/parallel-platform`，2026-08-13。
+状态基线：`experiment/parallel-platform`，2026-08-19。
 
 当前统计：共 167 个独立任务，已完成 123 个，待做 44 个。
 
@@ -8,7 +8,7 @@
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
-当前结论：`UX-014` 已完成：桌面端键盘路径、Dialog 焦点、ARIA 状态和 WCAG 2 A/AA 扫描已覆盖；下一项为 `UX-015`。当前执行顺序见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)，仅移动端 `UX-029` 由用户暂缓，40 项企业级任务继续暂缓。
+当前结论：`UX-014` 已完成，下一项为桌面端视觉回归 `UX-015`。当前队列共 3 项，另有用户暂缓 1 项、企业级暂缓 40 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
 
 ## 标记规则
 
@@ -19,18 +19,29 @@
 - 部分完成的事项必须拆成多个独立任务，不能将一个任务同时标记为完成和待做。
 - `[ ]` 只表示未完成；是否进入当前队列以执行计划为准。
 
+## 当前执行快照
+
+| 类型 | 任务 | 当前结论 |
+|---|---|---|
+| 当前队列 | `UX-015` → `OBS-014` → `DEPLOY-012` | 严格串行，下一项为 `UX-015` |
+| 用户暂缓 | `UX-029` | 移动端需求暂不进入当前队列 |
+| 企业级暂缓 | 40 项 | 等待身份提供方、真实数据接口、部署环境和运维边界明确 |
+| 可选候选 | `RAG-024` `OPTIONAL` | 不计入主统计，只在用户明确激活后排期 |
+
+最近一次完整质量门为 2026-08-13 `UX-014` 宿主 full：326 个 Python 发现项、分支覆盖率 87%、Playwright 8/8，Axe WCAG 2.0/2.1/2.2 A/AA 扫描零违规。完整基线见 [测试策略](docs/testing-strategy.md)。
+
 ## 工作流清单
 
 | 工作流 | 清单 | 当前结论 |
 |---|---|---|
 | Agent 执行架构 | [Agent TODO](docs/todos/agent-architecture.md) | Tool Agent Loop、基于真实消息 ID 的上下文回忆、制造范围门禁、通用制造运营概览、Router、六类 Playbook、Planner、运行时守卫、Validator、Synthesizer、计划审计持久化与 Playbook 黄金集已完成 |
-| 身份与权限 | [身份安全 TODO](docs/todos/identity-security.md) | 本地隔离和管理令牌已完成；企业 SSO/RBAC 待做 |
-| 模型治理 | [模型治理 TODO](docs/todos/model-governance.md) | 统一 Provider 连接、能力目录、用户选择与 Thinking 服务端门禁已完成；企业凭据与审批待做 |
-| RAG 与知识库 | [知识库 TODO](docs/todos/rag-knowledge.md) | L0 本地 RAG、中文双语制程召回治理、自动 Tag 人工保护和离线 OCR 已完成；分布式 RAG 待做 |
-| 企业数据 | [企业数据 TODO](docs/todos/enterprise-data.md) | SQLite 开发替身与大规模模拟契约已完成；通过既有 Oracle 生产接口的适配待做 |
-| 日志与运行监控 | [可观测性 TODO](docs/todos/observability.md) | 单实例监控与端到端流式聚合诊断已完成；集中式多实例监控待做 |
-| 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 会话管理、后台 Run 归属、来源折叠去重、回答正文后复制、流式停滞、版本提示修复、个人知识唯一上传入口及 Tag/元数据编辑、Thinking 能力感知控件和桌面关键浏览器工作流已完成；下一项为无障碍治理 |
-| 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接及运行快照治理已完成；独立服务部署待做 |
+| 身份与权限 | [身份安全 TODO](docs/todos/identity-security.md) | 本地隔离和管理令牌已完成；企业 SSO/RBAC 属于企业级暂缓 |
+| 模型治理 | [模型治理 TODO](docs/todos/model-governance.md) | 统一 Provider 连接、能力目录、用户选择与 Thinking 服务端门禁已完成；企业凭据与审批属于企业级暂缓 |
+| RAG 与知识库 | [知识库 TODO](docs/todos/rag-knowledge.md) | L0 本地 RAG、中文双语制程召回治理、自动 Tag 人工保护和离线 OCR 已完成；分布式 RAG 属于企业级暂缓 |
+| 企业数据 | [企业数据 TODO](docs/todos/enterprise-data.md) | SQLite 开发替身与大规模模拟契约已完成；通过既有 Oracle 生产接口的适配 `DATA-017` 属于企业级暂缓 |
+| 日志与运行监控 | [可观测性 TODO](docs/todos/observability.md) | 单实例监控与端到端流式聚合诊断已完成；当前队列包含 `OBS-014` 完整日志到期治理 |
+| 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 桌面端关键工作流和无障碍治理已完成；下一项为 `UX-015` 桌面端视觉回归，移动端 `UX-029` 由用户暂缓 |
+| 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接及运行快照治理已完成；当前队列以 `DEPLOY-012` CI 质量门收口 |
 | 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 本地分层质量门、全量审计策略、QA-002 系统测试隔离与 QA-003 启动/迁移/运维脚本风险路径已完成 |
 
 ## 更新要求
