@@ -278,7 +278,14 @@ class HttpContractsSystemTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             payload = response.json()
             self.assertIn("runs", payload)
+            self.assertEqual(payload["log_policy"]["effective_mode"], "metadata")
             self.assertNotIn("api_key", str(payload).lower())
+            overview = client.get(
+                "/api/admin/overview?hours=24",
+                headers={"Authorization": "Bearer monitor-admin-token"},
+            )
+            self.assertEqual(overview.status_code, 200, overview.text)
+            self.assertEqual(overview.json()["agent"]["log_policy"]["effective_mode"], "metadata")
 
 class HttpContractTests(unittest.TestCase):
     """Small endpoint contracts kept separate from broad system workflow tests."""

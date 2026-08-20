@@ -57,6 +57,8 @@ python scripts/run_quality_gate.py quick
 
 2026-08-19 `UX-015` 宿主 full 实测全通过：发现 327 个 Python 测试，其中 261 个非系统测试；系统模块分别为数据报表 12、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 9；`app` 分支覆盖率 87%，Node 35 项、RAG 15/15、OCR 黄金集 8/8 类别通过、Playbook 12/12，Playwright 桌面 10/10。两张 Linux Chromium 基线覆盖长 Markdown 回答和超长多语言个人知识文件名，均经人工检查及非更新模式复验；`runtime/quality/system_test_timings.json` 总计 75.1 秒，五个模块及总计均低于版本化预算。
 
+2026-08-20 `OBS-014` 宿主 full 实测全通过：发现 333 个 Python 测试，其中 267 个非系统测试；系统模块分别为数据报表 12、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 9；`app` 分支覆盖率 87%，Node 契约文件 13/13、RAG 15/15、OCR 黄金集 8/8 类别通过、Playbook 12/12，Playwright 桌面 10/10。`runtime/quality/system_test_timings.json` 总计 82.4 秒，五个模块及总计均低于版本化预算。
+
 ```bash
 python scripts/run_quality_gate.py full
 ```

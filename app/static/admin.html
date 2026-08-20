@@ -29,6 +29,10 @@
           <div class="runtime-controls"><select id="runtimeHours" aria-label="统计时间范围"><option value="1">最近 1 小时</option><option value="24" selected>最近 24 小时</option><option value="168">最近 7 天</option><option value="720">最近 30 天</option></select><button id="refreshRuntime" class="primary-button" type="button">刷新</button></div>
         </div>
         <div id="adminNotice" class="admin-notice" role="status" hidden></div>
+        <section id="logPolicyPanel" class="log-policy-panel" aria-live="polite">
+          <div><p class="admin-eyebrow">AUDIT LOG POLICY</p><h2>日志内容策略</h2><p id="logPolicyDetail">正在读取当前策略</p></div>
+          <span id="logPolicyMode" class="log-policy-mode">metadata</span>
+        </section>
         <div id="runtimeKpis" class="admin-kpis"></div>
         <section class="admin-panel user-status-panel">
           <div class="panel-heading"><div><h2>用户状态</h2><p>当前活动与窗口期运行汇总</p></div><span id="runtimeUpdated" class="panel-meta"></span></div>

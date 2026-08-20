@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from starlette.concurrency import run_in_threadpool
 
 from .agent import run_agent
-from .audit import CONTENT_MODE, GIT_COMMIT, current_request_id, emit, monitoring_summary, read_events
+from .audit import GIT_COMMIT, current_request_id, emit, monitoring_summary, read_events
 from .config import APP_VERSION, PROJECT_DIR, ModelConnection, get_settings
 from .database import db_session, department_paths, ensure_department_databases
 from .enterprise_data import EnterpriseDataError, get_enterprise_provider
@@ -232,7 +232,7 @@ async def handle_unexpected_error(_: Request, exc: Exception) -> JSONResponse:
         request_id,
         status="error",
         error_type=type(exc).__name__,
-        **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
+        full_content={"error_message": str(exc), "traceback": traceback.format_exc()},
     )
     return JSONResponse(status_code=500, content=error_payload("INTERNAL_ERROR", "服务器内部错误", True))
 
@@ -1197,7 +1197,7 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                 error_type=type(exc).__name__,
                 session_id=session_id,
                 retryable=False,
-                **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
+                full_content={"error_message": str(exc), "traceback": traceback.format_exc()},
             )
             yield _stream_line("error", detail=detail, error=error_payload("ANALYSIS_ERROR", detail, False))
         finally:

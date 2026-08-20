@@ -379,7 +379,15 @@ GET /api/monitor/events?limit=100
 - `redacted`：保留脱敏摘要，适合预发布环境。
 - `full`：记录完整问题、历史消息、模型请求/响应、工具参数/结果、RAG 内容、最终答案和错误堆栈，适合受控测试环境。
 
-当前项目的本地 `.env` 已设置 `AGENT_LOG_CONTENT=full`。即使在完整模式下，API Key、Authorization、密码、Secret、Cookie 和访问 Token 字段仍会强制替换为 `<redacted>`。完整日志可能包含批次号、SQL、制造数据和对话内容，因此不得提交 Git，不应暴露监控 API 到公网，测试完成后应删除或切换回 `metadata`。
+完整日志默认不会仅因 `AGENT_LOG_CONTENT=full` 而启用。仅限受控测试时，同时显式配置以下三项：
+
+```dotenv
+AGENT_LOG_CONTENT=full
+AGENT_LOG_FULL_TEST_MODE=true
+AGENT_LOG_FULL_EXPIRES_AT=<replace-with-timezone-aware-ISO-8601-UTC-timestamp>
+```
+
+到期时间必须包含时区、位于未来，且不得晚于服务启动时间后的 24 小时；缺少测试开关、时间无效/无时区、已到期或超过上限时，运行中的服务会在下一条日志写入时自动回退到 `metadata`，无需重启。启用完整日志或变更环境配置仍需正常重启服务；只有已启用窗口的到期回退会在线生效。即使在完整模式下，API Key、Authorization、密码、Secret、Cookie 和访问 Token 字段仍会强制替换为 `<redacted>`。完整日志可能包含批次号、SQL、制造数据和对话内容，因此不得提交 Git，也不应暴露监控 API 到公网。
 
 ## 目录
 

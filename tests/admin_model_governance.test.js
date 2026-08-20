@@ -66,3 +66,14 @@ test('model catalog header is semantic, Chinese, and visually distinct', () => {
   assert.match(css, /\.model-catalog-wrap \{ overflow-x: hidden; \}/);
   assert.match(css, /@media \(max-width: 1180px\) \{[^}]*\.model-catalog-table colgroup, .model-catalog-table thead \{ display: none; \}/);
 });
+
+test('admin runtime renders read-only audit log policy safely', () => {
+  assert.match(html, /id="logPolicyPanel"/);
+  assert.match(html, /id="logPolicyDetail"/);
+  assert.match(script, /function renderLogPolicy\(policy = \{\}\)/);
+  assert.match(script, /textContent = logPolicyMessage\(policy\)/);
+  assert.match(script, /renderLogPolicy\(agent\.log_policy\)/);
+  assert.match(script, /expiry_expired/);
+  assert.match(css, /\.log-policy-panel \{[^}]*margin-bottom:14px;/);
+  assert.match(css, /\.log-policy-mode-full \{[^}]*background:#d9f1ed;/);
+});

@@ -8,7 +8,7 @@ import uuid
 from typing import Any
 from urllib.parse import unquote
 
-from .audit import CONTENT_MODE, emit, reset_request_id, set_request_id
+from .audit import emit, log_content_policy, reset_request_id, set_request_id
 from .config import get_settings
 
 
@@ -53,7 +53,7 @@ class RequestAuditMiddleware:
         method = scope.get("method", "GET")
         path = scope.get("path", "")
         query = unquote(scope.get("query_string", b"").decode("latin-1"))
-        capture_body = CONTENT_MODE == "full" and "multipart/form-data" not in headers.get("content-type", "")
+        capture_body = log_content_policy()["effective_mode"] == "full" and "multipart/form-data" not in headers.get("content-type", "")
         started = time.perf_counter()
         body_parts: list[bytes] = []
         status_code = 500
@@ -69,7 +69,7 @@ class RequestAuditMiddleware:
             client=scope.get("client"),
             tenant_id=tenant_id,
             user_id=user_id,
-            **({"headers": headers} if CONTENT_MODE == "full" else {}),
+            full_content={"headers": headers},
         )
 
         async def audited_receive():
@@ -100,7 +100,7 @@ class RequestAuditMiddleware:
                     tenant_id=tenant_id,
                     user_id=user_id,
                     **({"error_type": f"HTTP_{status_code}"} if status_code >= 400 else {}),
-                    **({"request_body": _decode_body(b"".join(body_parts), headers.get("content-type", ""))} if CONTENT_MODE == "full" and body_parts else {}),
+                    full_content=({"request_body": _decode_body(b"".join(body_parts), headers.get("content-type", ""))} if body_parts else None),
                 )
             await send(message)
 
@@ -117,7 +117,7 @@ class RequestAuditMiddleware:
                     error_type=type(exc).__name__,
                     tenant_id=tenant_id,
                     user_id=user_id,
-                    **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
+                    full_content={"error_message": str(exc), "traceback": traceback.format_exc()},
                 )
                 emit(
                     "api_request_finished",
@@ -130,7 +130,7 @@ class RequestAuditMiddleware:
                     error_type=type(exc).__name__,
                     tenant_id=tenant_id,
                     user_id=user_id,
-                    **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
+                    full_content={"error_message": str(exc), "traceback": traceback.format_exc()},
                 )
             if response_started:
                 raise

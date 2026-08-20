@@ -820,7 +820,6 @@ class ContextResolverTests(unittest.TestCase):
         with (
             patch("app.agent._stream_completion", new=invalid_stream),
             patch("app.agent.emit", new=capture),
-            patch("app.agent.CONTENT_MODE", "metadata"),
         ):
             asyncio.run(agent_module._resolve_conversation_turn(
                 "是更前面的一个",

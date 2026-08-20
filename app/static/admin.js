@@ -78,6 +78,34 @@ function runContext(run) {
   return `<div class="run-context-cell"><strong title="${escapeHtml(question)}">${escapeHtml(question)}</strong><span title="${escapeHtml(sessionTitle)}">会话：${escapeHtml(sessionTitle)}</span><code title="Session ID">${escapeHtml(sessionId)}</code></div>`;
 }
 
+function logPolicyMessage(policy) {
+  const reason = {
+    requested_metadata: '按默认安全策略，仅记录元数据。',
+    requested_redacted: '当前为脱敏摘要模式。',
+    full_test_window_active: '完整内容测试窗口处于有效期内。',
+    test_mode_disabled: '未开启测试开关，已自动回退为 metadata。',
+    expiry_missing: '未配置到期时间，已自动回退为 metadata。',
+    expiry_invalid: '到期时间格式无效，已自动回退为 metadata。',
+    expiry_naive: '到期时间必须包含时区，已自动回退为 metadata。',
+    expiry_expired: '完整内容测试窗口已到期，已自动回退为 metadata。',
+    expiry_exceeds_max_duration: '到期时间超过 24 小时上限，已自动回退为 metadata。',
+  };
+  const base = reason[policy?.reason] || '已使用安全 metadata 回退策略。';
+  if (policy?.effective_mode === 'full' && policy.expires_at) {
+    return `${base} 到期：${formatDate(policy.expires_at)}。`;
+  }
+  return base;
+}
+
+function renderLogPolicy(policy = {}) {
+  const effectiveMode = policy.effective_mode || 'metadata';
+  const mode = $('#logPolicyMode');
+  mode.textContent = effectiveMode;
+  mode.className = `log-policy-mode log-policy-mode-${effectiveMode}`;
+  $('#logPolicyDetail').textContent = logPolicyMessage(policy);
+  $('#logPolicyPanel').classList.toggle('log-policy-panel-active', effectiveMode === 'full');
+}
+
 function renderOverview(data) {
   const summary = data.summary || {};
   const agent = data.agent || {};
@@ -95,6 +123,7 @@ function renderOverview(data) {
   $('#runtimeWindow').textContent = `最近 ${data.window_hours} 小时 · 10 秒刷新`;
   $('#runtimeUpdated').textContent = `更新于 ${new Date(data.generated_at).toLocaleTimeString('zh-CN',{hour12:false})}`;
   $('#adminBuild').textContent = `${data.build?.version || 'unknown'} · ${data.build?.git_commit || ''}`;
+  renderLogPolicy(agent.log_policy);
 }
 
 async function loadOverview() {

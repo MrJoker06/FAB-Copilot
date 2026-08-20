@@ -23,7 +23,7 @@ from .answer_synthesizer import (
     synthesize_submission,
     synthesizer_system_message,
 )
-from .audit import CONTENT_MODE, content_fingerprint, emit
+from .audit import content_fingerprint, emit
 from .config import Settings, get_settings
 from .context_resolver import (
     CONTEXTUALIZER_RESPONSE_FORMAT,
@@ -185,7 +185,7 @@ def _emit_answer_synthesis(run_id: str, report: AnswerSynthesisReport) -> None:
         invalid_source_count=len(report.invalid_source_refs),
         moved_claims=report.moved_claims,
         wording_adjustment_count=len(report.wording_adjustments),
-        **({"answer_synthesis": payload} if CONTENT_MODE == "full" else {}),
+        full_content={"answer_synthesis": payload},
     )
 
 
@@ -539,7 +539,7 @@ async def _prefetch_general_knowledge(
                 tool_call_id=f"prefetch-{query_variant}-{scope}",
                 retrieval_scope=scope,
                 query_variant=query_variant,
-                **({"arguments": arguments} if CONTENT_MODE == "full" else {}),
+                full_content={"arguments": arguments},
             )
             guard_decision = loop_guard.check_call("search_knowledge", arguments)
             if not guard_decision.allowed:
@@ -615,7 +615,7 @@ async def _prefetch_general_knowledge(
                     query_variant=query_variant,
                     raw_rows=raw_count,
                     rows=len(usable),
-                    **({"result": usable} if CONTENT_MODE == "full" else {}),
+                    full_content={"result": usable},
                 )
             except Exception as exc:
                 loop_guard.record_result("search_knowledge", None, False)
@@ -651,7 +651,7 @@ async def _prefetch_general_knowledge(
                     retrieval_scope=scope,
                     query_variant=query_variant,
                     error_type=type(exc).__name__,
-                    **({"error_message": str(exc)} if CONTENT_MODE == "full" else {}),
+                    full_content={"error_message": str(exc)},
                 )
         loop_guard.finish_round()
 
@@ -666,7 +666,7 @@ async def _prefetch_general_knowledge(
         source_counts=decision.source_counts,
         rewritten=bool(decision.rewritten_query),
         model_knowledge_allowed=decision.model_knowledge_allowed,
-        **({"retrieval_decision": decision_payload} if CONTENT_MODE == "full" else {}),
+        full_content={"retrieval_decision": decision_payload},
     )
     await _notify(progress, {
         "event": "stage",
@@ -811,8 +811,10 @@ async def _stream_completion(
     return assistant, usage, response_id
 
 
-def _audit_assistant(assistant: dict) -> dict:
+def _audit_assistant(assistant: dict | None) -> dict:
     """Reasoning traces are provider continuation data, never observability data."""
+    if not assistant:
+        return {}
     return {key: value for key, value in assistant.items() if key != "reasoning_content"}
 
 
@@ -1017,7 +1019,7 @@ async def _resolve_conversation_turn(
                 thinking_requested=thinking,
                 thinking_effective=False,
                 reasoning_effort=request_payload.get("reasoning_effort"),
-                **({"request": request_payload} if CONTENT_MODE == "full" else {}),
+                full_content={"request": request_payload},
             )
             try:
                 remaining_seconds = deadline - time.perf_counter()
@@ -1096,11 +1098,11 @@ async def _resolve_conversation_turn(
                     thinking_effective=False,
                     reasoning_effort=request_payload.get("reasoning_effort"),
                     failure_reason=_model_failure_reason(exc),
-                    **({
+                    full_content={
                         "error_message": str(exc),
                         "traceback": traceback.format_exc(),
                         "response": _audit_assistant(assistant),
-                    } if CONTENT_MODE == "full" else {}),
+                    },
                 )
                 if will_retry:
                     if protocol_error:
@@ -1136,7 +1138,7 @@ async def _resolve_conversation_turn(
                 thinking_effective=False,
                 reasoning_effort=request_payload.get("reasoning_effort"),
                 response_id=response_id,
-                **({"response": _audit_assistant(assistant), "context_resolution": resolution.to_dict()} if CONTENT_MODE == "full" else {}),
+                full_content={"response": _audit_assistant(assistant), "context_resolution": resolution.to_dict()},
             )
             if health_model_id:
                 health, transition = record_model_success(health_model_id)
@@ -1627,7 +1629,7 @@ async def _run_agent_impl(
                     thinking_requested=thinking,
                     thinking_effective=thinking,
                     reasoning_effort=request_payload.get("reasoning_effort"),
-                    **({"request": request_payload} if CONTENT_MODE == "full" else {}),
+                    full_content={"request": request_payload},
                 )
                 stream_state = {
                     "answer_emitted": False,
@@ -1665,7 +1667,7 @@ async def _run_agent_impl(
                         thinking_effective=thinking,
                         reasoning_effort=request_payload.get("reasoning_effort"),
                         failure_reason=_model_failure_reason(exc),
-                        **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
+                        full_content={"error_message": str(exc), "traceback": traceback.format_exc()},
                     )
                     if not will_retry:
                         if availability_failure and health_enabled:
@@ -1737,7 +1739,7 @@ async def _run_agent_impl(
                     thinking_requested=thinking,
                     thinking_effective=thinking,
                     reasoning_effort=request_payload.get("reasoning_effort"),
-                    **({"response": _audit_assistant(assistant)} if CONTENT_MODE == "full" else {}),
+                    full_content={"response": _audit_assistant(assistant)},
                 )
                 thinking_answer_effective = thinking_answer_effective or thinking
                 if health_enabled:
@@ -1853,7 +1855,7 @@ async def _run_agent_impl(
                     run_id,
                     tool=name or "unknown",
                     tool_call_id=call.get("id"),
-                    **({"arguments": arguments} if CONTENT_MODE == "full" else {}),
+                    full_content={"arguments": arguments},
                 )
                 decision = loop_guard.check_call(name or "unknown", arguments)
                 if not decision.allowed:
@@ -1882,7 +1884,7 @@ async def _run_agent_impl(
                         reason_code=decision.reason_code,
                         signature_hash=decision.signature_hash,
                         duration_ms=tool_duration_ms,
-                        **({"arguments": arguments, "message": decision.message} if CONTENT_MODE == "full" else {}),
+                        full_content={"arguments": arguments, "message": decision.message},
                     )
                     emit(
                         "tool_call_finished",
@@ -1943,7 +1945,7 @@ async def _run_agent_impl(
                         tool=name,
                         duration_ms=tool_duration_ms,
                         rows=row_count,
-                        **({"result": result} if CONTENT_MODE == "full" else {}),
+                        full_content={"result": result},
                     )
                     content = json.dumps({"ok": True, "data": result}, ensure_ascii=False, default=str)
                 except Exception as exc:
@@ -1964,7 +1966,7 @@ async def _run_agent_impl(
                         tool=name or "unknown",
                         duration_ms=round((time.perf_counter() - tool_started) * 1000, 1),
                         error_type=type(exc).__name__,
-                        **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
+                        full_content={"error_message": str(exc), "traceback": traceback.format_exc()},
                     )
                     content = json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
                 messages.append({"role": "tool", "tool_call_id": call.get("id") or decision.signature_hash, "content": content})
@@ -2064,7 +2066,7 @@ async def run_agent(
         question_fingerprint=content_fingerprint(question),
         history_messages=len(history or []),
         thinking_policy={"requested": thinking, "context_effective": False, "answer_effective": False},
-        **({"question": question, "history": history or []} if CONTENT_MODE == "full" else {}),
+        full_content={"question": question, "history": history or []},
     )
     await tracked_progress({"event": "run_started", "run_id": run_id, "message": "分析任务已创建"})
     try:
@@ -2105,7 +2107,7 @@ async def run_agent(
             answer_synthesis_status=result.get("answer_synthesis", {}).get("status"),
             answer_synthesis_moved_claims=result.get("answer_synthesis", {}).get("moved_claims", 0),
             answer_synthesis_invalid_sources=len(result.get("answer_synthesis", {}).get("invalid_source_refs", [])),
-            **({
+            full_content={
                 "answer": result.get("answer"),
                 "tool_trace": result.get("tool_trace", []),
                 "sources": result.get("sources", []),
@@ -2113,7 +2115,7 @@ async def run_agent(
                 "evidence_validation": result.get("evidence_validation", {}),
                 "answer_contract": result.get("answer_contract", {}),
                 "answer_synthesis": result.get("answer_synthesis", {}),
-            } if CONTENT_MODE == "full" else {}),
+            },
         )
         return result
     except Exception as exc:
@@ -2124,6 +2126,6 @@ async def run_agent(
             status="error",
             duration_ms=round((time.perf_counter() - started) * 1000, 1),
             error_type=type(exc).__name__,
-            **({"error_message": str(exc), "traceback": traceback.format_exc()} if CONTENT_MODE == "full" else {}),
+            full_content={"error_message": str(exc), "traceback": traceback.format_exc()},
         )
         raise
