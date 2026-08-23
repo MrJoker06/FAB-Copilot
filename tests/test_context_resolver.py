@@ -43,6 +43,7 @@ def _context_response(
     confidence: float = 0.95,
     intent_hint: str = "unclear",
     target_message_ids: list[int] | None = None,
+    turn_actions: list[dict] | None = None,
 ) -> tuple[dict, dict, str]:
     return (
         {
@@ -54,6 +55,7 @@ def _context_response(
                 "target_message_ids": target_message_ids or [],
                 "confidence": confidence,
                 "intent_hint": intent_hint,
+                **({"turn_actions": turn_actions} if turn_actions is not None else {}),
             }, ensure_ascii=False),
         },
         {"prompt_tokens": 8, "completion_tokens": 4, "total_tokens": 12},
@@ -62,6 +64,112 @@ def _context_response(
 
 
 class ContextResolverTests(unittest.TestCase):
+    def test_trace_records_safe_arbitration_candidates_and_separate_versions(self):
+        events: list[tuple[str, dict]] = []
+
+        def capture(event_type: str, _run_id: str, **fields) -> None:
+            events.append((event_type, fields))
+
+        with patch("app.agent.get_settings", return_value=_settings()), patch("app.agent.emit", new=capture):
+            asyncio.run(agent_module._run_agent_impl("你有什么功能", [], "trace-arbitration"))
+
+        decision = next(fields for event, fields in events if event == "turn_decision_created")
+        self.assertNotIn("schema_version", decision)
+        self.assertEqual(decision["turn_decision_schema_version"], "1.0")
+        self.assertEqual(
+            decision["decision_candidate_count"],
+            decision["selected_candidate_count"] + decision["rejected_candidate_count"],
+        )
+        self.assertEqual({item["status"] for item in decision["decision_candidates"]}, {"selected", "rejected"})
+        self.assertTrue(all(set(item) == {"kind", "value", "origin", "confidence", "status", "reason"} for item in decision["decision_candidates"]))
+        self.assertTrue(any(event == "context_stage_completed" for event, _ in events))
+        self.assertTrue(any(event == "routing_stage_completed" for event, _ in events))
+
+    def test_real_router_failure_replay_stays_in_capability_flow_without_tools(self):
+        async def contextualizer(*_args):
+            return _context_response(
+                "followup",
+                "请具体说明 Fab Copilot 的功能，包括个人文档管理与检索能力",
+                "助手能力",
+                .95,
+                "conversation",
+                turn_actions=[{"type": "answer_meta", "subject": "capabilities", "detail": "detailed"}],
+            )
+        history: list[dict] = []
+        with patch("app.agent.get_settings", return_value=_settings()), patch("app.agent._stream_completion", new=contextualizer):
+            identity = asyncio.run(agent_module._run_agent_impl("介绍一下你自己", history, "arbiter-identity"))
+            history += [{"role": "user", "content": "介绍一下你自己"}, {"role": "assistant", "content": identity["answer"], "metadata": identity}]
+            capabilities = asyncio.run(agent_module._run_agent_impl("你有什么功能", history, "arbiter-capabilities"))
+            history += [{"role": "user", "content": "你有什么功能"}, {"role": "assistant", "content": capabilities["answer"], "metadata": capabilities}]
+            result = asyncio.run(agent_module._run_agent_impl("具体一点", history, "arbiter-detail"))
+        self.assertEqual(result["intent_route"]["intent"], "conversation")
+        self.assertEqual(result["turn_decision"]["actions"][0]["type"], "answer_meta")
+        self.assertEqual(result["turn_decision"]["actions"][0]["subject"], "capabilities")
+        self.assertEqual(result["turn_decision"]["actions"][0]["detail"], "detailed")
+        self.assertEqual(result["turn_decision"]["active_flow"], "meta:capabilities")
+        self.assertEqual(result["turn_decision"]["selected_origin"], "semantic_context")
+        self.assertEqual(result["turn_decision"]["policy_reason"], "active_meta_flow_continuation")
+        self.assertEqual(result["tool_trace"], [])
+        self.assertEqual(result["retrieval_decision"]["state"], "NOT_APPLICABLE")
+
+    def test_explicit_task_pipeline_uses_original_question_after_bad_expansion(self):
+        context = semantic_context_resolution(
+            "分析昨天良率，但优先参考知识库",
+            {
+                "relation": "correction",
+                "resolved_question": "优先使用知识库中的文档",
+                "topic_anchor": "良率",
+                "target_message_ids": [],
+                "confidence": .95,
+                "intent_hint": "general_knowledge",
+            },
+        )
+        captured: dict[str, str] = {}
+        original_create_plan = agent_module.create_execution_plan
+
+        async def resolved_context(*_args, **_kwargs):
+            return context, {}
+
+        def capture_plan(question, *args, **kwargs):
+            captured["question"] = question
+            return original_create_plan(question, *args, **kwargs)
+
+        settings = _settings()
+        settings.model_connection.api_key = ""
+        with (
+            patch("app.agent.get_settings", return_value=settings),
+            patch("app.agent._resolve_conversation_turn", new=resolved_context),
+            patch("app.agent.create_execution_plan", new=capture_plan),
+        ):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "分析昨天良率，但优先参考知识库",
+                [{"role": "assistant", "content": "上轮回答", "metadata": {}}],
+                "arbiter-original-question",
+            ))
+        self.assertEqual(result["intent_route"]["intent"], "yield_decline")
+        self.assertEqual(captured["question"], "分析昨天良率，但优先参考知识库")
+        self.assertNotIn("优先使用知识库中的文档", captured["question"])
+
+    def test_four_turn_capability_conversation_uses_distinct_deterministic_answers(self):
+        calls = 0
+        async def contextualizer(*_args):
+            nonlocal calls
+            calls += 1
+            return _context_response("correction" if calls == 2 else "followup", "Fab Copilot 具体有哪些功能", "助手能力", .95, "conversation", turn_actions=[{"type":"answer_meta","subject":"capabilities","detail":"detailed"}])
+        settings = _settings()
+        history = []
+        with patch("app.agent.get_settings", return_value=settings), patch("app.agent._stream_completion", new=contextualizer) as model:
+            one = asyncio.run(agent_module._run_agent_impl("你是谁", history, "four-1")); history += [{"role":"user","content":"你是谁"}, {"role":"assistant","content":one["answer"],"metadata":one}]
+            two = asyncio.run(agent_module._run_agent_impl("你有什么功能", history, "four-2")); history += [{"role":"user","content":"你有什么功能"}, {"role":"assistant","content":two["answer"],"metadata":two}]
+            three = asyncio.run(agent_module._run_agent_impl("具体的功能有哪些", history, "four-3")); history += [{"role":"user","content":"具体的功能有哪些"}, {"role":"assistant","content":three["answer"],"metadata":three}]
+            four = asyncio.run(agent_module._run_agent_impl("我说的是你具备哪些具体的能力而不是宽泛的说明", history, "four-4"))
+        self.assertEqual(len({one["answer"], two["answer"], three["answer"], four["answer"]}), 4, (one["answer"], two["answer"], three["answer"], four["answer"]))
+        self.assertEqual(four["context_resolution"]["strategy"], "semantic_correction")
+        self.assertIn("例如：", four["answer"]); self.assertIn("限制：", four["answer"])
+        for result in (one, two, three, four):
+            self.assertEqual(result["tool_trace"], [])
+            self.assertEqual(result["retrieval_decision"]["state"], "NOT_APPLICABLE")
+        self.assertEqual(calls, 2)
     def test_last_option_resolves_against_previous_clarification(self):
         resolution = resolve_question_context(
             "最后一点",
@@ -125,6 +233,8 @@ class ContextResolverTests(unittest.TestCase):
 
         self.assertFalse(resolution.applied)
         self.assertEqual(resolution.resolved_question, "这个呢")
+        self.assertEqual(resolution.resolution_state, "ambiguous")
+        self.assertEqual(resolution.strategy, "context_clarification")
 
     def test_context_window_is_bounded_and_preserves_latest_turns(self):
         history = [
@@ -382,7 +492,9 @@ class ContextResolverTests(unittest.TestCase):
         self.assertTrue(result["context_resolution"]["applied"])
         self.assertEqual(result["context_resolution"]["source"], "model")
         self.assertEqual(result["intent_route"]["intent"], "yield_decline")
-        self.assertIn("context_resolution=", "\n".join(item["content"] for item in captured["messages"]))
+        synthesis_task = json.loads(captured["messages"][-1]["content"])
+        self.assertEqual(synthesis_task["question"], "最后一点先放下，改为分析最近四周良率")
+        self.assertEqual(synthesis_task["intent"], "yield_decline")
 
     def test_agent_model_resolves_personal_knowledge_preference_as_general_followup(self):
         history = [
@@ -448,10 +560,47 @@ class ContextResolverTests(unittest.TestCase):
         self.assertEqual(calls, 2)
         self.assertFalse(resolution.applied)
         self.assertEqual(resolution.source, "fallback")
-        self.assertEqual(resolution.strategy, "context_clarification")
+        self.assertEqual(resolution.strategy, "none")
+        self.assertEqual(resolution.resolution_state, "unavailable")
         self.assertEqual(resolution.resolved_question, "是更前面的一个")
         self.assertEqual(resolution.failure_reason, "invalid_json")
         self.assertEqual(usage, {})
+
+    def test_run_audits_context_unavailable_as_degraded_success(self):
+        events: list[tuple[str, dict]] = []
+
+        async def degraded_impl(*_args, **_kwargs):
+            return {
+                "answer": "请把问题写完整一些。",
+                "mode": "clarification",
+                "tool_trace": [],
+                "sources": [],
+                "intent_route": {},
+                "context_resolution": {
+                    "resolution_state": "unavailable",
+                    "failure_reason": "timeout",
+                },
+            }
+
+        def capture(event_type: str, run_id: str, **fields) -> None:
+            events.append((event_type, fields))
+
+        with patch("app.agent._run_agent_impl", new=degraded_impl), patch("app.agent.emit", new=capture):
+            result = asyncio.run(agent_module.run_agent(
+                "你有什么功能", [{"role": "user", "content": "你是谁"}],
+                session_id="session-a", user_message_id=42,
+            ))
+
+        self.assertEqual(result["status"], "success")
+        finished = next(fields for event, fields in events if event == "agent_run_finished")
+        self.assertEqual(finished["status"], "success")
+        self.assertEqual(finished["outcome"], "degraded")
+        self.assertTrue(finished["degraded"])
+        self.assertEqual(finished["degradation_reason"], "timeout")
+        self.assertEqual(finished["session_id"], "session-a")
+        self.assertEqual(finished["user_message_id"], 42)
+        started = next(fields for event, fields in events if event == "agent_run_started")
+        self.assertEqual((started["session_id"], started["user_message_id"]), ("session-a", 42))
 
     def test_deepseek_contextualizer_disables_thinking_but_audits_request(self):
         captured = []
@@ -628,7 +777,8 @@ class ContextResolverTests(unittest.TestCase):
                 direct_route,
             ))
 
-        self.assertEqual(resolution.strategy, "context_clarification")
+        self.assertEqual(resolution.strategy, "none")
+        self.assertEqual(resolution.resolution_state, "unavailable")
         self.assertEqual(resolution.failure_reason, "context_budget_exhausted")
 
     def test_context_budget_exhaustion_audits_normalized_reason_and_never_records_reasoning(self):
@@ -689,7 +839,8 @@ class ContextResolverTests(unittest.TestCase):
 
         self.assertEqual(calls, 1)
         self.assertEqual(usage, {})
-        self.assertEqual(resolution.strategy, "context_clarification")
+        self.assertEqual(resolution.strategy, "none")
+        self.assertEqual(resolution.resolution_state, "unavailable")
         self.assertEqual(sum(event == "model_call_started" for event, _ in events), 1)
         failures = [fields for event, fields in events if event == "question_context_resolution_failed"]
         self.assertEqual(failures[-1]["failure_reason"], "timeout")
@@ -709,7 +860,11 @@ class ContextResolverTests(unittest.TestCase):
             raise httpx.ReadTimeout("simulated")
 
         sleep = AsyncMock()
-        with patch("app.agent._stream_completion", new=timeout_stream), patch("app.agent.asyncio.sleep", new=sleep):
+        with (
+            patch("app.agent._stream_completion", new=timeout_stream),
+            patch("app.agent.asyncio.sleep", new=sleep),
+            patch("app.agent.time.perf_counter", return_value=0.0),
+        ):
             resolution, _ = asyncio.run(agent_module._resolve_conversation_turn(
                 "是更前面的一个",
                 [{"message_id": 91, "role": "user", "content": "介绍光刻基本原理"}],
@@ -718,21 +873,30 @@ class ContextResolverTests(unittest.TestCase):
 
         self.assertEqual(calls, 1)
         sleep.assert_not_awaited()
-        self.assertEqual(resolution.strategy, "context_clarification")
+        self.assertEqual(resolution.strategy, "none")
+        self.assertEqual(resolution.resolution_state, "unavailable")
 
     def test_context_deadline_cancels_slow_request_and_falls_back(self):
         calls = 0
+        cancelled_after: float | None = None
         settings = _settings()
         settings.model_context_timeout_seconds = 0.05
 
         async def slow_stream(*args):
-            nonlocal calls
+            nonlocal calls, cancelled_after
             calls += 1
-            await asyncio.sleep(0.2)
-            return _context_response("standalone", "ignored")
+            started = time.monotonic()
+            try:
+                await asyncio.sleep(0.2)
+                return _context_response("standalone", "ignored")
+            except asyncio.CancelledError:
+                cancelled_after = time.monotonic() - started
+                raise
 
-        started = time.perf_counter()
-        with patch("app.agent._stream_completion", new=slow_stream):
+        with (
+            patch("app.agent._stream_completion", new=slow_stream),
+            patch("app.agent.time.perf_counter", return_value=0.0),
+        ):
             resolution, _ = asyncio.run(agent_module._resolve_conversation_turn(
                 "是更前面的一个",
                 [{"message_id": 91, "role": "user", "content": "介绍光刻基本原理"}],
@@ -740,8 +904,10 @@ class ContextResolverTests(unittest.TestCase):
             ))
 
         self.assertEqual(calls, 1)
-        self.assertLess(time.perf_counter() - started, 0.15)
-        self.assertEqual(resolution.strategy, "context_clarification")
+        self.assertIsNotNone(cancelled_after)
+        self.assertLess(cancelled_after, 0.15)
+        self.assertEqual(resolution.strategy, "none")
+        self.assertEqual(resolution.resolution_state, "unavailable")
 
     def test_non_retryable_context_error_is_not_audited_as_network(self):
         events: list[tuple[str, dict]] = []
@@ -806,7 +972,8 @@ class ContextResolverTests(unittest.TestCase):
             ))
 
         self.assertEqual(calls, 2)
-        self.assertEqual(resolution.strategy, "context_clarification")
+        self.assertEqual(resolution.strategy, "none")
+        self.assertEqual(resolution.resolution_state, "unavailable")
 
     def test_context_protocol_metadata_logs_reason_without_response_content(self):
         events: list[tuple[str, dict]] = []
@@ -861,7 +1028,7 @@ class ContextResolverTests(unittest.TestCase):
         self.assertEqual(direct_route.intent, "fab_diagnostic")
         self.assertEqual(direct_route.process_steps, ("ETCH",))
 
-    def test_agent_context_failure_lists_recent_user_messages_instead_of_manufacturing_prompt(self):
+    def test_agent_context_failure_keeps_current_question_and_uses_neutral_clarification(self):
         async def invalid_stream(client, endpoint, headers, request_payload, progress, stream_state):
             return ({"role": "assistant", "content": "无法输出结构化结果"}, {}, "invalid-context")
 
@@ -881,11 +1048,11 @@ class ContextResolverTests(unittest.TestCase):
                 "run-context-specific-clarification-test",
             ))
 
-        self.assertEqual(result["intent_route"]["intent"], "conversation")
-        self.assertEqual(result["context_resolution"]["strategy"], "context_clarification")
+        self.assertEqual(result["intent_route"]["intent"], "unknown")
+        self.assertEqual(result["context_resolution"]["resolution_state"], "unavailable")
         self.assertEqual(result["tool_trace"], [])
-        self.assertIn("消息 #53", result["answer"])
-        self.assertIn("消息 #51", result["answer"])
+        self.assertIn("希望我回答或执行的内容", result["answer"])
+        self.assertNotIn("消息 #", result["answer"])
         self.assertNotIn("制程站点", result["answer"])
         self.assertNotIn("设备编号", result["answer"])
 
@@ -947,27 +1114,21 @@ class ContextResolverTests(unittest.TestCase):
         async def fake_stream(client, endpoint, headers, request_payload, progress, stream_state):
             nonlocal calls
             calls += 1
-            if calls == 1:
-                return (
-                    {
-                        "role": "assistant",
-                        "content": "",
-                        "tool_calls": [{
-                            "id": "context-search",
-                            "type": "function",
-                            "function": {
-                                "name": "search_knowledge",
-                                "arguments": json.dumps({
-                                    "query": resolved,
-                                    "limit": 10,
-                                    "source_types": ["personal", "knowledge"],
-                                }, ensure_ascii=False),
-                            },
-                        }],
-                    },
-                    {"total_tokens": 10},
-                    "context-tool-response",
-                )
+            contract_message = next(
+                item["content"] for item in request_payload["messages"]
+                if item["role"] == "system" and "answer_contract=" in item["content"]
+            )
+            contract = json.loads(contract_message.split("answer_contract=", 1)[1])
+            reference = next(item for item in contract["permitted_source_refs"] if item.startswith("TOOL:S"))
+            semantic = contract["source_semantics"][reference]
+            claim = {
+                "claim_kind": semantic["kind"],
+                "semantic_id": semantic["semantic_id"],
+                "scope": semantic["scope"],
+                "grain": semantic["grain"],
+                "time_range": {},
+                "claim_role": semantic["scope_role"],
+            }
             return (
                 {
                     "role": "assistant",
@@ -979,14 +1140,18 @@ class ContextResolverTests(unittest.TestCase):
                             "name": "submit_analysis",
                             "arguments": json.dumps({
                                 "conclusion": "已根据正式知识整理两类器件的工艺路线差异。",
+                                "conclusion_evidence_refs": [reference],
+                                "conclusion_claim": claim,
                                 "facts": [{
                                     "statement": "知识文档覆盖 GaN 与 Si 器件的基础流程差异。",
-                                    "evidence_refs": ["KB-CONTEXT-001"],
+                                    "evidence_refs": [reference],
+                                    **claim,
                                 }],
                                 "inferences": [],
                                 "hypotheses": [],
                                 "recommendations": [],
                                 "limitations": [],
+                                "source_refs": [reference, "KB-CONTEXT-001"],
                             }, ensure_ascii=False),
                         },
                     }],
@@ -1007,8 +1172,9 @@ class ContextResolverTests(unittest.TestCase):
         self.assertEqual(result["context_resolution"]["strategy"], "ordinal_selection")
         self.assertEqual(result["intent_route"]["intent"], "sop_lookup")
         self.assertEqual(result["execution_plan"]["status"], "ready")
-        self.assertEqual([item["tool"] for item in result["tool_trace"]], ["search_knowledge"])
-        self.assertEqual(result["tool_trace"][0]["status"], "ok")
+        self.assertEqual([item["tool"] for item in result["tool_trace"]], ["search_knowledge", "search_knowledge"])
+        self.assertTrue(all(item["status"] == "ok" for item in result["tool_trace"]))
+        self.assertEqual(calls, 1)
         self.assertIn("KB-CONTEXT-001", {item["reference_id"] for item in result["sources"]})
 
     def test_unresolved_semantic_intent_still_requests_clarification(self):
@@ -1037,7 +1203,7 @@ class ContextResolverTests(unittest.TestCase):
         self.assertEqual(result["tool_trace"], [])
         self.assertEqual(result["execution_plan"]["status"], "clarification_required")
         self.assertNotIn("```json", result["answer"])
-        self.assertIn("5. 查询 SOP、正式知识", result["answer"])
+        self.assertIn("请把希望我回答或执行的内容再写完整一些", result["answer"])
         follow_up = resolve_question_context(
             "最后一点",
             [
@@ -1046,7 +1212,7 @@ class ContextResolverTests(unittest.TestCase):
             ],
         )
         self.assertTrue(follow_up.applied)
-        self.assertEqual(route_question(follow_up.resolved_question).intent, "sop_lookup")
+        self.assertEqual(route_question(follow_up.resolved_question).intent, "general_knowledge")
         self.assertTrue(any(item.get("stage") == "clarification" for item in progress_events))
 
     def test_unknown_first_turn_uses_semantic_general_knowledge_hint(self):
@@ -1084,6 +1250,53 @@ class ContextResolverTests(unittest.TestCase):
         self.assertFalse(result["intent_route"]["clarification_needed"])
         self.assertEqual(result["context_resolution"]["intent_hint"], "general_knowledge")
 
+    def test_capability_question_uses_semantic_conversation_hint_without_tools(self):
+        model_call = AsyncMock(return_value=_context_response(
+            "standalone", "你有什么功能", confidence=0.94, intent_hint="conversation",
+        ))
+        with patch("app.agent.get_settings", return_value=_settings()), patch("app.agent._stream_completion", model_call):
+            result = asyncio.run(agent_module._run_agent_impl("你有什么功能", [], "run-capability-conversation"))
+
+        self.assertEqual(result["intent_route"]["intent"], "conversation")
+        self.assertEqual(result["tool_trace"], [])
+        self.assertIn("Fab Copilot", result["answer"])
+
+    def test_capability_correction_uses_semantic_conversation_hint_without_history_picker(self):
+        model_call = AsyncMock(return_value=_context_response(
+            "correction", "说明 Fab Copilot 的功能", "助手能力",
+            confidence=0.94, intent_hint="conversation",
+        ))
+        history = [
+            {"message_id": 1, "role": "user", "content": "你是谁"},
+            {"message_id": 2, "role": "assistant", "content": "我是 Fab Copilot。"},
+        ]
+        with patch("app.agent.get_settings", return_value=_settings()), patch("app.agent._stream_completion", model_call):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "我询问你的功能而不是需要指向某条历史消息", history, "run-capability-correction",
+            ))
+
+        self.assertEqual(result["intent_route"]["intent"], "conversation")
+        self.assertEqual(result["tool_trace"], [])
+        self.assertIn("身份、具体能力、使用方式", result["answer"])
+        self.assertNotIn("消息 #", result["answer"])
+
+    def test_context_timeout_never_lists_history_candidates(self):
+        async def timeout_stream(*_args):
+            raise httpx.ReadTimeout("simulated")
+
+        history = [
+            {"message_id": 1, "role": "user", "content": "你是谁"},
+            {"message_id": 2, "role": "assistant", "content": "我是 Fab Copilot。"},
+        ]
+        with patch("app.agent.get_settings", return_value=_settings()), patch("app.agent._stream_completion", new=timeout_stream):
+            result = asyncio.run(agent_module._run_agent_impl(
+                "我询问你的功能而不是需要指向某条历史消息", history, "run-capability-timeout",
+            ))
+
+        self.assertEqual(result["context_resolution"]["resolution_state"], "unavailable")
+        self.assertIn("希望我回答或执行的内容", result["answer"])
+        self.assertNotIn("消息 #", result["answer"])
+
     def test_empty_knowledge_results_fall_back_to_disclosed_model_knowledge(self):
         history = [
             {"role": "user", "content": INITIAL_QUESTION},
@@ -1114,52 +1327,10 @@ class ContextResolverTests(unittest.TestCase):
             nonlocal round_number
             round_number += 1
             requests.append(request_payload)
-            if round_number <= 2:
-                source_types = ["personal", "knowledge"] if round_number == 1 else ["case"]
-                return (
-                    {
-                        "role": "assistant",
-                        "content": "",
-                        "tool_calls": [{
-                            "id": f"empty-search-{round_number}",
-                            "type": "function",
-                            "function": {
-                                "name": "search_knowledge",
-                                "arguments": json.dumps({
-                                    "query": INITIAL_QUESTION,
-                                    "limit": 10,
-                                    "source_types": source_types,
-                                }, ensure_ascii=False),
-                            },
-                        }],
-                    },
-                    {"total_tokens": 5},
-                    f"empty-search-response-{round_number}",
-                )
-            submission = {
-                "conclusion": "GaN 与 Si 器件的差异主要来自材料特性和器件结构。",
-                "facts": [],
-                "inferences": [{
-                    "statement": "GaN 的宽禁带和高击穿场强通常适合高压与高频功率场景。",
-                    "evidence_refs": [MODEL_KNOWLEDGE_REF],
-                }],
-                "hypotheses": [],
-                "recommendations": [],
-                "limitations": [],
-                "source_refs": [MODEL_KNOWLEDGE_REF],
-            }
             return (
                 {
                     "role": "assistant",
-                    "content": "",
-                    "tool_calls": [{
-                        "id": "fallback-submit",
-                        "type": "function",
-                        "function": {
-                            "name": "submit_analysis",
-                            "arguments": json.dumps(submission, ensure_ascii=False),
-                        },
-                    }],
+                    "content": "GaN 的宽禁带和高击穿场强通常适合高压与高频功率场景。",
                 },
                 {"total_tokens": 8},
                 "fallback-submit-response",
@@ -1180,6 +1351,7 @@ class ContextResolverTests(unittest.TestCase):
 
         self.assertTrue(result["knowledge_fallback"]["used"])
         self.assertEqual(result["knowledge_fallback"]["reason"], "search_empty")
+        self.assertEqual(round_number, 1)
         self.assertEqual(len(result["tool_trace"]), 2)
         self.assertTrue(all(item["rows"] == 0 for item in result["tool_trace"]))
         self.assertIn("知识库未检索到相关内容", result["answer"])

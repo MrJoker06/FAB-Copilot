@@ -9,8 +9,8 @@ from app.main import render_versioned_page
 
 
 class VersionContractTests(unittest.TestCase):
-    def test_current_build_version_is_bumped_for_obs014(self):
-        self.assertEqual(APP_VERSION, "20260820-1")
+    def test_current_build_version_is_bumped_for_deploy012(self):
+        self.assertEqual(APP_VERSION, "20260820-2")
 
     def test_personal_knowledge_upload_workspace_contract(self):
         html = (Path(__file__).parents[1] / "app" / "static" / "index.html").read_text(encoding="utf-8")

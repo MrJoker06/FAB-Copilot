@@ -1,7 +1,7 @@
 # 个人知识库与分级 RAG 架构设计
 
 实现状态统一维护在 [RAG 与知识库 TODO](todos/rag-knowledge.md) 和 [部署与服务拆分 TODO](todos/deployment-architecture.md)。
-适用项目：Fab Insight Agent  
+适用项目：Fab Insight Agent
 最后更新：2026-07-17
 
 ## 1. 已确认决策

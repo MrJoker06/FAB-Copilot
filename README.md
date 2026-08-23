@@ -199,6 +199,12 @@ npm run test:e2e
 conda run -n fab-insight-agent python scripts/run_quality_gate.py full
 ```
 
+## CI 质量门
+
+GitHub Actions 会在 `experiment/parallel-platform` 的 push、面向该分支的 pull request 及手动触发时运行完整质量门。Hosted runner 仅生成固定到 2026-12-25 的 730 天合成部门数据库，并补齐默认模型目录；不会连接真实模型、Oracle 或任何生产数据库。仅在失败且未取消时上传 Playwright 报告、测试结果和 `runtime/quality/`，不上传数据库、日志或完整内容。
+
+当前仓库尚未在远程启用 required status check/ruleset；在该规则由管理员显式启用前，CI 失败不会由 GitHub 强制阻止合并。
+
 直接运行 Python 测试：
 
 ```bash
@@ -336,7 +342,7 @@ python3 scripts/evaluate_rag.py
 
 Router 之后会为制程能力异常、良率下降、设备故障、批次追踪和 SOP 查询选择版本化 Domain Playbook。接口结果中的 `domain_playbook` 保存模板编号、Schema 版本、Playbook 版本、必需/可选证据、字段契约、验收条件、分析问题、答案结构和安全约束。歧义问题只返回候选模板，澄清前不会混合执行；未覆盖意图继续使用通用 Agent 规则。
 
-结构化 Planner 再将路由范围和已选 Playbook 实例化为 `execution_plan`。计划包含稳定的 `plan_id`、工具步骤、参数及其来源、证据编号、步骤依赖、验收条件和调用预算；相同问题、路由和 Playbook 版本会生成相同计划。`ToolLoopGuard` 在运行时强制总调用数、单工具次数和相同工具参数次数；重复结果或失败调用连续两轮没有产生新证据时，Loop 会进入仅综合模式，并保留最后一个模型轮次组织答案和说明证据缺口。歧义、未知意图或缺少制程/批次编号时生成零工具步骤并要求澄清。
+结构化 Planner 再将路由范围和已选 Playbook 实例化为 `execution_plan`。计划包含稳定的 `plan_id`、工具步骤、参数及其来源、证据编号、步骤依赖、验收条件和调用预算；相同问题、路由和 Playbook 版本会生成相同计划。`status=ready` 时服务端校验依赖图并按稳定依赖顺序执行获准工具，模型只接收已验证证据并通过 `submit_analysis` 综合，不再选择业务工具；失败依赖会阻断下游，模型不可用时保留取证结果并返回证据安全降级说明。`ToolLoopGuard` 继续强制总调用数、单工具次数、精确参数和结果进展；歧义、未知意图或缺少制程/批次编号时生成零工具步骤并要求澄清，未覆盖意图仍使用通用 Agent Loop。
 
 每轮工具执行后，确定性 Evidence Validator 会将实际参数和结果与计划证据契约匹配，并在接口结果的 `evidence_validation` 中返回必需证据覆盖率、字段覆盖、缺失或部分证据、空结果、小样本、结果截断、时间或范围偏差、低置信度来源、规格或文档事实冲突，以及 `allowed_conclusion_strength`。结论强度依次为 `insufficient`、`hypothesis_only`、`supported_with_limits` 和 `supported`；未使用领域 Playbook 时为 `not_applicable`。最新报告会在下一轮综合前注入模型上下文，且所有等级均不允许把相关性表述为已证明因果。
 
@@ -370,6 +376,8 @@ GET /api/monitor/events?limit=100
 - `tool_call_finished`：工具名、延迟、返回行数和状态
 - `loop_guard_round_finished`：每轮调用、唯一证据、拦截数、无进展计数和停止原因
 - `agent_run_finished`：总耗时、模式、工具数、来源数和最终状态
+
+审计事件 envelope 使用 `schema_version`/`audit_schema_version=1.4`，组件版本另存为 `turn_decision_schema_version`，不能覆盖审计版本。`agent_run_finished` 保留旧 `source_count`，同时用 `knowledge_source_count`、`tool_evidence_count` 和 `total_reference_count` 区分知识来源、被答案引用的工具证据和总引用。监控摘要按 Run 暴露 `context`、`routing`、`retrieval`、`tools`、`synthesis`、`stream` 六阶段耗时以及窗口 P50/P95；旧日志读取时增量补齐兼容字段，不改写历史文件。DecisionArbiter Trace 只保存受限候选枚举、来源、置信度、选中/拒绝状态和策略原因，不保存模型隐藏思维或原始问题正文。
 
 默认不记录 API Key、Authorization、完整问题、工具参数、SQL、模型回答或工具返回值。日志目录已加入 `.gitignore`。生产部署时应限制监控 API 权限，并将日志发送到 Loki、ELK、OpenTelemetry Collector 等集中系统。
 

@@ -83,6 +83,36 @@ def yield_trend(start: str | None = None, end: str | None = None, product: str |
     return rows_to_dicts(rows)
 
 
+def process_pass_rate(
+    start: str | None = None,
+    end: str | None = None,
+    process_step: str | None = None,
+    equipment_id: str | None = None,
+) -> list[dict]:
+    """Return process-run pass rate, deliberately distinct from final wafer yield."""
+    if not process_step:
+        raise ValueError("制程运行通过率必须指定 process_step")
+    start, end = timestamp_bounds(start, end)
+    clauses = ["run_time >= ?", "run_time < ?", "process_step = ?"]
+    params: list[Any] = [start, end, process_step.upper()]
+    if equipment_id:
+        clauses.append("equipment_id = ?")
+        params.append(equipment_id.upper())
+    with db_session() as connection:
+        group_by = "process_step, equipment_id" if equipment_id else "process_step"
+        equipment_column = "equipment_id," if equipment_id else "NULL AS equipment_id,"
+        rows = connection.execute(
+            f"""SELECT process_step, {equipment_column} COUNT(*) AS runs,
+                       SUM(CASE WHEN pass_flag THEN 1 ELSE 0 END) AS passed_runs,
+                       ROUND(100.0 * AVG(pass_flag), 2) AS pass_pct
+                FROM process_runs WHERE {' AND '.join(clauses)}
+                GROUP BY {group_by}
+                ORDER BY process_step, equipment_id""",
+            params,
+        ).fetchall()
+    return rows_to_dicts(rows)
+
+
 def equipment_health(
     start: str | None = None,
     end: str | None = None,

@@ -211,6 +211,15 @@ YIELD_DECLINE_PLAYBOOK = DomainPlaybook(
             ),
             required=False,
         ),
+        EvidenceRequirement(
+            evidence_id="YLD-05",
+            name="制程运行通过率",
+            purpose="当问题范围是制程或设备时，提供直接运行通过率；它不等同于最终晶圆良率。",
+            source_tools=("get_process_pass_rate",),
+            required_fields=("process_step", "runs", "passed_runs", "pass_pct"),
+            acceptance_criteria=("必须包含目标制程、时间范围和运行样本量。",),
+            required=False,
+        ),
     ),
     analysis_questions=(
         "下降幅度是否超过正常周间波动，样本量是否充足？",

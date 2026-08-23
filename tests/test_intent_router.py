@@ -575,11 +575,13 @@ class IntentRouterTests(unittest.TestCase):
         self.assertEqual(result["intent_route"]["equipment_ids"], ("CMP-03",))
         routing_event = next(event for event in progress_events if event.get("stage") == "routing")
         self.assertEqual(routing_event["route"], result["intent_route"])
-        routing_message = captured["messages"][1]
-        self.assertEqual(routing_message["role"], "system")
-        payload = json.loads(routing_message["content"].split("intent_route=", 1)[1])
-        self.assertEqual(payload["intent"], "capability_excursion")
-        self.assertEqual(payload["equipment_ids"], ["CMP-03"])
+        synthesis_task = json.loads(captured["messages"][-1]["content"])
+        self.assertEqual(synthesis_task["intent"], "capability_excursion")
+        self.assertEqual(synthesis_task["scope"], {"type": "equipment", "ids": ["CMP-03"]})
+        self.assertEqual(
+            [tool["function"]["name"] for tool in captured["tools"]],
+            ["submit_analysis"],
+        )
 
 
 if __name__ == "__main__":

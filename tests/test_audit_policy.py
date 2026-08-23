@@ -81,3 +81,94 @@ class LogContentPolicyTests(unittest.TestCase):
         self.assertEqual(active["content_mode"], "full")
         self.assertNotIn("question", expired)
         self.assertEqual(expired["content_mode"], "metadata")
+
+    def test_emit_reserves_audit_schema_and_keeps_component_schema_separate(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(audit, "RUN_LOG_DIR", Path(directory)), patch.object(audit, "_logger"), patch.object(audit, "utc_now", return_value="2026-08-23T08:00:00Z"):
+            audit.emit(
+                "turn_decision_created",
+                "run-schema",
+                schema_version="component-must-not-win",
+                turn_decision_schema_version="1.0",
+            )
+            line = (Path(directory) / "2026-08-23" / "run-schema.jsonl").read_text(encoding="utf-8")
+        event = json.loads(line)
+        self.assertEqual(event["schema_version"], audit.SCHEMA_VERSION)
+        self.assertEqual(event["audit_schema_version"], audit.SCHEMA_VERSION)
+        self.assertEqual(event["turn_decision_schema_version"], "1.0")
+
+    def test_legacy_trace_fields_are_normalized_without_rewriting_history(self):
+        decision = audit.normalize_audit_event({
+            "event": "turn_decision_created", "schema_version": "1.0", "run_id": "legacy",
+        })
+        self.assertEqual(decision["schema_version"], "1.0")
+        self.assertEqual(decision["audit_schema_version"], "legacy")
+        self.assertEqual(decision["turn_decision_schema_version"], "1.0")
+        finished = audit.normalize_audit_event({
+            "event": "agent_run_finished", "schema_version": "1.3", "source_count": 2,
+        })
+        self.assertEqual(finished["audit_schema_version"], "1.3")
+        self.assertEqual(finished["knowledge_source_count"], 2)
+        self.assertEqual(finished["tool_evidence_count"], 0)
+        self.assertEqual(finished["total_reference_count"], 2)
+
+    def test_access_events_stay_in_aggregate_without_per_request_files(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(audit, "RUN_LOG_DIR", Path(directory)), patch.object(audit, "_logger") as logger, patch.object(audit, "utc_now", return_value="2026-08-20T08:00:00Z"):
+            audit.emit("api_request_started", "req-admin-poll", path="/api/admin/overview")
+            audit.emit("api_request_finished", "req-admin-poll", path="/api/admin/overview")
+            audit.emit("api_stream_error", "req-stream", error_type="MODEL_NETWORK_ERROR")
+            audit.emit("agent_run_started", "run-agent")
+            day = Path(directory) / "2026-08-20"
+            self.assertFalse((day / "req-admin-poll.jsonl").exists())
+            self.assertTrue((day / "req-stream.jsonl").exists())
+            self.assertTrue((day / "run-agent.jsonl").exists())
+            self.assertEqual(logger.info.call_count, 4)
+
+    def test_monitoring_summary_accepts_legacy_events_and_counts_degradation(self):
+        now = datetime.now(timezone.utc)
+        legacy_at = (now - timedelta(minutes=2)).isoformat().replace("+00:00", "Z")
+        failure_at = (now - timedelta(minutes=1)).isoformat().replace("+00:00", "Z")
+        degraded_at = now.isoformat().replace("+00:00", "Z")
+        events = [
+            {"timestamp": legacy_at, "event": "agent_run_finished", "status": "success", "run_id": "legacy"},
+            {"timestamp": failure_at, "event": "question_context_resolution_failed", "failure_reason": "timeout", "run_id": "degraded"},
+            {"timestamp": degraded_at, "event": "agent_run_finished", "status": "success", "outcome": "degraded", "degraded": True, "run_id": "degraded"},
+            {"timestamp": degraded_at, "event": "model_call_finished", "phase": "contextualization", "duration_ms": 40},
+            {"timestamp": degraded_at, "event": "model_call_finished", "phase": "contextualization", "duration_ms": 80},
+            {"timestamp": degraded_at, "event": "stream_delivery_summary", "first_answer_ms": 20},
+            {"timestamp": degraded_at, "event": "stream_delivery_summary", "first_answer_ms": 60},
+        ]
+        with patch.object(audit, "read_events", return_value=events), patch.object(audit, "log_content_policy", return_value={}):
+            summary = audit.monitoring_summary(hours=24)
+        self.assertEqual(summary["runs"], 2)
+        self.assertEqual(summary["degraded_run_count"], 1)
+        self.assertEqual(summary["completed_run_count"], 1)
+        self.assertEqual(summary["context_timeout_count"], 1)
+        self.assertEqual(summary["contextualization_duration_p50_ms"], 40.0)
+        self.assertEqual(summary["contextualization_duration_p95_ms"], 80.0)
+        self.assertEqual(summary["first_answer_p50_ms"], 20.0)
+        self.assertEqual(summary["first_answer_p95_ms"], 60.0)
+        self.assertEqual(summary["recent_degraded_runs"][0]["run_id"], "degraded")
+
+    def test_monitoring_summary_exposes_six_named_run_stage_durations(self):
+        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        events = [
+            {"timestamp": now, "event": "context_stage_completed", "run_id": "run-stages", "duration_ms": 11},
+            {"timestamp": now, "event": "routing_stage_completed", "run_id": "run-stages", "duration_ms": 12},
+            {"timestamp": now, "event": "knowledge_retrieval_decided", "run_id": "run-stages", "duration_ms": 13},
+            {"timestamp": now, "event": "model_call_finished", "run_id": "run-stages", "phase": "ready_plan_synthesis", "duration_ms": 14},
+            {"timestamp": now, "event": "stream_delivery_summary", "run_id": "run-stages", "answer_stream_duration_ms": 15},
+            {
+                "timestamp": now, "event": "agent_run_finished", "run_id": "run-stages",
+                "status": "success", "tool_duration_ms": 16, "retrieval_duration_ms": 13,
+                "knowledge_source_count": 2, "tool_evidence_count": 3, "total_reference_count": 5,
+            },
+        ]
+        with patch.object(audit, "read_events", return_value=events), patch.object(audit, "log_content_policy", return_value={}):
+            summary = audit.monitoring_summary(hours=24)
+        stages = summary["recent_runs"][0]["stage_durations_ms"]
+        self.assertEqual(stages, {
+            "context": 11.0, "routing": 12.0, "retrieval": 13.0,
+            "tools": 16.0, "synthesis": 14.0, "stream": 15.0,
+        })
+        self.assertEqual(set(summary["stage_durations"]), set(audit.TRACE_STAGES))
+        self.assertEqual(summary["stage_durations"]["synthesis"]["p95_ms"], 14.0)

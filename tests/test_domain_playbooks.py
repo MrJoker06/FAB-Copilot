@@ -138,14 +138,12 @@ class DomainPlaybookTests(unittest.TestCase):
         self.assertEqual(selected["playbook_version"], "1.0.0")
         self.assertTrue(any(item.get("stage") == "playbook" for item in progress_events))
 
-        playbook_message = captured["messages"][2]
-        self.assertEqual(playbook_message["role"], "system")
-        payload = json.loads(playbook_message["content"].split("domain_playbook=", 1)[1])
-        self.assertEqual(payload["status"], "selected")
-        self.assertEqual(payload["selected_playbook"]["playbook_id"], "PB-CAPABILITY-001")
+        payload = json.loads(captured["messages"][-1]["content"])
+        self.assertEqual(payload["playbook_id"], "PB-CAPABILITY-001")
+        self.assertEqual(payload["playbook_version"], "1.0.0")
         required_evidence = {
             item["evidence_id"]
-            for item in payload["selected_playbook"]["evidence_requirements"]
+            for item in result["domain_playbook"]["selected_playbook"]["evidence_requirements"]
             if item["required"]
         }
         self.assertEqual(required_evidence, {"CAP-01", "CAP-02", "CAP-04"})

@@ -15,8 +15,9 @@ ResolutionStrategy = Literal[
     "context_clarification",
 ]
 ContextRelation = Literal["standalone", "followup", "correction", "recall"]
-ResolutionSource = Literal["none", "deterministic", "model", "fallback"]
+ResolutionSource = Literal["none", "deterministic", "model", "fallback", "circuit_open"]
 IntentHint = Literal["conversation", "general_knowledge", "manufacturing_analysis", "unclear"]
+ResolutionState = Literal["not_applicable", "resolved", "ambiguous", "unavailable"]
 
 
 @dataclass(frozen=True)
@@ -34,10 +35,16 @@ class ContextResolution:
     recalled_messages: tuple[dict, ...] = ()
     candidate_messages: tuple[dict, ...] = ()
     failure_reason: str = ""
+    # Kept additive so existing consumers of strategy/applied remain compatible.
+    resolution_state: ResolutionState = "not_applicable"
+    # Optional action output from the existing contextualizer call. It remains
+    # raw here so an invalid optional action cannot discard a valid resolution.
+    turn_actions: tuple[dict, ...] = ()
 
     def to_dict(self) -> dict:
         payload = asdict(self)
         payload["target_message_ids"] = list(self.target_message_ids)
+        payload["turn_actions"] = [dict(item) for item in self.turn_actions]
         payload.pop("recalled_messages", None)
         payload.pop("candidate_messages", None)
         return payload
@@ -96,6 +103,7 @@ CONTEXTUALIZER_PROMPT = """你是 Agent Loop 的会话上下文解析器，不�
 - target_message_ids：recall 时填写被引用历史消息的 message_id 数组；其他关系使用空数组。
 - confidence：0 到 1 之间的数字。
 - intent_hint：conversation、general_knowledge、manufacturing_analysis、unclear 之一。
+- turn_actions：可选数组。它不是工具调用；仅在可靠时返回 action 对象。
 
 语义规则：
 1. standalone：本轮是完整的新问题，resolved_question 保持本轮原意，不拼接旧主题。
@@ -107,7 +115,8 @@ CONTEXTUALIZER_PROMPT = """你是 Agent Loop 的会话上下文解析器，不�
 7. 只有主题、范围、对象、否定条件或回答方式，而没有独立信息请求的输入，不是 standalone；应与最近尚未完成的用户目标组合为 followup 或 correction。助手重复索要范围不代表用户已经放弃原目标。
 8. 用户补充、限制或纠正回答应使用的知识来源时，resolved_question 必须同时保留最近尚未完成的信息目标和本轮来源偏好；不能只保留“查个人知识库”等来源动作。
 9. intent_hint 由完整信息目标决定，而不是由来源名称决定。conversation 表示助手身份、能力、问候以及不请求外部技术或制造事实的交互或元问题；general_knowledge 表示概念、原理、分类、比较或行业常识，即使用户要求优先使用个人或工厂知识；manufacturing_analysis 表示需要当前生产、设备、批次、指标或异常数据；无法可靠判断时使用 unclear。
-10. 不输出分析过程、解释、答案或额外字段。"""
+10. turn_actions 的完整形状为 [{"type":"answer_meta","subject":"capabilities","detail":"detailed"}]。允许 type 仅为 answer_meta、acknowledge、route_task、recall_history、clarify；最多三个动作，最多一个主要动作（answer_meta、route_task、recall_history、clarify），acknowledge 可与它组合。answer_meta 仅可使用 identity、capabilities、usage_help、limitations_policy、runtime_status、response_review、social、other 主题和 brief、standard、detailed 粒度。模型优先只生成 answer_meta/acknowledge；route_task、recall_history、clarify 通常由服务端派生。禁止包含工具名、SQL、URL 或自由参数；无把握时省略。
+11. 不输出分析过程、解释或答案。"""
 
 
 def _plain(value: str, limit: int = 1200) -> str:
@@ -177,18 +186,32 @@ def _resolve_ordinal(question: str, history: list[dict]) -> ContextResolution | 
             confidence=1.0,
             source="deterministic",
             intent_hint="unclear",
+            resolution_state="resolved",
         )
     return None
 
 
-def unresolved_context(question: str, source: ResolutionSource = "none") -> ContextResolution:
-    return ContextResolution(question, question, False, "none", "", source=source)
+def unresolved_context(
+    question: str,
+    source: ResolutionSource = "none",
+    *,
+    failure_reason: str = "",
+) -> ContextResolution:
+    state: ResolutionState = "unavailable" if source in {"fallback", "circuit_open"} else "not_applicable"
+    return ContextResolution(
+        question, question, False, "none", "", source=source,
+        failure_reason=failure_reason, resolution_state=state,
+    )
 
 
 def context_clarification_resolution(
     question: str,
     history: list[dict] | None,
     failure_reason: str,
+    *,
+    relation: ContextRelation = "followup",
+    confidence: float = 0.0,
+    intent_hint: IntentHint = "unclear",
 ) -> ContextResolution:
     indexed, _ = _history_index(history)
     candidates = tuple(
@@ -202,12 +225,13 @@ def context_clarification_resolution(
         False,
         "context_clarification",
         "",
-        relation="followup",
-        confidence=0.0,
-        source="fallback",
-        intent_hint="unclear",
+        relation=relation,
+        confidence=confidence,
+        source="model",
+        intent_hint=intent_hint,
         candidate_messages=candidates,
         failure_reason=failure_reason,
+        resolution_state="ambiguous",
     )
 
 
@@ -288,21 +312,35 @@ def semantic_context_resolution(
 ) -> ContextResolution:
     relation = str(arguments.get("relation") or "").strip()
     if relation not in {"standalone", "followup", "correction", "recall"}:
-        return unresolved_context(question, "fallback")
+        return unresolved_context(question, "fallback", failure_reason="protocol_error")
     try:
         confidence = max(0.0, min(float(arguments.get("confidence", 0)), 1.0))
     except (TypeError, ValueError):
-        return unresolved_context(question, "fallback")
+        return unresolved_context(question, "fallback", failure_reason="protocol_error")
     resolved = _plain(str(arguments.get("resolved_question") or ""), 4000)
     topic_anchor = _plain(str(arguments.get("topic_anchor") or ""), 1200)
     raw_target_ids = arguments.get("target_message_ids")
     if not isinstance(raw_target_ids, list) or any(not isinstance(item, int) for item in raw_target_ids):
-        return unresolved_context(question, "fallback")
+        return unresolved_context(question, "fallback", failure_reason="protocol_error")
     target_message_ids = tuple(dict.fromkeys(raw_target_ids))
     intent_hint = str(arguments.get("intent_hint") or "").strip()
     if intent_hint not in {"conversation", "general_knowledge", "manufacturing_analysis", "unclear"}:
-        return unresolved_context(question, "fallback")
-    if relation == "standalone" or confidence < 0.65:
+        return unresolved_context(question, "fallback", failure_reason="protocol_error")
+    raw_actions = arguments.get("turn_actions", [])
+    # Preserve malformed optional values as a harmless sentinel so the later
+    # decision validator can emit a degradation event without invalidating the
+    # otherwise valid context resolution.
+    allowed_action_fields = {"type", "subject", "detail", "target_intent"}
+    turn_actions = (
+        tuple(
+            item if isinstance(item, dict) and set(item).issubset(allowed_action_fields)
+            else {"__invalid__": "turn_action_invalid"}
+            for item in raw_actions
+        )
+        if isinstance(raw_actions, list)
+        else (({"__invalid__": "turn_action_invalid"},) if "turn_actions" in arguments else ())
+    )
+    if relation == "standalone":
         return ContextResolution(
             question,
             question,
@@ -313,20 +351,27 @@ def semantic_context_resolution(
             confidence=confidence,
             source="model",
             intent_hint=intent_hint,
+            resolution_state="not_applicable",
+            turn_actions=turn_actions,
+        )
+    if confidence < 0.65:
+        return context_clarification_resolution(
+            question, history, "low_confidence",
+            relation=relation, confidence=confidence, intent_hint=intent_hint,
         )
     recalled_messages: tuple[dict, ...] = ()
     if relation == "recall":
         recalled_messages = _recall_records(history, target_message_ids)
         valid_ids = {int(item["message_id"]) for item in recalled_messages}
         if not target_message_ids or not set(target_message_ids).issubset(valid_ids):
-            return unresolved_context(question, "fallback")
+            return unresolved_context(question, "fallback", failure_reason="protocol_error")
         topic_anchor = " | ".join(
             _plain(str(item.get("content") or ""), 300)
             for item in recalled_messages
             if item.get("content")
         )[:1200]
     if not resolved or (relation == "recall" and not recalled_messages):
-        return unresolved_context(question, "fallback")
+        return unresolved_context(question, "fallback", failure_reason="protocol_error")
     strategies: dict[str, ResolutionStrategy] = {
         "followup": "semantic_followup",
         "correction": "semantic_correction",
@@ -344,6 +389,8 @@ def semantic_context_resolution(
         intent_hint=intent_hint,
         target_message_ids=target_message_ids if relation == "recall" else (),
         recalled_messages=recalled_messages,
+        resolution_state="resolved",
+        turn_actions=turn_actions,
     )
 
 

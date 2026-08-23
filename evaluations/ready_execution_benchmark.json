@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "current_date": "2026-08-23",
+  "baseline_mode": "legacy_model_selects_each_dependency_ready_batch_then_synthesizes",
+  "candidate_mode": "server_executes_ready_plan_then_model_synthesizes_once",
+  "cost_model": {
+    "utf8_bytes_per_token": 4,
+    "tool_selection_output_tokens": 80,
+    "final_output_tokens": 800,
+    "model_call_base_ms": 800,
+    "prompt_token_ms": 0.05,
+    "tool_call_ms": 25
+  },
+  "thresholds": {
+    "total_token_reduction_pct_min": 20,
+    "first_final_answer_reduction_pct_min": 20
+  },
+  "cases": [
+    {
+      "id": "capability-process",
+      "question": "分析 CMP 最近7天 Cpk 不合格"
+    },
+    {
+      "id": "lot-trace",
+      "question": "追踪批次 L260708-02460 的工艺路径和异常"
+    },
+    {
+      "id": "fab-diagnostic",
+      "question": "关于目前的制造数据你有什么改进建议"
+    }
+  ]
+}

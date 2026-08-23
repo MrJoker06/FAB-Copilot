@@ -1,0 +1,13 @@
+[
+  {"input":"你是谁","expected":{"route":"conversation","action":"answer_meta","subject":"identity","detail":"brief"}},
+  {"input":"你有什么功能","expected":{"route":"conversation","action":"answer_meta","subject":"capabilities","detail":"standard"}},
+  {"input":"具体的功能有哪些","history_required":true,"expected":{"route":"conversation","action":"answer_meta","subject":"capabilities","detail":"detailed"}},
+  {"input":"我说的是你具备哪些具体的能力而不是宽泛的说明","history_required":true,"expected":{"relation":"correction","action":"answer_meta","subject":"capabilities","detail":"detailed"}},
+  {"input":"分析 CMP 制程能力","expected":{"route":"capability_excursion","action":"route_task"}},
+  {"input":"你能修改生产配方吗","expected":{"route":"conversation","action":"answer_meta","subject":"limitations_policy"}},
+  {"input":"具体一点","history_required":true,"resolved_contains":"文档","expected":{"route":"conversation","action":"answer_meta","subject":"capabilities","detail":"detailed","active_flow":"meta:capabilities","tools":0}},
+  {"input":"具体一点","history_required":true,"resolved_contains":"知识库","expected":{"route":"conversation","action":"answer_meta","subject":"capabilities","detail":"detailed","active_flow":"meta:capabilities","tools":0}},
+  {"input":"具体一点","history_required":true,"resolved_contains":"规范","expected":{"route":"conversation","action":"answer_meta","subject":"capabilities","detail":"detailed","active_flow":"meta:capabilities","tools":0}},
+  {"input":"查一下 CMP SOP/规范","expected":{"route":"sop_lookup","action":"route_task","active_flow":"task:sop_lookup"}},
+  {"input":"那就查昨天良率","expected":{"route":"yield_decline","action":"route_task","active_flow":"task:yield_decline"}}
+]

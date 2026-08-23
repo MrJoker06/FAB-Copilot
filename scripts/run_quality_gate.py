@@ -166,10 +166,12 @@ def quality_commands(mode: str) -> list[list[str]]:
     if node_tests:
         commands.append(["node", "--test", *map(str, node_tests)])
     commands.extend([["node", "--check", str(path)] for path in static_scripts])
+    commands.append([sys.executable, "scripts/check_repository.py"])
     commands.extend([
         [sys.executable, "scripts/evaluate_rag.py"],
         [sys.executable, "scripts/evaluate_ocr.py"],
         [sys.executable, "scripts/evaluate_playbooks.py"],
+        [sys.executable, "scripts/evaluate_ready_execution.py"],
     ])
     if mode == "full":
         commands.append(["npm", "run", "test:e2e"])

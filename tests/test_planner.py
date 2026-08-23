@@ -112,6 +112,36 @@ class StructuredPlannerTests(unittest.TestCase):
         self.assertTrue(sql.endswith("LIMIT 100"))
         self.assertNotIn(";", sql)
 
+    def test_process_route_does_not_relabel_fab_or_unfiltered_lots_evidence(self):
+        plan = _plan("分析 CMP 最近一周良率下降")
+        fab = next(step for step in plan.steps if step.tool == "get_fab_overview")
+        lots = next(step for step in plan.steps if step.tool == "query_manufacturing_data")
+        self.assertEqual(fab.evidence_scope["fab_ids"], ("FAB",))
+        self.assertEqual(fab.evidence_scope["process_steps"], ())
+        self.assertEqual(lots.evidence_scope["fab_ids"], ("FAB",))
+        self.assertEqual(lots.evidence_scope["process_steps"], ())
+        self.assertEqual(lots.scope_role, "context_only")
+
+    def test_equipment_yield_pass_rate_uses_actual_equipment_filter(self):
+        plan = _plan("分析 ETCH-01 最近一周良率下降")
+        step = next(item for item in plan.steps if item.tool == "get_process_pass_rate")
+        self.assertEqual(step.parameters["equipment_id"], "ETCH-01")
+        self.assertEqual(step.parameters["process_step"], "ETCH")
+        self.assertEqual(step.grain, "equipment")
+        self.assertEqual(step.evidence_scope["equipment_ids"], ("ETCH-01",))
+
+    def test_sop_and_product_plans_keep_actual_primary_scope(self):
+        sop = _plan("查询 CMP 恢复量产 SOP")
+        self.assertEqual(sop.scope_contract.primary_scope_type, "process")
+        self.assertTrue(all(step.scope_role == "primary" for step in sop.steps))
+        product = _plan("分析 Nova-P1 最近一周良率下降")
+        trend = next(step for step in product.steps if step.tool == "get_yield_trend")
+        layered = next(step for step in product.steps if step.tool == "query_manufacturing_data")
+        self.assertEqual(trend.parameters["product"], "Nova-P1")
+        self.assertEqual(trend.scope_role, "primary")
+        self.assertEqual(layered.evidence_scope["products"], ("NOVA-P1",))
+        self.assertEqual(layered.scope_role, "primary")
+
     def test_lot_plan_builds_identity_route_and_three_impact_queries(self):
         plan = _plan("追踪批次 L260708-02460")
         sql_steps = [step for step in plan.steps if step.tool == "query_manufacturing_data"]
@@ -252,7 +282,7 @@ class StructuredPlannerTests(unittest.TestCase):
         self.assertEqual(plan.budget.max_tool_calls, 10)
         self.assertEqual(plan.budget.per_tool_limits["*"], 3)
 
-    def test_agent_loop_injects_plan_and_returns_same_plan(self):
+    def test_ready_plan_is_returned_but_model_receives_only_compact_synthesis_contract(self):
         captured: dict = {}
         progress_events: list[dict] = []
 
@@ -286,11 +316,22 @@ class StructuredPlannerTests(unittest.TestCase):
         plan_event = next(event for event in progress_events if event.get("stage") == "plan")
         self.assertEqual(plan_event["plan"], result["execution_plan"])
 
-        planner_message = captured["messages"][3]
-        self.assertEqual(planner_message["role"], "system")
-        payload = json.loads(planner_message["content"].split("execution_plan=", 1)[1])
-        self.assertEqual(payload, result["execution_plan"])
-        self.assertEqual(payload["steps"][0]["tool"], "get_process_capability")
+        self.assertEqual(result["execution_mode"], "deterministic_ready_plan")
+        self.assertEqual(result["model_tool_selection_calls"], 0)
+        self.assertEqual(
+            [item["function"]["name"] for item in captured["tools"]],
+            ["submit_analysis"],
+        )
+        self.assertFalse(any(
+            "execution_plan=" in item["content"]
+            for item in captured["messages"]
+        ))
+        synthesis_task = json.loads(captured["messages"][-1]["content"])
+        self.assertEqual(synthesis_task["plan_id"], result["execution_plan"]["plan_id"])
+        self.assertEqual(
+            [item["tool"] for item in synthesis_task["evidence"]],
+            [step["tool"] for step in result["execution_plan"]["steps"]],
+        )
 
 
 if __name__ == "__main__":

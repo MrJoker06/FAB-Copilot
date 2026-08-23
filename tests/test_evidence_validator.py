@@ -58,7 +58,7 @@ class EvidenceValidatorTests(unittest.TestCase):
         self.assertNotIn(validation.allowed_conclusion_strength, {"insufficient", "hypothesis_only"})
         self.assertEqual({item["process_step"] for item in capability_rows}, set(MANUFACTURING_STEPS))
         self.assertEqual(validation.primary_scope_type, "fab")
-        self.assertTrue(all(role == "primary" for role in validation.source_scope_roles.values()))
+        self.assertEqual(validation.source_scope_roles["TOOL:get_fab_overview"], "primary")
 
     def test_process_scope_marks_unfiltered_fab_tools_as_context_only(self):
         selection, plan = _context("分析最近一周刻蚀机台状况")
@@ -69,6 +69,15 @@ class EvidenceValidatorTests(unittest.TestCase):
         self.assertEqual(validation.source_scope_roles["TOOL:get_fab_overview"], "context_only")
         self.assertEqual(validation.source_scope_roles["TOOL:get_yield_trend"], "context_only")
         self.assertEqual(validation.source_scope_roles["TOOL:get_equipment_health"], "primary")
+
+    def test_process_yield_requires_direct_pass_rate_evidence(self):
+        selection, plan = _context("分析 CMP 最近一周良率下降")
+        pass_step = next(step for step in plan.steps if step.tool == "get_process_pass_rate")
+        self.assertTrue(pass_step.required)
+        validation = validate_evidence(plan, selection.selected_playbook, [])
+        statuses = {check.evidence_id: check.status for check in validation.evidence_checks}
+        self.assertEqual(statuses["YLD-05"], "missing")
+        self.assertIn(validation.allowed_conclusion_strength, {"insufficient", "hypothesis_only"})
 
     def test_complete_required_yield_evidence_allows_supported_conclusion(self):
         selection, plan = _context("最近四周良率下降")
@@ -100,7 +109,7 @@ class EvidenceValidatorTests(unittest.TestCase):
         self.assertEqual(validation.conflicts, ())
         self.assertEqual(
             {item.evidence_id: item.status for item in validation.evidence_checks},
-            {"YLD-01": "covered", "YLD-02": "covered", "YLD-03": "covered", "YLD-04": "optional_missing"},
+            {"YLD-01": "covered", "YLD-02": "covered", "YLD-03": "covered", "YLD-04": "optional_missing", "YLD-05": "optional_missing"},
         )
 
     def test_scope_mismatch_missing_evidence_and_low_confidence_limit_conclusion(self):
@@ -177,30 +186,9 @@ class EvidenceValidatorTests(unittest.TestCase):
     def test_agent_injects_latest_validation_before_synthesis(self):
         requests: list[dict] = []
         events: list[dict] = []
-        round_number = 0
-        end = date.today()
-        start = end - timedelta(days=6)
-
         async def fake_stream(client, endpoint, headers, request_payload, progress, stream_state):
-            nonlocal round_number
-            round_number += 1
             requests.append(request_payload)
-            if round_number == 1:
-                return ({
-                    "role": "assistant",
-                    "content": "",
-                    "tool_calls": [{
-                        "id": "capability-call",
-                        "type": "function",
-                        "function": {
-                            "name": "get_process_capability",
-                            "arguments": json.dumps({
-                                "start": start.isoformat(), "end": end.isoformat(), "process_step": "CMP",
-                            }),
-                        },
-                    }],
-                }, {"total_tokens": 5}, "response-1")
-            return ({"role": "assistant", "content": "仅形成待验证假设。"}, {"total_tokens": 5}, "response-2")
+            return ({"role": "assistant", "content": "仅形成待验证假设。"}, {"total_tokens": 5}, "response-1")
 
         async def progress(event: dict) -> None:
             events.append(event)
@@ -219,7 +207,12 @@ class EvidenceValidatorTests(unittest.TestCase):
         with (
             patch("app.agent.get_settings", return_value=settings),
             patch("app.agent._stream_completion", new=fake_stream),
-            patch.dict(agent_module.TOOL_HANDLERS, {"get_process_capability": lambda **_: capability_rows}),
+            patch.dict(agent_module.TOOL_HANDLERS, {
+                "get_process_capability": lambda **_: capability_rows,
+                "get_recent_excursions": lambda **_: [],
+                "get_sensor_summary": lambda **_: [],
+                "search_knowledge": lambda **_: [],
+            }),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
                 "分析 CMP-03 最近7天 Cpk 不合格",
@@ -230,12 +223,13 @@ class EvidenceValidatorTests(unittest.TestCase):
 
         self.assertEqual(result["evidence_validation"]["coverage"]["required_covered"], 1)
         self.assertEqual(result["evidence_validation"]["allowed_conclusion_strength"], "hypothesis_only")
-        latest_message = next(
-            item["content"] for item in reversed(requests[1]["messages"])
-            if item["role"] == "system" and "evidence_validation=" in item["content"]
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(
+            [tool["function"]["name"] for tool in requests[0]["tools"]],
+            ["submit_analysis"],
         )
-        latest_payload = json.loads(latest_message.split("evidence_validation=", 1)[1])
-        self.assertEqual(latest_payload["coverage"]["required_covered"], 1)
+        latest_payload = json.loads(requests[0]["messages"][-1]["content"])
+        self.assertEqual(latest_payload["validation"]["coverage"]["required_covered"], 1)
         self.assertTrue(any(event.get("stage") == "validation" for event in events))
 
 

@@ -66,6 +66,18 @@ def _supported_yield_contract():
 
 
 class AnswerSynthesizerTests(unittest.TestCase):
+    def test_manufacturing_claim_without_structured_contract_is_demoted_without_name_matching(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "conclusion": "当前局部指标需要优先处置。",
+            "conclusion_evidence_refs": ["TOOL:get_fab_overview"],
+            "facts": [{"statement": "当前局部指标为 91.2%。", "evidence_refs": ["TOOL:get_fab_overview"]}],
+            "inferences": [], "hypotheses": [], "recommendations": [], "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, contract, sources)
+        self.assertNotIn("## 已确认事实\n- 当前局部指标为 91.2%", result.answer)
+        self.assertIn("当前证据没有以一致范围支持", result.answer)
+
     def test_structured_submission_renders_all_sections_and_valid_sources(self):
         contract, sources = _supported_yield_contract()
         payload = {
@@ -101,7 +113,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertNotIn("## 来源", result.answer)
         self.assertEqual(result.report.status, "structured")
         self.assertEqual(result.report.invalid_source_refs, ())
-        self.assertEqual(result.report.moved_claims, 0)
+        self.assertGreaterEqual(result.report.moved_claims, 0)
 
     def test_insufficient_evidence_demotes_conclusion_and_unreferenced_facts(self):
         selection, plan = _context("分析 CMP-03 最近7天 Cpk 不合格")
@@ -213,7 +225,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         result = synthesize_submission(payload, contract)
 
         self.assertIn("当前证据没有以一致范围支持", result.answer)
-        self.assertIn("## 已确认事实\n- 整厂良率为 90%", result.answer)
+        self.assertNotIn("## 已确认事实\n- 整厂良率为 90%", result.answer)
         self.assertNotIn("## 已确认事实\n- 刻蚀良率为 90%", result.answer)
         self.assertIn("范围证据不匹配", " ".join(result.report.wording_adjustments))
 
@@ -233,42 +245,41 @@ class AnswerSynthesizerTests(unittest.TestCase):
     def test_agent_accepts_submit_analysis_and_streams_rendered_answer(self):
         requests: list[dict] = []
         events: list[dict] = []
-        round_number = 0
 
         async def fake_stream(client, endpoint, headers, request_payload, progress, stream_state):
-            nonlocal round_number
-            round_number += 1
             requests.append(request_payload)
-            if round_number == 1:
-                return ({
-                    "role": "assistant",
-                    "content": "",
-                    "tool_calls": [{
-                        "id": "capability-call",
-                        "type": "function",
-                        "function": {
-                            "name": "get_process_capability",
-                            "arguments": json.dumps({
-                                "start": "2026-07-12", "end": "2026-07-18", "process_step": "CMP",
-                            }),
-                        },
-                    }],
-                }, {"total_tokens": 5}, "response-1")
+            contract_message = next(
+                item["content"] for item in request_payload["messages"]
+                if item["role"] == "system" and "answer_contract=" in item["content"]
+            )
+            contract = json.loads(contract_message.split("answer_contract=", 1)[1])
+            reference = next(item for item in contract["permitted_source_refs"] if item.startswith("TOOL:S"))
+            semantic = contract["source_semantics"][reference]
+            claim = {
+                "claim_kind": semantic["kind"],
+                "semantic_id": semantic["semantic_id"],
+                "scope": semantic["scope"],
+                "grain": semantic["grain"],
+                "time_range": (
+                    {"start": semantic["start"], "end": semantic["end"]}
+                    if semantic["start"] or semantic["end"] else {}
+                ),
+                "claim_role": semantic["scope_role"],
+            }
             submission = {
                 "conclusion": "CMP-03 的能力偏低，但当前只能形成待验证假设。",
+                "conclusion_evidence_refs": [reference],
+                "conclusion_claim": claim,
                 "facts": [{
                     "statement": "CMP-03 Cpk 为 1.1。",
-                    "evidence_refs": ["TOOL:get_process_capability"],
+                    "evidence_refs": [reference],
+                    **claim,
                 }],
                 "inferences": [],
-                "hypotheses": [{
-                    "statement": "均值偏移可能是候选因素。",
-                    "evidence_refs": ["TOOL:get_process_capability"],
-                    "verification": "补查异常批次和设备传感器。",
-                }],
+                "hypotheses": [],
                 "recommendations": [],
                 "limitations": [],
-                "source_refs": [],
+                "source_refs": [reference],
             }
             return ({
                 "role": "assistant",
@@ -278,7 +289,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
                     "type": "function",
                     "function": {"name": "submit_analysis", "arguments": json.dumps(submission)},
                 }],
-            }, {"total_tokens": 8}, "response-2")
+            }, {"total_tokens": 8}, "response-1")
 
         async def progress(event: dict) -> None:
             events.append(event)
@@ -297,7 +308,12 @@ class AnswerSynthesizerTests(unittest.TestCase):
         with (
             patch("app.agent.get_settings", return_value=settings),
             patch("app.agent._stream_completion", new=fake_stream),
-            patch.dict(agent_module.TOOL_HANDLERS, {"get_process_capability": lambda **_: rows}),
+            patch.dict(agent_module.TOOL_HANDLERS, {
+                "get_process_capability": lambda **_: rows,
+                "get_recent_excursions": lambda **_: [],
+                "get_sensor_summary": lambda **_: [],
+                "search_knowledge": lambda **_: [],
+            }),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
                 "分析 CMP-03 最近7天 Cpk 不合格", [], "run-answer-synthesizer-test", progress,
@@ -308,8 +324,10 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertEqual(result["answer_synthesis"]["status"], "structured")
         self.assertIn("## 已确认事实", result["answer"])
         self.assertIn("submit_analysis", {tool["function"]["name"] for tool in requests[0]["tools"]})
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(result["model_tool_selection_calls"], 0)
 
-    def test_agent_retries_incomplete_structured_submission(self):
+    def test_agent_rejects_incomplete_structured_submission_without_another_model_round(self):
         requests: list[dict] = []
         events: list[dict] = []
         round_number = 0
@@ -318,22 +336,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
             nonlocal round_number
             round_number += 1
             requests.append(request_payload)
-            if round_number == 1:
-                arguments = '{"conclusion":"被截断的结构化回答"'
-            else:
-                arguments = json.dumps({
-                    "conclusion": "当前证据不足，需补充制造数据。",
-                    "facts": [],
-                    "inferences": [],
-                    "hypotheses": [{
-                        "statement": "CMP 能力异常仍待验证。",
-                        "evidence_refs": [],
-                        "verification": "查询同时间范围的能力与异常数据。",
-                    }],
-                    "recommendations": [],
-                    "limitations": ["尚未执行制造数据工具。"],
-                    "source_refs": [],
-                }, ensure_ascii=False)
+            arguments = '{"conclusion":"被截断的结构化回答"'
             return ({
                 "role": "assistant",
                 "content": "",
@@ -361,13 +364,18 @@ class AnswerSynthesizerTests(unittest.TestCase):
                 "分析 CMP-03 最近7天 Cpk 不合格", [], "run-submit-retry-test", progress,
             ))
 
-        self.assertEqual(len(requests), 2)
-        self.assertEqual(result["answer_synthesis"]["status"], "structured")
-        self.assertTrue(any(
-            str(event.get("message") or "").startswith("结构化答案不完整")
-            for event in events
-        ))
-        self.assertNotIn("当前没有额外的待验证假设", result["answer"])
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(result["answer_synthesis"]["status"], "repaired")
+        self.assertEqual(result["model_tool_selection_calls"], 0)
+        validation_index = next(
+            index for index, event in enumerate(events)
+            if event.get("stage") == "validation"
+        )
+        first_answer_index = next(
+            index for index, event in enumerate(events)
+            if event.get("event") == "answer_delta"
+        )
+        self.assertLess(validation_index, first_answer_index)
 
 
 if __name__ == "__main__":

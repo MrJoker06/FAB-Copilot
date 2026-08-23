@@ -11,6 +11,7 @@
 - 单元测试覆盖纯规则、解析、计划、RAG 决策和质量门命令构造。
 - HTTP 契约测试覆盖公开 API 的成功、认证、脱敏和输入边界；系统测试覆盖跨库与后台任务工作流。
 - RAG 黄金集独立评估召回、来源覆盖和禁止命中；Playbook 黄金集以固定日期驱动真实 Router、Playbook 选择和 Planner，并断言严格工具路径、必需证据覆盖与预算一致性；两者均不访问真实模型。
+- ready 执行性能门以固定制程能力、Lot 追踪和整厂诊断问题重建旧模型选取依赖批次的路径，与服务端确定性执行后单次综合路径比较。Token 使用 UTF-8 字节/版本化比例估算，首答时延使用固定模型调用、Prompt 和工具成本；它只用于离线架构回归，不代表供应商计费、真实 Tokenizer 或网络 SLA。
 - 测试必须确定、隔离和可重复，负向路径与边界值和正常路径同等重要。测试日志可记录完整轨迹，但 API Key、Authorization、Password、Secret、Cookie 和 Token 始终脱敏。
 
 在受限沙箱中，FastAPI 的同步端点会由 `anyio.to_thread` 调度；测试应避免把该调度限制误判为 API 契约失败，并不得以真实模型或浏览器依赖绕过隔离。
@@ -33,7 +34,7 @@ python -m unittest tests.test_startup_script tests.test_database_manager tests.t
 python -m pip install -r requirements-test.txt
 ```
 
-快速门运行非 `tests.system.*` Python、全部 Node 测试、全部静态 JS 语法检查、RAG 黄金集和 Playbook 黄金集：
+快速门运行非 `tests.system.*` Python、全部 Node 测试、全部静态 JS 语法检查、RAG/OCR/Playbook 黄金集和 ready 执行性能门：
 
 ```bash
 python scripts/run_quality_gate.py quick
@@ -59,11 +60,23 @@ python scripts/run_quality_gate.py quick
 
 2026-08-20 `OBS-014` 宿主 full 实测全通过：发现 333 个 Python 测试，其中 267 个非系统测试；系统模块分别为数据报表 12、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 9；`app` 分支覆盖率 87%，Node 契约文件 13/13、RAG 15/15、OCR 黄金集 8/8 类别通过、Playbook 12/12，Playwright 桌面 10/10。`runtime/quality/system_test_timings.json` 总计 82.4 秒，五个模块及总计均低于版本化预算。
 
+2026-08-23 `AGENT-034`/`OBS-016` 宿主 full 实测全通过：发现 358 个 Python 测试，其中 292 个非系统测试；系统模块分别为数据报表 12、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 9；`app` 分支覆盖率 87%，Node 36、RAG 15/15、OCR 黄金集 8/8、Playbook 12/12、Playwright 桌面 10/10。`runtime/quality/system_test_timings.json` 总计 90.3 秒，五个模块及总计均低于版本化预算。
+
+2026-08-23 `AGENT-038` 宿主 full 实测全通过：发现 395 个 Python 测试，其中 328 个非系统测试；系统模块分别为数据报表 13、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 9；`app` 分支覆盖率 86%，Node 36/36、RAG 15/15、OCR 黄金集 8/8、Playbook 12/12、Ready 确定性执行合成基准 3/3、Playwright 桌面 10/10。`runtime/quality/system_test_timings.json` 总计 76.0 秒，五个模块及总计均低于版本化预算。个人知识可访问性断言同步为验证唯一上传入口存在，不再错误要求位于长文档列表首屏。
+
+2026-08-23 `OBS-017` 宿主 full 实测全通过：发现 401 个 Python 测试，其中 334 个非系统测试；系统模块分别为数据报表 13、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 9；`app` 分支覆盖率 86%，Node 36/36、RAG 15/15、OCR 黄金集 8/8、Playbook 12/12、Ready 基准 3/3、Playwright 桌面 10/10。`runtime/quality/system_test_timings.json` 总计 80.5 秒，五个模块及总计均低于版本化预算；新增契约覆盖版本字段防覆盖、旧 Trace 读取、三类引用计数、安全仲裁候选和六阶段耗时聚合。
+
 ```bash
 python scripts/run_quality_gate.py full
 ```
 
 质量门在执行前以 AST 统计 unittest 风格测试方法，避免导入测试时污染环境；发现少于最近完整审计确认的 175 个测试即失败。只有完整审计确认的有意删测才能调整此基线；命令首次失败即非零退出。覆盖数据写入 `runtime/quality/`，Playbook 报告同时写入 `runtime/quality/playbook_gold_report.json`。
+
+## 托管 CI
+
+`.github/workflows/quality.yml` 在 `experiment/parallel-platform` 的 push、PR 和手动触发时，在 Ubuntu 上使用 Python 3.11、Node 22 执行完整门。CI 只允许在 `CI=true` 时运行 `scripts/prepare_ci_data.py`：它拒绝已存在的部门库，生成固定 730 天、截至 2026-12-25 的合成数据，补齐默认模型目录后再执行治理检查。因此不会读取本地开发数据，不会调用真实模型、Oracle 或生产端点。
+
+失败且未被取消时，只允许上传 `playwright-report/`、`test-results/` 和 `runtime/quality/` 诊断；数据库、日志及完整内容均不在 artifact 范围。workflow 使用最小 `contents: read` 权限与同一分支并发取消。远程 required check/ruleset 仍需仓库管理员显式启用，在此之前该 CI 只是可见的质量信号，不能替代 GitHub 合并保护。
 
 ## 完整审计触发条件
 

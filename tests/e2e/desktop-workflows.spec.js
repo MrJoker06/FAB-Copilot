@@ -30,6 +30,7 @@ async function openIsolatedUser(page, testInfo) {
   await page.goto('/');
   await expect(page.locator('#systemStatus')).not.toHaveText(/正在连接数据源/);
   await expect(page.locator('#kpiGrid')).not.toBeEmpty();
+  await expect(page.locator('#chatMessages .suggestions')).toBeVisible();
   return identities;
 }
 

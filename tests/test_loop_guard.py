@@ -107,7 +107,7 @@ class ToolLoopGuardTests(unittest.TestCase):
         self.assertEqual(result["tool_trace"], [])
         self.assertIn("请先补充", result["answer"])
 
-    def test_agent_loop_blocks_duplicates_and_switches_to_synthesis(self):
+    def test_generic_agent_loop_still_blocks_duplicates_and_switches_to_synthesis(self):
         requests: list[dict] = []
         events: list[dict] = []
         handler_calls: list[dict] = []
@@ -161,7 +161,7 @@ class ToolLoopGuardTests(unittest.TestCase):
         ):
             result = asyncio.run(
                 agent_module._run_agent_impl(
-                    "分析 CMP-03 最近7天 Cpk 不合格",
+                    "分析 CMP 划伤缺陷 Pareto",
                     [],
                     "run-loop-guard-test",
                     progress,
@@ -174,11 +174,11 @@ class ToolLoopGuardTests(unittest.TestCase):
         self.assertEqual(result["loop_guard"]["total_calls"], 1)
         self.assertEqual(result["loop_guard"]["blocked_calls"], 2)
         self.assertEqual([request["tool_choice"] for request in requests[:3]], ["auto", "auto", "auto"])
-        self.assertEqual(requests[-1]["tool_choice"], "auto")
-        self.assertEqual(requests[-1]["max_tokens"], 8192)
-        self.assertEqual(
+        self.assertEqual(requests[-1]["tool_choice"], "none")
+        self.assertNotIn("max_tokens", requests[-1])
+        self.assertIn(
+            "get_process_capability",
             [tool["function"]["name"] for tool in requests[-1]["tools"]],
-            ["submit_analysis"],
         )
         self.assertEqual(sum(event.get("status") == "blocked" for event in events), 2)
 

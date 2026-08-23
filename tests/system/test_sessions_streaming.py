@@ -135,6 +135,8 @@ class SessionsStreamingSystemTests(unittest.TestCase):
 
     def test_streaming_chat_emits_progress_before_result_and_persists(self):
         observed_thinking = []
+        observed_correlation = []
+        emitted = []
         plan = {
             "plan_id": "plan-stream-test",
             "schema_version": "1.0",
@@ -162,8 +164,9 @@ class SessionsStreamingSystemTests(unittest.TestCase):
             }],
         }
 
-        async def fake_agent(question, history, progress=None, *, thinking=False):
+        async def fake_agent(question, history, progress=None, *, thinking=False, session_id=None, user_message_id=None):
             observed_thinking.append(thinking)
+            observed_correlation.append((session_id, user_message_id))
             await progress({"event": "run_started", "run_id": "run-test", "message": "分析任务已创建"})
             await progress({"event": "stage", "stage": "plan", "message": "执行计划已生成", "plan": plan})
             await progress({"event": "tool_started", "tool": "get_process_capability", "arguments": {"process_step": "CMP"}})
@@ -179,11 +182,15 @@ class SessionsStreamingSystemTests(unittest.TestCase):
                 "run_id": "run-test",
             }
 
-        with patch("app.main.run_agent", new=fake_agent), TestClient(app) as client:
+        def capture(event_type, run_id, **fields):
+            emitted.append((event_type, run_id, fields))
+
+        with patch("app.main.run_agent", new=fake_agent), patch("app.main.emit", new=capture), TestClient(app) as client:
             created = client.post("/api/sessions").json()
             response = client.post("/api/chat/stream", json={"message": "分析 CMP", "session_id": created["session_id"]})
             self.assertEqual(response.status_code, 200)
             self.assertEqual(observed_thinking, [False])
+            self.assertEqual(observed_correlation[0][0], created["session_id"])
             events = [json.loads(line) for line in response.text.splitlines() if line]
             event_types = [event["type"] for event in events]
             self.assertEqual(event_types[0], "session")
@@ -192,9 +199,12 @@ class SessionsStreamingSystemTests(unittest.TestCase):
             self.assertLess(event_types.index("progress"), event_types.index("result"))
             answer_events = [event for event in events if event.get("event") == "answer_delta"]
             self.assertEqual("".join(event["delta"] for event in answer_events), "CMP 分析完成")
+            delivery = next(event for event in events if event.get("event") == "stream_delivery_summary")
+            self.assertGreaterEqual(delivery["answer_stream_duration_ms"], 0)
             restored = client.get(f"/api/sessions/{created['session_id']}").json()
             self.assertEqual([item["role"] for item in restored["messages"]], ["user", "assistant"])
             self.assertEqual(restored["messages"][1]["metadata"]["run_id"], "run-test")
+            self.assertGreaterEqual(restored["messages"][1]["metadata"]["trace_semantics"]["stream_duration_ms"], 0)
             execution = restored["messages"][1]["metadata"]["execution"]
             self.assertEqual(execution["execution_status"], "completed")
             self.assertEqual(execution["steps"][0]["status"], "succeeded")
@@ -211,6 +221,10 @@ class SessionsStreamingSystemTests(unittest.TestCase):
             self.assertTrue({"plan_created", "step_started", "tool_finished", "step_finished"}.issubset(
                 {item["event"] for item in timeline}
             ))
+            persisted = next(fields for event, run_id, fields in emitted if event == "agent_run_persisted" and run_id == "run-test")
+            self.assertEqual(persisted["session_id"], created["session_id"])
+            self.assertEqual(persisted["user_message_id"], observed_correlation[0][1])
+            self.assertEqual(persisted["assistant_message_id"], restored["messages"][1]["message_id"])
             denied = client.get(
                 "/api/agent-runs/run-test/audit",
                 headers={"X-Tenant-ID": "demo-fab", "X-User-ID": "other-user"},
@@ -261,7 +275,7 @@ class SessionsStreamingSystemTests(unittest.TestCase):
             client.delete(f"/api/sessions/{session['session_id']}/permanent")
 
     def test_admin_overview_tracks_user_agent_runtime(self):
-        async def fake_agent(question, history, progress=None, *, thinking=False):
+        async def fake_agent(question, history, progress=None, *, thinking=False, session_id=None, user_message_id=None):
             await progress({"event": "run_started", "run_id": "run-admin-runtime", "message": "分析任务已创建"})
             await progress({"event": "answer_delta", "delta": "完成"})
             return {
@@ -324,7 +338,7 @@ class SessionsStreamingSystemTests(unittest.TestCase):
     def test_stream_retry_with_same_client_message_id_is_idempotent(self):
         calls = 0
 
-        async def fake_agent(question, history, progress=None, *, thinking=False):
+        async def fake_agent(question, history, progress=None, *, thinking=False, session_id=None, user_message_id=None):
             nonlocal calls
             calls += 1
             await progress({"event": "run_started", "run_id": "run-idempotent", "message": "分析任务已创建"})

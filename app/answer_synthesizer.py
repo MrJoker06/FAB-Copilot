@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
 from .evidence_validator import EvidenceValidation
+from .evidence_semantics import EvidenceDescriptor, EvidenceScope, supports_claim
 
 
 SynthesisStatus = Literal["structured", "repaired", "not_applicable"]
@@ -36,6 +37,7 @@ SUBMIT_ANALYSIS_TOOL = {
             "properties": {
                 "conclusion": {"type": "string", "maxLength": 600},
                 "conclusion_evidence_refs": {"type": "array", "maxItems": 8, "items": {"type": "string"}},
+                "conclusion_claim": {"type": "object", "properties": {"claim_kind": {"type": "string", "enum": ["metric", "record", "event", "document", "sample"]}, "semantic_id": {"type": "string"}, "scope": {"type": "object"}, "grain": {"type": "string"}, "time_range": {"type": "object"}, "claim_role": {"type": "string", "enum": ["primary", "background"]}}, "required": ["claim_kind", "semantic_id", "scope", "grain", "time_range", "claim_role"], "additionalProperties": False},
                 "facts": {
                     "type": "array",
                     "maxItems": 8,
@@ -44,8 +46,14 @@ SUBMIT_ANALYSIS_TOOL = {
                         "properties": {
                             "statement": {"type": "string"},
                             "evidence_refs": {"type": "array", "items": {"type": "string"}},
+                            "claim_kind": {"type": "string", "enum": ["metric", "record", "event", "document", "sample"]},
+                            "semantic_id": {"type": "string"},
+                            "scope": {"type": "object"},
+                            "time_range": {"type": "object"},
+                            "grain": {"type": "string"},
+                            "claim_role": {"type": "string", "enum": ["primary", "background"]},
                         },
-                        "required": ["statement", "evidence_refs"],
+                        "required": ["statement", "evidence_refs", "claim_kind", "semantic_id", "scope", "grain", "time_range", "claim_role"],
                         "additionalProperties": False,
                     },
                 },
@@ -57,8 +65,14 @@ SUBMIT_ANALYSIS_TOOL = {
                         "properties": {
                             "statement": {"type": "string"},
                             "evidence_refs": {"type": "array", "items": {"type": "string"}},
+                            "claim_kind": {"type": "string", "enum": ["metric", "record", "event", "document", "sample"]},
+                            "semantic_id": {"type": "string"},
+                            "scope": {"type": "object"},
+                            "time_range": {"type": "object"},
+                            "grain": {"type": "string"},
+                            "claim_role": {"type": "string", "enum": ["primary", "background"]},
                         },
-                        "required": ["statement", "evidence_refs"],
+                        "required": ["statement", "evidence_refs", "claim_kind", "semantic_id", "scope", "grain", "time_range", "claim_role"],
                         "additionalProperties": False,
                     },
                 },
@@ -71,6 +85,12 @@ SUBMIT_ANALYSIS_TOOL = {
                             "statement": {"type": "string"},
                             "evidence_refs": {"type": "array", "items": {"type": "string"}},
                             "verification": {"type": "string"},
+                            "claim_kind": {"type": "string", "enum": ["metric", "record", "event", "document", "sample"]},
+                            "semantic_id": {"type": "string"},
+                            "scope": {"type": "object"},
+                            "time_range": {"type": "object"},
+                            "grain": {"type": "string"},
+                            "claim_role": {"type": "string", "enum": ["primary", "background"]},
                         },
                         "required": ["statement", "evidence_refs", "verification"],
                         "additionalProperties": False,
@@ -96,6 +116,7 @@ SUBMIT_ANALYSIS_TOOL = {
             "required": [
                 "conclusion",
                 "conclusion_evidence_refs",
+                "conclusion_claim",
                 "facts",
                 "inferences",
                 "hypotheses",
@@ -130,6 +151,7 @@ class AnswerContract:
     primary_scope_ids: tuple[str, ...]
     primary_scope_labels: tuple[str, ...]
     source_scope_roles: dict[str, str]
+    source_semantics: dict[str, dict[str, Any]]
     submission_tool: str = "submit_analysis"
 
     def to_dict(self) -> dict[str, Any]:
@@ -167,6 +189,12 @@ class _Claim:
     statement: str
     evidence_refs: tuple[str, ...]
     verification: str = ""
+    claim_kind: str = ""
+    semantic_id: str = ""
+    scope: dict[str, Any] | None = None
+    time_range: dict[str, Any] | None = None
+    grain: str = ""
+    claim_role: str = "primary"
 
 
 @dataclass(frozen=True)
@@ -214,6 +242,7 @@ def create_answer_contract(
         if source.get("reference_id")
     }
     permitted_items = {*(f"TOOL:{tool}" for tool in matched_tools), *source_refs}
+    permitted_items.update(validation.observed_source_refs)
     if allow_model_knowledge_fallback:
         permitted_items.add(MODEL_KNOWLEDGE_REF)
     permitted = tuple(sorted(permitted_items))
@@ -247,6 +276,7 @@ def create_answer_contract(
         primary_scope_ids=validation.primary_scope_ids,
         primary_scope_labels=validation.primary_scope_labels,
         source_scope_roles=validation.source_scope_roles,
+        source_semantics=validation.source_semantics,
     )
 
 
@@ -270,6 +300,7 @@ def synthesizer_system_message(contract: AnswerContract) -> str:
             if contract.model_knowledge_fallback
             else ""
         )
+        + "制造域的 facts、inferences 和 conclusion_claim 必须从 answer_contract.source_semantics 逐项复制 claim_kind、semantic_id、scope、grain 和 time_range；不得根据用户目标范围猜测证据范围。"
         + "不得提交隐藏思维链、逐 token 推理或未在 permitted_source_refs 中的来源。"
         "conclusion_evidence_refs 必须列出结论依据；仅由 context_only 来源支持的整厂背景不得表述为主范围自身指标。"
         "结论不得超过 allowed_conclusion_strength，causal_claims_allowed=false 时不得声称已证明因果。\n"
@@ -317,6 +348,12 @@ def _parse_claims(value: Any, allowed: dict[str, str]) -> tuple[list[_Claim], se
             statement=statement,
             evidence_refs=tuple(dict.fromkeys(refs)),
             verification=_clean_text(payload.get("verification"), 1200),
+            claim_kind=_clean_text(payload.get("claim_kind"), 80),
+            semantic_id=_clean_text(payload.get("semantic_id"), 120),
+            scope=payload.get("scope") if isinstance(payload.get("scope"), dict) else None,
+            time_range=payload.get("time_range") if isinstance(payload.get("time_range"), dict) else None,
+            grain=_clean_text(payload.get("grain"), 80),
+            claim_role=_clean_text(payload.get("claim_role"), 20) or "primary",
         ))
     return claims, invalid
 
@@ -350,7 +387,51 @@ def _scope_mismatch(statement: str, references: tuple[str, ...], contract: Answe
         return False
     if not references:
         return True
-    return all(contract.source_scope_roles.get(reference, "primary") != "primary" for reference in references)
+    return all(contract.source_scope_roles.get(reference, "unknown") != "primary" for reference in references)
+
+
+def _structured_claim_mismatch(claim: _Claim, contract: AnswerContract) -> bool:
+    """Validate structured manufacturing claims without inspecting claim prose."""
+    manufacturing = contract.primary_scope_type in {"fab", "process", "equipment", "product", "lot"}
+    if claim.claim_role not in {"primary", "background"}:
+        return True
+    if not (claim.claim_kind or claim.semantic_id or claim.scope or claim.time_range or claim.grain):
+        return manufacturing
+    if not claim.claim_kind or not claim.semantic_id or not claim.scope or not claim.grain or claim.time_range is None or not claim.evidence_refs:
+        return True
+    try:
+        claim_scope = EvidenceScope(**{
+            key: tuple(str(value).upper() for value in values)
+            for key, values in claim.scope.items()
+            if key in EvidenceScope.__dataclass_fields__
+            and isinstance(values, (list, tuple))
+        })
+    except (TypeError, ValueError):
+        return True
+    for reference in claim.evidence_refs:
+        metadata = contract.source_semantics.get(reference)
+        if not metadata:
+            continue
+        descriptor = EvidenceDescriptor(
+            source_ref=reference, kind=metadata.get("kind", "unknown"),
+            semantic_id=metadata.get("semantic_id", "unknown"),
+            scope=EvidenceScope(**metadata.get("scope", {})), grain=metadata.get("grain", "unknown"),
+            start=metadata.get("start"), end=metadata.get("end"),
+            filter_provenance=metadata.get("filter_provenance", "unknown"),
+            scope_role=metadata.get("scope_role", "primary"),
+        )
+        if (descriptor.start or descriptor.end) and not (claim.time_range or {}).get("start"):
+            continue
+        if not (descriptor.start or descriptor.end) and claim.time_range:
+            continue
+        if supports_claim(
+            descriptor, kind=claim.claim_kind, semantic_id=claim.semantic_id, scope=claim_scope, grain=claim.grain,
+            start=str((claim.time_range or {}).get("start") or "") or None,
+            end=str((claim.time_range or {}).get("end") or "") or None,
+            claim_role=claim.claim_role,
+        ):
+            return False
+    return True
 
 
 def _claim_line(claim: _Claim) -> str:
@@ -407,7 +488,7 @@ def synthesize_submission(
         uses_model_knowledge = contract.model_knowledge_fallback and (
             not claim.evidence_refs or set(claim.evidence_refs) == {MODEL_KNOWLEDGE_REF}
         )
-        if _scope_mismatch(claim.statement, claim.evidence_refs, contract):
+        if _structured_claim_mismatch(claim, contract) or _scope_mismatch(claim.statement, claim.evidence_refs, contract):
             hypotheses.append(_Claim(
                 claim.statement,
                 claim.evidence_refs,
@@ -453,7 +534,7 @@ def synthesize_submission(
         uses_model_knowledge = contract.model_knowledge_fallback and (
             not claim.evidence_refs or set(claim.evidence_refs) == {MODEL_KNOWLEDGE_REF}
         )
-        if _scope_mismatch(claim.statement, claim.evidence_refs, contract):
+        if _structured_claim_mismatch(claim, contract) or _scope_mismatch(claim.statement, claim.evidence_refs, contract):
             hypotheses.append(_Claim(
                 claim.statement,
                 claim.evidence_refs,
@@ -503,6 +584,17 @@ def synthesize_submission(
         tuple(dict.fromkeys(conclusion_refs)),
         contract,
     )
+    conclusion_claim_payload = payload.get("conclusion_claim") if isinstance(payload.get("conclusion_claim"), dict) else {}
+    conclusion_claim = _Claim(
+        statement=submitted_conclusion, evidence_refs=tuple(dict.fromkeys(conclusion_refs)),
+        claim_kind=_clean_text(conclusion_claim_payload.get("claim_kind"), 80),
+        semantic_id=_clean_text(conclusion_claim_payload.get("semantic_id"), 120),
+        scope=conclusion_claim_payload.get("scope") if isinstance(conclusion_claim_payload.get("scope"), dict) else None,
+        time_range=conclusion_claim_payload.get("time_range") if isinstance(conclusion_claim_payload.get("time_range"), dict) else None,
+        grain=_clean_text(conclusion_claim_payload.get("grain"), 80),
+        claim_role=_clean_text(conclusion_claim_payload.get("claim_role"), 20) or "primary",
+    )
+    conclusion_scope_mismatch = conclusion_scope_mismatch or _structured_claim_mismatch(conclusion_claim, contract)
     if contract.model_knowledge_fallback:
         safe_conclusion = (
             submitted_conclusion

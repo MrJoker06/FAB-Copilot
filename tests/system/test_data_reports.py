@@ -15,7 +15,7 @@ isolated_system_environment()
 
 from app.database import db_session, department_paths, initialize, sqlite_journal_mode
 from app.processes import MANUFACTURING_STEPS
-from app.reports import defect_pareto, equipment_health, equipment_productivity, process_capability, recent_excursions, report_bundle, timestamp_bounds
+from app.reports import defect_pareto, equipment_health, equipment_productivity, process_capability, process_pass_rate, recent_excursions, report_bundle, timestamp_bounds
 from app.seed import MARKET_PROFILE, MARKET_PROFILE_ID, seed_reference_data
 
 class DataReportsSystemTests(unittest.TestCase):
@@ -66,6 +66,19 @@ class DataReportsSystemTests(unittest.TestCase):
                 self.assertTrue(all(row["equipment_id"].startswith(f"{process_step}-") for row in health))
                 self.assertTrue(all(row["equipment_id"].startswith(f"{process_step}-") for row in productivity))
                 self.assertTrue(all(row["process_steps"] == process_step for row in defects))
+
+    def test_process_pass_rate_is_process_scoped_for_every_registered_step(self):
+        start = (date.today() - timedelta(days=90)).isoformat()
+        end = (date.today() + timedelta(days=1)).isoformat()
+        for process_step in MANUFACTURING_STEPS:
+            with self.subTest(process_step=process_step):
+                rows = process_pass_rate(start, end, process_step)
+                self.assertEqual(len(rows), 1)
+                self.assertTrue(all(row["process_step"] == process_step for row in rows))
+                self.assertTrue(all(row["runs"] >= row["passed_runs"] >= 0 for row in rows))
+                equipment_rows = process_pass_rate(start, end, process_step, f"{process_step}-01")
+                self.assertEqual(len(equipment_rows), 1)
+                self.assertEqual(equipment_rows[0]["equipment_id"], f"{process_step}-01")
 
     def test_equipment_operational_reports_keep_exact_equipment_scope(self):
         start = (date.today() - timedelta(days=90)).isoformat()

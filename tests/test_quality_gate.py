@@ -21,11 +21,29 @@ class QualityGateTests(unittest.TestCase):
         self.assertEqual(full[-1], [sys.executable, "-m", "coverage", "report", "--include", "app/*", "--fail-under=80"])
         self.assertEqual(full.count(["npm", "run", "test:e2e"]), 1)
         self.assertEqual(quick.count(["npm", "run", "test:e2e"]), 0)
-        self.assertEqual(quick[-3:], [
+        self.assertEqual(quick[-4:], [
             [sys.executable, "scripts/evaluate_rag.py"],
             [sys.executable, "scripts/evaluate_ocr.py"],
             [sys.executable, "scripts/evaluate_playbooks.py"],
+            [sys.executable, "scripts/evaluate_ready_execution.py"],
         ])
+        self.assertIn([sys.executable, "scripts/check_repository.py"], quick)
+        self.assertIn([sys.executable, "scripts/check_repository.py"], full)
+
+    def test_full_gate_runs_coverage_before_all_remaining_checks(self):
+        commands = run_quality_gate.quality_commands("full")
+        coverage_report = commands.pop(-1)
+        calls = []
+        with (
+            patch.object(run_quality_gate, "count_python_tests", return_value=run_quality_gate.MIN_PYTHON_TESTS),
+            patch.object(run_quality_gate, "run_commands", side_effect=lambda commands, *args: calls.append(list(commands))),
+            patch.object(run_quality_gate, "run_system_tests", side_effect=lambda *args: calls.append(["system"])),
+        ):
+            self.assertEqual(run_quality_gate.main(["full"]), 0)
+        self.assertEqual(calls[0], commands[:2])
+        self.assertEqual(calls[1], ["system"])
+        self.assertEqual(calls[2][0], coverage_report)
+        self.assertIn([sys.executable, "scripts/check_repository.py"], calls[2])
 
     def test_commands_cover_node_tests_and_every_static_script(self):
         commands = run_quality_gate.quality_commands("quick")

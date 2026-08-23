@@ -35,3 +35,11 @@
 - [x] `AGENT-031` 治理推理型模型在上下文分类阶段的空响应：流接收器只统计推理字符数和结束原因，不保存思维正文；首轮 1200 token，空响应的唯一纠正重试扩展到 2400 token。二次空响应下未经上下文验证的通用知识路由改为历史选择提示，禁止直接检索或回答，明确制造任务保持独立路由。
 - [x] `AGENT-032` 修复语义助手对话路由与上下文降级披露：上下文协议将助手身份、能力、问候和不请求外部技术或制造事实的交互/元问题标记为 `conversation`；高置信度提示只能将 `unknown` 提升到确定性零工具对话路径，保持检索 `NOT_APPLICABLE`、`knowledge_fallback.used=false` 且不披露知识库为空。真实通用知识的空检索模型降级披露和制造路由保持不变。
 - [x] `AGENT-033` 隔离 Thinking 与结构化上下文分类：用户 Thinking 仅传给主推理/答案循环，上下文分类始终关闭，并以默认 15 秒（1000-60000 ms）的跨重试阶段 deadline 保守降级；推理预算耗尽统一为 `context_budget_exhausted`，审计和持久化结果只保存 requested/effective 策略、长度和结束原因，不保存推理正文。
+- [x] `AGENT-034` 将上下文解析治理为 `not_applicable`、`resolved`、`ambiguous`、`unavailable` 四态：只有模型成功返回有效但不足以绑定的 `ambiguous` 才显示历史选择；timeout、network、protocol 与 circuit 均为 `unavailable`，保留原问题并在仍无法理解时给出中性澄清。系统不建立自然语言指代词表；助手能力等元对话由语义 `intent_hint` 路由。
+- [x] `AGENT-035` 新增轻量 `TurnDecision` 动作协议：复用上下文模型的可选结构化动作，在确定性身份/能力快速路径与现有制造 Planner 之间进行受限编排。能力回答从真实实现映射的目录确定性生成；非法动作不破坏已解析上下文，制造任务继续沿用 Playbook、ExecutionPlan 与 Tool Loop。
+
+## 当前产品待办
+
+- [x] `AGENT-036` 建立统一的 `DecisionArbiter`、活动 Flow、候选来源追踪和 Flow Guard：原始用户文本与活动目标决定言语行为，`resolved_text` 只补充已确认任务参数；高置信度且合法的元对话动作不得被模型扩写引入的关键词静默覆盖。冲突记录候选、来源、策略理由，并按策略仲裁或澄清；真实失败回放、含“文档/知识库/规范”的变形追问及明确 SOP/制造新任务反例均验证。不得扩充短语词典，不迁移完整 Rasa 框架；保留现有 Planner/Playbook/Evidence 架构。详见[会话控制改善方案](../agent-control-improvement-plan.md)。
+- [x] `AGENT-037` 实现范围安全的制造指标与综合：新增通用多维 EvidenceDescriptor、调用级引用、范围关系和 fail-closed 语义/范围/时间验证；区分最终晶圆良率与制程运行通过率，并覆盖所有已登记制程的隔离、设备/批次窄化、未知及企业样本证据。未关联 `process_runs` 的 lots 查询保持不可作为制程主证据。依赖：无。
+- [x] `AGENT-038` 对 `ExecutionPlan.status=ready` 实现确定性执行：服务端校验依赖图并按稳定依赖顺序执行精确工具与参数，失败依赖阻断下游；继续经过 ToolLoopGuard、工具白名单、结果上限、审计、流式进度和 Evidence Validator。模型只收到压缩后的已验证证据和 `submit_analysis`，不再参与业务工具选择，服务端验证完成前不输出正文；模型缺失、熔断、请求失败或结构化提交无效时输出证据安全降级说明且不重复工具。固定离线合成基线覆盖制程能力、Lot 追踪和整厂诊断，候选路径模型业务工具选择轮次为 0，估算总 Token 降低 92.2%-93.9%、首个最终答案时延降低 80.5%-84.2%；该报告明确是版本化合成成本模型，不代表供应商计费或网络 SLA。依赖：`AGENT-037`。

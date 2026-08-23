@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from .domain_playbooks import DomainPlaybook
 from .planner import ExecutionPlan, PlanStep
+from .evidence_semantics import EvidenceScope, descriptor_for_tool
 
 
 ObservationStatus = Literal["success", "error", "blocked"]
@@ -39,6 +40,7 @@ class EvidenceObservation:
     status: ObservationStatus
     result: Any = None
     error: str | None = None
+    source_ref: str | None = None
 
 
 @dataclass(frozen=True)
@@ -76,6 +78,8 @@ class EvidenceValidation:
     primary_scope_ids: tuple[str, ...]
     primary_scope_labels: tuple[str, ...]
     source_scope_roles: dict[str, str]
+    source_semantics: dict[str, dict[str, Any]]
+    observed_source_refs: tuple[str, ...]
     allowed_conclusion_strength: ConclusionStrength
     conclusion_guidance: str
     causal_claims_allowed: bool = False
@@ -100,10 +104,29 @@ def _normalize_value(key: str, value: Any) -> Any:
 def _source_scope_roles(plan: ExecutionPlan) -> dict[str, str]:
     roles: dict[str, str] = {}
     for step in plan.steps:
+        roles[f"TOOL:{step.step_id}"] = step.scope_role
         reference = f"TOOL:{step.tool}"
-        if step.scope_role == "primary" or reference not in roles:
+        if reference not in roles:
             roles[reference] = step.scope_role
+        elif roles[reference] != step.scope_role:
+            roles[reference] = "unknown"
     return roles
+
+
+def _source_semantics(plan: ExecutionPlan) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for step in plan.steps:
+        descriptor = descriptor_for_tool(
+            f"TOOL:{step.step_id}", step.tool, step.parameters, scope_role=step.scope_role,
+            expected_scope=EvidenceScope(**(step.evidence_scope or {})), semantic_id=step.semantic_id,
+            grain=step.grain, kind=step.evidence_kind, provenance=step.filter_provenance,
+        )
+        result[descriptor.source_ref] = {
+            "kind": descriptor.kind, "semantic_id": step.semantic_id, "grain": step.grain,
+            "scope": descriptor.scope.__dict__, "start": step.evidence_start, "end": step.evidence_end,
+            "filter_provenance": descriptor.filter_provenance, "scope_role": descriptor.scope_role,
+        }
+    return result
 
 
 def _step_matches(step: PlanStep, observation: EvidenceObservation) -> bool:
@@ -353,6 +376,8 @@ def validate_evidence(
             primary_scope_ids=plan.scope_contract.primary_scope_ids,
             primary_scope_labels=plan.scope_contract.primary_scope_labels,
             source_scope_roles=_source_scope_roles(plan),
+            source_semantics=_source_semantics(plan),
+            observed_source_refs=(),
             allowed_conclusion_strength=strength,
             conclusion_guidance=_GUIDANCE[strength],
         )
@@ -367,12 +392,15 @@ def validate_evidence(
     total_fields = 0
     present_fields_count = 0
     for requirement in playbook.evidence_requirements:
+        effective_required = requirement.required or any(
+            step.required and requirement.evidence_id in step.evidence_ids for step in plan.steps
+        )
         related = [observation for observation, ids in matched if requirement.evidence_id in ids]
         successful = [observation for observation in related if _rows(observation.result)]
         rows = [row for observation in successful for row in _rows(observation.result)]
         present = tuple(field for field in requirement.required_fields if any(_has_value(row, field) for row in rows))
         missing = tuple(field for field in requirement.required_fields if field not in present)
-        if requirement.required:
+        if effective_required:
             total_fields += len(requirement.required_fields)
             present_fields_count += len(present)
         if successful and not missing:
@@ -380,11 +408,11 @@ def validate_evidence(
         elif related:
             status = "partial"
         else:
-            status = "missing" if requirement.required else "optional_missing"
+            status = "missing" if effective_required else "optional_missing"
         checks.append(EvidenceCheck(
             evidence_id=requirement.evidence_id,
             name=requirement.name,
-            required=requirement.required,
+            required=effective_required,
             status=status,
             matched_tools=tuple(dict.fromkeys(item.tool for item in related)),
             successful_calls=len(successful),
@@ -402,6 +430,14 @@ def validate_evidence(
     )
     conflicts = _deduplicate_issues(_fact_conflicts(matched))
     strength = _strength(len(required_checks), required_covered, risks, conflicts)
+    observed_refs = {
+        f"TOOL:{observation.tool}"
+        for observation, _ in matched
+    }
+    for observation, _ in matched:
+        observed_refs.add(observation.source_ref or "")
+        observed_refs.update(f"TOOL:{step.step_id}" for step in plan.steps if _step_matches(step, observation))
+    observed_refs.discard("")
     return EvidenceValidation(
         schema_version="1.1",
         validator_version="1.1.0",
@@ -420,6 +456,8 @@ def validate_evidence(
         primary_scope_ids=plan.scope_contract.primary_scope_ids,
         primary_scope_labels=plan.scope_contract.primary_scope_labels,
         source_scope_roles=_source_scope_roles(plan),
+        source_semantics=_source_semantics(plan),
+        observed_source_refs=tuple(sorted(observed_refs)),
         allowed_conclusion_strength=strength,
         conclusion_guidance=_GUIDANCE[strength],
     )

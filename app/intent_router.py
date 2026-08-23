@@ -159,9 +159,15 @@ _CONTEXT_DEPENDENT_PATTERN = re.compile(
 )
 _CONVERSATION_PATTERN = re.compile(
     r"^(?:你好|您好|嗨|hi|hello|你是谁|介绍(?:一下)?你自己|自我介绍(?:一下)?|"
-    r"你能做什么|你可以做什么|你有哪些能力)[。！!？?]*$",
+    r"你能做什么|你可以做什么|你有什么功能|你有哪些能力)[。！!？?]*$",
     re.IGNORECASE,
 )
+# This asks whether the assistant can perform an action, rather than asking it
+# to perform the action.  It intentionally does not enumerate manufacturing
+# nouns, so "那就查昨天良率" remains a normal manufacturing request.
+_ASSISTANT_ABILITY_QUESTION_PATTERN = re.compile(r"^你(?:能|可以|会).+(?:吗|么)[。！!？?]*$", re.IGNORECASE)
+_META_RUNTIME_PATTERN = re.compile(r"^你现在.*(?:thinking|思考).*(?:吗|么)[。！!？?]*$", re.IGNORECASE)
+_META_REVIEW_PATTERN = re.compile(r"^为什么刚才.*(?:答错|异常).*[？?吗么]?[。！!？?]*$", re.IGNORECASE)
 _FAB_SCOPE_PATTERN = re.compile(
     r"(?:制造数据|生产数据|制造运营|生产运营|工厂|fab|全厂|产线|生产线|站点|"
     r"生产情况|生产状况|制造现状|生产现状|制造表现|生产表现|整体生产)",
@@ -275,7 +281,8 @@ def _looks_like_general_question(normalized: str) -> bool:
 
 
 def _looks_like_conversation(normalized: str) -> bool:
-    return bool(_CONVERSATION_PATTERN.fullmatch(normalized))
+    ability = _ASSISTANT_ABILITY_QUESTION_PATTERN.fullmatch(normalized) and not re.search(r"(?:帮我|为我|替我)", normalized)
+    return bool(_CONVERSATION_PATTERN.fullmatch(normalized) or ability or _META_RUNTIME_PATTERN.fullmatch(normalized) or _META_REVIEW_PATTERN.fullmatch(normalized))
 
 
 def _looks_like_fab_diagnostic(
@@ -452,16 +459,16 @@ def route_question(question: str, current_date: date | None = None) -> IntentRou
     fab_diagnostic = _looks_like_fab_diagnostic(normalized, process_steps, scores)
 
     clarification_questions: list[str] = []
-    if fab_diagnostic:
+    if _looks_like_conversation(normalized):
+        intent = "conversation"
+        candidate_intents = ("conversation",)
+        confidence = 0.95
+    elif fab_diagnostic:
         intent = "fab_diagnostic"
         candidate_intents = ("fab_diagnostic",)
         confidence = 0.9
     elif not positive:
-        if _looks_like_conversation(normalized):
-            intent = "conversation"
-            candidate_intents = ("conversation",)
-            confidence = 0.95
-        elif _looks_like_general_question(normalized):
+        if _looks_like_general_question(normalized):
             intent = "general_knowledge"
             candidate_intents = ("general_knowledge",)
             confidence = 0.8

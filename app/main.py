@@ -925,6 +925,8 @@ async def chat(request: ChatRequest) -> dict:
             history or [item.model_dump() for item in request.history],
             recorder.observe,
             thinking=request.thinking,
+            session_id=session_id,
+            user_message_id=user_message["message_id"] if user_message else None,
         )
         recorder.complete(result)
         result["session_id"] = session_id
@@ -937,6 +939,13 @@ async def chat(request: ChatRequest) -> dict:
             result,
             user_message_id=user_message["message_id"] if user_message else None,
             question=request.message,
+        )
+        emit(
+            "agent_run_persisted",
+            str(result.get("run_id") or session_id),
+            session_id=session_id,
+            user_message_id=user_message["message_id"] if user_message else None,
+            assistant_message_id=message["message_id"],
         )
         finish_agent_run(principal, "success", str(result.get("run_id") or ""), str(result.get("model") or selected_model))
         return result
@@ -1107,6 +1116,7 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             "max_sse_gap_ms": 0.0,
         }
         last_answer_enqueued: float | None = None
+        first_answer_yielded: float | None = None
         last_answer_yielded: float | None = None
 
         async def progress(event: dict) -> None:
@@ -1127,7 +1137,11 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             await queue.put((event, enqueued_at))
             await asyncio.sleep(0)
 
-        task = asyncio.create_task(run_agent(request.message, history, progress, thinking=request.thinking))
+        task = asyncio.create_task(run_agent(
+            request.message, history, progress, thinking=request.thinking,
+            session_id=session_id,
+            user_message_id=user_message["message_id"] if user_message else None,
+        ))
         try:
             while not task.done() or not queue.empty():
                 try:
@@ -1139,6 +1153,8 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                     delivery["max_queue_wait_ms"], round((now - enqueued_at) * 1000, 1)
                 )
                 if event.get("event") == "answer_delta":
+                    if first_answer_yielded is None:
+                        first_answer_yielded = now
                     if last_answer_yielded is not None:
                         delivery["max_sse_gap_ms"] = max(
                             delivery["max_sse_gap_ms"], round((now - last_answer_yielded) * 1000, 1)
@@ -1146,6 +1162,15 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                     last_answer_yielded = now
                 yield _stream_line("progress", **event)
             result = await task
+            delivery["duration_ms"] = round((asyncio.get_running_loop().time() - stream_started) * 1000, 1)
+            delivery["answer_stream_duration_ms"] = (
+                round((last_answer_yielded - first_answer_yielded) * 1000, 1)
+                if first_answer_yielded is not None and last_answer_yielded is not None
+                else None
+            )
+            trace_semantics = result.setdefault("trace_semantics", {"schema_version": "1.0"})
+            if isinstance(trace_semantics, dict):
+                trace_semantics["stream_duration_ms"] = delivery["answer_stream_duration_ms"]
             recorder.complete(result)
             result["session_id"] = session_id
             result["request_id"] = current_request_id()
@@ -1158,9 +1183,15 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                 user_message_id=user_message["message_id"] if user_message else None,
                 question=request.message,
             )
+            emit(
+                "agent_run_persisted",
+                str(result.get("run_id") or session_id),
+                session_id=session_id,
+                user_message_id=user_message["message_id"] if user_message else None,
+                assistant_message_id=message["message_id"],
+            )
             finish_agent_run(principal, "success", str(result.get("run_id") or ""), str(result.get("model") or selected_model))
             activity_finished = True
-            delivery["duration_ms"] = round((asyncio.get_running_loop().time() - stream_started) * 1000, 1)
             emit("stream_delivery_summary", str(result.get("run_id") or session_id), **delivery)
             yield _stream_line("progress", event="stream_delivery_summary", run_id=result.get("run_id"), **delivery)
             yield _stream_line("result", result=result)

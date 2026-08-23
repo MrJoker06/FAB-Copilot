@@ -8,6 +8,7 @@ import re
 import time
 import traceback
 import uuid
+from dataclasses import replace
 from datetime import date, datetime, timezone
 from typing import Any, Callable
 
@@ -16,6 +17,7 @@ from .model_compatibility import provider_request_options
 
 from .answer_synthesizer import (
     MODEL_KNOWLEDGE_DISCLOSURE,
+    MODEL_KNOWLEDGE_REF,
     SUBMIT_ANALYSIS_TOOL,
     AnswerSynthesisReport,
     create_answer_contract,
@@ -29,7 +31,6 @@ from .context_resolver import (
     CONTEXTUALIZER_RESPONSE_FORMAT,
     ContextResolution,
     build_contextualizer_messages,
-    context_clarification_resolution,
     context_system_message,
     resolve_question_context,
     semantic_context_resolution,
@@ -41,11 +42,14 @@ from .domain_playbooks import PlaybookSelection, playbook_system_message, select
 from .evidence_validator import EvidenceObservation, validate_evidence, validator_system_message
 from .enterprise_data import enterprise_data_manifest, enterprise_fab_summary, query_enterprise_data
 from .intent_router import (
+    INTENT_LABELS,
     IntentRoute,
-    apply_semantic_intent_hint,
     route_question,
     routing_system_message,
 )
+from .turn_decision import TurnDecision, build_turn_decision
+from .decision_arbiter import arbitrate_decision, recover_active_flow
+from .assistant_capabilities import build_meta_response
 from .knowledge_decision import (
     RetrievalDecision,
     assess_retrieval,
@@ -57,7 +61,7 @@ from .knowledge_decision import (
 from .loop_guard import ToolLoopGuard
 from .model_registry import effective_agent_settings, public_user_model_config
 from .model_health import claim_model_call, get_model_health, record_model_failure, record_model_success
-from .planner import ExecutionPlan, create_execution_plan, planner_system_message
+from .planner import ExecutionPlan, PlanStep, create_execution_plan, planner_system_message
 from .processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS
 from .rag import search_agent_knowledge
 from .reports import (
@@ -65,6 +69,7 @@ from .reports import (
     equipment_health,
     equipment_productivity,
     fab_overview,
+    process_pass_rate,
     process_capability,
     recent_excursions,
     safe_select,
@@ -128,6 +133,7 @@ TOOLS = [
     {"type": "function", "function": {"name": "query_enterprise_data", "description": "从当前租户的企业模拟数据接口抽取最多50条记录用于接口和数据形态分析；结果是样本，不能代表全量统计", "parameters": _schema({"entity": {"type": "string", "enum": ["lots", "process-runs", "sensor-events"]}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}, **DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "equipment_id": {"type": "string"}, "product": {"type": "string"}, "status": {"type": "string", "enum": ["Completed", "Running", "Hold"]}, "signal_name": {"type": "string"}}, ["entity"])}},
     {"type": "function", "function": {"name": "get_fab_overview", "description": "查询工厂批次、晶圆、良率、周期、hold和异常总览", "parameters": _schema(DATE_PROPERTIES)}},
     {"type": "function", "function": {"name": "get_yield_trend", "description": "按周查询良率和周期趋势，可按产品过滤", "parameters": _schema({**DATE_PROPERTIES, "product": {"type": "string", "description": "产品名，如 Nova-P1"}})}},
+    {"type": "function", "function": {"name": "get_process_pass_rate", "description": "查询指定制程的运行通过率（不是最终晶圆良率）；必须按时间和制程过滤，可再限定设备", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "equipment_id": {"type": "string"}}, ["process_step"])}},
     {"type": "function", "function": {"name": "get_equipment_health", "description": "查询设备运行数、异常数、缺陷密度、停机和健康状态，可按站点或设备过滤", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "equipment_id": {"type": "string"}})}},
     {"type": "function", "function": {"name": "get_equipment_productivity", "description": "按SEMI E10状态查询设备生产、待机、工程和停机时间占比，可按站点或设备过滤", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "equipment_id": {"type": "string"}})}},
     {"type": "function", "function": {"name": "get_process_capability", "description": "按站点关键量测和规格限查询各设备Cpk", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}})}},
@@ -146,6 +152,7 @@ TOOL_HANDLERS: dict[str, Callable[..., Any]] = {
     "query_enterprise_data": query_enterprise_data,
     "get_fab_overview": fab_overview,
     "get_yield_trend": yield_trend,
+    "get_process_pass_rate": process_pass_rate,
     "get_equipment_health": equipment_health,
     "get_equipment_productivity": equipment_productivity,
     "get_process_capability": process_capability,
@@ -189,6 +196,30 @@ def _emit_answer_synthesis(run_id: str, report: AnswerSynthesisReport) -> None:
     )
 
 
+def _trace_reference_counts(result: dict[str, Any]) -> dict[str, int]:
+    """Count final evidence references without conflating tools and documents."""
+    synthesis = result.get("answer_synthesis") if isinstance(result.get("answer_synthesis"), dict) else {}
+    references = {
+        str(reference)
+        for reference in synthesis.get("source_refs", [])
+        if isinstance(reference, str) and reference
+    }
+    for source in result.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+        reference_id = source.get("reference_id")
+        if isinstance(reference_id, str) and reference_id:
+            references.add(reference_id)
+    tool_references = {reference for reference in references if reference.startswith("TOOL:")}
+    # MODEL_KNOWLEDGE_REF is a disclosure marker, not a retrievable source.
+    knowledge_references = references - tool_references - {MODEL_KNOWLEDGE_REF}
+    return {
+        "knowledge_source_count": len(knowledge_references),
+        "tool_evidence_count": len(tool_references),
+        "total_reference_count": len(knowledge_references | tool_references),
+    }
+
+
 def _offline_answer(
     question: str,
     intent_route: IntentRoute,
@@ -196,9 +227,13 @@ def _offline_answer(
     execution_plan: ExecutionPlan,
     loop_guard: ToolLoopGuard,
     context_resolution: ContextResolution | None = None,
+    turn_decision: TurnDecision | None = None,
+    runtime_context: dict | None = None,
+    run_id: str | None = None,
     fallback_reason: str = "missing_api_key",
 ) -> dict:
     if intent_route.intent == "conversation":
+        advertised_ids: tuple[str, ...] = ()
         validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, [])
         contract = create_answer_contract(validation)
         if context_resolution and context_resolution.strategy == "context_clarification":
@@ -249,17 +284,19 @@ def _offline_answer(
                 )
             answer = "".join(lines)
         else:
-            answer = (
-                "我是 Fab Copilot，面向半导体制造场景的分析助手。"
-                "我可以查询制造报表与模拟数据、检索当前用户的个人知识和工厂知识、引用历史案例，"
-                "并把事实、推断、建议和证据限制分开说明。对于一般技术问题，我会先检索可用知识，"
-                "证据不足时才明确标注并使用模型通用知识补充。"
-            )
+            action = next((item for item in (turn_decision.actions if turn_decision else ()) if item.type in {"answer_meta", "recall_history", "route_task", "clarify"}), None)
+            subject = action.subject if action and action.type == "answer_meta" else None
+            detail = action.detail if action else "standard"
+            answer, advertised_ids = build_meta_response(subject, detail, runtime_context=runtime_context)
+            if context_resolution and context_resolution.strategy == "semantic_correction" and subject == "capabilities":
+                answer = "明白，你要的是可验证的具体能力，而不是宽泛介绍。\n\n" + answer
+            if run_id:
+                emit("meta_response_built", run_id, template_version="conversation-v2", subject=subject, detail=detail, advertised_capability_count=len(advertised_ids))
         synthesis = synthesize_legacy_answer(
             answer,
             contract,
         )
-        return {
+        result = {
             "answer": synthesis.answer,
             "tool_trace": [],
             "sources": [],
@@ -272,16 +309,18 @@ def _offline_answer(
             "answer_contract": contract.to_dict(),
             "answer_synthesis": synthesis.report.to_dict(),
         }
+        if turn_decision:
+            result["turn_decision"] = turn_decision.to_dict()
+            result["conversation_response"] = {
+                "template_version": "conversation-v2",
+                "advertised_capability_ids": list(advertised_ids),
+                "advertised_capability_count": len(advertised_ids),
+            }
+        return result
 
     if execution_plan.status == "clarification_required":
         questions = (
-            (
-                "分析制程能力或 Cpk，请同时指定制程站点。",
-                "分析良率、缺陷或趋势，请说明关注的产品或时间范围。",
-                "分析设备故障、报警或停机，请提供设备编号。",
-                "追踪批次、晶圆或 Hold，请提供完整批次编号。",
-                "查询 SOP、正式知识、历史案例或基础工艺解释。",
-            )
+            ("请把希望我回答或执行的内容再写完整一些。",)
             if intent_route.intent == "unknown"
             else execution_plan.clarification_questions
             or ("请补充要分析的制程、设备或时间范围。",)
@@ -504,6 +543,479 @@ def _has_knowledge_fallback_disclosure(answer: str) -> bool:
     )
 
 
+def _ready_step_order(plan: ExecutionPlan) -> tuple[PlanStep, ...]:
+    """Return a stable dependency order and fail closed on an invalid plan graph."""
+    if plan.status != "ready":
+        return ()
+    by_id = {step.step_id: step for step in plan.steps}
+    if len(by_id) != len(plan.steps):
+        raise ValueError("ready 执行计划包含重复 step_id")
+    missing = {
+        dependency
+        for step in plan.steps
+        for dependency in step.depends_on
+        if dependency not in by_id
+    }
+    if missing:
+        raise ValueError(f"ready 执行计划引用未知依赖：{', '.join(sorted(missing))}")
+
+    pending = list(plan.steps)
+    completed: set[str] = set()
+    ordered: list[PlanStep] = []
+    while pending:
+        ready = next(
+            (step for step in pending if set(step.depends_on).issubset(completed)),
+            None,
+        )
+        if ready is None:
+            raise ValueError("ready 执行计划包含循环依赖")
+        pending.remove(ready)
+        ordered.append(ready)
+        completed.add(ready.step_id)
+    return tuple(ordered)
+
+
+async def _execute_ready_plan(
+    plan: ExecutionPlan,
+    loop_guard: ToolLoopGuard,
+    run_id: str,
+    progress: ProgressCallback | None,
+) -> tuple[list[dict[str, Any]], list[EvidenceObservation], dict[str, dict[str, Any]]]:
+    """Execute an approved ready plan without asking the model to select tools."""
+    execution_started = time.perf_counter()
+    ordered_steps = _ready_step_order(plan)
+    trace: list[dict[str, Any]] = []
+    observations: list[EvidenceObservation] = []
+    sources: dict[str, dict[str, Any]] = {}
+    outcomes: dict[str, str] = {}
+    emit(
+        "ready_plan_execution_started",
+        run_id,
+        plan_id=plan.plan_id,
+        step_count=len(ordered_steps),
+        execution_mode="deterministic",
+    )
+    loop_guard.begin_round()
+
+    for step in ordered_steps:
+        arguments = dict(step.parameters)
+        tool_started = time.perf_counter()
+        failed_dependencies = tuple(
+            dependency
+            for dependency in step.depends_on
+            if outcomes.get(dependency) != "success"
+        )
+        await _notify(progress, {
+            "event": "tool_started",
+            "tool": step.tool,
+            "arguments": arguments,
+            "plan_step_id": step.step_id,
+            "execution_mode": "deterministic",
+        })
+        emit(
+            "tool_call_started",
+            run_id,
+            tool=step.tool,
+            tool_call_id=f"plan-{step.step_id}",
+            plan_step_id=step.step_id,
+            execution_mode="deterministic",
+            full_content={"arguments": arguments},
+        )
+
+        if failed_dependencies:
+            message = f"依赖步骤未成功：{', '.join(failed_dependencies)}"
+            duration_ms = round((time.perf_counter() - tool_started) * 1000, 1)
+            item = {
+                "tool": step.tool,
+                "arguments": arguments,
+                "plan_step_id": step.step_id,
+                "status": "blocked",
+                "error_code": "dependency_failed",
+                "error": message,
+                "duration_ms": duration_ms,
+                "execution_mode": "deterministic",
+            }
+            trace.append(item)
+            observations.append(EvidenceObservation(
+                step.tool,
+                arguments,
+                "blocked",
+                error=message,
+                source_ref=f"TOOL:{step.step_id}",
+            ))
+            outcomes[step.step_id] = "blocked"
+            await _notify(progress, {"event": "tool_finished", **item})
+            emit(
+                "tool_call_blocked",
+                run_id,
+                tool=step.tool,
+                tool_call_id=f"plan-{step.step_id}",
+                plan_step_id=step.step_id,
+                execution_mode="deterministic",
+                reason_code="dependency_failed",
+                duration_ms=duration_ms,
+                full_content={"arguments": arguments, "message": message},
+            )
+            emit(
+                "tool_call_finished",
+                run_id,
+                status="blocked",
+                tool=step.tool,
+                plan_step_id=step.step_id,
+                execution_mode="deterministic",
+                duration_ms=duration_ms,
+                error_code="dependency_failed",
+            )
+            continue
+
+        decision = loop_guard.check_call(step.tool, arguments)
+        if not decision.allowed:
+            duration_ms = round((time.perf_counter() - tool_started) * 1000, 1)
+            item = {
+                "tool": step.tool,
+                "arguments": arguments,
+                "plan_step_id": step.step_id,
+                "status": "blocked",
+                "error_code": decision.reason_code,
+                "error": decision.message,
+                "duration_ms": duration_ms,
+                "execution_mode": "deterministic",
+            }
+            trace.append(item)
+            observations.append(EvidenceObservation(
+                step.tool,
+                arguments,
+                "blocked",
+                error=decision.message,
+                source_ref=f"TOOL:{step.step_id}",
+            ))
+            outcomes[step.step_id] = "blocked"
+            await _notify(progress, {"event": "tool_finished", **item})
+            emit(
+                "tool_call_blocked",
+                run_id,
+                tool=step.tool,
+                tool_call_id=f"plan-{step.step_id}",
+                plan_step_id=step.step_id,
+                execution_mode="deterministic",
+                reason_code=decision.reason_code,
+                signature_hash=decision.signature_hash,
+                duration_ms=duration_ms,
+                full_content={"arguments": arguments, "message": decision.message},
+            )
+            emit(
+                "tool_call_finished",
+                run_id,
+                status="blocked",
+                tool=step.tool,
+                plan_step_id=step.step_id,
+                execution_mode="deterministic",
+                duration_ms=duration_ms,
+                error_code=decision.reason_code,
+            )
+            continue
+
+        try:
+            handler = TOOL_HANDLERS.get(step.tool)
+            if handler is None:
+                raise ValueError(f"未知工具: {step.tool}")
+            result = handler(**arguments)
+            raw_rows = len(result) if isinstance(result, list) else (1 if result is not None else 0)
+            if step.tool == "search_knowledge":
+                result = [
+                    item for item in result
+                    if isinstance(item, dict)
+                    and _usable_knowledge_result(str(arguments.get("query") or ""), item)
+                ] if isinstance(result, list) else []
+            if isinstance(result, list):
+                result_limit = min(plan.budget.max_rows_per_call, step.estimated_result_limit)
+                result = result[:max(0, result_limit)]
+            if step.tool == "search_knowledge":
+                for source in result:
+                    reference_id = str(source.get("reference_id") or "")
+                    if reference_id:
+                        sources[reference_id] = source
+            loop_guard.record_result(step.tool, result, True)
+            observations.append(EvidenceObservation(
+                step.tool,
+                arguments,
+                "success",
+                result,
+                source_ref=f"TOOL:{step.step_id}",
+            ))
+            row_count = len(result) if isinstance(result, list) else (1 if result is not None else 0)
+            duration_ms = round((time.perf_counter() - tool_started) * 1000, 1)
+            item = {
+                "tool": step.tool,
+                "arguments": arguments,
+                "plan_step_id": step.step_id,
+                "status": "ok",
+                "rows": row_count,
+                "raw_rows": raw_rows,
+                "duration_ms": duration_ms,
+                "execution_mode": "deterministic",
+            }
+            trace.append(item)
+            outcomes[step.step_id] = "success"
+            await _notify(progress, {"event": "tool_finished", **item})
+            emit(
+                "tool_call_finished",
+                run_id,
+                status="success",
+                tool=step.tool,
+                plan_step_id=step.step_id,
+                execution_mode="deterministic",
+                duration_ms=duration_ms,
+                rows=row_count,
+                raw_rows=raw_rows,
+                full_content={"result": result},
+            )
+        except Exception as exc:
+            loop_guard.record_result(step.tool, None, False)
+            observations.append(EvidenceObservation(
+                step.tool,
+                arguments,
+                "error",
+                error=str(exc),
+                source_ref=f"TOOL:{step.step_id}",
+            ))
+            duration_ms = round((time.perf_counter() - tool_started) * 1000, 1)
+            item = {
+                "tool": step.tool,
+                "arguments": arguments,
+                "plan_step_id": step.step_id,
+                "status": "error",
+                "error": str(exc),
+                "duration_ms": duration_ms,
+                "execution_mode": "deterministic",
+            }
+            trace.append(item)
+            outcomes[step.step_id] = "error"
+            await _notify(progress, {"event": "tool_finished", **item})
+            emit(
+                "tool_call_finished",
+                run_id,
+                status="error",
+                tool=step.tool,
+                plan_step_id=step.step_id,
+                execution_mode="deterministic",
+                duration_ms=duration_ms,
+                error_type=type(exc).__name__,
+                full_content={"error_message": str(exc), "traceback": traceback.format_exc()},
+            )
+
+    loop_guard.finish_round()
+    if not loop_guard.force_synthesis:
+        loop_guard.enter_synthesis(
+            "deterministic_plan_completed",
+            "确定性 ready 计划已完成，禁止继续选择业务工具。",
+        )
+    emit(
+        "ready_plan_execution_finished",
+        run_id,
+        plan_id=plan.plan_id,
+        execution_mode="deterministic",
+        succeeded=sum(status == "success" for status in outcomes.values()),
+        failed=sum(status == "error" for status in outcomes.values()),
+        blocked=sum(status == "blocked" for status in outcomes.values()),
+        duration_ms=round((time.perf_counter() - execution_started) * 1000, 1),
+    )
+    return trace, observations, sources
+
+
+def _ready_synthesis_messages(
+    question: str,
+    plan: ExecutionPlan,
+    validation: Any,
+    contract: Any,
+    observations: list[EvidenceObservation],
+) -> list[dict[str, str]]:
+    evidence = [
+        {
+            "source_ref": observation.source_ref,
+            "tool": observation.tool,
+            "status": observation.status,
+            "result": observation.result if observation.status == "success" else None,
+            "error": observation.error,
+        }
+        for observation in observations
+    ]
+    task = {
+        "question": question,
+        "plan_id": plan.plan_id,
+        "intent": plan.route_intent,
+        "playbook_id": plan.playbook_id,
+        "playbook_version": plan.playbook_version,
+        "scope": {
+            "type": plan.scope_contract.primary_scope_type,
+            "ids": plan.scope_contract.primary_scope_ids,
+        },
+        "validation": {
+            "coverage": validation.coverage,
+            "risks": [item.message for item in validation.risks],
+            "conflicts": [item.message for item in validation.conflicts],
+            "allowed_conclusion_strength": validation.allowed_conclusion_strength,
+        },
+        "evidence": evidence,
+    }
+    return [
+        {
+            "role": "system",
+            "content": (
+                "你是 Fab Copilot 的最终综合器。业务工具已由服务端确定性执行；"
+                "你只能依据下面的已验证证据调用 submit_analysis 一次，不能选择、请求或虚构业务工具。"
+            ),
+        },
+        {"role": "system", "content": synthesizer_system_message(contract)},
+        {
+            "role": "user",
+            "content": json.dumps(task, ensure_ascii=False, separators=(",", ":"), default=str),
+        },
+    ]
+
+
+def _ready_synthesis_fallback(
+    validation: Any,
+    contract: Any,
+    observations: list[EvidenceObservation],
+    reason: str,
+):
+    succeeded = [item.source_ref for item in observations if item.status == "success"]
+    failed = [item.source_ref for item in observations if item.status != "success"]
+    coverage = validation.coverage
+    lines = [
+        "确定性取证已经完成，但模型综合阶段未能生成可验证的结构化结论。",
+        (
+            f"必需证据覆盖 {coverage['required_covered']}/{coverage['required_total']}；"
+            f"允许的结论强度为 {validation.allowed_conclusion_strength}。"
+        ),
+        f"已完成来源：{', '.join(item for item in succeeded if item) or '无'}。",
+    ]
+    if failed:
+        lines.append(f"未完成来源：{', '.join(item for item in failed if item)}。")
+    lines.append(f"综合降级原因：{reason}。请稍后重试模型综合；本次不会重复执行制造数据工具。")
+    return synthesize_legacy_answer("\n\n".join(lines), contract)
+
+
+async def _request_ready_synthesis(
+    client: httpx.AsyncClient,
+    endpoint: str,
+    headers: dict[str, str],
+    connection: Any,
+    settings: Any,
+    messages: list[dict[str, str]],
+    run_id: str,
+    thinking: bool,
+    retry_budget: int,
+) -> tuple[dict[str, Any], dict[str, Any], str | None, dict[str, Any]]:
+    """Make synthesis-only model calls; no business tool is exposed here."""
+    request_payload: dict[str, Any] = {
+        "model": connection.model,
+        "messages": messages,
+        "temperature": 0.15,
+        "tools": [SUBMIT_ANALYSIS_TOOL],
+        "max_tokens": 8192,
+        **provider_request_options(connection.provider, thinking),
+    }
+    if not (connection.provider == "deepseek" and thinking):
+        request_payload["tool_choice"] = "auto"
+
+    for attempt in range(1, retry_budget + 2):
+        started = time.perf_counter()
+        emit(
+            "model_call_started",
+            run_id,
+            phase="ready_plan_synthesis",
+            iteration=1,
+            attempt=attempt,
+            model=connection.model,
+            message_count=len(messages),
+            thinking_requested=thinking,
+            thinking_effective=thinking,
+            reasoning_effort=request_payload.get("reasoning_effort"),
+            business_tool_selection_enabled=False,
+            full_content={"request": request_payload},
+        )
+        stream_state: dict[str, Any] = {
+            "answer_emitted": False,
+            "suppress_embedded_tool_json": True,
+        }
+        try:
+            assistant, usage, response_id = await _stream_completion(
+                client,
+                endpoint,
+                headers,
+                request_payload,
+                None,
+                stream_state,
+            )
+        except Exception as exc:
+            retryable = _retryable_model_error(exc)
+            will_retry = retryable and attempt <= retry_budget
+            emit(
+                "model_call_finished",
+                run_id,
+                status="error",
+                phase="ready_plan_synthesis",
+                iteration=1,
+                attempt=attempt,
+                model=connection.model,
+                duration_ms=round((time.perf_counter() - started) * 1000, 1),
+                error_type=type(exc).__name__,
+                retryable=retryable,
+                will_retry=will_retry,
+                answer_emitted=False,
+                business_tool_selection_enabled=False,
+                failure_reason=_model_failure_reason(exc),
+                full_content={"error_message": str(exc), "traceback": traceback.format_exc()},
+            )
+            if not will_retry:
+                raise
+            delay_seconds = _model_retry_delay(settings.model_retry_base_seconds, attempt, exc)
+            emit(
+                "model_call_retry_scheduled",
+                run_id,
+                phase="ready_plan_synthesis",
+                attempt=attempt,
+                next_attempt=attempt + 1,
+                delay_ms=round(delay_seconds * 1000, 1),
+                error_type=type(exc).__name__,
+            )
+            await asyncio.sleep(delay_seconds)
+            continue
+        emit(
+            "model_call_finished",
+            run_id,
+            status="success",
+            phase="ready_plan_synthesis",
+            iteration=1,
+            attempt=attempt,
+            model=connection.model,
+            duration_ms=round((time.perf_counter() - started) * 1000, 1),
+            input_tokens=usage.get("prompt_tokens", 0),
+            output_tokens=usage.get("completion_tokens", 0),
+            total_tokens=usage.get("total_tokens", 0),
+            finish_reason=stream_state.get("finish_reason") or (
+                "tool_calls" if assistant.get("tool_calls") else "stop"
+            ),
+            response_id=response_id,
+            first_content_ms=stream_state.get("first_content_ms"),
+            max_content_gap_ms=stream_state.get("max_content_gap_ms", 0),
+            content_delta_count=stream_state.get("content_delta_count", 0),
+            content_chars=stream_state.get("content_chars", 0),
+            stream_duration_ms=stream_state.get("stream_duration_ms"),
+            reasoning_length=int(stream_state.get("reasoning_length", 0)),
+            content_length=len(str(assistant.get("content") or "")),
+            thinking_requested=thinking,
+            thinking_effective=thinking,
+            reasoning_effort=request_payload.get("reasoning_effort"),
+            business_tool_selection_enabled=False,
+            full_content={"response": _audit_assistant(assistant)},
+        )
+        return assistant, usage, response_id, stream_state
+    raise RuntimeError("模型综合请求未返回结果")
+
+
 async def _prefetch_general_knowledge(
     question: str,
     run_id: str,
@@ -513,6 +1025,7 @@ async def _prefetch_general_knowledge(
     sources: dict[str, dict[str, Any]],
     progress: ProgressCallback | None,
 ) -> RetrievalDecision:
+    retrieval_started = time.perf_counter()
     attempts: list[dict[str, Any]] = []
     scopes = required_scopes(question)
     rewrite = rewrite_query(question)
@@ -666,6 +1179,7 @@ async def _prefetch_general_knowledge(
         source_counts=decision.source_counts,
         rewritten=bool(decision.rewritten_query),
         model_knowledge_allowed=decision.model_knowledge_allowed,
+        duration_ms=round((time.perf_counter() - retrieval_started) * 1000, 1),
         full_content={"retrieval_decision": decision_payload},
     )
     await _notify(progress, {
@@ -925,6 +1439,10 @@ async def _resolve_conversation_turn(
     connection = settings.model_connection
     if deterministic.applied or not connection.api_key:
         return deterministic, {}
+    # Canonical assistant identity/capability turns are deliberately local even
+    # inside an existing session; they do not need a semantic binding.
+    if direct_route is not None and direct_route.intent == "conversation":
+        return deterministic, {}
     if not history and (direct_route is None or direct_route.intent != "unknown"):
         return deterministic, {}
 
@@ -972,29 +1490,19 @@ async def _resolve_conversation_turn(
             run_id,
             error_type=type(exc).__name__,
             failure_reason=failure_reason,
+            resolution_state="unavailable",
+            relation="standalone",
+            applied=False,
+            fallback_action="continue_with_original_question",
         )
         await _notify(progress, {
             "event": "stage",
             "stage": "context",
             "message": "未能可靠恢复上文指代",
         })
-        fallback_route = direct_route or route_question(question)
-        if history and (
-            fallback_route.intent == "unknown"
-            or fallback_route.clarification_needed
-            or (
-                protocol_error is not None
-                and protocol_error.code in {"empty_response", "context_budget_exhausted"}
-                and fallback_route.intent == "general_knowledge"
-            )
-            or (
-                fallback_route.intent == "general_knowledge"
-                and len(question.strip()) <= 32
-                and failure_reason in {"timeout", "network"}
-            )
-        ):
-            return context_clarification_resolution(question, history, failure_reason), {}
-        return unresolved_context(question, "fallback"), {}
+        # A failed contextualizer provides no evidence of a historical reference.
+        # Keep the original question and let direct routing decide the safe fallback.
+        return unresolved_context(question, "fallback", failure_reason=failure_reason), {}
 
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
         attempt = 0
@@ -1151,6 +1659,9 @@ async def _resolve_conversation_turn(
                 strategy=resolution.strategy,
                 applied=resolution.applied,
                 confidence=resolution.confidence,
+                resolution_state=resolution.resolution_state,
+                failure_reason=resolution.failure_reason or None,
+                fallback_action=("request_history_selection" if resolution.resolution_state == "ambiguous" else None),
                 original_length=len(question),
                 resolved_length=len(resolution.resolved_question),
             )
@@ -1178,6 +1689,7 @@ async def _run_agent_impl(
     progress: ProgressCallback | None = None,
     thinking: bool = False,
 ) -> dict:
+    context_started = time.perf_counter()
     settings = effective_agent_settings(get_settings())
     health_enabled = isinstance(settings, Settings)
     thinking_answer_effective = False
@@ -1198,7 +1710,9 @@ async def _run_agent_impl(
             context_recovery_trial = transition in {"recovery_started", "recovery_reclaimed"}
             emit("model_circuit_recovery_started", run_id, model_id=selected_model_id, health=model_health)
     if context_needs_upstream and not context_allowed:
-        context_resolution, context_usage = unresolved_context(question, "circuit_open"), {}
+        context_resolution, context_usage = unresolved_context(
+            question, "circuit_open", failure_reason="circuit_open"
+        ), {}
         emit("model_local_fallback_context_bypassed", run_id, model_id=selected_model_id, health=model_health)
     else:
         context_resolution, context_usage = await _resolve_conversation_turn(
@@ -1222,30 +1736,98 @@ async def _run_agent_impl(
                 "message": "已根据上条回答中的选项恢复分析目标",
                 "context_resolution": context_resolution.to_dict(),
             })
-    base_route = (
+    elif context_resolution.resolution_state == "unavailable":
+        emit(
+            "question_context_degraded",
+            run_id,
+            resolution_state=context_resolution.resolution_state,
+            relation=context_resolution.relation,
+            applied=False,
+            failure_reason=context_resolution.failure_reason or None,
+            fallback_action="continue_with_original_question",
+        )
+    context_duration_ms = round((time.perf_counter() - context_started) * 1000, 1)
+    emit(
+        "context_stage_completed",
+        run_id,
+        status="degraded" if context_resolution.resolution_state == "unavailable" else "success",
+        resolution_state=context_resolution.resolution_state,
+        strategy=context_resolution.strategy,
+        applied=context_resolution.applied,
+        duration_ms=context_duration_ms,
+    )
+    routing_started = time.perf_counter()
+    resolved_route = (
         route_question("介绍一下你自己")
         if context_resolution.strategy in {"semantic_recall", "context_clarification"}
         else route_question(analysis_question)
         if context_resolution.applied
         else direct_route
     )
-    intent_route = apply_semantic_intent_hint(
-        base_route,
-        context_resolution.intent_hint,
-        context_resolution.confidence,
-        context_applied=context_resolution.applied,
+    previous_active_flow = recover_active_flow(history)
+    arbitration = arbitrate_decision(
+        original_question=question,
+        resolved_question=analysis_question,
+        original_route=direct_route,
+        resolved_route=resolved_route,
+        context=context_resolution,
+        raw_model_actions=list(context_resolution.turn_actions) if context_resolution.turn_actions else None,
+        previous_active_flow=previous_active_flow,
     )
-    if intent_route.intent != base_route.intent:
+    intent_route = arbitration.route
+    analysis_question = arbitration.effective_question
+    if intent_route.intent != resolved_route.intent:
         emit(
-            "semantic_intent_hint_applied",
+            "decision_arbitrated",
             run_id,
-            from_intent=base_route.intent,
+            from_intent=resolved_route.intent,
             to_intent=intent_route.intent,
-            intent_hint=context_resolution.intent_hint,
-            confidence=context_resolution.confidence,
-            relation=context_resolution.relation,
+            selected_origin=arbitration.selected_origin,
+            policy_reason=arbitration.policy_reason,
         )
     route_payload = intent_route.to_dict()
+    turn_decision = build_turn_decision(
+        route=intent_route.intent,
+        relation=context_resolution.relation,
+        confidence=context_resolution.confidence,
+        question=analysis_question,
+        model_actions=[item.to_dict() for item in arbitration.model_actions] or None,
+        context_failure_reason=context_resolution.failure_reason,
+        valid_route_intents=set(INTENT_LABELS) - {"conversation", "unknown", "ambiguous"},
+    )
+    primary_action = next((item for item in turn_decision.actions if item.type in {"answer_meta", "route_task"}), None)
+    active_flow = arbitration.active_flow
+    if primary_action and primary_action.type == "answer_meta" and primary_action.subject:
+        active_flow = f"meta:{primary_action.subject}"
+    elif primary_action and primary_action.type == "route_task" and primary_action.target_intent:
+        active_flow = f"task:{primary_action.target_intent}"
+    turn_decision = replace(
+        turn_decision,
+        active_flow=active_flow,
+        selected_origin=arbitration.selected_origin,
+        policy_reason=arbitration.policy_reason,
+        candidates=tuple(item.to_dict() for item in arbitration.candidates),
+    )
+    emit(
+        "turn_decision_degraded" if (turn_decision.source == "fallback" or turn_decision.failure_reason) else "turn_decision_created",
+        run_id,
+        turn_decision_schema_version=turn_decision.schema_version,
+        source=turn_decision.source,
+        route=turn_decision.route,
+        relation=turn_decision.relation,
+        action_types=[item.type for item in turn_decision.actions],
+        subjects=[item.subject for item in turn_decision.actions if item.subject],
+        detail=[item.detail for item in turn_decision.actions],
+        confidence=turn_decision.confidence,
+        fallback_reason=turn_decision.failure_reason or None,
+        selected_origin=turn_decision.selected_origin,
+        active_flow=turn_decision.active_flow,
+        policy_reason=turn_decision.policy_reason,
+        decision_candidates=list(turn_decision.candidates),
+        decision_candidate_count=len(turn_decision.candidates),
+        selected_candidate_count=sum(item.get("status") == "selected" for item in turn_decision.candidates),
+        rejected_candidate_count=sum(item.get("status") == "rejected" for item in turn_decision.candidates),
+    )
     emit(
         "intent_routed",
         run_id,
@@ -1302,6 +1884,16 @@ async def _run_agent_impl(
         max_tool_calls=execution_plan.budget.max_tool_calls,
         missing_inputs=list(execution_plan.missing_inputs),
     )
+    emit(
+        "routing_stage_completed",
+        run_id,
+        status="success",
+        intent=intent_route.intent,
+        selected_origin=turn_decision.selected_origin,
+        policy_reason=turn_decision.policy_reason,
+        candidate_count=len(turn_decision.candidates),
+        duration_ms=round((time.perf_counter() - routing_started) * 1000, 1),
+    )
     await _notify(progress, {
         "event": "stage",
         "stage": "plan",
@@ -1335,6 +1927,9 @@ async def _run_agent_impl(
             execution_plan,
             loop_guard,
             context_resolution,
+            turn_decision,
+            {"thinking_requested": thinking, "previous_metadata": next((item.get("metadata") for item in reversed(history or []) if item.get("role") == "assistant" and isinstance(item.get("metadata"), dict)), None)},
+            run_id,
         )
         result["mode"] = "clarification"
         result["model"] = settings.model_connection.model if context_usage else "deterministic-router"
@@ -1362,6 +1957,9 @@ async def _run_agent_impl(
             execution_plan,
             loop_guard,
             context_resolution,
+            turn_decision,
+            {"thinking_requested": thinking, "previous_metadata": next((item.get("metadata") for item in reversed(history or []) if item.get("role") == "assistant" and isinstance(item.get("metadata"), dict)), None)},
+            run_id,
         )
         result["model"] = settings.model_connection.model if context_usage else "deterministic-router"
         result["usage"] = context_usage
@@ -1413,6 +2011,92 @@ async def _run_agent_impl(
         fallback_reason = "missing_api_key" if not connection.api_key else "circuit_open"
         if fallback_reason == "circuit_open":
             emit("model_local_fallback_activated", run_id, model_id=selected_model_id, reason=fallback_reason, health=model_health)
+        if execution_plan.status == "ready":
+            await _notify(progress, {
+                "event": "stage",
+                "stage": "tools",
+                "message": f"正在按依赖顺序执行 {len(execution_plan.steps)} 个已批准步骤",
+                "execution_mode": "deterministic",
+            })
+            trace, evidence_observations, sources = await _execute_ready_plan(
+                execution_plan,
+                loop_guard,
+                run_id,
+                progress,
+            )
+            evidence_validation = validate_evidence(
+                execution_plan,
+                selected_playbook,
+                evidence_observations,
+            )
+            answer_contract = create_answer_contract(
+                evidence_validation,
+                list(sources.values()),
+            )
+            synthesis = _ready_synthesis_fallback(
+                evidence_validation,
+                answer_contract,
+                evidence_observations,
+                "模型未配置或模型熔断器当前阻止综合请求",
+            )
+            _emit_evidence_validation(run_id, 1, evidence_validation.to_dict())
+            _emit_answer_synthesis(run_id, synthesis.report)
+            await _notify(progress, {
+                "event": "stage",
+                "stage": "validation",
+                "message": (
+                    "证据校验完成 · "
+                    f"必需证据 {evidence_validation.coverage['required_covered']}/"
+                    f"{evidence_validation.coverage['required_total']} · "
+                    f"结论强度 {evidence_validation.allowed_conclusion_strength}"
+                ),
+                "validation": evidence_validation.to_dict(),
+                "execution_mode": "deterministic",
+            })
+            await _notify(progress, {
+                "event": "stage",
+                "stage": "synthesis",
+                "message": "模型综合不可用，正在输出证据安全的降级说明",
+                "execution_mode": "deterministic_fallback",
+            })
+            await _stream_answer(progress, synthesis.answer)
+            return {
+                "answer": synthesis.answer,
+                "tool_trace": trace,
+                "sources": [],
+                "mode": "deterministic-fallback",
+                "model": "local-rules",
+                "usage": context_usage,
+                "intent_route": route_payload,
+                "domain_playbook": playbook_payload,
+                "execution_plan": plan_payload,
+                "loop_guard": loop_guard.summary(),
+                "evidence_validation": evidence_validation.to_dict(),
+                "answer_contract": answer_contract.to_dict(),
+                "answer_synthesis": synthesis.report.to_dict(),
+                "context_resolution": context_resolution.to_dict(),
+                "knowledge_fallback": {"used": False, "reason": None, "disclosure": None},
+                "retrieval_decision": {
+                    "state": "NOT_APPLICABLE", "reason": None, "attempted_scopes": [],
+                    "attempts": [], "selected_reference_ids": [],
+                    "source_counts": {"personal": 0, "knowledge": 0, "case": 0},
+                    "rewritten_query": None, "assumptions": [],
+                    "model_knowledge_allowed": False, "disclosure": None,
+                },
+                "thinking_policy": {
+                    "requested": thinking,
+                    "context_effective": False,
+                    "answer_effective": False,
+                },
+                "turn_decision": turn_decision.to_dict(),
+                "model_health": {
+                    "requested_model_id": selected_model_id,
+                    "fallback_reason": fallback_reason,
+                    **model_health,
+                },
+                "execution_mode": "deterministic_ready_plan",
+                "model_tool_selection_calls": 0,
+            }
         result = _offline_answer(analysis_question, intent_route, playbook_selection, execution_plan, loop_guard, fallback_reason=fallback_reason)
         _emit_evidence_validation(run_id, 1, result["evidence_validation"])
         emit(
@@ -1575,7 +2259,180 @@ async def _run_agent_impl(
                 "context_effective": False,
                 "answer_effective": thinking_answer_effective,
             },
+            "turn_decision": turn_decision.to_dict(),
         }
+
+    if execution_plan.status == "ready":
+        await _notify(progress, {
+            "event": "stage",
+            "stage": "tools",
+            "message": f"正在按依赖顺序执行 {len(execution_plan.steps)} 个已批准步骤",
+            "execution_mode": "deterministic",
+        })
+        trace, evidence_observations, sources = await _execute_ready_plan(
+            execution_plan,
+            loop_guard,
+            run_id,
+            progress,
+        )
+        evidence_validation = validate_evidence(
+            execution_plan,
+            selected_playbook,
+            evidence_observations,
+        )
+        knowledge_fallback = _knowledge_fallback_state(
+            intent_route,
+            evidence_observations,
+            sources,
+        )
+        answer_contract = create_answer_contract(
+            evidence_validation,
+            list(sources.values()),
+            allow_model_knowledge_fallback=knowledge_fallback["used"],
+        )
+        _emit_evidence_validation(run_id, 1, evidence_validation.to_dict())
+        await _notify(progress, {
+            "event": "stage",
+            "stage": "validation",
+            "message": (
+                "证据校验完成 · "
+                f"必需证据 {evidence_validation.coverage['required_covered']}/"
+                f"{evidence_validation.coverage['required_total']} · "
+                f"结论强度 {evidence_validation.allowed_conclusion_strength}"
+            ),
+            "validation": evidence_validation.to_dict(),
+            "execution_mode": "deterministic",
+        })
+        if knowledge_fallback["used"]:
+            fallback_announced = True
+            emit(
+                "knowledge_fallback_enabled",
+                run_id,
+                reason=knowledge_fallback["reason"],
+                model=connection.model,
+            )
+            await _notify(progress, {
+                "event": "stage",
+                "stage": "knowledge_fallback",
+                "message": "知识库未检索到相关内容，正在使用模型通用知识补充回答",
+                "knowledge_fallback": knowledge_fallback,
+            })
+        await _notify(progress, {
+            "event": "stage",
+            "stage": "synthesis",
+            "message": "计划工具已执行完毕，正在基于已验证证据生成结论",
+            "execution_mode": "synthesis_only",
+        })
+        messages = _ready_synthesis_messages(
+            analysis_question,
+            execution_plan,
+            evidence_validation,
+            answer_contract,
+            evidence_observations,
+        )
+        retry_budget = 0 if main_recovery_trial else settings.model_max_retries
+        try:
+            async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
+                assistant, usage, _, _ = await _request_ready_synthesis(
+                    client,
+                    endpoint,
+                    {
+                        "Authorization": f"Bearer {connection.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    connection,
+                    settings,
+                    messages,
+                    run_id,
+                    thinking,
+                    retry_budget,
+                )
+            for key in total_usage:
+                total_usage[key] += int(usage.get(key, 0) or 0)
+            thinking_answer_effective = thinking_answer_effective or thinking
+            if health_enabled:
+                health, transition = record_model_success(selected_model_id)
+                if transition:
+                    emit("model_circuit_recovered", run_id, model_id=selected_model_id, health=health)
+
+            tool_calls = assistant.get("tool_calls") or []
+            if len(tool_calls) == 1 and tool_calls[0].get("function", {}).get("name") == "submit_analysis":
+                raw_arguments = tool_calls[0].get("function", {}).get("arguments") or "{}"
+                try:
+                    submission = json.loads(raw_arguments)
+                    if not isinstance(submission, dict):
+                        raise ValueError("submit_analysis 参数必须是 JSON 对象")
+                    synthesis = synthesize_submission(
+                        submission,
+                        answer_contract,
+                        list(sources.values()),
+                        status="structured",
+                    )
+                except Exception as exc:
+                    emit(
+                        "answer_submission_rejected",
+                        run_id,
+                        iteration=1,
+                        error_type="invalid_json",
+                        error_message=str(exc),
+                        execution_mode="synthesis_only",
+                    )
+                    synthesis = _ready_synthesis_fallback(
+                        evidence_validation,
+                        answer_contract,
+                        evidence_observations,
+                        "模型提交的结构化结果无效",
+                    )
+            elif not tool_calls and str(assistant.get("content") or "").strip():
+                synthesis = synthesize_legacy_answer(
+                    str(assistant.get("content") or ""),
+                    answer_contract,
+                    list(sources.values()),
+                )
+            else:
+                synthesis = _ready_synthesis_fallback(
+                    evidence_validation,
+                    answer_contract,
+                    evidence_observations,
+                    "模型没有提交允许的 submit_analysis 结果",
+                )
+        except Exception as exc:
+            if _retryable_model_error(exc) and health_enabled:
+                health, transition = record_model_failure(
+                    selected_model_id,
+                    _model_error_category(exc),
+                    threshold=settings.model_circuit_failure_threshold,
+                    cooldown_seconds=settings.model_circuit_cooldown_seconds,
+                )
+                emit(
+                    "model_health_failure_recorded",
+                    run_id,
+                    model_id=selected_model_id,
+                    health=health,
+                    transition=transition,
+                )
+            emit(
+                "model_local_fallback_activated",
+                run_id,
+                model_id=selected_model_id,
+                reason="ready_synthesis_unavailable",
+                health=health,
+            )
+            synthesis = _ready_synthesis_fallback(
+                evidence_validation,
+                answer_contract,
+                evidence_observations,
+                "模型综合服务暂时不可用",
+            )
+
+        _emit_answer_synthesis(run_id, synthesis.report)
+        await _stream_answer(progress, synthesis.answer)
+        result = build_result(synthesis.answer, synthesis.report)
+        result["execution_mode"] = "deterministic_ready_plan"
+        result["model_tool_selection_calls"] = 0
+        if synthesis.report.status != "structured":
+            result["mode"] = "deterministic-fallback"
+        return result
 
     async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
         for iteration in range(loop_guard.max_model_iterations):
@@ -1926,7 +2783,14 @@ async def _run_agent_impl(
                         for source in result:
                             sources[source["reference_id"]] = source
                     loop_guard.record_result(name, result, True)
-                    evidence_observations.append(EvidenceObservation(name, arguments, "success", result))
+                    planned_step = next((
+                        step for step in execution_plan.steps
+                        if step.tool == name and step.parameters == arguments
+                    ), None)
+                    evidence_observations.append(EvidenceObservation(
+                        name, arguments, "success", result,
+                        source_ref=f"TOOL:{planned_step.step_id}" if planned_step else f"TOOL:{call.get('id') or name}",
+                    ))
                     row_count = len(result) if isinstance(result, list) else 1
                     tool_duration_ms = round((time.perf_counter() - tool_started) * 1000, 1)
                     trace.append({"tool": name, "arguments": arguments, "status": "ok", "rows": row_count, "duration_ms": tool_duration_ms})
@@ -1950,7 +2814,10 @@ async def _run_agent_impl(
                     content = json.dumps({"ok": True, "data": result}, ensure_ascii=False, default=str)
                 except Exception as exc:
                     loop_guard.record_result(name or "unknown", None, False)
-                    evidence_observations.append(EvidenceObservation(name or "unknown", arguments, "error", error=str(exc)))
+                    evidence_observations.append(EvidenceObservation(
+                        name or "unknown", arguments, "error", error=str(exc),
+                        source_ref=f"TOOL:{call.get('id') or name or 'unknown'}",
+                    ))
                     trace.append({"tool": name or "unknown", "arguments": arguments, "status": "error", "error": str(exc)})
                     await _notify(progress, {
                         "event": "tool_finished",
@@ -2048,6 +2915,8 @@ async def run_agent(
     progress: ProgressCallback | None = None,
     *,
     thinking: bool = False,
+    session_id: str | None = None,
+    user_message_id: int | None = None,
 ) -> dict:
     run_id = str(uuid.uuid4())
     started = time.perf_counter()
@@ -2065,6 +2934,8 @@ async def run_agent(
         question_length=len(question),
         question_fingerprint=content_fingerprint(question),
         history_messages=len(history or []),
+        session_id=session_id,
+        user_message_id=user_message_id,
         thinking_policy={"requested": thinking, "context_effective": False, "answer_effective": False},
         full_content={"question": question, "history": history or []},
     )
@@ -2082,13 +2953,45 @@ async def run_agent(
         result["completed_at"] = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
         result["duration_ms"] = round((time.perf_counter() - started) * 1000, 1)
         result["first_token_ms"] = round((first_token_at - started) * 1000, 1) if first_token_at else None
+        context = result.get("context_resolution") if isinstance(result.get("context_resolution"), dict) else {}
+        degraded = context.get("resolution_state") == "unavailable"
+        reference_counts = _trace_reference_counts(result)
+        tool_trace = result.get("tool_trace") if isinstance(result.get("tool_trace"), list) else []
+        retrieval_duration_ms = round(sum(
+            float(item.get("duration_ms", 0) or 0)
+            for item in tool_trace
+            if isinstance(item, dict) and item.get("tool") == "search_knowledge"
+        ), 1)
+        tool_duration_ms = round(sum(
+            float(item.get("duration_ms", 0) or 0)
+            for item in tool_trace
+            if isinstance(item, dict) and item.get("tool") != "search_knowledge"
+        ), 1)
+        result["trace_semantics"] = {
+            "schema_version": "1.0",
+            **reference_counts,
+            "retrieval_duration_ms": retrieval_duration_ms,
+            "tool_duration_ms": tool_duration_ms,
+        }
         emit(
             "agent_run_finished",
             run_id,
             status="success",
+            outcome="degraded" if degraded else "completed",
+            degraded=degraded,
+            degradation_stage="contextualization" if degraded else None,
+            degradation_reason=context.get("failure_reason") if degraded else None,
+            fallback_action="continue_with_original_question" if degraded else None,
+            session_id=session_id,
+            user_message_id=user_message_id,
             mode=result.get("mode", "unknown"),
             duration_ms=result["duration_ms"],
-            tool_count=len(result.get("tool_trace", [])),
+            tool_count=len(tool_trace),
+            tool_duration_ms=tool_duration_ms,
+            retrieval_duration_ms=retrieval_duration_ms,
+            **reference_counts,
+            # Deprecated compatibility alias: this has always represented the
+            # visible knowledge-source cards, not all evidence references.
             source_count=len(result.get("sources", [])),
             intent=result.get("intent_route", {}).get("intent", "unknown"),
             risk_level=result.get("intent_route", {}).get("risk_level", "unknown"),
