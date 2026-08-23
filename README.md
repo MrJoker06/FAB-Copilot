@@ -176,14 +176,14 @@ conda run -n fab-insight-agent python -m pip install -r requirements.txt
 conda run -n fab-insight-agent python -m app.seed --force --end-date 2026-12-25
 ```
 
-安装测试依赖并运行快速质量门（非 `tests.system.*` Python、Node、静态 JS、RAG 与 Playbook 黄金集）：
+安装测试依赖并运行快速质量门（非 `tests.system.*` Python、Node、静态 JS、RAG/OCR/Playbook 黄金集、Ready 性能基准与脱敏 Trace 回放）：
 
 ```bash
 conda run -n fab-insight-agent python -m pip install -r requirements-test.txt
 conda run -n fab-insight-agent python scripts/run_quality_gate.py quick
 ```
 
-完整质量门会先覆盖非系统 Python，再以独立进程逐个运行 `tests/system/` 的五个领域模块并合并 coverage。每个模块在导入应用前通过 SQLite backup 创建部门参考数据库的一致临时快照，个人知识、日志和数据库状态不会跨模块共享；耗时预算与结果报告分别位于 `evaluations/system_test_budgets.json` 和 `runtime/quality/system_test_timings.json`。
+完整质量门会先覆盖非系统 Python，再以独立进程逐个运行 `tests/system/` 的五个领域模块并合并 coverage。每个模块在导入应用前通过 SQLite backup 创建部门参考数据库的一致临时快照，个人知识、日志和数据库状态不会跨模块共享；耗时预算与结果报告分别位于 `evaluations/system_test_budgets.json` 和 `runtime/quality/system_test_timings.json`。QA-004 的 `evaluations/trace_replay_matrix.json` 以 7 个脱敏 case 固定 Router、计划、范围、工具、证据、结构化提交和调用次数契约，并通过 `scripts/evaluate_trace_replay.py` 在零真实模型、零网络条件下执行。
 
 浏览器回归首次使用前安装固定的 Node 依赖和 Chromium；它在独立的 `127.0.0.1:8899` 启动当前工作树、为五个部门库创建临时 SQLite 快照，并禁用真实模型凭据，因此不会使用 8888 的手工实例或调用上游模型：
 

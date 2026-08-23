@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import unittest
+from datetime import date
 from unittest.mock import patch
 
 import httpx
@@ -19,6 +20,7 @@ from app.execution_store import persist_execution_plan, recover_interrupted_exec
 from app.main import app
 from app.seed import seed_reference_data
 from app.sessions import append_message, record_agent_result
+from scripts.evaluate_trace_replay import load_dataset as load_trace_replay_dataset, replay_case
 
 class SessionsStreamingSystemTests(unittest.TestCase):
     @classmethod
@@ -231,6 +233,53 @@ class SessionsStreamingSystemTests(unittest.TestCase):
             )
             self.assertEqual(denied.status_code, 404)
             client.delete(f"/api/sessions/{created['session_id']}")
+
+    def test_sanitized_real_chains_stream_and_persist_without_external_calls(self):
+        dataset = load_trace_replay_dataset()
+        current_date = date.fromisoformat(dataset["current_date"])
+        cases = {
+            case["question"]: case
+            for case in dataset["cases"]
+            if case.get("system_replay")
+        }
+
+        async def replay_agent(question, history, progress=None, *, thinking=False, session_id=None, user_message_id=None):
+            result = replay_case(cases[question], current_date=current_date)
+            for event in result["replay"]["progress_events"]:
+                await progress(event)
+            return result
+
+        with patch("app.main.run_agent", new=replay_agent), TestClient(app) as client:
+            for question, case in cases.items():
+                with self.subTest(case=case["id"]):
+                    session_id = client.post("/api/sessions").json()["session_id"]
+                    response = client.post(
+                        "/api/chat/stream",
+                        json={"message": question, "session_id": session_id},
+                    )
+                    self.assertEqual(response.status_code, 200, response.text)
+                    events = [json.loads(line) for line in response.text.splitlines() if line]
+                    final = events[-1]["result"]
+                    streamed = "".join(
+                        event.get("delta", "")
+                        for event in events
+                        if event.get("event") == "answer_delta"
+                    )
+                    self.assertEqual(streamed, final["answer"])
+                    self.assertEqual(final["intent_route"]["intent"], case["expected"]["route"])
+                    self.assertEqual(final["turn_decision"]["actions"][0]["type"], case["expected"]["action"])
+                    self.assertEqual(final["trace_semantics"]["network_calls"], 0)
+                    self.assertEqual(final["trace_semantics"]["real_model_calls"], 0)
+                    self.assertEqual(final["trace_semantics"]["model_business_tool_selection_calls"], 0)
+                    self.assertGreaterEqual(final["trace_semantics"]["stream_duration_ms"], 0)
+
+                    restored = client.get(f"/api/sessions/{session_id}").json()
+                    metadata = restored["messages"][-1]["metadata"]
+                    self.assertEqual(metadata["replay"]["case_id"], case["id"])
+                    self.assertEqual(metadata["execution_plan"]["scope_contract"]["primary_scope_type"], case["expected"]["primary_scope_type"])
+                    self.assertEqual(metadata["replay"]["tool_path"], case["expected"]["tool_path"])
+                    self.assertEqual(metadata["answer_synthesis"]["status"], final["answer_synthesis"]["status"])
+                    client.delete(f"/api/sessions/{session_id}/permanent")
 
     def test_interrupted_plan_is_recovered_with_resume_boundary(self):
         with TestClient(app) as client:

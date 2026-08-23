@@ -172,6 +172,7 @@ def quality_commands(mode: str) -> list[list[str]]:
         [sys.executable, "scripts/evaluate_ocr.py"],
         [sys.executable, "scripts/evaluate_playbooks.py"],
         [sys.executable, "scripts/evaluate_ready_execution.py"],
+        [sys.executable, "scripts/evaluate_trace_replay.py"],
     ])
     if mode == "full":
         commands.append(["npm", "run", "test:e2e"])

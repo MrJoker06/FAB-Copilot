@@ -12,6 +12,7 @@
 - HTTP 契约测试覆盖公开 API 的成功、认证、脱敏和输入边界；系统测试覆盖跨库与后台任务工作流。
 - RAG 黄金集独立评估召回、来源覆盖和禁止命中；Playbook 黄金集以固定日期驱动真实 Router、Playbook 选择和 Planner，并断言严格工具路径、必需证据覆盖与预算一致性；两者均不访问真实模型。
 - ready 执行性能门以固定制程能力、Lot 追踪和整厂诊断问题重建旧模型选取依赖批次的路径，与服务端确定性执行后单次综合路径比较。Token 使用 UTF-8 字节/版本化比例估算，首答时延使用固定模型调用、Prompt 和工具成本；它只用于离线架构回归，不代表供应商计费、真实 Tokenizer 或网络 SLA。
+- QA-004 Trace 回放矩阵使用 `synthetic_redacted` 固定数据，调用生产 Context Resolver、Decision Arbiter、Router、Playbook、Planner、Validator 与 Synthesizer 契约。7 个 case 跨层覆盖三条真实请求链路、三种 Router 失败扩写和显式 SOP 反例；HTTP 系统测试再验证相同三条链路的 NDJSON 增量与 Session 元数据持久化。回放器不调用真实模型或网络，并拒绝凭据和隐藏推理字段。
 - 测试必须确定、隔离和可重复，负向路径与边界值和正常路径同等重要。测试日志可记录完整轨迹，但 API Key、Authorization、Password、Secret、Cookie 和 Token 始终脱敏。
 
 在受限沙箱中，FastAPI 的同步端点会由 `anyio.to_thread` 调度；测试应避免把该调度限制误判为 API 契约失败，并不得以真实模型或浏览器依赖绕过隔离。
@@ -34,7 +35,7 @@ python -m unittest tests.test_startup_script tests.test_database_manager tests.t
 python -m pip install -r requirements-test.txt
 ```
 
-快速门运行非 `tests.system.*` Python、全部 Node 测试、全部静态 JS 语法检查、RAG/OCR/Playbook 黄金集和 ready 执行性能门：
+快速门运行非 `tests.system.*` Python、全部 Node 测试、全部静态 JS 语法检查、RAG/OCR/Playbook 黄金集、ready 执行性能门和 QA-004 Trace 回放矩阵：
 
 ```bash
 python scripts/run_quality_gate.py quick
@@ -66,11 +67,13 @@ python scripts/run_quality_gate.py quick
 
 2026-08-23 `OBS-017` 宿主 full 实测全通过：发现 401 个 Python 测试，其中 334 个非系统测试；系统模块分别为数据报表 13、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 9；`app` 分支覆盖率 86%，Node 36/36、RAG 15/15、OCR 黄金集 8/8、Playbook 12/12、Ready 基准 3/3、Playwright 桌面 10/10。`runtime/quality/system_test_timings.json` 总计 80.5 秒，五个模块及总计均低于版本化预算；新增契约覆盖版本字段防覆盖、旧 Trace 读取、三类引用计数、安全仲裁候选和六阶段耗时聚合。
 
+2026-08-24 `QA-004` 宿主 full 实测全通过：发现 408 个 Python 测试，其中 340 个非系统测试；系统模块分别为数据报表 13、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 10；`app` 分支覆盖率 87%，Node 36/36、RAG 15/15、OCR 黄金集 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 桌面 10/10。系统模块耗时依次为 15.8、16.0、19.5、16.3、16.7 秒，总计 84.3 秒，全部低于版本化预算；回放与系统链路均未调用真实 LLM 或网络。
+
 ```bash
 python scripts/run_quality_gate.py full
 ```
 
-质量门在执行前以 AST 统计 unittest 风格测试方法，避免导入测试时污染环境；发现少于最近完整审计确认的 175 个测试即失败。只有完整审计确认的有意删测才能调整此基线；命令首次失败即非零退出。覆盖数据写入 `runtime/quality/`，Playbook 报告同时写入 `runtime/quality/playbook_gold_report.json`。
+质量门在执行前以 AST 统计 unittest 风格测试方法，避免导入测试时污染环境；发现少于最近完整审计确认的 175 个测试即失败。只有完整审计确认的有意删测才能调整此基线；命令首次失败即非零退出。覆盖数据写入 `runtime/quality/`，Playbook 与 Trace 回放报告分别写入 `runtime/quality/playbook_gold_report.json` 和 `runtime/quality/trace_replay_report.json`。
 
 ## 托管 CI
 
