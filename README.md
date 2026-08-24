@@ -201,9 +201,9 @@ conda run -n fab-insight-agent python scripts/run_quality_gate.py full
 
 ## CI 质量门
 
-GitHub Actions 会在 `experiment/parallel-platform` 的 push、面向该分支的 pull request 及手动触发时运行完整质量门。Hosted runner 仅生成固定到 2026-12-25 的 730 天合成部门数据库，并补齐默认模型目录；不会连接真实模型、Oracle 或任何生产数据库。仅在失败且未取消时上传 Playwright 报告、测试结果和 `runtime/quality/`，不上传数据库、日志或完整内容。
+GitHub Actions 会在 `experiment/parallel-platform` 的 push、面向该分支的 pull request 及手动触发时运行完整质量门。Hosted runner 固定为 Ubuntu 24.04、Python 3.11、Node 22 和 Noto 字体，仅生成固定到 2026-12-25 的 730 天合成部门数据库，并补齐默认模型目录；不会连接真实模型、Oracle 或任何生产数据库。仅在失败且未取消时上传 Playwright 报告、测试结果和 `runtime/quality/`，不上传数据库、日志或完整内容。
 
-当前仓库尚未在远程启用 required status check/ruleset；在该规则由管理员显式启用前，CI 失败不会由 GitHub 强制阻止合并。
+`experiment/parallel-platform` 已启用严格分支保护：必须先与基线同步，并由 GitHub Actions App 产生名为 `Full quality gate` 的成功检查，同名的外部状态不能代替它。
 
 直接运行 Python 测试：
 

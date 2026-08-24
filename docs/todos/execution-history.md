@@ -47,6 +47,7 @@
 | 27 | `AGENT-038` | ready 计划服务端确定性执行、仅综合模型路径与离线性能门 |
 | 28 | `OBS-017` | Trace 版本、引用计数、仲裁候选、六阶段耗时与旧日志兼容治理 |
 | 29 | `QA-004` | 脱敏离线 Trace 回放、跨层黄金矩阵、流式持久化与零外部调用门禁 |
+| 30 | `DEPLOY-012` | GitHub Actions 完整质量门、Hosted Runner 视觉环境固定与分支 required check |
 
 `DATA-016` 的市场锚点模拟数据和 `UX-028` 的回答复制顺序也在这一阶段完成；它们的状态分别以企业数据和用户体验分类 TODO 为准。
 
@@ -77,5 +78,7 @@
 2026-08-23 `OBS-017` 宿主 full 质量门全通过：401 个 Python 发现项、334 个非系统测试；系统数据 13、HTTP 15、知识 13、模型 17、会话 9；分支覆盖率 86%，Node 36/36、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 基准 3/3、Playwright 10/10。系统测试总耗时 80.5 秒且低于预算；审计 schema 1.4、旧 Trace 归一化、三类引用计数、安全仲裁候选和六阶段耗时均由契约测试覆盖。
 
 2026-08-24 `QA-004` 宿主 full 质量门全通过：408 个 Python 发现项、340 个非系统测试；系统数据 13、HTTP 15、知识 13、模型 17、会话 10；分支覆盖率 87%，Node 36/36、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 10/10。系统测试总耗时 84.3 秒且低于预算；通用问题、CMP 制程能力和整厂综合三条脱敏链路均通过路由、动作、计划、范围、工具、证据、提交、流式与持久化断言，普通质量门没有真实 LLM 或网络调用。
+
+2026-08-24 `DEPLOY-012` 完成远程 CI 收口：`.github/workflows/quality.yml` 在 Ubuntu 24.04、Python 3.11、Node 22 与显式 Noto 字体环境执行 full 质量门，并只在失败时上传限定诊断目录。`experiment/parallel-platform` 分支已启用严格同步的 `Full quality gate` required check，且绑定 GitHub Actions App，避免同名外部状态冒充通过。
 
 更新的完整测试基线统一保留在 [测试策略](../testing-strategy.md)。

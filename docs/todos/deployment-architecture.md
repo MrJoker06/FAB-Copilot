@@ -9,11 +9,12 @@
 - [x] `DEPLOY-005` 将用户页面和管理页面分离为独立前端入口。
 - [x] `DEPLOY-006` 将运行数据按部门拆分为独立数据库文件。
 - [x] `DEPLOY-007` 提供用户、管理、企业模拟数据和个人知识 API 边界。
+- [x] `DEPLOY-012` 建立远程 CI 质量门：GitHub Actions 在固定 Ubuntu 24.04、Python 3.11、Node 22 和 Noto 字体环境执行仓库治理、单元/系统、评测与 Playwright 测试；`experiment/parallel-platform` 要求由 GitHub Actions App 产生的 `Full quality gate` 检查，并且要求分支与基线严格同步。
 - [x] `DEPLOY-016` 建立多 worktree 本地治理规则：修复跨 Windows/WSL worktree 链接，统一 LF，并提供带进程锁检测、保留周期、dry-run 和显式 apply 的运行快照清理工具。
 
 ## 当前队列
 
-- [ ] `DEPLOY-012` 建立 CI，包括受限文本卫生/高置信静态检查、单元测试、集成测试和浏览器测试；workflow 已在本地就绪，待推送并由管理员启用远程 required status check/ruleset 后才可收口。
+当前无非企业级部署任务。
 
 ## 企业级暂缓
 

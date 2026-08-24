@@ -77,9 +77,9 @@ python scripts/run_quality_gate.py full
 
 ## 托管 CI
 
-`.github/workflows/quality.yml` 在 `experiment/parallel-platform` 的 push、PR 和手动触发时，在 Ubuntu 上使用 Python 3.11、Node 22 执行完整门。CI 只允许在 `CI=true` 时运行 `scripts/prepare_ci_data.py`：它拒绝已存在的部门库，生成固定 730 天、截至 2026-12-25 的合成数据，补齐默认模型目录后再执行治理检查。因此不会读取本地开发数据，不会调用真实模型、Oracle 或生产端点。
+`.github/workflows/quality.yml` 在 `experiment/parallel-platform` 的 push、PR 和手动触发时，在固定 Ubuntu 24.04 上使用 Python 3.11、Node 22 执行完整门。视觉回归显式安装 `fonts-noto-core` 和 `fonts-noto-cjk`，避免 Hosted Runner 镜像字体变化被误判为页面回归。CI 只允许在 `CI=true` 时运行 `scripts/prepare_ci_data.py`：它拒绝已存在的部门库，生成固定 730 天、截至 2026-12-25 的合成数据，补齐默认模型目录后再执行治理检查。因此不会读取本地开发数据，不会调用真实模型、Oracle 或生产端点。
 
-失败且未被取消时，只允许上传 `playwright-report/`、`test-results/` 和 `runtime/quality/` 诊断；数据库、日志及完整内容均不在 artifact 范围。workflow 使用最小 `contents: read` 权限与同一分支并发取消。远程 required check/ruleset 仍需仓库管理员显式启用，在此之前该 CI 只是可见的质量信号，不能替代 GitHub 合并保护。
+失败且未被取消时，只允许通过 `actions/upload-artifact@v7` 上传 `playwright-report/`、`test-results/` 和 `runtime/quality/` 诊断；数据库、日志及完整内容均不在 artifact 范围。workflow 使用最小 `contents: read` 权限与同一分支并发取消。远程分支保护已要求与基线严格同步，并要求由 GitHub Actions App 产生的 `Full quality gate`；CI 失败会阻止受保护的合并。
 
 ## 完整审计触发条件
 

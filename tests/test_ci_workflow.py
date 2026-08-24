@@ -21,6 +21,7 @@ class CiWorkflowTests(unittest.TestCase):
         self.assertEqual(self.workflow["permissions"], {"contents": "read"})
         self.assertEqual(self.workflow["concurrency"]["cancel-in-progress"], "true")
         self.assertEqual(self.workflow["jobs"]["quality"]["name"], "Full quality gate")
+        self.assertEqual(self.workflow["jobs"]["quality"]["runs-on"], "ubuntu-24.04")
 
     def test_workflow_has_fixed_runtimes_and_full_offline_quality_path(self):
         steps = self.workflow["jobs"]["quality"]["steps"]
@@ -36,14 +37,17 @@ class CiWorkflowTests(unittest.TestCase):
         self.assertIn("python -m pip install -r requirements-test.txt", rendered)
         self.assertIn("npm ci", rendered)
         self.assertIn("npx playwright install --with-deps chromium", rendered)
+        font_step = next(step for step in steps if step.get("name") == "Install deterministic visual fonts")
+        self.assertIn("fonts-noto-core fonts-noto-cjk", font_step["run"])
+        self.assertIn("fc-cache -f", font_step["run"])
         self.assertIn("python scripts/prepare_ci_data.py", rendered)
         self.assertIn("python scripts/run_quality_gate.py full", rendered)
 
     def test_failure_diagnostics_have_retention_and_exclude_databases_logs_and_secrets(self):
-        artifact = next(step for step in self.workflow["jobs"]["quality"]["steps"] if step.get("uses") == "actions/upload-artifact@v5")
+        artifact = next(step for step in self.workflow["jobs"]["quality"]["steps"] if step.get("uses") == "actions/upload-artifact@v7")
         self.assertEqual(artifact["if"], "${{ failure() && !cancelled() }}")
         self.assertEqual(artifact["with"]["retention-days"], "14")
-        self.assertIn("actions/upload-artifact@v5", self.text)
+        self.assertIn("actions/upload-artifact@v7", self.text)
         self.assertEqual(artifact["with"]["path"], "playwright-report/\ntest-results/\nruntime/quality/\n")
         self.assertNotIn("secrets.", self.text.lower())
         self.assertNotIn("oracle", self.text.lower())

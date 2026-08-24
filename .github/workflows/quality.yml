@@ -17,7 +17,7 @@ concurrency:
 jobs:
   quality:
     name: Full quality gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       CI: "true"
@@ -42,13 +42,18 @@ jobs:
         run: npm ci
       - name: Install Chromium and system dependencies
         run: npx playwright install --with-deps chromium
+      - name: Install deterministic visual fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y fonts-noto-core fonts-noto-cjk
+          fc-cache -f
       - name: Create fresh synthetic CI data
         run: python scripts/prepare_ci_data.py
       - name: Run full quality gate
         run: python scripts/run_quality_gate.py full
       - name: Upload safe diagnostics
         if: ${{ failure() && !cancelled() }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: quality-diagnostics
           if-no-files-found: ignore

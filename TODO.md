@@ -2,13 +2,13 @@
 
 状态基线：`experiment/parallel-platform`，2026-08-24。
 
-当前统计：共 176 个独立任务，已完成 133 个，待做 43 个。
+当前统计：共 176 个独立任务，已完成 134 个，待做 42 个。
 
 另有 1 项 `OPTIONAL` 可选候选，不计入上述主统计。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
-当前结论：`QA-004` 已完成；下一项为 CI 收口 `DEPLOY-012`。当前队列共 1 项，另有用户暂缓 1 项、企业级暂缓 41 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。剩余当前任务仍须由用户确认后实施。
+当前结论：`DEPLOY-012` 已完成 CI 收口，当前非企业级产品队列已清空。剩余 42 项中，用户暂缓 1 项、企业级暂缓 41 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
 
 ## 标记规则
 
@@ -23,7 +23,7 @@
 
 | 类型 | 任务 | 当前结论 |
 |---|---|---|
-| 当前队列 | `DEPLOY-012` | 共 1 项，下一项为 `DEPLOY-012` |
+| 当前队列 | 无 | 非企业级产品任务已全部完成 |
 | 用户暂缓 | `UX-029` | 移动端需求暂不进入当前队列 |
 | 企业级暂缓 | 41 项 | 等待身份提供方、真实数据接口、部署环境和运维边界明确 |
 | 可选候选 | `RAG-024` `OPTIONAL` | 不计入主统计，只在用户明确激活后排期 |
@@ -41,7 +41,7 @@
 | 企业数据 | [企业数据 TODO](docs/todos/enterprise-data.md) | SQLite 开发替身与大规模模拟契约已完成；既有 Oracle 生产接口适配 `DATA-017` 与生产规模多消费者语义层 `DATA-018` 均属企业级暂缓 |
 | 日志与运行监控 | [可观测性 TODO](docs/todos/observability.md) | 单实例监控、端到端流式聚合诊断、上下文降级可观测性、消息持久化关联、完整日志到期治理、Trace 语义治理与 `QA-004` 脱敏回放均已完成 |
 | 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 桌面端关键工作流、无障碍治理和视觉回归已完成；移动端 `UX-029` 由用户暂缓 |
-| 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接及运行快照治理已完成；`DEPLOY-012` 在当前 Agent、观测与 QA 队列完成后进行 CI 收口 |
+| 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接、运行快照治理和受保护的远程 CI 质量门已完成；其余项均为企业级暂缓 |
 | 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 本地分层质量门、QA-002 系统测试隔离、QA-003 启动/迁移/运维脚本风险路径与 QA-004 脱敏离线 Trace 回放矩阵均已完成 |
 
 ## 更新要求
