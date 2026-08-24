@@ -28,6 +28,7 @@ async function openIsolatedUser(page, testInfo) {
     localStorage.setItem('fabInsightUserId', user);
   }, identities);
   await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-app-ready', 'true');
   await expect(page.locator('#systemStatus')).not.toHaveText(/正在连接数据源/);
   await expect(page.locator('#kpiGrid')).not.toBeEmpty();
   await expect(page.locator('#chatMessages .suggestions')).toBeVisible();

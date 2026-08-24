@@ -38,6 +38,7 @@ async function expectDesktopLayout(page, selectors) {
 test('desktop user dashboard loads without overflow or critical overlap', async ({ page }) => {
   const assertNoFailures = captureBrowserFailures(page);
   await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-app-ready', 'true');
   await expect(page.locator('.topbar')).toBeVisible();
   await expect(page.locator('.sidebar[aria-label="主导航"]')).toBeVisible();
   await expect(page.locator('.main-content')).toBeVisible();

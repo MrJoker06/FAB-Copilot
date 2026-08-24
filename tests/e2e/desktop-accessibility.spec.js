@@ -11,6 +11,7 @@ async function expectNoAxeViolations(page) {
 
 async function readyUser(page) {
   await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-app-ready', 'true');
   await expect(page.locator('#kpiGrid')).not.toBeEmpty();
   // The initial HTML has a static welcome message, but suggestions are rendered
   // only after init awaits restoreConversation (or creates a fresh session).

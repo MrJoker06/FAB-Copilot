@@ -1953,6 +1953,7 @@ async function init() {
     restoreAgentPanelWidth();
     state.dashboard && drawYieldChart(state.dashboard.yield_trend);
   });
+  document.documentElement.dataset.appReady = 'true';
 }
 
 document.addEventListener('DOMContentLoaded', init);

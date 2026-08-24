@@ -27,6 +27,7 @@ async function openVisualFixture(page) {
     localStorage.setItem('fabInsightSessionId', sessionId);
   }, {...VISUAL_IDENTITY, sessionId: VISUAL_SESSION_ID});
   await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-app-ready', 'true');
   await expect(page.locator('#systemStatus')).not.toHaveText(/正在连接数据源/);
   await expect(page.locator('#chatMessages .message.assistant .message-content').last())
     .toContainText(VISUAL_ASSISTANT_HEADING);
