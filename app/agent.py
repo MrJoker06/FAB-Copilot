@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
-import random
 import re
 import time
 import traceback
@@ -13,8 +12,8 @@ from datetime import date, datetime, timezone
 from typing import Any, Callable
 
 import httpx
-from .model_compatibility import provider_request_options
 
+from .agent_tools import TOOL_HANDLERS, TOOLS, search_agent_knowledge
 from .answer_synthesizer import (
     MODEL_KNOWLEDGE_DISCLOSURE,
     MODEL_KNOWLEDGE_REF,
@@ -25,10 +24,12 @@ from .answer_synthesizer import (
     synthesize_submission,
     synthesizer_system_message,
 )
+from .assistant_capabilities import build_meta_response
 from .audit import content_fingerprint, emit
 from .config import Settings, get_settings
 from .context_resolver import (
     CONTEXTUALIZER_RESPONSE_FORMAT,
+    ContextPayloadValidationError,
     ContextResolution,
     build_contextualizer_messages,
     context_system_message,
@@ -36,20 +37,24 @@ from .context_resolver import (
     semantic_context_resolution,
     unresolved_context,
     validate_contextualizer_payload,
-    ContextPayloadValidationError,
 )
-from .domain_playbooks import PlaybookSelection, playbook_system_message, select_playbook
-from .evidence_validator import EvidenceObservation, validate_evidence, validator_system_message
-from .enterprise_data import enterprise_data_manifest, enterprise_fab_summary, query_enterprise_data
+from .decision_arbiter import arbitrate_decision, recover_active_flow
+from .domain_playbooks import (
+    PlaybookSelection,
+    playbook_system_message,
+    select_playbook,
+)
+from .evidence_validator import (
+    EvidenceObservation,
+    validate_evidence,
+    validator_system_message,
+)
 from .intent_router import (
     INTENT_LABELS,
     IntentRoute,
     route_question,
     routing_system_message,
 )
-from .turn_decision import TurnDecision, build_turn_decision
-from .decision_arbiter import arbitrate_decision, recover_active_flow
-from .assistant_capabilities import build_meta_response
 from .knowledge_decision import (
     RetrievalDecision,
     assess_retrieval,
@@ -59,24 +64,30 @@ from .knowledge_decision import (
     usable_result,
 )
 from .loop_guard import ToolLoopGuard
-from .model_registry import effective_agent_settings, public_user_model_config
-from .model_health import claim_model_call, get_model_health, record_model_failure, record_model_success
-from .planner import ExecutionPlan, PlanStep, create_execution_plan, planner_system_message
-from .processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS
-from .rag import search_agent_knowledge
-from .reports import (
-    defect_pareto,
-    equipment_health,
-    equipment_productivity,
-    fab_overview,
-    process_pass_rate,
-    process_capability,
-    recent_excursions,
-    safe_select,
-    sensor_summary,
-    yield_trend,
+from .model_compatibility import provider_request_options
+from .model_health import (
+    claim_model_call,
+    get_model_health,
+    record_model_failure,
+    record_model_success,
 )
-
+from .model_registry import effective_agent_settings, public_user_model_config
+from .model_streaming import (
+    audit_assistant,
+    model_error_category,
+    model_retry_delay,
+    retryable_model_error,
+    stream_completion,
+)
+from .planner import (
+    ExecutionPlan,
+    PlanStep,
+    create_execution_plan,
+    planner_system_message,
+)
+from .processes import MANUFACTURING_STEPS
+from .reports import equipment_health, fab_overview
+from .turn_decision import TurnDecision, build_turn_decision
 
 SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的职责是基于工具返回的真实数据回答问题。
 
@@ -117,51 +128,6 @@ SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的�
 simulation_scenarios 为评测真值表，Agent 无权访问，不得尝试查询。
 """
 
-
-def _schema(properties: dict, required: list[str] | None = None) -> dict:
-    return {"type": "object", "properties": properties, "required": required or [], "additionalProperties": False}
-
-
-DATE_PROPERTIES = {
-    "start": {"type": "string", "description": "开始日期 YYYY-MM-DD，默认最近90天"},
-    "end": {"type": "string", "description": "结束日期 YYYY-MM-DD，默认今天"},
-}
-
-TOOLS = [
-    {"type": "function", "function": {"name": "get_enterprise_data_manifest", "description": "查询当前租户可用的企业数据实体、虚拟数据规模、分页方式和模拟数据标记", "parameters": _schema({})}},
-    {"type": "function", "function": {"name": "get_enterprise_fab_summary", "description": "对当前租户的亿级企业模拟数据执行服务端聚合，返回范围内规模、KPI、设备风险和血缘。结果是确定性投影，不是真实生产观测", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "equipment_id": {"type": "string"}})}},
-    {"type": "function", "function": {"name": "query_enterprise_data", "description": "从当前租户的企业模拟数据接口抽取最多50条记录用于接口和数据形态分析；结果是样本，不能代表全量统计", "parameters": _schema({"entity": {"type": "string", "enum": ["lots", "process-runs", "sensor-events"]}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}, **DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "equipment_id": {"type": "string"}, "product": {"type": "string"}, "status": {"type": "string", "enum": ["Completed", "Running", "Hold"]}, "signal_name": {"type": "string"}}, ["entity"])}},
-    {"type": "function", "function": {"name": "get_fab_overview", "description": "查询工厂批次、晶圆、良率、周期、hold和异常总览", "parameters": _schema(DATE_PROPERTIES)}},
-    {"type": "function", "function": {"name": "get_yield_trend", "description": "按周查询良率和周期趋势，可按产品过滤", "parameters": _schema({**DATE_PROPERTIES, "product": {"type": "string", "description": "产品名，如 Nova-P1"}})}},
-    {"type": "function", "function": {"name": "get_process_pass_rate", "description": "查询指定制程的运行通过率（不是最终晶圆良率）；必须按时间和制程过滤，可再限定设备", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "equipment_id": {"type": "string"}}, ["process_step"])}},
-    {"type": "function", "function": {"name": "get_equipment_health", "description": "查询设备运行数、异常数、缺陷密度、停机和健康状态，可按站点或设备过滤", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "equipment_id": {"type": "string"}})}},
-    {"type": "function", "function": {"name": "get_equipment_productivity", "description": "按SEMI E10状态查询设备生产、待机、工程和停机时间占比，可按站点或设备过滤", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "equipment_id": {"type": "string"}})}},
-    {"type": "function", "function": {"name": "get_process_capability", "description": "按站点关键量测和规格限查询各设备Cpk", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}})}},
-    {"type": "function", "function": {"name": "get_defect_pareto", "description": "查询缺陷类型Pareto和受影响批次数，可按站点过滤", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "limit": {"type": "integer", "minimum": 1, "maximum": 25}})}},
-    {"type": "function", "function": {"name": "get_recent_excursions", "description": "查询最近的制程异常批次及量测值，可按站点或设备过滤", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "equipment_id": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 100}})}},
-    {"type": "function", "function": {"name": "get_sensor_summary", "description": "按站点、设备或信号查询传感器均值、范围、缺失和异常标记", "parameters": _schema({**DATE_PROPERTIES, "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)}, "equipment_id": {"type": "string"}, "signal_name": {"type": "string"}})}},
-    {"type": "function", "function": {"name": "search_knowledge", "description": "联合检索当前用户个人知识、厂内SOP、控制计划、分析方法与已验证历史案例。支持中英文制程术语召回，可按元数据过滤，返回可解释评分和reference_id", "parameters": _schema({"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}, "process_step": {"type": "string", "enum": list(ANALYSIS_SCOPES)}, "equipment_id": {"type": "string"}, "defect_type": {"type": "string"}, "source_types": {"type": "array", "items": {"type": "string", "enum": ["personal", "knowledge", "case"]}}}, ["query"])}},
-    {"type": "function", "function": {"name": "query_manufacturing_data", "description": "在固定报表不足时执行只读SQLite SELECT。只能访问白名单表，最多返回100行", "parameters": _schema({"sql": {"type": "string", "description": "单条SELECT语句，SQLite语法"}}, ["sql"])}},
-    SUBMIT_ANALYSIS_TOOL,
-]
-
-
-TOOL_HANDLERS: dict[str, Callable[..., Any]] = {
-    "get_enterprise_data_manifest": enterprise_data_manifest,
-    "get_enterprise_fab_summary": enterprise_fab_summary,
-    "query_enterprise_data": query_enterprise_data,
-    "get_fab_overview": fab_overview,
-    "get_yield_trend": yield_trend,
-    "get_process_pass_rate": process_pass_rate,
-    "get_equipment_health": equipment_health,
-    "get_equipment_productivity": equipment_productivity,
-    "get_process_capability": process_capability,
-    "get_defect_pareto": defect_pareto,
-    "get_recent_excursions": recent_excursions,
-    "get_sensor_summary": sensor_summary,
-    "search_knowledge": search_agent_knowledge,
-    "query_manufacturing_data": safe_select,
-}
 
 ProgressCallback = Callable[[dict], Any]
 
@@ -1202,147 +1168,28 @@ async def _stream_completion(
     progress: ProgressCallback | None,
     stream_state: dict[str, Any] | None = None,
 ) -> tuple[dict, dict, str | None]:
-    stream_state = stream_state if stream_state is not None else {}
-    payload = {**request_payload, "stream": True, "stream_options": {"include_usage": True}}
-    content_parts: list[str] = []
-    reasoning_parts: list[str] = []
-    pending_answer_parts: list[str] = []
-    pending_answer_length = 0
-    answer_started = False
-    has_tool_calls = False
-    tool_parts: dict[int, dict] = {}
-    usage: dict = {}
-    finish_reason: str | None = None
-    response_id: str | None = None
-    stream_started = time.perf_counter()
-    last_content_at: float | None = None
-
-    def record_content_delta(content: str) -> None:
-        nonlocal last_content_at
-        now = time.perf_counter()
-        if last_content_at is None:
-            stream_state["first_content_ms"] = round((now - stream_started) * 1000, 1)
-        else:
-            gap_ms = round((now - last_content_at) * 1000, 1)
-            stream_state["max_content_gap_ms"] = max(
-                float(stream_state.get("max_content_gap_ms", 0)), gap_ms
-            )
-        last_content_at = now
-        stream_state["content_delta_count"] = int(stream_state.get("content_delta_count", 0)) + 1
-        stream_state["content_chars"] = int(stream_state.get("content_chars", 0)) + len(content)
-
-    def suppress_pending_content() -> bool:
-        if not stream_state.get("suppress_embedded_tool_json"):
-            return False
-        pending = "".join(pending_answer_parts).lstrip().lower()
-        return pending.startswith("```json") or pending.startswith("{")
-
-    async with client.stream("POST", endpoint, headers=headers, json=payload) as response:
-        response.raise_for_status()
-        async for raw_line in response.aiter_lines():
-            line = raw_line.strip()
-            if not line or not line.startswith("data:"):
-                continue
-            data = line[5:].strip()
-            if data == "[DONE]":
-                break
-            chunk = json.loads(data)
-            response_id = response_id or chunk.get("id")
-            if chunk.get("usage"):
-                usage = chunk["usage"]
-            choices = chunk.get("choices") or []
-            if not choices:
-                continue
-            choice = choices[0]
-            finish_reason = choice.get("finish_reason") or finish_reason
-            delta = choice.get("delta") or {}
-            reasoning_content = delta.get("reasoning_content")
-            if isinstance(reasoning_content, str) and reasoning_content:
-                reasoning_parts.append(reasoning_content)
-                stream_state["reasoning_length"] = (
-                    int(stream_state.get("reasoning_length", 0)) + len(reasoning_content)
-                )
-            content = delta.get("content")
-            if content:
-                record_content_delta(content)
-                content_parts.append(content)
-                if answer_started:
-                    stream_state["answer_emitted"] = True
-                    await _notify(progress, {"event": "answer_delta", "delta": content})
-                elif not has_tool_calls:
-                    pending_answer_parts.append(content)
-                    pending_answer_length += len(content)
-                    if pending_answer_length >= 64:
-                        if suppress_pending_content():
-                            continue
-                        required_disclosure = str(stream_state.get("required_disclosure") or "")
-                        pending_text = "".join(pending_answer_parts)
-                        if required_disclosure and not _has_knowledge_fallback_disclosure(pending_text):
-                            await _notify(progress, {
-                                "event": "answer_delta",
-                                "delta": f"> {required_disclosure}\n\n",
-                            })
-                            stream_state["disclosure_emitted"] = True
-                        answer_started = True
-                        stream_state["answer_emitted"] = True
-                        for part in pending_answer_parts:
-                            await _notify(progress, {"event": "answer_delta", "delta": part})
-                        pending_answer_parts.clear()
-            for tool_delta in delta.get("tool_calls") or []:
-                has_tool_calls = True
-                pending_answer_parts.clear()
-                index = int(tool_delta.get("index", 0))
-                item = tool_parts.setdefault(index, {"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
-                if tool_delta.get("id"):
-                    item["id"] = tool_delta["id"]
-                function_delta = tool_delta.get("function") or {}
-                if function_delta.get("name"):
-                    item["function"]["name"] += function_delta["name"]
-                if function_delta.get("arguments"):
-                    item["function"]["arguments"] += function_delta["arguments"]
-    assistant = {"role": "assistant", "content": "".join(content_parts)}
-    if tool_parts:
-        assistant["tool_calls"] = [tool_parts[index] for index in sorted(tool_parts)]
-        # DeepSeek requires this only for the immediate tool-call continuation.
-        # It remains in-memory and is stripped from audit/SSE/session payloads.
-        if reasoning_parts:
-            assistant["reasoning_content"] = "".join(reasoning_parts)
-    elif not answer_started and not suppress_pending_content():
-        if pending_answer_parts:
-            required_disclosure = str(stream_state.get("required_disclosure") or "")
-            pending_text = "".join(pending_answer_parts)
-            if required_disclosure and not _has_knowledge_fallback_disclosure(pending_text):
-                await _notify(progress, {
-                    "event": "answer_delta",
-                    "delta": f"> {required_disclosure}\n\n",
-                })
-                stream_state["disclosure_emitted"] = True
-            stream_state["answer_emitted"] = True
-        for part in pending_answer_parts:
-            await _notify(progress, {"event": "answer_delta", "delta": part})
-    stream_state["finish_reason"] = finish_reason
-    stream_state["stream_duration_ms"] = round((time.perf_counter() - stream_started) * 1000, 1)
-    return assistant, usage, response_id
+    return await stream_completion(
+        client,
+        endpoint,
+        headers,
+        request_payload,
+        progress,
+        stream_state,
+        notify=_notify,
+        disclosure_checker=_has_knowledge_fallback_disclosure,
+    )
 
 
 def _audit_assistant(assistant: dict | None) -> dict:
-    """Reasoning traces are provider continuation data, never observability data."""
-    if not assistant:
-        return {}
-    return {key: value for key, value in assistant.items() if key != "reasoning_content"}
+    return audit_assistant(assistant)
 
 
 def _retryable_model_error(exc: Exception) -> bool:
-    if isinstance(exc, httpx.HTTPStatusError):
-        status_code = exc.response.status_code
-        return status_code == 429 or status_code >= 500
-    return isinstance(exc, httpx.RequestError)
+    return retryable_model_error(exc)
 
 
 def _model_error_category(exc: Exception) -> str:
-    if isinstance(exc, httpx.HTTPStatusError):
-        return "rate_limit" if exc.response.status_code == 429 else "upstream_5xx"
-    return "timeout" if isinstance(exc, httpx.TimeoutException) else "network"
+    return model_error_category(exc)
 
 
 def _model_failure_reason(exc: Exception) -> str:
@@ -1357,15 +1204,7 @@ def _model_failure_reason(exc: Exception) -> str:
 
 
 def _model_retry_delay(base_seconds: float, retry_number: int, exc: Exception) -> float:
-    if isinstance(exc, httpx.HTTPStatusError):
-        retry_after = exc.response.headers.get("retry-after")
-        try:
-            if retry_after is not None:
-                return max(0.05, min(float(retry_after), 8.0))
-        except ValueError:
-            pass
-    base = min(base_seconds * (2 ** max(0, retry_number - 1)), 8.0)
-    return base + random.uniform(0, base * 0.2)
+    return model_retry_delay(base_seconds, retry_number, exc)
 
 
 class ContextProtocolError(ValueError):

@@ -1,14 +1,14 @@
 # Fab Insight Agent TODO
 
-状态基线：`experiment/parallel-platform`，2026-08-24。
+状态基线：`experiment/parallel-platform`，2026-08-25。
 
-当前统计：共 176 个独立任务，已完成 134 个，待做 42 个。
+当前统计：共 180 个独立任务，已完成 135 个，待做 45 个。
 
 另有 1 项 `OPTIONAL` 可选候选，不计入上述主统计。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
-当前结论：`DEPLOY-012` 已完成 CI 收口，当前非企业级产品队列已清空。剩余 42 项中，用户暂缓 1 项、企业级暂缓 41 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
+当前结论：`REF-001` 已完成 Agent 叶子运行时模块提取，未改变主编排；当前依次处理 `REF-002` 至 `REF-004`。剩余 45 项中，当前队列 3 项、用户暂缓 1 项、企业级暂缓 41 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
 
 ## 标记规则
 
@@ -23,12 +23,12 @@
 
 | 类型 | 任务 | 当前结论 |
 |---|---|---|
-| 当前队列 | 无 | 非企业级产品任务已全部完成 |
+| 当前队列 | `REF-002` 至 `REF-004` | 依次拆分 Agent 编排、API 路由与桌面前端，保持现有行为 |
 | 用户暂缓 | `UX-029` | 移动端需求暂不进入当前队列 |
 | 企业级暂缓 | 41 项 | 等待身份提供方、真实数据接口、部署环境和运维边界明确 |
 | 可选候选 | `RAG-024` `OPTIONAL` | 不计入主统计，只在用户明确激活后排期 |
 
-最近一次完整质量门为 2026-08-24 `QA-004` 工作区 full：408 个 Python 发现项、340 个非系统测试，系统数据 13、HTTP 15、知识 13、模型 17、会话 10，分支覆盖率 87%、Node 36/36、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 执行基准 3/3、Trace 回放 7/7、Playwright 10/10；系统测试总耗时 84.3 秒且低于预算。完整基线见 [测试策略](docs/testing-strategy.md)。
+最近一次完整质量门为 2026-08-25 `REF-001` 宿主 full：411 个 Python 发现项、343 个非系统测试，系统数据 13、HTTP 15、知识 13、模型 17、会话 10，分支覆盖率 87%、Node 36/36、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 执行基准 3/3、Trace 回放 7/7、Playwright 10/10；系统测试总耗时 88.3 秒且低于预算。完整基线见 [测试策略](docs/testing-strategy.md)。
 
 ## 工作流清单
 
@@ -43,6 +43,7 @@
 | 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 桌面端关键工作流、无障碍治理和视觉回归已完成；移动端 `UX-029` 由用户暂缓 |
 | 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接、运行快照治理和受保护的远程 CI 质量门已完成；其余项均为企业级暂缓 |
 | 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 本地分层质量门、QA-002 系统测试隔离、QA-003 启动/迁移/运维脚本风险路径与 QA-004 脱敏离线 Trace 回放矩阵均已完成 |
+| 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 Agent 叶子运行时模块已提取；REF-002 至 REF-004 按编排、API、前端边界串行拆分，禁止混入行为变化 |
 
 ## 更新要求
 
