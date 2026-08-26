@@ -1,14 +1,14 @@
 # Fab Insight Agent TODO
 
-状态基线：`experiment/parallel-platform`，2026-08-25。
+状态基线：`experiment/parallel-platform`，2026-08-26。
 
-当前统计：共 180 个独立任务，已完成 135 个，待做 45 个。
+当前统计：共 197 个独立任务，已完成 135 个，待做 62 个。
 
 另有 1 项 `OPTIONAL` 可选候选，不计入上述主统计。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
-当前结论：`REF-001` 已完成 Agent 叶子运行时模块提取，未改变主编排；当前依次处理 `REF-002` 至 `REF-004`。剩余 45 项中，当前队列 3 项、用户暂缓 1 项、企业级暂缓 41 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
+当前结论：`REF-001` 已完成 Agent 叶子运行时模块提取，未改变主编排；原 `REF-002` 至 `REF-004` 宽任务已细化为 `REF-002` 至 `REF-021`。剩余 62 项中，当前队列 20 项、用户暂缓 1 项、企业级暂缓 41 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
 
 ## 标记规则
 
@@ -23,7 +23,7 @@
 
 | 类型 | 任务 | 当前结论 |
 |---|---|---|
-| 当前队列 | `REF-002` 至 `REF-004` | 依次拆分 Agent 编排、API 路由与桌面前端，保持现有行为 |
+| 当前队列 | `REF-002` 至 `REF-021` | 先冻结契约，再依次拆分 Agent、API、桌面前端和个人知识后端，最后只读审计第二梯队 |
 | 用户暂缓 | `UX-029` | 移动端需求暂不进入当前队列 |
 | 企业级暂缓 | 41 项 | 等待身份提供方、真实数据接口、部署环境和运维边界明确 |
 | 可选候选 | `RAG-024` `OPTIONAL` | 不计入主统计，只在用户明确激活后排期 |
@@ -43,7 +43,7 @@
 | 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 桌面端关键工作流、无障碍治理和视觉回归已完成；移动端 `UX-029` 由用户暂缓 |
 | 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接、运行快照治理和受保护的远程 CI 质量门已完成；其余项均为企业级暂缓 |
 | 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 本地分层质量门、QA-002 系统测试隔离、QA-003 启动/迁移/运维脚本风险路径与 QA-004 脱敏离线 Trace 回放矩阵均已完成 |
-| 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 Agent 叶子运行时模块已提取；REF-002 至 REF-004 按编排、API、前端边界串行拆分，禁止混入行为变化 |
+| 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 已完成；REF-002 至 REF-021 按契约、Agent、API、桌面前端、个人知识后端和第二梯队审计串行执行，禁止混入行为变化 |
 
 ## 更新要求
 
