@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
 import json
 import re
 import time
@@ -14,6 +13,18 @@ from typing import Any, Callable
 import httpx
 
 from .agent_tools import TOOL_HANDLERS, TOOLS, search_agent_knowledge
+from .agent_runtime import (
+    AgentRunLifecycle,
+    AgentRunRequest,
+    ProgressCallback,
+    coordinate_agent_run,
+)
+from .agent_runtime.telemetry import (
+    emit_answer_synthesis as _emit_answer_synthesis_runtime,
+    notify as _notify_runtime,
+    stream_answer as _stream_answer_runtime,
+    trace_reference_counts as _trace_reference_counts_runtime,
+)
 from .answer_synthesizer import (
     MODEL_KNOWLEDGE_DISCLOSURE,
     MODEL_KNOWLEDGE_REF,
@@ -129,61 +140,32 @@ simulation_scenarios 为评测真值表，Agent 无权访问，不得尝试查�
 """
 
 
-ProgressCallback = Callable[[dict], Any]
-
-
 async def _notify(progress: ProgressCallback | None, event: dict) -> None:
-    if progress is None:
-        return
-    result = progress(event)
-    if inspect.isawaitable(result):
-        await result
+    await _notify_runtime(progress, event)
 
 
 async def _stream_answer(progress: ProgressCallback | None, answer: str) -> None:
-    for start in range(0, len(answer), 120):
-        await _notify(progress, {"event": "answer_delta", "delta": answer[start:start + 120]})
-        await asyncio.sleep(0)
+    await _stream_answer_runtime(
+        progress,
+        answer,
+        notify_callback=_notify,
+        yield_control=asyncio.sleep,
+    )
 
 
 def _emit_answer_synthesis(run_id: str, report: AnswerSynthesisReport) -> None:
-    payload = report.to_dict()
-    emit(
-        "answer_synthesis_completed",
+    _emit_answer_synthesis_runtime(
         run_id,
-        plan_id=report.plan_id,
-        status=report.status,
-        allowed_conclusion_strength=report.allowed_conclusion_strength,
-        source_count=len(report.source_refs),
-        invalid_source_count=len(report.invalid_source_refs),
-        moved_claims=report.moved_claims,
-        wording_adjustment_count=len(report.wording_adjustments),
-        full_content={"answer_synthesis": payload},
+        report,
+        emit_event=emit,
     )
 
 
 def _trace_reference_counts(result: dict[str, Any]) -> dict[str, int]:
-    """Count final evidence references without conflating tools and documents."""
-    synthesis = result.get("answer_synthesis") if isinstance(result.get("answer_synthesis"), dict) else {}
-    references = {
-        str(reference)
-        for reference in synthesis.get("source_refs", [])
-        if isinstance(reference, str) and reference
-    }
-    for source in result.get("sources", []):
-        if not isinstance(source, dict):
-            continue
-        reference_id = source.get("reference_id")
-        if isinstance(reference_id, str) and reference_id:
-            references.add(reference_id)
-    tool_references = {reference for reference in references if reference.startswith("TOOL:")}
-    # MODEL_KNOWLEDGE_REF is a disclosure marker, not a retrievable source.
-    knowledge_references = references - tool_references - {MODEL_KNOWLEDGE_REF}
-    return {
-        "knowledge_source_count": len(knowledge_references),
-        "tool_evidence_count": len(tool_references),
-        "total_reference_count": len(knowledge_references | tool_references),
-    }
+    return _trace_reference_counts_runtime(
+        result,
+        model_knowledge_ref=MODEL_KNOWLEDGE_REF,
+    )
 
 
 def _offline_answer(
@@ -2758,14 +2740,14 @@ async def run_agent(
     user_message_id: int | None = None,
 ) -> dict:
     run_id = str(uuid.uuid4())
-    started = time.perf_counter()
-    started_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
-    first_token_at: float | None = None
+    lifecycle = AgentRunLifecycle(
+        started_monotonic=time.perf_counter(),
+        started_at=datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+    )
 
     async def tracked_progress(event: dict) -> None:
-        nonlocal first_token_at
-        if event.get("event") == "answer_delta" and first_token_at is None:
-            first_token_at = time.perf_counter()
+        if event.get("event") == "answer_delta" and lifecycle.first_answer_delta_monotonic is None:
+            lifecycle.observe_progress(event, time.perf_counter())
         await _notify(progress, event)
     emit(
         "agent_run_started",
@@ -2780,7 +2762,12 @@ async def run_agent(
     )
     await tracked_progress({"event": "run_started", "run_id": run_id, "message": "分析任务已创建"})
     try:
-        result = await _run_agent_impl(question, history, run_id, tracked_progress, thinking)
+        request = AgentRunRequest(question, history, run_id, thinking)
+        result = await coordinate_agent_run(
+            request,
+            tracked_progress,
+            implementation=_run_agent_impl,
+        )
         result.setdefault("thinking_policy", {
             "requested": thinking,
             "context_effective": False,
@@ -2788,10 +2775,10 @@ async def run_agent(
         })
         result["run_id"] = run_id
         result["status"] = "success"
-        result["started_at"] = started_at
+        result["started_at"] = lifecycle.started_at
         result["completed_at"] = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
-        result["duration_ms"] = round((time.perf_counter() - started) * 1000, 1)
-        result["first_token_ms"] = round((first_token_at - started) * 1000, 1) if first_token_at else None
+        result["duration_ms"] = lifecycle.duration_ms(time.perf_counter())
+        result["first_token_ms"] = lifecycle.first_token_ms()
         context = result.get("context_resolution") if isinstance(result.get("context_resolution"), dict) else {}
         degraded = context.get("resolution_state") == "unavailable"
         reference_counts = _trace_reference_counts(result)
@@ -2866,7 +2853,7 @@ async def run_agent(
             "agent_run_finished",
             run_id,
             status="error",
-            duration_ms=round((time.perf_counter() - started) * 1000, 1),
+            duration_ms=lifecycle.duration_ms(time.perf_counter()),
             error_type=type(exc).__name__,
             full_content={"error_message": str(exc), "traceback": traceback.format_exc()},
         )

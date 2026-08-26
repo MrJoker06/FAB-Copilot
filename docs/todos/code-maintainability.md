@@ -64,7 +64,7 @@ app/
 
 ### Agent 运行时
 
-- [ ] `REF-003` 建立 `agent_runtime` 基础边界：增加阶段输入/输出与运行状态 contracts、进度/审计 telemetry 和协调器接口；`app.agent` 保留现有公开入口及高频测试 patch 点，不移动业务控制流。
+- [x] `REF-003` 建立 `agent_runtime` 基础边界：增加阶段输入/输出与运行状态 contracts、进度/审计 telemetry 和协调器接口；`app.agent` 保留现有公开入口及高频测试 patch 点，不移动业务控制流。`AgentRunRequest` 保留原始对象引用，`AgentRunResult` 是不包装、不复制的旧结果类型别名，协调器只按旧签名转发，生命周期继续只以首个 `answer_delta` 计算首答耗时；定向边界、Agent/Ready/Context 与冻结契约回归通过。
 - [ ] `REF-004` 拆分 Context、Router、DecisionArbiter、Playbook 与 Planner 准备阶段：迁移 Context Protocol helpers、`_resolve_conversation_turn`、路由/Playbook/计划进度和阶段初始化；保持 resolved question、TurnDecision、计划内容、事件顺序与模型调用次数不变。
 - [ ] `REF-005` 将工具运行时整理为文件夹：把工具 Schema、Handler 注册表和单次执行器拆至 `agent_runtime/tools/`；保留 `app/agent_tools.py` 兼容导出，保持工具参数解析、权限、预算、审计和结果归一化不变。
 - [ ] `REF-006` 拆分确定性 Ready Plan、兼容 Agent Loop 与失败传播：迁移 `_ready_step_order`、`_execute_ready_plan`、工具轮次状态机和模型/依赖失败路径；服务端继续确定性执行 Ready 计划，模型不恢复业务工具选择权。
