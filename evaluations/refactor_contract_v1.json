@@ -1,0 +1,94 @@
+{
+  "agent": {
+    "cases": {
+      "chain-cmp-capability": {
+        "event_sequence": ["run_started", "stage:routing", "stage:plan", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "stage:synthesis", "answer_delta", "answer_delta"],
+        "result_keys": ["answer", "answer_contract", "answer_synthesis", "context_resolution", "domain_playbook", "evidence_validation", "execution_plan", "intent_route", "mode", "model", "run_id", "sources", "tool_trace", "trace_semantics", "turn_decision"],
+        "trace_item_keys": ["arguments", "execution_mode", "plan_step_id", "rows", "status", "tool"]
+      },
+      "chain-fab-diagnostic": {
+        "event_sequence": ["run_started", "stage:routing", "stage:plan", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "stage:synthesis", "answer_delta", "answer_delta"],
+        "result_keys": ["answer", "answer_contract", "answer_synthesis", "context_resolution", "domain_playbook", "evidence_validation", "execution_plan", "intent_route", "mode", "model", "run_id", "sources", "tool_trace", "trace_semantics", "turn_decision"],
+        "trace_item_keys": ["arguments", "execution_mode", "plan_step_id", "rows", "status", "tool"]
+      },
+      "chain-general-knowledge": {
+        "event_sequence": ["run_started", "stage:routing", "stage:plan", "stage:synthesis", "answer_delta"],
+        "result_keys": ["answer", "answer_contract", "answer_synthesis", "context_resolution", "domain_playbook", "evidence_validation", "execution_plan", "intent_route", "mode", "model", "run_id", "sources", "tool_trace", "trace_semantics", "turn_decision"],
+        "trace_item_keys": []
+      }
+    }
+  },
+  "api": {
+    "openapi_sha256": "da56fda6597a0b24a917ba2f9127b9fc68996201f844c66f0eaf095ce9b99e50",
+    "routes": [
+      {"method": "GET", "name": "index", "path": "/", "success_status": 200},
+      {"method": "GET", "name": "admin_index", "path": "/admin", "success_status": 200},
+      {"method": "GET", "name": "admin_models", "path": "/api/admin/models", "success_status": 200},
+      {"method": "POST", "name": "admin_publish_model", "path": "/api/admin/models", "success_status": 201},
+      {"method": "PATCH", "name": "admin_update_model_status", "path": "/api/admin/models/{model_id}", "success_status": 200},
+      {"method": "PATCH", "name": "admin_update_model_capabilities", "path": "/api/admin/models/{model_id}/capabilities", "success_status": 200},
+      {"method": "POST", "name": "admin_check_model_compatibility", "path": "/api/admin/models/{model_id}/compatibility-check", "success_status": 200},
+      {"method": "GET", "name": "admin_overview", "path": "/api/admin/overview", "success_status": 200},
+      {"method": "GET", "name": "read_agent_run_audit", "path": "/api/agent-runs/{run_id}/audit", "success_status": 200},
+      {"method": "GET", "name": "historical_cases", "path": "/api/cases", "success_status": 200},
+      {"method": "GET", "name": "historical_case", "path": "/api/cases/{case_id}", "success_status": 200},
+      {"method": "POST", "name": "chat", "path": "/api/chat", "success_status": 200},
+      {"method": "POST", "name": "chat_stream", "path": "/api/chat/stream", "success_status": 200},
+      {"method": "GET", "name": "enterprise_context", "path": "/api/enterprise/context", "success_status": 200},
+      {"method": "GET", "name": "enterprise_lots", "path": "/api/enterprise/data/lots", "success_status": 200},
+      {"method": "GET", "name": "enterprise_manifest", "path": "/api/enterprise/data/manifest", "success_status": 200},
+      {"method": "GET", "name": "enterprise_process_runs", "path": "/api/enterprise/data/process-runs", "success_status": 200},
+      {"method": "GET", "name": "enterprise_sensor_events", "path": "/api/enterprise/data/sensor-events", "success_status": 200},
+      {"method": "GET", "name": "enterprise_summary", "path": "/api/enterprise/data/summary", "success_status": 200},
+      {"method": "GET", "name": "health", "path": "/api/health", "success_status": 200},
+      {"method": "GET", "name": "knowledge_document", "path": "/api/knowledge/chunks/{chunk_id}", "success_status": 200},
+      {"method": "GET", "name": "knowledge_documents", "path": "/api/knowledge/documents", "success_status": 200},
+      {"method": "GET", "name": "personal_knowledge_job", "path": "/api/knowledge/jobs/{job_id}", "success_status": 200},
+      {"method": "GET", "name": "personal_knowledge_chunk", "path": "/api/knowledge/personal/chunks/{chunk_id}", "success_status": 200},
+      {"method": "GET", "name": "personal_knowledge_documents", "path": "/api/knowledge/personal/documents", "success_status": 200},
+      {"method": "POST", "name": "upload_personal_knowledge_document", "path": "/api/knowledge/personal/documents", "success_status": 202},
+      {"method": "DELETE", "name": "delete_personal_knowledge_document", "path": "/api/knowledge/personal/documents/{document_id}", "success_status": 202},
+      {"method": "GET", "name": "personal_knowledge_document", "path": "/api/knowledge/personal/documents/{document_id}", "success_status": 200},
+      {"method": "PATCH", "name": "patch_personal_knowledge_document", "path": "/api/knowledge/personal/documents/{document_id}", "success_status": 200},
+      {"method": "GET", "name": "personal_knowledge_document_content", "path": "/api/knowledge/personal/documents/{document_id}/content", "success_status": 200},
+      {"method": "GET", "name": "download_personal_knowledge_document", "path": "/api/knowledge/personal/documents/{document_id}/file", "success_status": 200},
+      {"method": "POST", "name": "retry_personal_knowledge_document", "path": "/api/knowledge/personal/documents/{document_id}/retry", "success_status": 202},
+      {"method": "GET", "name": "personal_knowledge_job_events", "path": "/api/knowledge/personal/jobs/events", "success_status": 200},
+      {"method": "POST", "name": "personal_knowledge_search_preview", "path": "/api/knowledge/personal/search-preview", "success_status": 200},
+      {"method": "GET", "name": "monitor_events", "path": "/api/monitor/events", "success_status": 200},
+      {"method": "GET", "name": "monitor_summary", "path": "/api/monitor/summary", "success_status": 200},
+      {"method": "GET", "name": "rag_search", "path": "/api/rag/search", "success_status": 200},
+      {"method": "GET", "name": "capability", "path": "/api/reports/capability", "success_status": 200},
+      {"method": "GET", "name": "dashboard", "path": "/api/reports/dashboard", "success_status": 200},
+      {"method": "GET", "name": "session_list", "path": "/api/sessions", "success_status": 200},
+      {"method": "POST", "name": "start_session", "path": "/api/sessions", "success_status": 200},
+      {"method": "POST", "name": "bulk_delete_sessions", "path": "/api/sessions/bulk-delete", "success_status": 200},
+      {"method": "DELETE", "name": "delete_session", "path": "/api/sessions/{session_id}", "success_status": 200},
+      {"method": "GET", "name": "read_session", "path": "/api/sessions/{session_id}", "success_status": 200},
+      {"method": "PATCH", "name": "update_session", "path": "/api/sessions/{session_id}", "success_status": 200},
+      {"method": "DELETE", "name": "permanently_delete_session", "path": "/api/sessions/{session_id}/permanent", "success_status": 200},
+      {"method": "POST", "name": "restore_archived_session", "path": "/api/sessions/{session_id}/restore", "success_status": 200},
+      {"method": "GET", "name": "get_model_config", "path": "/api/settings/model", "success_status": 200},
+      {"method": "POST", "name": "set_model_config", "path": "/api/settings/model", "success_status": 200},
+      {"method": "POST", "name": "record_stream_telemetry", "path": "/api/telemetry/stream", "success_status": 200},
+      {"method": "GET", "name": "version", "path": "/api/version", "success_status": 200}
+    ]
+  },
+  "contract_version": "1.0",
+  "data_classification": "synthetic_redacted",
+  "execution_policy": {"network_calls": 0, "real_model_calls": 0},
+  "frontend": {
+    "admin": {
+      "element_ids": ["adminAuthDialog", "adminAuthDialogTitle", "adminAuthForm", "adminAuthMessage", "adminBuild", "adminConnection", "adminLogout", "adminNotice", "adminToast", "adminToken", "adminWorkspace", "cancelCapabilities", "cancelPublishModel", "closeCapabilities", "closePublishModel", "confirmCapabilities", "confirmPublishModel", "editCapabilitiesDialog", "editCapabilitiesForm", "editCapabilitiesMessage", "editCapabilitiesModelId", "editCapabilitiesTitle", "editNativeMultimodal", "editStreaming", "editThinking", "editToolCalls", "logPolicyDetail", "logPolicyMode", "logPolicyPanel", "modelCatalogBody", "modelCatalogCount", "modelNotice", "modelsView", "openPublishModel", "publishBaseUrl", "publishDisplayName", "publishModelDialog", "publishModelDialogTitle", "publishModelForm", "publishModelId", "publishModelMessage", "publishNativeMultimodal", "publishProvider", "publishProviderModel", "publishStreaming", "publishThinking", "publishToolCalls", "recentAdminRuns", "refreshModels", "refreshRuntime", "runtimeHours", "runtimeKpis", "runtimeUpdated", "runtimeView", "runtimeWindow", "userStatusBody"],
+      "script_sources": ["/static/model_capabilities.js?v=__APP_VERSION__", "/static/admin.js?v=__APP_VERSION__"]
+    },
+    "index": {
+      "element_ids": ["activeModelLabel", "agentMode", "agentResizeHandle", "archiveLibrarySession", "cancelKnowledgeUpload", "cancelModelSettings", "cancelPersonalKnowledgeDelete", "cancelPersonalKnowledgeMetadata", "cancelSessionBatch", "cancelSessionDelete", "cancelSessionRename", "capabilityBody", "capabilityMetric", "capabilityTitle", "capabilityView", "caseContent", "caseCount", "caseFilter", "caseList", "caseMeta", "caseReference", "caseStepFilter", "caseTitle", "casesView", "chartTooltip", "chatForm", "chatHint", "chatInput", "chatMessages", "clearChat", "closeKnowledgeUploadDialog", "closeModelDialog", "closePersonalKnowledgeDeleteDialog", "closePersonalKnowledgeMetadataDialog", "closeSessionDeleteDialog", "closeSessionLibrary", "closeSessionRenameDialog", "collapseAgent", "confirmKnowledgeUpload", "confirmPersonalKnowledgeDelete", "confirmPersonalKnowledgeMetadata", "confirmSessionDelete", "confirmSessionRename", "continueLibrarySession", "dashboardView", "dateForm", "defectBars", "deleteLibrarySession", "deletePersonalKnowledge", "deleteSelectedSessions", "dismissVersionBanner", "downloadPersonalKnowledge", "editPersonalKnowledge", "endDate", "equipmentBody", "equipmentCount", "errorBanner", "excursionBody", "focusAgent", "knowledgeContent", "knowledgeCount", "knowledgeDocuments", "knowledgeFilter", "knowledgeIndexHint", "knowledgeIndexTitle", "knowledgeMeta", "knowledgeSource", "knowledgeSourceTabs", "knowledgeTitle", "knowledgeUploadDialog", "knowledgeUploadDialogTitle", "knowledgeUploadDrop", "knowledgeUploadEffectiveDate", "knowledgeUploadEquipment", "knowledgeUploadFile", "knowledgeUploadFileState", "knowledgeUploadForm", "knowledgeUploadMessage", "knowledgeUploadQueue", "knowledgeUploadStep", "knowledgeUploadTags", "knowledgeView", "kpiGrid", "mobileAgentToggle", "modelDialog", "modelDialogTitle", "modelSelect", "modelSettingsButton", "modelSettingsForm", "modelSettingsMessage", "newSessionFromLibrary", "personalKnowledgeActions", "personalKnowledgeDeleteDialog", "personalKnowledgeDeleteDialogTitle", "personalKnowledgeDeleteForm", "personalKnowledgeDeleteMessage", "personalKnowledgeMetadataDialog", "personalKnowledgeMetadataDialogTitle", "personalKnowledgeMetadataEffectiveDate", "personalKnowledgeMetadataEquipment", "personalKnowledgeMetadataForm", "personalKnowledgeMetadataMessage", "personalKnowledgeMetadataStep", "personalKnowledgeMetadataTagSource", "personalKnowledgeMetadataTags", "personalKnowledgeMetadataTitle", "rangeSummary", "reloadApp", "renameLibrarySession", "retryPersonalKnowledge", "saveModelSettings", "sendButton", "sessionBatchCount", "sessionBatchManage", "sessionBatchSelectAll", "sessionBatchToolbar", "sessionDeleteDialog", "sessionDeleteDialogTitle", "sessionDeleteForm", "sessionDeleteMessage", "sessionHistoryButton", "sessionLibraryActions", "sessionLibraryCount", "sessionLibraryFilter", "sessionLibraryList", "sessionLibraryMessages", "sessionLibraryMeta", "sessionLibraryNotice", "sessionLibraryReference", "sessionLibrarySearch", "sessionLibraryTitle", "sessionRenameCount", "sessionRenameDialog", "sessionRenameDialogTitle", "sessionRenameForm", "sessionRenameInput", "sessionRenameMessage", "sessionsView", "startDate", "stepSelector", "systemStatus", "thinkingToggle", "toastRegion", "versionBanner", "yieldChart"],
+      "script_sources": ["/static/stream_diagnostics.js?v=__APP_VERSION__", "/static/stream_buffer.js?v=__APP_VERSION__", "/static/stream_markdown.js?v=__APP_VERSION__", "/static/source_presenter.js?v=__APP_VERSION__", "/static/personal_upload_queue.js?v=__APP_VERSION__", "/static/personal_knowledge_metadata.js?v=__APP_VERSION__", "/static/personal_job_events.js?v=__APP_VERSION__", "/static/thinking_control.js?v=__APP_VERSION__", "/static/app.js?v=__APP_VERSION__"]
+    }
+  },
+  "tools": {
+    "names": ["get_enterprise_data_manifest", "get_enterprise_fab_summary", "query_enterprise_data", "get_fab_overview", "get_yield_trend", "get_process_pass_rate", "get_equipment_health", "get_equipment_productivity", "get_process_capability", "get_defect_pareto", "get_recent_excursions", "get_sensor_summary", "search_knowledge", "query_manufacturing_data", "submit_analysis"],
+    "schema_sha256": "7254a8ab0cf1b6876ba230a953cbccad00a203eb2df1f68d381c740761f3c325"
+  }
+}

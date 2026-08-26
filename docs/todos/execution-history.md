@@ -49,6 +49,7 @@
 | 29 | `QA-004` | 脱敏离线 Trace 回放、跨层黄金矩阵、流式持久化与零外部调用门禁 |
 | 30 | `DEPLOY-012` | GitHub Actions 完整质量门、Hosted Runner 视觉环境固定与分支 required check |
 | 31 | `REF-001` | Agent 工具目录与模型流协议叶子模块提取，保留兼容入口且不调整主编排 |
+| 32 | `REF-002` | 版本化离线重构兼容契约，覆盖工具、Agent/Trace/SSE、OpenAPI/HTTP 与前端 DOM/脚本顺序 |
 
 `DATA-016` 的市场锚点模拟数据和 `UX-028` 的回答复制顺序也在这一阶段完成；它们的状态分别以企业数据和用户体验分类 TODO 为准。
 
@@ -83,5 +84,7 @@
 2026-08-24 `DEPLOY-012` 完成远程 CI 收口：`.github/workflows/quality.yml` 在 Ubuntu 24.04、Python 3.11、Node 22 与显式 Noto 字体环境执行 full 质量门，并只在失败时上传限定诊断目录。`experiment/parallel-platform` 分支已启用严格同步的 `Full quality gate` required check，且绑定 GitHub Actions App，避免同名外部状态冒充通过。
 
 2026-08-25 `REF-001` 宿主 full 质量门全通过：411 个 Python 发现项、343 个非系统测试；系统数据 13、HTTP 15、知识 13、模型 17、会话 10；分支覆盖率 87%，Node 36/36、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 10/10。系统测试总耗时 88.3 秒且低于预算；工具目录和模型流协议迁出后，`app.agent` 的旧导出、测试 patch 点、事件与调用路径保持兼容。
+
+2026-08-26 `REF-002` 宿主 full 质量门全通过：416 个 Python 发现项、348 个非系统测试；系统数据 13、HTTP 15、知识 13、模型 17、会话 10；分支覆盖率 87%，Node 36/36、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 10/10。系统测试总耗时 80.0 秒且低于预算；版本化离线契约固定工具完整 Schema、三条 Agent 回放的结果/轨迹/事件、完整 OpenAPI、51 条路由以及两端 DOM ID 与脚本顺序，契约采集期间真实模型和网络调用均为 0。
 
 更新的完整测试基线统一保留在 [测试策略](../testing-strategy.md)。

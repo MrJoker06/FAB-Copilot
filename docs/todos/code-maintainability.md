@@ -60,7 +60,7 @@ app/
 
 ### 契约基线
 
-- [ ] `REF-002` 冻结结构重构兼容基线：建立工具名称与 Schema、Agent 最终结果、Trace/SSE 事件顺序、OpenAPI 路由、HTTP 状态码、前端 DOM 标识和脚本加载顺序的可比较契约；基线不得调用真实模型或网络。后续任务只有在契约等价时才能完成。
+- [x] `REF-002` 冻结结构重构兼容基线：`evaluations/refactor_contract_v1.json` 固定工具名称与完整 Schema 哈希、三条脱敏 Agent 链路的最终结果键/工具轨迹键/Trace-SSE 事件顺序、完整 OpenAPI 哈希、51 条方法/路径/成功码/operation 名，以及用户端和管理端全部 DOM ID 与脚本加载顺序。`scripts/refactor_contracts.py` 只允许检查或打印当前规范化契约，不提供自动覆写基线；测试强制 `synthetic_redacted`、真实模型 0、网络 0，并在差异时输出统一 diff。
 
 ### Agent 运行时
 
