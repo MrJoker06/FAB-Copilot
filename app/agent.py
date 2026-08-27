@@ -6,7 +6,6 @@ import re
 import time
 import traceback
 import uuid
-from dataclasses import replace
 from datetime import date, datetime, timezone
 from typing import Any, Callable
 
@@ -19,6 +18,22 @@ from .agent_runtime import (
     ProgressCallback,
     coordinate_agent_run,
 )
+from .agent_runtime.preparation import (
+    ContextProtocolError as _RuntimeContextProtocolError,
+    prepare_agent_run,
+)
+from .agent_runtime.preparation.context import (
+    ContextStageDependencies,
+    ResolverDependencies,
+    context_json_arguments as _context_json_arguments_runtime,
+    context_protocol_correction as _context_protocol_correction_runtime,
+    normalized_context_protocol_error as _normalized_context_protocol_error_runtime,
+    resolve_conversation_turn as _resolve_conversation_turn_runtime,
+    strip_json_fence as _strip_json_fence_runtime,
+)
+from .agent_runtime.preparation.pipeline import PreparationDependencies
+from .agent_runtime.preparation.planning import PlanningDependencies
+from .agent_runtime.preparation.routing import RoutingDependencies
 from .agent_runtime.telemetry import (
     emit_answer_synthesis as _emit_answer_synthesis_runtime,
     notify as _notify_runtime,
@@ -40,14 +55,12 @@ from .audit import content_fingerprint, emit
 from .config import Settings, get_settings
 from .context_resolver import (
     CONTEXTUALIZER_RESPONSE_FORMAT,
-    ContextPayloadValidationError,
     ContextResolution,
     build_contextualizer_messages,
     context_system_message,
     resolve_question_context,
     semantic_context_resolution,
     unresolved_context,
-    validate_contextualizer_payload,
 )
 from .decision_arbiter import arbitrate_decision, recover_active_flow
 from .domain_playbooks import (
@@ -1189,60 +1202,22 @@ def _model_retry_delay(base_seconds: float, retry_number: int, exc: Exception) -
     return model_retry_delay(base_seconds, retry_number, exc)
 
 
-class ContextProtocolError(ValueError):
-    def __init__(self, code: str, message: str, content: str = ""):
-        super().__init__(message)
-        self.code = code
-        self.response_length = len(content)
-        self.response_fingerprint = content_fingerprint(content) if content else None
-
+ContextProtocolError = _RuntimeContextProtocolError
 
 def _strip_json_fence(content: str) -> str:
-    stripped = content.strip()
-    if not stripped.startswith("```"):
-        return stripped
-    lines = stripped.splitlines()
-    if not lines or not re.fullmatch(r"```(?:json)?\s*", lines[0], re.IGNORECASE):
-        return stripped
-    if len(lines) < 3 or lines[-1].strip() != "```":
-        return stripped
-    return "\n".join(lines[1:-1]).strip()
+    return _strip_json_fence_runtime(content)
 
 
 def _context_json_arguments(assistant: dict) -> dict:
-    content = assistant.get("content")
-    if not isinstance(content, str) or not content.strip():
-        raise ContextProtocolError("empty_response", "上下文解析器必须返回一个 JSON 对象")
-    cleaned = _strip_json_fence(content)
-    try:
-        arguments = json.loads(cleaned)
-    except json.JSONDecodeError as exc:
-        raise ContextProtocolError("invalid_json", "上下文解析结果不是合法 JSON", content) from exc
-    try:
-        return validate_contextualizer_payload(arguments)
-    except ContextPayloadValidationError as exc:
-        raise ContextProtocolError(exc.code, str(exc), content) from exc
+    return _context_json_arguments_runtime(assistant, protocol_error=ContextProtocolError)
 
 
 def _context_protocol_correction(error: ContextProtocolError) -> dict:
-    return {
-        "role": "user",
-        "content": (
-            "上一次上下文分类响应未通过协议校验"
-            f"（{error.code}）。请重新返回一个符合最初契约的 JSON 对象；"
-            "不要回答用户问题，不要省略必需字段。"
-        ),
-    }
+    return _context_protocol_correction_runtime(error)
 
 
 def _normalized_context_protocol_error(error: ContextProtocolError, finish_reason: str | None) -> ContextProtocolError:
-    """Expose budget exhaustion consistently without retaining reasoning text."""
-    if error.code == "empty_response" and finish_reason == "length":
-        normalized = ContextProtocolError("context_budget_exhausted", str(error))
-        normalized.response_length = error.response_length
-        normalized.response_fingerprint = error.response_fingerprint
-        return normalized
-    return error
+    return _normalized_context_protocol_error_runtime(error, finish_reason)
 
 
 async def _resolve_conversation_turn(
@@ -1256,251 +1231,77 @@ async def _resolve_conversation_turn(
     health_model_id: str | None = None,
     health_recovery_trial: bool = False,
 ) -> tuple[ContextResolution, dict]:
-    deterministic = resolve_question_context(question, history)
-    connection = settings.model_connection
-    if deterministic.applied or not connection.api_key:
-        return deterministic, {}
-    # Canonical assistant identity/capability turns are deliberately local even
-    # inside an existing session; they do not need a semantic binding.
-    if direct_route is not None and direct_route.intent == "conversation":
-        return deterministic, {}
-    if not history and (direct_route is None or direct_route.intent != "unknown"):
-        return deterministic, {}
+    return await _resolve_conversation_turn_runtime(
+        question,
+        history,
+        settings,
+        run_id,
+        progress,
+        direct_route,
+        thinking,
+        health_model_id,
+        health_recovery_trial,
+        deps=_agent_preparation_dependencies().context.resolver,
+    )
 
-    await _notify(progress, {
-        "event": "stage",
-        "stage": "context",
-        "message": "正在结合当前会话理解这条消息",
-    })
-    request_payload = {
-        "model": connection.model,
-        "messages": build_contextualizer_messages(question, history),
-        "temperature": 0,
-        "response_format": CONTEXTUALIZER_RESPONSE_FORMAT,
-        "max_tokens": 1200,
-        **provider_request_options(connection.provider, False),
-    }
-    endpoint = f"{connection.base_url}/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {connection.api_key}",
-        "Content-Type": "application/json",
-    }
-    context_timeout_seconds = float(getattr(settings, "model_context_timeout_seconds", 15.0))
-    deadline = time.perf_counter() + context_timeout_seconds
 
-    async def context_failure_fallback(
-        exc: Exception,
-        protocol_error: ContextProtocolError | None = None,
-    ) -> tuple[ContextResolution, dict]:
-        failure_reason = _model_failure_reason(exc)
-        if health_model_id and _retryable_model_error(exc):
-            health, transition = record_model_failure(
-                health_model_id, _model_error_category(exc),
-                threshold=settings.model_circuit_failure_threshold,
-                cooldown_seconds=settings.model_circuit_cooldown_seconds,
-            )
-            emit("model_health_failure_recorded", run_id, model_id=health_model_id, health=health, transition=transition)
-        elif health_model_id and protocol_error is not None:
-            # The provider delivered a response; an invalid local context
-            # contract must not strand a half-open availability trial.
-            health, transition = record_model_success(health_model_id)
-            if transition:
-                emit("model_circuit_recovered", run_id, model_id=health_model_id, health=health)
-        emit(
-            "question_context_resolution_failed",
-            run_id,
-            error_type=type(exc).__name__,
-            failure_reason=failure_reason,
-            resolution_state="unavailable",
-            relation="standalone",
-            applied=False,
-            fallback_action="continue_with_original_question",
-        )
-        await _notify(progress, {
-            "event": "stage",
-            "stage": "context",
-            "message": "未能可靠恢复上文指代",
-        })
-        # A failed contextualizer provides no evidence of a historical reference.
-        # Keep the original question and let direct routing decide the safe fallback.
-        return unresolved_context(question, "fallback", failure_reason=failure_reason), {}
-
-    async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
-        attempt = 0
-        protocol_failures = 0
-        transport_failures = 0
-        while True:
-            if deadline <= time.perf_counter():
-                return await context_failure_fallback(
-                    httpx.ReadTimeout("contextualization deadline exceeded")
-                )
-            attempt += 1
-            started = time.perf_counter()
-            assistant: dict | None = None
-            context_stream_state: dict[str, Any] = {}
-            emit(
-                "model_call_started",
-                run_id,
-                phase="contextualization",
-                attempt=attempt,
-                model=connection.model,
-                message_count=len(request_payload["messages"]),
-                thinking_requested=thinking,
-                thinking_effective=False,
-                reasoning_effort=request_payload.get("reasoning_effort"),
-                full_content={"request": request_payload},
-            )
-            try:
-                remaining_seconds = deadline - time.perf_counter()
-                if remaining_seconds <= 0:
-                    raise httpx.ReadTimeout("contextualization deadline exceeded")
-                async with asyncio.timeout(remaining_seconds):
-                    assistant, usage, response_id = await _stream_completion(
-                        client,
-                        endpoint,
-                        headers,
-                        request_payload,
-                        None,
-                        context_stream_state,
-                    )
-                resolution = semantic_context_resolution(
-                    question,
-                    _context_json_arguments(assistant),
-                    history,
-                )
-                if resolution.source == "fallback":
-                    raise ContextProtocolError(
-                        "invalid_message_id",
-                        "上下文解析器引用了当前历史窗口之外的消息",
-                        str(assistant.get("content") or ""),
-                    )
-            except Exception as exc:
-                if isinstance(exc, TimeoutError):
-                    exc = httpx.ReadTimeout("contextualization deadline exceeded")
-                protocol_error = exc if isinstance(exc, ContextProtocolError) else None
-                if protocol_error:
-                    protocol_error = _normalized_context_protocol_error(
-                        protocol_error, context_stream_state.get("finish_reason")
-                    )
-                    exc = protocol_error
-                if protocol_error:
-                    protocol_failures += 1
-                    retryable = True
-                    will_retry = (
-                        protocol_failures < 2
-                        and not health_recovery_trial
-                        and deadline > time.perf_counter()
-                    )
-                else:
-                    retryable = _retryable_model_error(exc)
-                    if retryable:
-                        transport_failures += 1
-                    retry_delay = (
-                        _model_retry_delay(settings.model_retry_base_seconds, transport_failures, exc)
-                        if retryable else 0.0
-                    )
-                    remaining_seconds = deadline - time.perf_counter()
-                    will_retry = (
-                        retryable
-                        and transport_failures <= settings.model_max_retries
-                        and not health_recovery_trial
-                        and retry_delay < remaining_seconds
-                    )
-                emit(
-                    "model_call_finished",
-                    run_id,
-                    status="error",
-                    phase="contextualization",
-                    attempt=attempt,
-                    model=connection.model,
-                    duration_ms=round((time.perf_counter() - started) * 1000, 1),
-                    error_type=type(exc).__name__,
-                    retryable=retryable,
-                    will_retry=will_retry,
-                    protocol_error_code=protocol_error.code if protocol_error else None,
-                    response_length=protocol_error.response_length if protocol_error else None,
-                    response_fingerprint=protocol_error.response_fingerprint if protocol_error else None,
-                    finish_reason=context_stream_state.get("finish_reason"),
-                    reasoning_length=int(context_stream_state.get("reasoning_length", 0)),
-                    content_length=len(str((assistant or {}).get("content") or "")),
-                    thinking_requested=thinking,
-                    thinking_effective=False,
-                    reasoning_effort=request_payload.get("reasoning_effort"),
-                    failure_reason=_model_failure_reason(exc),
-                    full_content={
-                        "error_message": str(exc),
-                        "traceback": traceback.format_exc(),
-                        "response": _audit_assistant(assistant),
-                    },
-                )
-                if will_retry:
-                    if protocol_error:
-                        if protocol_error.code in {"empty_response", "context_budget_exhausted"}:
-                            request_payload["max_tokens"] = min(
-                                max(int(request_payload.get("max_tokens", 1200)) * 2, 2400),
-                                2400,
-                            )
-                        request_payload["messages"] = [
-                            *request_payload["messages"],
-                            _context_protocol_correction(protocol_error),
-                        ]
-                    else:
-                        await asyncio.sleep(retry_delay)
-                    continue
-                return await context_failure_fallback(exc, protocol_error)
-
-            emit(
-                "model_call_finished",
-                run_id,
-                status="success",
-                phase="contextualization",
-                attempt=attempt,
-                model=connection.model,
-                duration_ms=round((time.perf_counter() - started) * 1000, 1),
-                input_tokens=usage.get("prompt_tokens", 0),
-                output_tokens=usage.get("completion_tokens", 0),
-                total_tokens=usage.get("total_tokens", 0),
-                finish_reason=context_stream_state.get("finish_reason") or "stop",
-                reasoning_length=int(context_stream_state.get("reasoning_length", 0)),
-                content_length=len(str(assistant.get("content") or "")),
-                thinking_requested=thinking,
-                thinking_effective=False,
-                reasoning_effort=request_payload.get("reasoning_effort"),
-                response_id=response_id,
-                full_content={"response": _audit_assistant(assistant), "context_resolution": resolution.to_dict()},
-            )
-            if health_model_id:
-                health, transition = record_model_success(health_model_id)
-                if transition:
-                    emit("model_circuit_recovered", run_id, model_id=health_model_id, health=health)
-            emit(
-                "question_context_classified",
-                run_id,
-                relation=resolution.relation,
-                strategy=resolution.strategy,
-                applied=resolution.applied,
-                confidence=resolution.confidence,
-                resolution_state=resolution.resolution_state,
-                failure_reason=resolution.failure_reason or None,
-                fallback_action=("request_history_selection" if resolution.resolution_state == "ambiguous" else None),
-                original_length=len(question),
-                resolved_length=len(resolution.resolved_question),
-            )
-            await _notify(progress, {
-                "event": "stage",
-                "stage": "context",
-                "message": (
-                    "已结合上文恢复当前消息的完整目标"
-                    if resolution.applied
-                    else "未可靠关联到上文，将按当前消息独立判断"
-                    if resolution.relation != "standalone"
-                    else "已确认当前消息是独立问题"
-                ),
-                "context_resolution": resolution.to_dict(),
-            })
-            return resolution, usage
-
-    return unresolved_context(question, "fallback"), {}
+def _agent_preparation_dependencies() -> PreparationDependencies:
+    """Resolve compatibility dependencies when a run starts, not at import time."""
+    return PreparationDependencies(
+        context=ContextStageDependencies(
+            resolver=ResolverDependencies(
+                resolve_question_context=resolve_question_context,
+                unresolved_context=unresolved_context,
+                build_messages=build_contextualizer_messages,
+                response_format=CONTEXTUALIZER_RESPONSE_FORMAT,
+                provider_options=provider_request_options,
+                stream_completion=_stream_completion,
+                semantic_resolution=semantic_context_resolution,
+                notify=_notify,
+                emit=emit,
+                perf_counter=time.perf_counter,
+                async_client=httpx.AsyncClient,
+                timeout=asyncio.timeout,
+                sleep=asyncio.sleep,
+                failure_reason=_model_failure_reason,
+                retryable_error=_retryable_model_error,
+                error_category=_model_error_category,
+                retry_delay=_model_retry_delay,
+                audit_assistant=_audit_assistant,
+                record_failure=record_model_failure,
+                record_success=record_model_success,
+                content_fingerprint=content_fingerprint,
+            ),
+            notify=_notify,
+            emit=emit,
+            perf_counter=time.perf_counter,
+            isinstance_settings=lambda value: isinstance(value, Settings),
+            public_model_config=public_user_model_config,
+            route_question=route_question,
+            get_model_health=get_model_health,
+            claim_model_call=claim_model_call,
+            resolve_turn=_resolve_conversation_turn,
+        ),
+        routing=RoutingDependencies(
+            route_question=route_question,
+            recover_active_flow=recover_active_flow,
+            arbitrate_decision=arbitrate_decision,
+            build_turn_decision=build_turn_decision,
+            intent_labels=set(INTENT_LABELS),
+            notify=_notify,
+            emit=emit,
+            perf_counter=time.perf_counter,
+            progress_message=_routing_progress_message,
+        ),
+        planning=PlanningDependencies(
+            select_playbook=select_playbook,
+            create_execution_plan=create_execution_plan,
+            notify=_notify,
+            emit=emit,
+            playbook_message=_playbook_progress_message,
+            plan_message=_plan_progress_message,
+        ),
+    )
 
 
 async def _run_agent_impl(
@@ -1512,215 +1313,30 @@ async def _run_agent_impl(
 ) -> dict:
     context_started = time.perf_counter()
     settings = effective_agent_settings(get_settings())
+    preparation = await prepare_agent_run(
+        question,
+        history,
+        settings,
+        run_id,
+        progress,
+        thinking,
+        context_started,
+        deps=_agent_preparation_dependencies(),
+    )
+    context_resolution = preparation.context.resolution
+    context_usage = preparation.context.usage
     health_enabled = isinstance(settings, Settings)
-    thinking_answer_effective = False
-    selected_model_id = public_user_model_config()["model"] if health_enabled else settings.model_connection.model
-    direct_route = route_question(question)
-    context_needs_upstream = bool(settings.model_connection.api_key) and bool(history or direct_route.intent == "unknown") and not resolve_question_context(question, history).applied
-    context_allowed, model_health = True, {"status": "unknown"}
-    if health_enabled:
-        model_health = get_model_health(selected_model_id)
-    context_recovery_trial = False
-    if context_needs_upstream and health_enabled:
-        context_allowed, model_health, transition = claim_model_call(
-            selected_model_id,
-            cooldown_seconds=settings.model_circuit_cooldown_seconds,
-            lease_seconds=settings.model_circuit_recovery_lease_seconds,
-        )
-        if transition:
-            context_recovery_trial = transition in {"recovery_started", "recovery_reclaimed"}
-            emit("model_circuit_recovery_started", run_id, model_id=selected_model_id, health=model_health)
-    if context_needs_upstream and not context_allowed:
-        context_resolution, context_usage = unresolved_context(
-            question, "circuit_open", failure_reason="circuit_open"
-        ), {}
-        emit("model_local_fallback_context_bypassed", run_id, model_id=selected_model_id, health=model_health)
-    else:
-        context_resolution, context_usage = await _resolve_conversation_turn(
-            question, history, settings, run_id, progress, direct_route, thinking,
-            selected_model_id if context_needs_upstream and health_enabled else None,
-            context_recovery_trial,
-        )
-    analysis_question = context_resolution.resolved_question
-    if context_resolution.applied:
-        emit(
-            "question_context_resolved",
-            run_id,
-            strategy=context_resolution.strategy,
-            original_length=len(question),
-            resolved_length=len(analysis_question),
-        )
-        if context_resolution.source == "deterministic":
-            await _notify(progress, {
-                "event": "stage",
-                "stage": "context",
-                "message": "已根据上条回答中的选项恢复分析目标",
-                "context_resolution": context_resolution.to_dict(),
-            })
-    elif context_resolution.resolution_state == "unavailable":
-        emit(
-            "question_context_degraded",
-            run_id,
-            resolution_state=context_resolution.resolution_state,
-            relation=context_resolution.relation,
-            applied=False,
-            failure_reason=context_resolution.failure_reason or None,
-            fallback_action="continue_with_original_question",
-        )
-    context_duration_ms = round((time.perf_counter() - context_started) * 1000, 1)
-    emit(
-        "context_stage_completed",
-        run_id,
-        status="degraded" if context_resolution.resolution_state == "unavailable" else "success",
-        resolution_state=context_resolution.resolution_state,
-        strategy=context_resolution.strategy,
-        applied=context_resolution.applied,
-        duration_ms=context_duration_ms,
-    )
-    routing_started = time.perf_counter()
-    resolved_route = (
-        route_question("介绍一下你自己")
-        if context_resolution.strategy in {"semantic_recall", "context_clarification"}
-        else route_question(analysis_question)
-        if context_resolution.applied
-        else direct_route
-    )
-    previous_active_flow = recover_active_flow(history)
-    arbitration = arbitrate_decision(
-        original_question=question,
-        resolved_question=analysis_question,
-        original_route=direct_route,
-        resolved_route=resolved_route,
-        context=context_resolution,
-        raw_model_actions=list(context_resolution.turn_actions) if context_resolution.turn_actions else None,
-        previous_active_flow=previous_active_flow,
-    )
-    intent_route = arbitration.route
-    analysis_question = arbitration.effective_question
-    if intent_route.intent != resolved_route.intent:
-        emit(
-            "decision_arbitrated",
-            run_id,
-            from_intent=resolved_route.intent,
-            to_intent=intent_route.intent,
-            selected_origin=arbitration.selected_origin,
-            policy_reason=arbitration.policy_reason,
-        )
+    selected_model_id = preparation.context.selected_model_id
+    analysis_question = preparation.routing.analysis_question
+    intent_route = preparation.routing.intent_route
+    turn_decision = preparation.routing.turn_decision
     route_payload = intent_route.to_dict()
-    turn_decision = build_turn_decision(
-        route=intent_route.intent,
-        relation=context_resolution.relation,
-        confidence=context_resolution.confidence,
-        question=analysis_question,
-        model_actions=[item.to_dict() for item in arbitration.model_actions] or None,
-        context_failure_reason=context_resolution.failure_reason,
-        valid_route_intents=set(INTENT_LABELS) - {"conversation", "unknown", "ambiguous"},
-    )
-    primary_action = next((item for item in turn_decision.actions if item.type in {"answer_meta", "route_task"}), None)
-    active_flow = arbitration.active_flow
-    if primary_action and primary_action.type == "answer_meta" and primary_action.subject:
-        active_flow = f"meta:{primary_action.subject}"
-    elif primary_action and primary_action.type == "route_task" and primary_action.target_intent:
-        active_flow = f"task:{primary_action.target_intent}"
-    turn_decision = replace(
-        turn_decision,
-        active_flow=active_flow,
-        selected_origin=arbitration.selected_origin,
-        policy_reason=arbitration.policy_reason,
-        candidates=tuple(item.to_dict() for item in arbitration.candidates),
-    )
-    emit(
-        "turn_decision_degraded" if (turn_decision.source == "fallback" or turn_decision.failure_reason) else "turn_decision_created",
-        run_id,
-        turn_decision_schema_version=turn_decision.schema_version,
-        source=turn_decision.source,
-        route=turn_decision.route,
-        relation=turn_decision.relation,
-        action_types=[item.type for item in turn_decision.actions],
-        subjects=[item.subject for item in turn_decision.actions if item.subject],
-        detail=[item.detail for item in turn_decision.actions],
-        confidence=turn_decision.confidence,
-        fallback_reason=turn_decision.failure_reason or None,
-        selected_origin=turn_decision.selected_origin,
-        active_flow=turn_decision.active_flow,
-        policy_reason=turn_decision.policy_reason,
-        decision_candidates=list(turn_decision.candidates),
-        decision_candidate_count=len(turn_decision.candidates),
-        selected_candidate_count=sum(item.get("status") == "selected" for item in turn_decision.candidates),
-        rejected_candidate_count=sum(item.get("status") == "rejected" for item in turn_decision.candidates),
-    )
-    emit(
-        "intent_routed",
-        run_id,
-        intent=intent_route.intent,
-        confidence=intent_route.confidence,
-        process_steps=list(intent_route.process_steps),
-        equipment_ids=list(intent_route.equipment_ids),
-        scope_resolution=route_payload["scope_resolution"],
-        time_range=route_payload["time_range"],
-        data_requirements=list(intent_route.data_requirements),
-        risk_level=intent_route.risk_level,
-        clarification_needed=intent_route.clarification_needed,
-    )
-    await _notify(progress, {
-        "event": "stage",
-        "stage": "routing",
-        "message": _routing_progress_message(intent_route),
-        "route": route_payload,
-    })
-    playbook_selection = select_playbook(intent_route)
-    playbook_payload = playbook_selection.to_dict()
+    playbook_selection = preparation.planning.playbook_selection
+    playbook_payload = preparation.planning.playbook_payload
     selected_playbook = playbook_selection.selected_playbook
-    emit(
-        "playbook_selected",
-        run_id,
-        status=playbook_selection.status,
-        route_intent=intent_route.intent,
-        playbook_id=selected_playbook.playbook_id if selected_playbook else None,
-        playbook_version=selected_playbook.playbook_version if selected_playbook else None,
-        candidate_playbooks=[item.playbook_id for item in playbook_selection.candidate_playbooks],
-    )
-    await _notify(progress, {
-        "event": "stage",
-        "stage": "playbook",
-        "message": _playbook_progress_message(playbook_selection),
-        "playbook": playbook_payload,
-    })
-    execution_plan = create_execution_plan(analysis_question, intent_route, playbook_selection)
-    plan_payload = execution_plan.to_dict()
-    emit(
-        "execution_plan_created",
-        run_id,
-        plan_id=execution_plan.plan_id,
-        status=execution_plan.status,
-        planner_version=execution_plan.planner_version,
-        playbook_id=execution_plan.playbook_id,
-        playbook_version=execution_plan.playbook_version,
-        primary_scope_type=execution_plan.scope_contract.primary_scope_type,
-        primary_scope_ids=list(execution_plan.scope_contract.primary_scope_ids),
-        context_only_tools=list(execution_plan.scope_contract.context_only_tools),
-        step_count=len(execution_plan.steps),
-        required_evidence_count=len(execution_plan.required_evidence_ids),
-        planned_tool_calls=execution_plan.budget.planned_tool_calls,
-        max_tool_calls=execution_plan.budget.max_tool_calls,
-        missing_inputs=list(execution_plan.missing_inputs),
-    )
-    emit(
-        "routing_stage_completed",
-        run_id,
-        status="success",
-        intent=intent_route.intent,
-        selected_origin=turn_decision.selected_origin,
-        policy_reason=turn_decision.policy_reason,
-        candidate_count=len(turn_decision.candidates),
-        duration_ms=round((time.perf_counter() - routing_started) * 1000, 1),
-    )
-    await _notify(progress, {
-        "event": "stage",
-        "stage": "plan",
-        "message": _plan_progress_message(execution_plan),
-        "plan": plan_payload,
-    })
+    execution_plan = preparation.planning.execution_plan
+    plan_payload = preparation.planning.plan_payload
+    thinking_answer_effective = False
     loop_guard = ToolLoopGuard(execution_plan)
     evidence_observations: list[EvidenceObservation] = []
     evidence_validation = validate_evidence(execution_plan, selected_playbook, evidence_observations)

@@ -45,3 +45,42 @@ class AgentRunLifecycle:
             (self.first_answer_delta_monotonic - self.started_monotonic) * 1000,
             1,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class ContextStageResult:
+    """Context-stage values passed unchanged to routing."""
+
+    resolution: Any
+    usage: dict
+    direct_route: Any
+    selected_model_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class RoutingStageResult:
+    """Routing-stage values passed unchanged to planning and execution."""
+
+    analysis_question: str
+    intent_route: Any
+    turn_decision: Any
+    started_monotonic: float
+
+
+@dataclass(frozen=True, slots=True)
+class PlanningStageResult:
+    """Planning-stage values passed unchanged to execution."""
+
+    playbook_selection: Any
+    playbook_payload: dict
+    execution_plan: Any
+    plan_payload: dict
+
+
+@dataclass(frozen=True, slots=True)
+class PreparationResult:
+    """The complete pre-tool preparation result without domain-object copies."""
+
+    context: ContextStageResult
+    routing: RoutingStageResult
+    planning: PlanningStageResult
