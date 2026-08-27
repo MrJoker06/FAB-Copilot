@@ -1,6 +1,6 @@
 # 非企业级 TODO 执行计划
 
-状态基线：`experiment/parallel-platform`，2026-08-26。
+状态基线：`experiment/parallel-platform`，2026-08-27。
 
 本计划只安排当前单机样例和产品能力建设。企业 SSO、真实制造系统、分布式数据基础设施、多实例治理、网关和生产部署统一暂缓，未经用户重新确认不进入开发。
 
@@ -21,8 +21,8 @@
 
 | 类型 | 数量 | 任务 |
 |---|---:|---|
-| 已完成 | 138 | 以各分类 TODO 为准；`REF-004` 已完成 Agent 准备阶段拆分 |
-| 当前队列 | 17 | `REF-005` 至 `REF-021` |
+| 已完成 | 139 | 以各分类 TODO 为准；`REF-005` 已完成工具运行时目录化 |
+| 当前队列 | 16 | `REF-006` 至 `REF-021` |
 | 用户暂缓 | 1 | `UX-029` |
 | 企业级暂缓 | 41 | 见本文件末尾分类清单 |
 | 可选候选 | 1 | `RAG-024` `OPTIONAL`，不计入主任务统计 |
@@ -40,7 +40,7 @@
 | 7 | `REF-002` | `REF-001` | 重构契约基线 | 已完成：版本化快照固定工具、Agent/Trace/SSE、OpenAPI/HTTP、DOM 与脚本顺序，离线差异检查通过 |
 | 8 | `REF-003` | `REF-002` | Agent contracts 与 telemetry | 已完成：建立运行输入/生命周期 contracts、进度/审计 telemetry 和纯转发协调入口；旧入口、高频 patch 点与主业务控制流保持兼容 |
 | 9 | `REF-004` | `REF-003` | Agent 准备阶段 | 已完成：Context、Router、Arbiter、Playbook、Planner 等价迁移；`app.agent` facade 实时注入兼容 patch 点 |
-| 10 | `REF-005` | `REF-004` | 工具运行时目录化 | Schema、Registry、Executor 分离，工具行为与业务实现不变 |
+| 10 | `REF-005` | `REF-004` | 工具运行时目录化 | 已完成：Schema、Registry、Executor 分离；`agent_tools`/`agent` 继续导出唯一 catalog/registry 对象，实时 patch registry 与工具调用语义不变 |
 | 11 | `REF-006` | `REF-005` | Agent 执行阶段 | Ready Plan、兼容 Loop 与失败传播等价迁移 |
 | 12 | `REF-007` | `REF-006` | 通用知识检索阶段 | 查询、过滤、降级披露与引用等价迁移 |
 | 13 | `REF-008` | `REF-007` | Agent 综合与结果阶段 | Ready、离线降级、Contract 和结果字段等价迁移 |
@@ -64,7 +64,7 @@
 
 ### 检查点 E：结构可维护性
 
-`REF-001` 至 `REF-004` 已完成，跨层兼容契约已经冻结。当前从 `REF-005` 开始，按照 Agent、API、桌面前端和个人知识后端四个边界串行拆分，最后只读审计第二梯队；任一任务若产生契约或产品行为差异，不得作为重构完成。
+`REF-001` 至 `REF-005` 已完成，跨层兼容契约已经冻结。当前从 `REF-006` 开始，按照 Agent、API、桌面前端和个人知识后端四个边界串行拆分，最后只读审计第二梯队；任一任务若产生契约或产品行为差异，不得作为重构完成。
 
 ### 检查点 D：上一阶段收口
 

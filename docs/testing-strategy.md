@@ -77,6 +77,8 @@ python scripts/run_quality_gate.py quick
 
 2026-08-26 `REF-004` 宿主 full 实测全通过：发现 430 个 Python 测试，其中 362 个非系统测试；系统模块分别为数据报表 13、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 10；`app` 分支覆盖率 87%，Node 36/36、RAG 15/15、OCR 黄金集 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 桌面 10/10。系统模块耗时依次为 12.2、14.1、16.1、12.7、14.8 秒，总计 69.8 秒，全部低于版本化预算；新增 6 项准备阶段边界测试、116 项定向回归及 `refactor_contract_v1.json` 冻结兼容契约通过。`app.agent` 已由 2860 行降至 2476 行（减少 384 行）。
 
+2026-08-27 `REF-005` 宿主 full 实测全通过：发现 435 个 Python 测试，其中 367 个非系统测试；系统模块分别为数据报表 13、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 10；`app` 分支覆盖率 87%，Node 36/36、RAG 15/15、OCR 黄金集 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 桌面 10/10。系统模块耗时依次为 14.6、13.5、15.8、12.7、15.9 秒，总计 72.5 秒，全部低于版本化预算；新增 5 项工具运行时边界测试、108 项定向回归及冻结 `refactor_contract_v1.json` 兼容契约通过。工具 catalog/registry 的对象身份与实时 patch registry 保持兼容。
+
 ```bash
 python scripts/run_quality_gate.py full
 ```

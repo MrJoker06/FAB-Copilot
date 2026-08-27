@@ -40,6 +40,10 @@ from .agent_runtime.telemetry import (
     stream_answer as _stream_answer_runtime,
     trace_reference_counts as _trace_reference_counts_runtime,
 )
+from .agent_runtime.tools.executor import (
+    execute_registered_tool as _execute_registered_tool_runtime,
+    parse_tool_arguments as _parse_tool_arguments_runtime,
+)
 from .answer_synthesizer import (
     MODEL_KNOWLEDGE_DISCLOSURE,
     MODEL_KNOWLEDGE_REF,
@@ -460,6 +464,17 @@ def _usable_knowledge_result(query: str, result: dict[str, Any]) -> bool:
     return usable_result(query, result)
 
 
+def _parse_tool_arguments(raw_arguments: Any) -> tuple[dict[str, Any], Exception | None]:
+    """Compatibility facade for one model tool argument payload."""
+    parsed = _parse_tool_arguments_runtime(raw_arguments)
+    return parsed.arguments, parsed.error
+
+
+def _execute_registered_tool(name: str, arguments: dict[str, Any]) -> Any:
+    """Compatibility facade resolving the live mutable tool registry."""
+    return _execute_registered_tool_runtime(name, arguments, TOOL_HANDLERS)
+
+
 def _normalize_general_knowledge_answer(answer: str) -> str:
     stripped = answer.strip()
     fenced = re.fullmatch(r"```(?:json)?\s*(\{.*\})\s*```", stripped, re.DOTALL | re.IGNORECASE)
@@ -677,10 +692,7 @@ async def _execute_ready_plan(
             continue
 
         try:
-            handler = TOOL_HANDLERS.get(step.tool)
-            if handler is None:
-                raise ValueError(f"未知工具: {step.tool}")
-            result = handler(**arguments)
+            result = _execute_registered_tool(step.tool, arguments)
             raw_rows = len(result) if isinstance(result, list) else (1 if result is not None else 0)
             if step.tool == "search_knowledge":
                 result = [
@@ -1047,7 +1059,7 @@ async def _prefetch_general_knowledge(
                 continue
 
             try:
-                result = TOOL_HANDLERS["search_knowledge"](**arguments)
+                result = _execute_registered_tool("search_knowledge", arguments)
                 raw_count = len(result) if isinstance(result, list) else 0
                 usable = [
                     item for item in result
@@ -2123,14 +2135,7 @@ async def _run_agent_impl(
                 name = function.get("name", "")
                 tool_started = time.perf_counter()
                 raw_arguments = function.get("arguments") or "{}"
-                parse_error: Exception | None = None
-                try:
-                    arguments = json.loads(raw_arguments)
-                    if not isinstance(arguments, dict):
-                        raise ValueError("工具参数必须是 JSON 对象")
-                except Exception as exc:
-                    parse_error = exc
-                    arguments = {"_raw": str(raw_arguments)[:1000]}
+                arguments, parse_error = _parse_tool_arguments(raw_arguments)
 
                 if name == "submit_analysis":
                     messages.append({
@@ -2198,10 +2203,7 @@ async def _run_agent_impl(
                 try:
                     if parse_error is not None:
                         raise ValueError(f"工具参数不是有效 JSON 对象: {parse_error}")
-                    handler = TOOL_HANDLERS.get(name)
-                    if handler is None:
-                        raise ValueError(f"未知工具: {name}")
-                    result = handler(**arguments)
+                    result = _execute_registered_tool(name, arguments)
                     if name == "search_knowledge":
                         raw_count = len(result) if isinstance(result, list) else 0
                         result = [

@@ -1,6 +1,6 @@
 # TODO 执行历史
 
-状态基线：`experiment/parallel-platform`，归档于 2026-08-25。
+状态基线：`experiment/parallel-platform`，归档于 2026-08-27。
 
 本文件只保留已完成任务的历史执行顺序和阶段检查点，不是任务状态来源，不使用复选框，不参与任务统计。任务的定义和完成状态始终以各分类 TODO 为准。
 
@@ -90,5 +90,7 @@
 2026-08-26 `REF-003` 宿主 full 质量门全通过：424 个 Python 发现项、356 个非系统测试；系统数据 13、HTTP 15、知识 13、模型 17、会话 10；分支覆盖率 87%，Node 36/36、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 10/10。系统模块耗时依次为 12.4、18.4、16.6、13.6、15.8 秒，总计 76.8 秒，全部低于预算；新增 8 项 Agent Runtime 边界测试，冻结 `refactor_contract_v1.json` 兼容契约通过。
 
 2026-08-26 `REF-004` 宿主 full 质量门全通过：430 个 Python 发现项、362 个非系统测试；系统数据 13、HTTP 15、知识 13、模型 17、会话 10；分支覆盖率 87%，Node 36/36、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 10/10。系统模块耗时依次为 12.2、14.1、16.1、12.7、14.8 秒，总计 69.8 秒，全部低于预算；新增 6 项准备阶段边界测试、116 项定向回归与冻结 `refactor_contract_v1.json` 兼容契约通过，`app.agent` 已由 2860 行降至 2476 行（减少 384 行）。
+
+2026-08-27 `REF-005` 宿主 full 质量门全通过：435 个 Python 发现项、367 个非系统测试；系统数据 13、HTTP 15、知识 13、模型 17、会话 10；分支覆盖率 87%，Node 36/36、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 10/10。系统模块耗时依次为 14.6、13.5、15.8、12.7、15.9 秒，总计 72.5 秒，全部低于预算；新增 5 项工具运行时边界测试、108 项定向回归与冻结 `refactor_contract_v1.json` 兼容契约通过。工具 catalog/registry 保留唯一对象身份，`app.agent` facade 继续在调用时读取实时 patch registry。
 
 更新的完整测试基线统一保留在 [测试策略](../testing-strategy.md)。

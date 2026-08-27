@@ -1,14 +1,14 @@
 # Fab Insight Agent TODO
 
-状态基线：`experiment/parallel-platform`，2026-08-26。
+状态基线：`experiment/parallel-platform`，2026-08-27。
 
-当前统计：共 197 个独立任务，已完成 138 个，待做 59 个。
+当前统计：共 197 个独立任务，已完成 139 个，待做 58 个。
 
 另有 1 项 `OPTIONAL` 可选候选，不计入上述主统计。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
-当前结论：`REF-004` 已将 Agent 准备阶段迁入 runtime 的 Context、Routing、Planning 子模块，`app.agent` 继续保留兼容 facade 与实时 patch 注入；固定工具、Agent/Trace/SSE、OpenAPI/HTTP 和前端 DOM/脚本顺序继续受离线契约保护。剩余 59 项中，当前队列 17 项、用户暂缓 1 项、企业级暂缓 41 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
+当前结论：`REF-005` 已将唯一的工具 Schema、Handler 注册表和单次执行器迁入 `agent_runtime/tools/`；`app.agent_tools` 与 `app.agent` 继续直接导出同一对象，并通过 facade 实时读取可 patch 的注册表。固定工具、Agent/Trace/SSE、OpenAPI/HTTP 和前端 DOM/脚本顺序继续受离线契约保护。剩余 58 项中，当前队列 16 项、用户暂缓 1 项、企业级暂缓 41 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
 
 ## 标记规则
 
@@ -23,7 +23,7 @@
 
 | 类型 | 任务 | 当前结论 |
 |---|---|---|
-| 当前队列 | `REF-005` 至 `REF-021` | 兼容契约已冻结；依次拆分 Agent、API、桌面前端和个人知识后端，最后只读审计第二梯队 |
+| 当前队列 | `REF-006` 至 `REF-021` | 兼容契约已冻结；依次拆分 Agent、API、桌面前端和个人知识后端，最后只读审计第二梯队 |
 | 用户暂缓 | `UX-029` | 移动端需求暂不进入当前队列 |
 | 企业级暂缓 | 41 项 | 等待身份提供方、真实数据接口、部署环境和运维边界明确 |
 | 可选候选 | `RAG-024` `OPTIONAL` | 不计入主统计，只在用户明确激活后排期 |
@@ -43,7 +43,7 @@
 | 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 桌面端关键工作流、无障碍治理和视觉回归已完成；移动端 `UX-029` 由用户暂缓 |
 | 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接、运行快照治理和受保护的远程 CI 质量门已完成；其余项均为企业级暂缓 |
 | 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 本地分层质量门、QA-002 系统测试隔离、QA-003 启动/迁移/运维脚本风险路径与 QA-004 脱敏离线 Trace 回放矩阵均已完成 |
-| 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 至 REF-004 已完成；REF-005 至 REF-021 受版本化兼容契约保护，按 Agent、API、桌面前端、个人知识后端和第二梯队审计串行执行 |
+| 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 至 REF-005 已完成；REF-006 至 REF-021 受版本化兼容契约保护，按 Agent、API、桌面前端、个人知识后端和第二梯队审计串行执行 |
 
 ## 更新要求
 
