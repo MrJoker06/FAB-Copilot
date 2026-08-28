@@ -1,14 +1,14 @@
 # Fab Insight Agent TODO
 
-状态基线：`experiment/parallel-platform`，2026-08-27。
+状态基线：`experiment/parallel-platform`，2026-08-28。
 
-当前统计：共 197 个独立任务，已完成 139 个，待做 58 个。
+当前统计：共 197 个独立任务，已完成 140 个，待做 57 个。
 
 另有 1 项 `OPTIONAL` 可选候选，不计入上述主统计。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
-当前结论：`REF-005` 已将唯一的工具 Schema、Handler 注册表和单次执行器迁入 `agent_runtime/tools/`；`app.agent_tools` 与 `app.agent` 继续直接导出同一对象，并通过 facade 实时读取可 patch 的注册表。固定工具、Agent/Trace/SSE、OpenAPI/HTTP 和前端 DOM/脚本顺序继续受离线契约保护。剩余 58 项中，当前队列 16 项、用户暂缓 1 项、企业级暂缓 41 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
+当前结论：`REF-006` 已将 Ready Plan、兼容 Agent Loop 与模型失败决策迁入 `agent_runtime/execution/`；`app.agent` 继续保留实时依赖注入 facade，Ready 计划仍由服务端按依赖确定性执行，模型业务工具选择数保持为 0。兼容 patch、重试与首个正文前降级语义、固定工具、Agent/Trace/SSE、OpenAPI/HTTP 和前端 DOM/脚本顺序继续受离线契约保护。剩余 57 项中，当前队列 15 项、用户暂缓 1 项、企业级暂缓 41 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
 
 ## 标记规则
 
@@ -23,12 +23,12 @@
 
 | 类型 | 任务 | 当前结论 |
 |---|---|---|
-| 当前队列 | `REF-006` 至 `REF-021` | 兼容契约已冻结；依次拆分 Agent、API、桌面前端和个人知识后端，最后只读审计第二梯队 |
+| 当前队列 | `REF-007` 至 `REF-021` | 兼容契约已冻结；依次拆分 Agent、API、桌面前端和个人知识后端，最后只读审计第二梯队 |
 | 用户暂缓 | `UX-029` | 移动端需求暂不进入当前队列 |
 | 企业级暂缓 | 41 项 | 等待身份提供方、真实数据接口、部署环境和运维边界明确 |
 | 可选候选 | `RAG-024` `OPTIONAL` | 不计入主统计，只在用户明确激活后排期 |
 
-最近一次完整质量门为 2026-08-26 `REF-004` 宿主 full：430 个 Python 发现项、362 个非系统测试，系统数据 13、HTTP 15、知识 13、模型 17、会话 10，分支覆盖率 87%、Node 36/36、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 执行基准 3/3、Trace 回放 7/7、Playwright 10/10；系统模块耗时依次为 12.2、14.1、16.1、12.7、14.8 秒，总计 69.8 秒，全部低于预算。新增 6 项准备阶段边界测试，116 项定向回归与冻结重构契约通过；`app.agent` 已由 2860 行降至 2476 行（减少 384 行）。完整基线见 [测试策略](docs/testing-strategy.md)。
+最近一次完整质量门为 2026-08-28 `REF-006` 宿主 full：438 个 Python 发现项、370 个非系统测试，系统数据 13、HTTP 15、知识 13、模型 17、会话 10，分支覆盖率 87%、Node 36/36、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 执行基准 3/3、Trace 回放 7/7、Playwright 10/10；系统模块耗时依次为 12.3、15.3、17.6、13.2、14.9 秒，总计 73.2 秒，全部低于预算。新增 3 项执行阶段边界测试、105 项定向回归与冻结重构契约通过；`app.agent` 已由 2478 行降至 1801 行（减少 677 行）。完整基线见 [测试策略](docs/testing-strategy.md)。
 
 ## 工作流清单
 
@@ -43,7 +43,7 @@
 | 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 桌面端关键工作流、无障碍治理和视觉回归已完成；移动端 `UX-029` 由用户暂缓 |
 | 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接、运行快照治理和受保护的远程 CI 质量门已完成；其余项均为企业级暂缓 |
 | 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 本地分层质量门、QA-002 系统测试隔离、QA-003 启动/迁移/运维脚本风险路径与 QA-004 脱敏离线 Trace 回放矩阵均已完成 |
-| 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 至 REF-005 已完成；REF-006 至 REF-021 受版本化兼容契约保护，按 Agent、API、桌面前端、个人知识后端和第二梯队审计串行执行 |
+| 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 至 REF-006 已完成；REF-007 至 REF-021 受版本化兼容契约保护，按 Agent、API、桌面前端、个人知识后端和第二梯队审计串行执行 |
 
 ## 更新要求
 

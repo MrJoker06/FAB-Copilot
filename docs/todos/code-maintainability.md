@@ -1,6 +1,6 @@
 # 代码可维护性 TODO
 
-状态基线：`experiment/parallel-platform`，2026-08-27。
+状态基线：`experiment/parallel-platform`，2026-08-28。
 
 本清单只处理结构、模块边界和可读性，不改变业务逻辑、API 契约、SSE/NDJSON 事件、工具调用顺序、Trace、数据库结构或前端交互。每项重构都保留必要的兼容门面，并以现有回归测试作为行为基线。
 
@@ -67,7 +67,7 @@ app/
 - [x] `REF-003` 建立 `agent_runtime` 基础边界：增加阶段输入/输出与运行状态 contracts、进度/审计 telemetry 和协调器接口；`app.agent` 保留现有公开入口及高频测试 patch 点，不移动业务控制流。`AgentRunRequest` 保留原始对象引用，`AgentRunResult` 是不包装、不复制的旧结果类型别名，协调器只按旧签名转发，生命周期继续只以首个 `answer_delta` 计算首答耗时；定向边界、Agent/Ready/Context 与冻结契约回归通过。
 - [x] `REF-004` 拆分 Context、Router、DecisionArbiter、Playbook 与 Planner 准备阶段：Context Protocol helpers、`_resolve_conversation_turn`、路由/Playbook/计划进度和阶段初始化迁入 `agent_runtime/preparation`；`app.agent` 保留同名 facade 并在每次运行实时注入依赖，保持 resolved question、TurnDecision、计划内容、事件顺序与模型调用次数不变。新增 6 项准备阶段边界测试，116 项定向回归、冻结契约及 2026-08-26 宿主 full（430/362 Python、87% 覆盖率）均通过；`app.agent` 由 2860 行降至 2476 行（减少 384 行）。
 - [x] `REF-005` 将工具运行时整理为文件夹：唯一的 Schema、Handler 注册表和单次执行器已迁入 `agent_runtime/tools/`；`app/agent_tools.py` 兼容导出与 `app.agent` 保持同一 catalog/registry 对象，单次参数解析保留 `{}` 默认、非对象/非法 JSON 的原始参数截断和异常语义，Ready、知识预取及兼容工具循环继续在调用时读取实时 patch 的注册表。新增 5 项边界测试、108 项定向回归、冻结契约及 2026-08-27 宿主 full（435/367 Python、87% 覆盖率）均通过；catalog/registry 对象身份和实时 registry patch 保持兼容。
-- [ ] `REF-006` 拆分确定性 Ready Plan、兼容 Agent Loop 与失败传播：迁移 `_ready_step_order`、`_execute_ready_plan`、工具轮次状态机和模型/依赖失败路径；服务端继续确定性执行 Ready 计划，模型不恢复业务工具选择权。
+- [x] `REF-006` 拆分确定性 Ready Plan、兼容 Agent Loop 与失败传播：`agent_runtime/execution` 接管稳定 Ready 依赖排序、确定性执行、兼容模型/工具循环和无副作用失败决策；`app.agent` 继续以实时依赖注入 facade 保留 patch 点。Ready 计划仍由服务端执行、模型业务工具选择数为 0，依赖阻塞、审计/进度顺序、重试及首个正文前降级语义不变。新增 3 项执行边界测试、105 项定向回归、冻结契约及 2026-08-28 宿主 full（438/370 Python、87% 覆盖率）通过；`app.agent` 由 2478 行降至 1801 行（减少 677 行）。
 - [ ] `REF-007` 拆分通用知识检索阶段：迁移 `_prefetch_general_knowledge`、查询重写、可用结果过滤、知识降级与披露判断；保持检索次数、来源过滤、模型知识边界和引用语义不变。
 - [ ] `REF-008` 拆分 Ready 综合、离线降级和结果组装：迁移 Ready synthesis、`_offline_answer`、Answer Contract 与最终 result builder；保持回答正文、来源、Thinking Policy、模型健康和所有返回字段不变。
 - [ ] `REF-009` 收口 Agent coordinator 和兼容门面：将 `_run_agent_impl` 改为按阶段调用的协调器，`run_agent` 继续负责运行生命周期；删除已经迁移且不再使用的内部重复实现，目标使 `app/agent.py` 约 100～250 行、coordinator 约 350 行以内。
