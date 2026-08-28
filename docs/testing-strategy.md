@@ -89,6 +89,8 @@ python scripts/run_quality_gate.py full
 
 质量门在执行前以 AST 统计 unittest 风格测试方法，避免导入测试时污染环境；发现少于最近完整审计确认的 175 个测试即失败。只有完整审计确认的有意删测才能调整此基线；命令首次失败即非零退出。覆盖数据写入 `runtime/quality/`，Playbook 与 Trace 回放报告分别写入 `runtime/quality/playbook_gold_report.json` 和 `runtime/quality/trace_replay_report.json`。
 
+2026-08-28 `REF-008` 宿主 full 实测全通过：发现 452 个 Python 测试，其中 384 个非系统测试；系统模块分别为数据报表 13、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 10；`app` 分支覆盖率 88%，Node 36/36、RAG 15/15、OCR 黄金集 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 桌面 10/10。系统测试总耗时 73.5 秒，全部低于版本化预算；新增 10 项合成边界测试、141 项定向回归、冻结 `refactor_contract_v1.json` 兼容契约及仓库检查通过。`app.agent` 由 1613 行降至 1256 行（减少 357 行），Ready 仅暴露 `submit_analysis`、原始正文空白与实时 fallback facade patch 均保持兼容。
+
 ## 托管 CI
 
 `.github/workflows/quality.yml` 在 `experiment/parallel-platform` 的 push、PR 和手动触发时，在固定 Ubuntu 24.04 上使用 Python 3.11、Node 22 执行完整门。视觉回归显式安装 `fonts-noto-core` 和 `fonts-noto-cjk`，避免 Hosted Runner 镜像字体变化被误判为页面回归。CI 只允许在 `CI=true` 时运行 `scripts/prepare_ci_data.py`：它拒绝已存在的部门库，生成固定 730 天、截至 2026-12-25 的合成数据，补齐默认模型目录后再执行治理检查。因此不会读取本地开发数据，不会调用真实模型、Oracle 或生产端点。

@@ -6,7 +6,7 @@ import time
 import traceback
 import uuid
 from datetime import date, datetime, timezone
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 
@@ -46,6 +46,17 @@ from .agent_runtime.retrieval import (
     normalize_general_knowledge_answer as _normalize_general_knowledge_answer_runtime,
     prefetch_general_knowledge as _prefetch_general_knowledge_runtime,
     usable_knowledge_result as _usable_knowledge_result_runtime,
+)
+from .agent_runtime.synthesis import (
+    OfflineAnswerDependencies,
+    ReadySynthesisDependencies,
+    build_ready_model_unavailable_result as _build_ready_model_unavailable_result_runtime,
+    build_result as _build_result_runtime,
+    offline_answer as _offline_answer_runtime,
+    ready_synthesis_fallback as _ready_synthesis_fallback_runtime,
+    ready_synthesis_messages as _ready_synthesis_messages_runtime,
+    request_ready_synthesis as _request_ready_synthesis_runtime,
+    synthesize_ready_assistant as _synthesize_ready_assistant_runtime,
 )
 from .agent_runtime.telemetry import (
     emit_answer_synthesis as _emit_answer_synthesis_runtime,
@@ -210,196 +221,16 @@ def _offline_answer(
     run_id: str | None = None,
     fallback_reason: str = "missing_api_key",
 ) -> dict:
-    if intent_route.intent == "conversation":
-        advertised_ids: tuple[str, ...] = ()
-        validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, [])
-        contract = create_answer_contract(validation)
-        if context_resolution and context_resolution.strategy == "context_clarification":
-            candidates = context_resolution.candidate_messages
-            lines = ["我没能可靠确定你指的是哪一条历史消息。请直接选择一条，或把对象重新写完整："]
-            for item in candidates:
-                content = " ".join(str(item.get("content") or "").strip().split())[:240]
-                lines.append(f"\n- 消息 #{item.get('message_id')}：{content}")
-            answer = "".join(lines)
-        elif context_resolution and context_resolution.strategy == "semantic_recall":
-            records = context_resolution.recalled_messages
-            user_records = [item for item in records if item.get("role") == "user"]
-            assistant_records = [item for item in records if item.get("role") == "assistant"]
-            lines = ["根据当前会话中的原始记录："]
-            for item in user_records:
-                lines.append(
-                    f"\n> 用户消息 #{item.get('message_id')}：{str(item.get('content') or '')[:700]}"
-                )
-            for item in assistant_records:
-                metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
-                route = metadata.get("intent_route") if isinstance(metadata.get("intent_route"), dict) else {}
-                process_steps = route.get("process_steps") if isinstance(route.get("process_steps"), list) else []
-                scope = route.get("scope_resolution") if isinstance(route.get("scope_resolution"), dict) else {}
-                scope_type = str(scope.get("scope_type") or "")
-                tool_trace = metadata.get("tool_trace") if isinstance(metadata.get("tool_trace"), list) else []
-                if scope_type == "unknown":
-                    unresolved = scope.get("unresolved_mentions") if isinstance(scope.get("unresolved_mentions"), list) else []
-                    scope_label = f"（{', '.join(str(value) for value in unresolved)}）" if unresolved else ""
-                    lines.append(
-                        f"\n该轮运行将制造范围记录为未知{scope_label}，没有把它映射为具体制程、设备或整厂范围；"
-                        f"该轮实际执行了 {len(tool_trace)} 个工具。"
-                    )
-                elif (
-                    route.get("intent") == "fab_diagnostic"
-                    and not process_steps
-                    and scope_type in {"", "fab"}
-                ):
-                    lines.append(
-                        "\n该轮运行没有解析出具体制程或设备范围，实际按整厂综合诊断执行；"
-                        "因此不能根据运行记录声称某个未解析缩写已被映射为特定制程。"
-                    )
-                elif scope.get("resolved_ids"):
-                    lines.append(
-                        f"\n该轮运行记录的分析范围是：{', '.join(str(value) for value in scope['resolved_ids'])}。"
-                    )
-                lines.append(
-                    f"\n> 助手消息 #{item.get('message_id')} 摘要：{str(item.get('content') or '')[:700]}"
-                )
-            answer = "".join(lines)
-        else:
-            action = next((item for item in (turn_decision.actions if turn_decision else ()) if item.type in {"answer_meta", "recall_history", "route_task", "clarify"}), None)
-            subject = action.subject if action and action.type == "answer_meta" else None
-            detail = action.detail if action else "standard"
-            answer, advertised_ids = build_meta_response(subject, detail, runtime_context=runtime_context)
-            if context_resolution and context_resolution.strategy == "semantic_correction" and subject == "capabilities":
-                answer = "明白，你要的是可验证的具体能力，而不是宽泛介绍。\n\n" + answer
-            if run_id:
-                emit("meta_response_built", run_id, template_version="conversation-v2", subject=subject, detail=detail, advertised_capability_count=len(advertised_ids))
-        synthesis = synthesize_legacy_answer(
-            answer,
-            contract,
-        )
-        result = {
-            "answer": synthesis.answer,
-            "tool_trace": [],
-            "sources": [],
-            "mode": "deterministic",
-            "intent_route": intent_route.to_dict(),
-            "domain_playbook": playbook_selection.to_dict(),
-            "execution_plan": execution_plan.to_dict(),
-            "loop_guard": loop_guard.summary(),
-            "evidence_validation": validation.to_dict(),
-            "answer_contract": contract.to_dict(),
-            "answer_synthesis": synthesis.report.to_dict(),
-        }
-        if turn_decision:
-            result["turn_decision"] = turn_decision.to_dict()
-            result["conversation_response"] = {
-                "template_version": "conversation-v2",
-                "advertised_capability_ids": list(advertised_ids),
-                "advertised_capability_count": len(advertised_ids),
-            }
-        return result
-
-    if execution_plan.status == "clarification_required":
-        questions = (
-            ("请把希望我回答或执行的内容再写完整一些。",)
-            if intent_route.intent == "unknown"
-            else execution_plan.clarification_questions
-            or ("请补充要分析的制程、设备或时间范围。",)
-        )
-        validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, [])
-        contract = create_answer_contract(validation)
-        synthesis = synthesize_legacy_answer(
-            "为了生成可执行的分析路径，请先补充以下信息：\n\n" + "\n".join(
-                f"{index}. {item}" for index, item in enumerate(questions, start=1)
-            ),
-            contract,
-        )
-        return {
-            "answer": synthesis.answer,
-            "tool_trace": [],
-            "sources": [],
-            "mode": "offline",
-            "intent_route": intent_route.to_dict(),
-            "domain_playbook": playbook_selection.to_dict(),
-            "execution_plan": execution_plan.to_dict(),
-            "loop_guard": loop_guard.summary(),
-            "evidence_validation": validation.to_dict(),
-            "answer_contract": contract.to_dict(),
-            "answer_synthesis": synthesis.report.to_dict(),
-        }
-
-    if intent_route.intent == "general_knowledge":
-        validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, [])
-        contract = create_answer_contract(validation)
-        notice = "当前未配置可用的模型 API，无法生成通用知识回答。请检查服务端模型配置后重试。" if fallback_reason == "missing_api_key" else "模型暂时不可用，已启用本地规则；通用知识问题暂不能由本地规则可靠回答。"
-        synthesis = synthesize_legacy_answer(
-            notice,
-            contract,
-        )
-        return {
-            "answer": synthesis.answer,
-            "tool_trace": [],
-            "sources": [],
-            "mode": "offline",
-            "intent_route": intent_route.to_dict(),
-            "domain_playbook": playbook_selection.to_dict(),
-            "execution_plan": execution_plan.to_dict(),
-            "loop_guard": loop_guard.summary(),
-            "evidence_validation": validation.to_dict(),
-            "answer_contract": contract.to_dict(),
-            "answer_synthesis": synthesis.report.to_dict(),
-        }
-
-    local_trace: list[dict] = []
-    observations: list[EvidenceObservation] = []
-
-    def run_local_tool(name: str, handler: Callable[[], Any]) -> Any:
-        decision = loop_guard.check_call(name, {})
-        if not decision.allowed:
-            local_trace.append({
-                "tool": name,
-                "status": "blocked",
-                "error_code": decision.reason_code,
-                "error": decision.message,
-            })
-            return None
-        result = handler()
-        loop_guard.record_result(name, result, True)
-        observations.append(EvidenceObservation(name, {}, "success", result))
-        local_trace.append({"tool": name, "status": "local"})
-        return result
-
-    loop_guard.begin_round()
-    overview = run_local_tool("get_fab_overview", fab_overview)
-    equipment = run_local_tool("get_equipment_health", equipment_health)
-    loop_guard.finish_round()
-    risky = (equipment or [])[:3]
-    unavailable = fallback_reason != "missing_api_key"
-    lines = ["模型暂时不可用，已启用本地规则分析。" if unavailable else "当前未配置可用的模型 API，因此返回本地规则分析。"]
-    if overview is not None:
-        lines.append(
-            f"最近90天共完成 {overview['lots']} 个批次，综合良率 {overview['yield_pct']}%，"
-            f"平均周期 {overview['avg_cycle_hours']} 小时。"
-        )
-    else:
-        lines.append("运行时预算未允许查询工厂总览，因此当前没有可用于汇总的制造数据。")
-    if risky:
-        names = "、".join(f"{row['equipment_id']}（{row['health']}，{row['excursions']}次异常）" for row in risky)
-        lines.append(f"优先关注设备：{names}。")
-    lines.append("模型恢复后可获得针对问题的多轮工具分析。" if unavailable else "配置根目录 .env 的 FAB_MODEL_API_KEY 后，可获得针对问题的多轮工具分析。")
-    validation = validate_evidence(execution_plan, playbook_selection.selected_playbook, observations)
-    contract = create_answer_contract(validation)
-    synthesis = synthesize_legacy_answer("\n\n".join(lines), contract)
-    return {
-        "answer": synthesis.answer,
-        "tool_trace": local_trace,
-        "sources": [],
-        "mode": "offline",
-        "intent_route": intent_route.to_dict(),
-        "domain_playbook": playbook_selection.to_dict(),
-        "execution_plan": execution_plan.to_dict(),
-        "loop_guard": loop_guard.summary(),
-        "evidence_validation": validation.to_dict(),
-        "answer_contract": contract.to_dict(),
-        "answer_synthesis": synthesis.report.to_dict(),
-    }
+    return _offline_answer_runtime(
+        question, intent_route, playbook_selection, execution_plan, loop_guard,
+        context_resolution, turn_decision, runtime_context, run_id, fallback_reason,
+        deps=OfflineAnswerDependencies(
+            validate_evidence=validate_evidence, create_answer_contract=create_answer_contract,
+            synthesize_legacy_answer=synthesize_legacy_answer, build_meta_response=build_meta_response,
+            fab_overview=fab_overview, equipment_health=equipment_health, emit=emit,
+            evidence_observation_type=EvidenceObservation,
+        ),
+    )
 
 
 def _routing_progress_message(route: IntentRoute) -> str:
@@ -506,6 +337,26 @@ async def _execute_ready_plan(
     )
 
 
+def _ready_synthesis_dependencies() -> ReadySynthesisDependencies:
+    """Resolve synthesis facades at call time so legacy patches remain live."""
+    return ReadySynthesisDependencies(
+        submit_analysis_tool=SUBMIT_ANALYSIS_TOOL,
+        synthesizer_system_message=synthesizer_system_message,
+        synthesize_legacy_answer=synthesize_legacy_answer,
+        synthesize_submission=synthesize_submission,
+        ready_synthesis_fallback=_ready_synthesis_fallback,
+        provider_request_options=provider_request_options,
+        stream_completion=_stream_completion,
+        retryable_model_error=_retryable_model_error,
+        model_failure_reason=_model_failure_reason,
+        model_retry_delay=_model_retry_delay,
+        audit_assistant=_audit_assistant,
+        emit=emit,
+        sleep=asyncio.sleep,
+        perf_counter=time.perf_counter,
+    )
+
+
 def _ready_synthesis_messages(
     question: str,
     plan: ExecutionPlan,
@@ -513,48 +364,9 @@ def _ready_synthesis_messages(
     contract: Any,
     observations: list[EvidenceObservation],
 ) -> list[dict[str, str]]:
-    evidence = [
-        {
-            "source_ref": observation.source_ref,
-            "tool": observation.tool,
-            "status": observation.status,
-            "result": observation.result if observation.status == "success" else None,
-            "error": observation.error,
-        }
-        for observation in observations
-    ]
-    task = {
-        "question": question,
-        "plan_id": plan.plan_id,
-        "intent": plan.route_intent,
-        "playbook_id": plan.playbook_id,
-        "playbook_version": plan.playbook_version,
-        "scope": {
-            "type": plan.scope_contract.primary_scope_type,
-            "ids": plan.scope_contract.primary_scope_ids,
-        },
-        "validation": {
-            "coverage": validation.coverage,
-            "risks": [item.message for item in validation.risks],
-            "conflicts": [item.message for item in validation.conflicts],
-            "allowed_conclusion_strength": validation.allowed_conclusion_strength,
-        },
-        "evidence": evidence,
-    }
-    return [
-        {
-            "role": "system",
-            "content": (
-                "你是 Fab Copilot 的最终综合器。业务工具已由服务端确定性执行；"
-                "你只能依据下面的已验证证据调用 submit_analysis 一次，不能选择、请求或虚构业务工具。"
-            ),
-        },
-        {"role": "system", "content": synthesizer_system_message(contract)},
-        {
-            "role": "user",
-            "content": json.dumps(task, ensure_ascii=False, separators=(",", ":"), default=str),
-        },
-    ]
+    return _ready_synthesis_messages_runtime(
+        question, plan, validation, contract, observations, deps=_ready_synthesis_dependencies()
+    )
 
 
 def _ready_synthesis_fallback(
@@ -563,21 +375,9 @@ def _ready_synthesis_fallback(
     observations: list[EvidenceObservation],
     reason: str,
 ):
-    succeeded = [item.source_ref for item in observations if item.status == "success"]
-    failed = [item.source_ref for item in observations if item.status != "success"]
-    coverage = validation.coverage
-    lines = [
-        "确定性取证已经完成，但模型综合阶段未能生成可验证的结构化结论。",
-        (
-            f"必需证据覆盖 {coverage['required_covered']}/{coverage['required_total']}；"
-            f"允许的结论强度为 {validation.allowed_conclusion_strength}。"
-        ),
-        f"已完成来源：{', '.join(item for item in succeeded if item) or '无'}。",
-    ]
-    if failed:
-        lines.append(f"未完成来源：{', '.join(item for item in failed if item)}。")
-    lines.append(f"综合降级原因：{reason}。请稍后重试模型综合；本次不会重复执行制造数据工具。")
-    return synthesize_legacy_answer("\n\n".join(lines), contract)
+    return _ready_synthesis_fallback_runtime(
+        validation, contract, observations, reason, deps=_ready_synthesis_dependencies()
+    )
 
 
 async def _request_ready_synthesis(
@@ -591,112 +391,31 @@ async def _request_ready_synthesis(
     thinking: bool,
     retry_budget: int,
 ) -> tuple[dict[str, Any], dict[str, Any], str | None, dict[str, Any]]:
-    """Make synthesis-only model calls; no business tool is exposed here."""
-    request_payload: dict[str, Any] = {
-        "model": connection.model,
-        "messages": messages,
-        "temperature": 0.15,
-        "tools": [SUBMIT_ANALYSIS_TOOL],
-        "max_tokens": 8192,
-        **provider_request_options(connection.provider, thinking),
-    }
-    if not (connection.provider == "deepseek" and thinking):
-        request_payload["tool_choice"] = "auto"
+    """Compatibility facade for the extracted synthesis-only model request."""
+    return await _request_ready_synthesis_runtime(
+        client, endpoint, headers, connection, settings, messages, run_id, thinking, retry_budget,
+        deps=_ready_synthesis_dependencies(),
+    )
 
-    for attempt in range(1, retry_budget + 2):
-        started = time.perf_counter()
-        emit(
-            "model_call_started",
-            run_id,
-            phase="ready_plan_synthesis",
-            iteration=1,
-            attempt=attempt,
-            model=connection.model,
-            message_count=len(messages),
-            thinking_requested=thinking,
-            thinking_effective=thinking,
-            reasoning_effort=request_payload.get("reasoning_effort"),
-            business_tool_selection_enabled=False,
-            full_content={"request": request_payload},
-        )
-        stream_state: dict[str, Any] = {
-            "answer_emitted": False,
-            "suppress_embedded_tool_json": True,
-        }
-        try:
-            assistant, usage, response_id = await _stream_completion(
-                client,
-                endpoint,
-                headers,
-                request_payload,
-                None,
-                stream_state,
-            )
-        except Exception as exc:
-            retryable = _retryable_model_error(exc)
-            will_retry = retryable and attempt <= retry_budget
-            emit(
-                "model_call_finished",
-                run_id,
-                status="error",
-                phase="ready_plan_synthesis",
-                iteration=1,
-                attempt=attempt,
-                model=connection.model,
-                duration_ms=round((time.perf_counter() - started) * 1000, 1),
-                error_type=type(exc).__name__,
-                retryable=retryable,
-                will_retry=will_retry,
-                answer_emitted=False,
-                business_tool_selection_enabled=False,
-                failure_reason=_model_failure_reason(exc),
-                full_content={"error_message": str(exc), "traceback": traceback.format_exc()},
-            )
-            if not will_retry:
-                raise
-            delay_seconds = _model_retry_delay(settings.model_retry_base_seconds, attempt, exc)
-            emit(
-                "model_call_retry_scheduled",
-                run_id,
-                phase="ready_plan_synthesis",
-                attempt=attempt,
-                next_attempt=attempt + 1,
-                delay_ms=round(delay_seconds * 1000, 1),
-                error_type=type(exc).__name__,
-            )
-            await asyncio.sleep(delay_seconds)
-            continue
-        emit(
-            "model_call_finished",
-            run_id,
-            status="success",
-            phase="ready_plan_synthesis",
-            iteration=1,
-            attempt=attempt,
-            model=connection.model,
-            duration_ms=round((time.perf_counter() - started) * 1000, 1),
-            input_tokens=usage.get("prompt_tokens", 0),
-            output_tokens=usage.get("completion_tokens", 0),
-            total_tokens=usage.get("total_tokens", 0),
-            finish_reason=stream_state.get("finish_reason") or (
-                "tool_calls" if assistant.get("tool_calls") else "stop"
-            ),
-            response_id=response_id,
-            first_content_ms=stream_state.get("first_content_ms"),
-            max_content_gap_ms=stream_state.get("max_content_gap_ms", 0),
-            content_delta_count=stream_state.get("content_delta_count", 0),
-            content_chars=stream_state.get("content_chars", 0),
-            stream_duration_ms=stream_state.get("stream_duration_ms"),
-            reasoning_length=int(stream_state.get("reasoning_length", 0)),
-            content_length=len(str(assistant.get("content") or "")),
-            thinking_requested=thinking,
-            thinking_effective=thinking,
-            reasoning_effort=request_payload.get("reasoning_effort"),
-            business_tool_selection_enabled=False,
-            full_content={"response": _audit_assistant(assistant)},
-        )
-        return assistant, usage, response_id, stream_state
-    raise RuntimeError("模型综合请求未返回结果")
+
+def _synthesize_ready_assistant(
+    assistant: dict[str, Any],
+    contract: Any,
+    sources: list[dict],
+    validation: Any,
+    observations: list[EvidenceObservation],
+    run_id: str,
+) -> Any:
+    """Compatibility facade for final Ready assistant parsing."""
+    return _synthesize_ready_assistant_runtime(
+        assistant,
+        contract,
+        sources,
+        validation,
+        observations,
+        run_id,
+        deps=_ready_synthesis_dependencies(),
+    )
 
 
 async def _prefetch_general_knowledge(
@@ -1071,43 +790,24 @@ async def _run_agent_impl(
                 "execution_mode": "deterministic_fallback",
             })
             await _stream_answer(progress, synthesis.answer)
-            return {
-                "answer": synthesis.answer,
-                "tool_trace": trace,
-                "sources": [],
-                "mode": "deterministic-fallback",
-                "model": "local-rules",
-                "usage": context_usage,
-                "intent_route": route_payload,
-                "domain_playbook": playbook_payload,
-                "execution_plan": plan_payload,
-                "loop_guard": loop_guard.summary(),
-                "evidence_validation": evidence_validation.to_dict(),
-                "answer_contract": answer_contract.to_dict(),
-                "answer_synthesis": synthesis.report.to_dict(),
-                "context_resolution": context_resolution.to_dict(),
-                "knowledge_fallback": {"used": False, "reason": None, "disclosure": None},
-                "retrieval_decision": {
-                    "state": "NOT_APPLICABLE", "reason": None, "attempted_scopes": [],
-                    "attempts": [], "selected_reference_ids": [],
-                    "source_counts": {"personal": 0, "knowledge": 0, "case": 0},
-                    "rewritten_query": None, "assumptions": [],
-                    "model_knowledge_allowed": False, "disclosure": None,
-                },
-                "thinking_policy": {
-                    "requested": thinking,
-                    "context_effective": False,
-                    "answer_effective": False,
-                },
-                "turn_decision": turn_decision.to_dict(),
-                "model_health": {
-                    "requested_model_id": selected_model_id,
-                    "fallback_reason": fallback_reason,
-                    **model_health,
-                },
-                "execution_mode": "deterministic_ready_plan",
-                "model_tool_selection_calls": 0,
-            }
+            return _build_ready_model_unavailable_result_runtime(
+                synthesis.answer,
+                synthesis.report,
+                trace=trace,
+                route_payload=route_payload,
+                playbook_payload=playbook_payload,
+                plan_payload=plan_payload,
+                loop_guard=loop_guard,
+                evidence_validation=evidence_validation,
+                answer_contract=answer_contract,
+                context_resolution=context_resolution,
+                thinking=thinking,
+                turn_decision=turn_decision,
+                selected_model_id=selected_model_id,
+                fallback_reason=fallback_reason,
+                model_health=model_health,
+                usage=context_usage,
+            )
         result = _offline_answer(analysis_question, intent_route, playbook_selection, execution_plan, loop_guard, fallback_reason=fallback_reason)
         _emit_evidence_validation(run_id, 1, result["evidence_validation"])
         emit(
@@ -1239,39 +939,15 @@ async def _run_agent_impl(
             })
 
     def build_result(answer: str, synthesis_report: AnswerSynthesisReport) -> dict:
-        cited_knowledge_refs = {
-            reference for reference in synthesis_report.source_refs
-            if not reference.startswith("TOOL:")
-        }
-        if intent_route.intent == "general_knowledge":
-            cited_knowledge_refs.update(retrieval_decision_payload["selected_reference_ids"])
-        return {
-            "answer": answer,
-            "tool_trace": trace,
-            "sources": [
-                source for reference, source in sources.items()
-                if reference in cited_knowledge_refs
-            ],
-            "mode": "deepseek",
-            "model": connection.model,
-            "usage": total_usage,
-            "intent_route": route_payload,
-            "domain_playbook": playbook_payload,
-            "execution_plan": plan_payload,
-            "loop_guard": loop_guard.summary(),
-            "evidence_validation": evidence_validation.to_dict(),
-            "answer_contract": answer_contract.to_dict(),
-            "answer_synthesis": synthesis_report.to_dict(),
-            "context_resolution": context_resolution.to_dict(),
-            "knowledge_fallback": knowledge_fallback,
-            "retrieval_decision": retrieval_decision_payload,
-            "thinking_policy": {
-                "requested": thinking,
-                "context_effective": False,
-                "answer_effective": thinking_answer_effective,
-            },
-            "turn_decision": turn_decision.to_dict(),
-        }
+        return _build_result_runtime(
+            answer, synthesis_report, trace=trace, sources=sources, intent_route=intent_route,
+            connection=connection, total_usage=total_usage, route_payload=route_payload,
+            playbook_payload=playbook_payload, plan_payload=plan_payload, loop_guard=loop_guard,
+            evidence_validation=evidence_validation, answer_contract=answer_contract,
+            context_resolution=context_resolution, knowledge_fallback=knowledge_fallback,
+            retrieval_decision_payload=retrieval_decision_payload, thinking=thinking,
+            thinking_answer_effective=thinking_answer_effective, turn_decision=turn_decision,
+        )
 
     if execution_plan.status == "ready":
         await _notify(progress, {
@@ -1366,47 +1042,14 @@ async def _run_agent_impl(
                 if transition:
                     emit("model_circuit_recovered", run_id, model_id=selected_model_id, health=health)
 
-            tool_calls = assistant.get("tool_calls") or []
-            if len(tool_calls) == 1 and tool_calls[0].get("function", {}).get("name") == "submit_analysis":
-                raw_arguments = tool_calls[0].get("function", {}).get("arguments") or "{}"
-                try:
-                    submission = json.loads(raw_arguments)
-                    if not isinstance(submission, dict):
-                        raise ValueError("submit_analysis 参数必须是 JSON 对象")
-                    synthesis = synthesize_submission(
-                        submission,
-                        answer_contract,
-                        list(sources.values()),
-                        status="structured",
-                    )
-                except Exception as exc:
-                    emit(
-                        "answer_submission_rejected",
-                        run_id,
-                        iteration=1,
-                        error_type="invalid_json",
-                        error_message=str(exc),
-                        execution_mode="synthesis_only",
-                    )
-                    synthesis = _ready_synthesis_fallback(
-                        evidence_validation,
-                        answer_contract,
-                        evidence_observations,
-                        "模型提交的结构化结果无效",
-                    )
-            elif not tool_calls and str(assistant.get("content") or "").strip():
-                synthesis = synthesize_legacy_answer(
-                    str(assistant.get("content") or ""),
-                    answer_contract,
-                    list(sources.values()),
-                )
-            else:
-                synthesis = _ready_synthesis_fallback(
-                    evidence_validation,
-                    answer_contract,
-                    evidence_observations,
-                    "模型没有提交允许的 submit_analysis 结果",
-                )
+            synthesis = _synthesize_ready_assistant(
+                assistant,
+                answer_contract,
+                list(sources.values()),
+                evidence_validation,
+                evidence_observations,
+                run_id,
+            )
         except Exception as exc:
             if _retryable_model_error(exc) and health_enabled:
                 health, transition = record_model_failure(
