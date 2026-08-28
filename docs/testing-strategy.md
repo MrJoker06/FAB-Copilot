@@ -81,6 +81,8 @@ python scripts/run_quality_gate.py quick
 
 2026-08-28 `REF-006` 宿主 full 实测全通过：发现 438 个 Python 测试，其中 370 个非系统测试；系统模块分别为数据报表 13、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 10；`app` 分支覆盖率 87%，Node 36/36、RAG 15/15、OCR 黄金集 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 桌面 10/10。系统模块耗时依次为 12.3、15.3、17.6、13.2、14.9 秒，总计 73.2 秒，全部低于版本化预算；新增 3 项执行边界测试、105 项定向回归及冻结 `refactor_contract_v1.json` 兼容契约通过。`app.agent` 由 2478 行降至 1801 行（减少 677 行）；Ready 确定性服务端执行、模型业务工具选择数 0、兼容 patch 注入及重试/首个正文前降级语义保持不变。
 
+2026-08-28 `REF-007` 宿主 full 实测全通过：发现 442 个 Python 测试，其中 374 个非系统测试；系统模块分别为数据报表 13、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 10；`app` 分支覆盖率 87%，Node 36/36、RAG 15/15、OCR 黄金集 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 桌面 10/10。系统模块耗时依次为 13.7、15.5、17.3、13.9、15.7 秒，总计 76.1 秒，全部低于版本化预算；新增 4 项离线检索边界测试，`test_agent_retrieval_boundaries`、`test_knowledge_decision`、`test_context_resolver`、`test_intent_router`、`test_agent_module_boundaries`、`test_agent_execution_boundaries`、`test_refactor_contracts` 共 94 项通过，冻结 `refactor_contract_v1.json` 兼容契约通过。`app.agent` 由 1801 行降至 1613 行（减少 188 行）；覆盖实时 `TOOL_HANDLERS`/`emit`/`_notify` facade 注入、原始与改写查询的 scope 顺序、低置信度来源过滤、检索错误降级、答案 normalize、披露识别与旧 SOP fallback。
+
 ```bash
 python scripts/run_quality_gate.py full
 ```

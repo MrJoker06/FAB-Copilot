@@ -50,6 +50,11 @@
 | 30 | `DEPLOY-012` | GitHub Actions 完整质量门、Hosted Runner 视觉环境固定与分支 required check |
 | 31 | `REF-001` | Agent 工具目录与模型流协议叶子模块提取，保留兼容入口且不调整主编排 |
 | 32 | `REF-002` | 版本化离线重构兼容契约，覆盖工具、Agent/Trace/SSE、OpenAPI/HTTP 与前端 DOM/脚本顺序 |
+| 33 | `REF-003` | Agent Runtime contracts、telemetry 与协调入口，保留旧入口和高频 patch 点 |
+| 34 | `REF-004` | Context、Router、DecisionArbiter、Playbook 与 Planner 准备阶段等价迁移 |
+| 35 | `REF-005` | 工具 Schema、注册表与单次执行器目录化，保留唯一 catalog/registry 对象 |
+| 36 | `REF-006` | Ready Plan、兼容 Agent Loop 与模型失败传播执行阶段迁移 |
+| 37 | `REF-007` | 通用知识检索、来源过滤、降级披露与引用阶段迁移，保留 Agent 实时 facade |
 
 `DATA-016` 的市场锚点模拟数据和 `UX-028` 的回答复制顺序也在这一阶段完成；它们的状态分别以企业数据和用户体验分类 TODO 为准。
 
@@ -94,5 +99,7 @@
 2026-08-27 `REF-005` 宿主 full 质量门全通过：435 个 Python 发现项、367 个非系统测试；系统数据 13、HTTP 15、知识 13、模型 17、会话 10；分支覆盖率 87%，Node 36/36、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 10/10。系统模块耗时依次为 14.6、13.5、15.8、12.7、15.9 秒，总计 72.5 秒，全部低于预算；新增 5 项工具运行时边界测试、108 项定向回归与冻结 `refactor_contract_v1.json` 兼容契约通过。工具 catalog/registry 保留唯一对象身份，`app.agent` facade 继续在调用时读取实时 patch registry。
 
 2026-08-28 `REF-006` 宿主 full 质量门全通过：438 个 Python 发现项、370 个非系统测试；系统数据 13、HTTP 15、知识 13、模型 17、会话 10；分支覆盖率 87%，Node 36/36、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 10/10。系统模块耗时依次为 12.3、15.3、17.6、13.2、14.9 秒，总计 73.2 秒，全部低于预算；新增 3 项执行边界测试、105 项定向回归与冻结 `refactor_contract_v1.json` 兼容契约通过。`app.agent` 由 2478 行降至 1801 行（减少 677 行）；Ready 仍由服务端确定性执行，模型业务工具选择数为 0，兼容 patch 注入及重试/首个正文前降级语义保持不变。
+
+2026-08-28 `REF-007` 宿主 full 质量门全通过：442 个 Python 发现项、374 个非系统测试；系统数据 13、HTTP 15、知识 13、模型 17、会话 10；分支覆盖率 87%，Node 36/36、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 10/10。系统模块耗时依次为 13.7、15.5、17.3、13.9、15.7 秒，总计 76.1 秒，全部低于预算；`agent_runtime/retrieval/general_knowledge.py` 接管查询重写、scope 检索、来源过滤、ToolLoopGuard、Observation/Trace、进度/审计、RetrievalDecision 与降级披露，`app.agent` 保留实时依赖注入 facade。新增 4 项离线边界测试、94 项定向回归与冻结 `refactor_contract_v1.json` 兼容契约通过；`app.agent` 由 1801 行降至 1613 行（减少 188 行）。
 
 更新的完整测试基线统一保留在 [测试策略](../testing-strategy.md)。
