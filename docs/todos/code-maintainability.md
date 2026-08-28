@@ -70,7 +70,7 @@ app/
 - [x] `REF-006` 拆分确定性 Ready Plan、兼容 Agent Loop 与失败传播：`agent_runtime/execution` 接管稳定 Ready 依赖排序、确定性执行、兼容模型/工具循环和无副作用失败决策；`app.agent` 继续以实时依赖注入 facade 保留 patch 点。Ready 计划仍由服务端执行、模型业务工具选择数为 0，依赖阻塞、审计/进度顺序、重试及首个正文前降级语义不变。新增 3 项执行边界测试、105 项定向回归、冻结契约及 2026-08-28 宿主 full（438/370 Python、87% 覆盖率）通过；`app.agent` 由 2478 行降至 1801 行（减少 677 行）。
 - [x] `REF-007` 拆分通用知识检索阶段：`agent_runtime/retrieval/general_knowledge.py` 接管 `_prefetch_general_knowledge`、查询重写、可用结果过滤、知识降级与披露判断；`app.agent` 保留实时依赖注入 facade，检索次数、来源过滤、模型知识边界、引用及工具/进度/审计顺序不变。新增 4 项离线检索边界测试、94 项定向回归、冻结契约及 2026-08-28 宿主 full（442/374 Python、87% 覆盖率）均通过；`app.agent` 由 1801 行降至 1613 行（减少 188 行）。
 - [x] `REF-008` 拆分 Ready 综合、离线降级和结果组装：`agent_runtime/synthesis/` 接管 Ready synthesis、`_offline_answer` 与最终 result builder；Ready assistant 的结构化提交解析、离线降级和 Ready 无模型完整结果均在该边界内，`app.agent` 保留实时依赖注入 facade，回答正文、来源、Thinking Policy、模型健康和返回字段不变。新增 10 项合成边界测试、141 项定向回归、冻结契约、仓库检查及 2026-08-28 宿主 full（452/384 Python、88% 覆盖率）均通过；原始正文空白与实时 fallback facade patch 保持兼容，`app.agent` 由 1613 行降至 1256 行（减少 357 行）。
-- [ ] `REF-009` 收口 Agent coordinator 和兼容门面：将 `_run_agent_impl` 改为按阶段调用的协调器，`run_agent` 继续负责运行生命周期；删除已经迁移且不再使用的内部重复实现，目标使 `app/agent.py` 约 100～250 行、coordinator 约 350 行以内。
+- [ ] `REF-009` 收口 Agent coordinator 和兼容门面：依赖 `QA-010` 完成双通道 E2E 质量门；将 `_run_agent_impl` 改为按阶段调用的协调器，`run_agent` 继续负责运行生命周期；删除已经迁移且不再使用的内部重复实现，目标使 `app/agent.py` 约 100～250 行、coordinator 约 350 行以内。
 
 ### FastAPI
 
