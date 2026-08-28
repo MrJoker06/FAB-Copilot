@@ -105,4 +105,6 @@
 
 2026-08-28 `REF-008` 宿主 full 质量门全通过：452 个 Python 发现项、384 个非系统测试；系统数据 13、HTTP 15、知识 13、模型 17、会话 10；分支覆盖率 88%，Node 36/36、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 10/10。系统测试总耗时 73.5 秒，全部低于预算；`agent_runtime/synthesis/` 接管 Ready synthesis、离线降级、结构化提交解析及最终结果组装，`app.agent` 保留实时依赖注入 facade。新增 10 项合成边界测试、141 项定向回归、冻结 `refactor_contract_v1.json` 兼容契约及仓库检查通过；原始正文空白与实时 fallback facade patch 保持兼容，`app.agent` 由 1613 行降至 1256 行（减少 357 行）。
 
+2026-08-29 `QA-005` 完成桌面 E2E 基础契约：10 条 Chromium 用例改用自动 browser failure fixture，未声明的 `pageerror`、`console.error`、同源 `requestfailed` 和 HTTP 5xx 均会失败；工作流中唯一允许的 jobs SSE `ERR_ABORTED` 以 method/path/error 就地声明。版本化 `e2e_critical_paths.json` 与 Node 契约只从 `test(...)` 标题发现稳定 ID，阻止删除、重复或注释残留伪通过；服务诊断覆盖快照准备、端口启动和禁用环境代理的真实 loopback `/api/health`。针对性 Node 3 项、Python 20 项和 Playwright 清单 10 条均通过；宿主三次独立 Playwright 为 10/10，耗时 26.6、27.7、27.0 秒。宿主 full 发现 455/387 个 Python 测试、分支覆盖率 88%、Node 契约文件 15/15、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 10/10；系统测试总计 78.2 秒并低于预算。
+
 更新的完整测试基线统一保留在 [测试策略](../testing-strategy.md)。

@@ -1,0 +1,16 @@
+{
+  "schema": "fab-insight/e2e-critical-paths",
+  "version": 1,
+  "critical_paths": [
+    {"id": "E2E-SMOKE-001", "spec": "desktop-smoke.spec.js"},
+    {"id": "E2E-SMOKE-002", "spec": "desktop-smoke.spec.js"},
+    {"id": "E2E-A11Y-001", "spec": "desktop-accessibility.spec.js"},
+    {"id": "E2E-A11Y-002", "spec": "desktop-accessibility.spec.js"},
+    {"id": "E2E-A11Y-003", "spec": "desktop-accessibility.spec.js"},
+    {"id": "E2E-VISUAL-001", "spec": "desktop-visual.spec.js"},
+    {"id": "E2E-VISUAL-002", "spec": "desktop-visual.spec.js"},
+    {"id": "E2E-WORKFLOW-001", "spec": "desktop-workflows.spec.js"},
+    {"id": "E2E-WORKFLOW-002", "spec": "desktop-workflows.spec.js"},
+    {"id": "E2E-WORKFLOW-003", "spec": "desktop-workflows.spec.js"}
+  ]
+}

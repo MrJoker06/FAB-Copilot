@@ -1,14 +1,14 @@
 # Fab Insight Agent TODO
 
-状态基线：`experiment/parallel-platform`，2026-08-28。
+状态基线：`experiment/parallel-platform`，2026-08-29。
 
-当前统计：共 203 个独立任务，已完成 142 个，待做 61 个。
+当前统计：共 203 个独立任务，已完成 143 个，待做 60 个。
 
 另有 2 项 `OPTIONAL` 可选候选，不计入上述主统计。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
-当前结论：`REF-008` 已将 Ready 综合、结构化提交解析、离线降级和结果组装迁入 `agent_runtime/synthesis/`；`app.agent` 继续保留实时依赖注入 facade。新增 10 项合成边界测试、141 项定向回归、冻结契约、仓库检查及宿主 full 均通过。根据最新 E2E 审计，当前先执行 `QA-005` 至 `QA-010`，补齐浏览器错误门、管理员授权的真实模型 API 全链路、个人知识/管理端/Session 关键旅程与双通道 CI，再继续 `REF-009` 至 `REF-021`。剩余 61 项中，当前队列 19 项、用户暂缓 1 项、企业级暂缓 41 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
+当前结论：`QA-005` 已为 10 条桌面 Playwright 用例建立自动浏览器错误门、稳定关键 ID 清单及真实 loopback 健康诊断；不改变产品行为、桌面 Chromium 契约或视觉基线。当前从 `QA-006` 继续，补齐管理员授权的真实模型 API 全链路、个人知识/管理端/Session 关键旅程与双通道 CI，再继续 `REF-009` 至 `REF-021`。剩余 60 项中，当前队列 18 项、用户暂缓 1 项、企业级暂缓 41 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
 
 ## 标记规则
 
@@ -23,7 +23,7 @@
 
 | 类型 | 任务 | 当前结论 |
 |---|---|---|
-| 当前队列 | `QA-005` 至 `QA-010`，随后 `REF-009` 至 `REF-021` | 先补齐确定性与真实 API 双通道 E2E，再依次拆分 Agent、API、桌面前端和个人知识后端，最后只读审计第二梯队 |
+| 当前队列 | `QA-006` 至 `QA-010`，随后 `REF-009` 至 `REF-021` | 先补齐真实 API 双通道 E2E，再依次拆分 Agent、API、桌面前端和个人知识后端，最后只读审计第二梯队 |
 | 用户暂缓 | `UX-029` | 移动端需求暂不进入当前队列 |
 | 企业级暂缓 | 41 项 | 等待身份提供方、真实数据接口、部署环境和运维边界明确 |
 | 可选候选 | `RAG-024`、`AGENT-039` `OPTIONAL` | 不计入主统计，只在用户明确激活后排期 |
@@ -42,7 +42,7 @@
 | 日志与运行监控 | [可观测性 TODO](docs/todos/observability.md) | 单实例监控、端到端流式聚合诊断、上下文降级可观测性、消息持久化关联、完整日志到期治理、Trace 语义治理与 `QA-004` 脱敏回放均已完成 |
 | 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 桌面端关键工作流、无障碍治理和视觉回归已完成；移动端 `UX-029` 由用户暂缓 |
 | 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接、运行快照治理和受保护的远程 CI 质量门已完成；其余项均为企业级暂缓 |
-| 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 至 QA-004 已完成；QA-005 至 QA-010 当前排期补齐 E2E 基础契约、真实模型 API、关键业务闭环和双通道 CI |
+| 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 至 QA-005 已完成；QA-006 至 QA-010 当前排期补齐真实模型 API、关键业务闭环和双通道 CI |
 | 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 至 REF-008 已完成；REF-009 至 REF-021 在 QA-010 双通道 E2E 门完成后继续，按 Agent、API、桌面前端、个人知识后端和第二梯队审计串行执行 |
 
 ## 更新要求

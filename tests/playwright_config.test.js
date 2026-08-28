@@ -5,6 +5,8 @@ const config = require('../playwright.config.js');
 test('Playwright remains a single isolated desktop Chromium contract', () => {
   assert.equal(config.webServer.timeout, 300_000);
   assert.equal(config.webServer.reuseExistingServer, false);
+  assert.equal(config.webServer.stdout, 'pipe');
+  assert.equal(config.webServer.stderr, 'pipe');
   assert.equal(config.projects.length, 1);
   assert.deepEqual(config.projects[0].use.viewport, { width: 1440, height: 900 });
   assert.equal(config.use.locale, 'zh-CN');

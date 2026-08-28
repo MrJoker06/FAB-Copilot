@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import closing
+import asyncio
+from contextlib import closing, suppress
 import json
 import os
 from pathlib import Path
@@ -10,6 +11,10 @@ import shutil
 import sqlite3
 import sys
 import tempfile
+import time
+from urllib.error import HTTPError
+from urllib.parse import urlparse
+from urllib.request import ProxyHandler, build_opener
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
@@ -72,6 +77,8 @@ BROWSER_TEST_VISUAL_ASSISTANT_ANSWER = """# CVD-02 膜厚漂移复核建议
 | SPC | rule violation、行动负责人、完成时间 |
 
 请在工程评审前保留原始 trend、设备 trace 和复核签名，避免仅依据单一平均值做结论。"""
+DIRECT_LOOPBACK_PROXY_HANDLER = ProxyHandler({})
+DIRECT_LOOPBACK_OPENER = build_opener(DIRECT_LOOPBACK_PROXY_HANDLER)
 
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
@@ -228,20 +235,86 @@ def parse_port(value: str) -> int:
     return port
 
 
+def stage_message(stage: str, **fields: str | int) -> str:
+    """Format concise lifecycle diagnostics consumed by local Playwright runs."""
+    if stage not in {"snapshot-preparation", "port-start", "health-ready", "health-failed"}:
+        raise ValueError(f"unsupported browser-test stage: {stage}")
+    suffix = " ".join(f"{key}={value}" for key, value in fields.items())
+    return f"browser-test stage={stage}" + (f" {suffix}" if suffix else "")
+
+
+def wait_for_loopback_health(
+    url: str,
+    *,
+    timeout_seconds: float = 5.0,
+    interval_seconds: float = 0.1,
+    opener=None,
+    sleeper=time.sleep,
+    clock=time.monotonic,
+) -> bool:
+    """Poll the test app's loopback health route for a bounded post-start diagnostic."""
+    parsed = urlparse(url)
+    if parsed.hostname != "127.0.0.1" or parsed.path != "/api/health":
+        raise ValueError("browser-test health URL must be the loopback /api/health route")
+    request_opener = DIRECT_LOOPBACK_OPENER.open if opener is None else opener
+    deadline = clock() + timeout_seconds
+    while True:
+        try:
+            with closing(request_opener(url, timeout=min(1.0, max(0.1, deadline - clock())))) as response:
+                if response.status == 200:
+                    return True
+        except (HTTPError, OSError):
+            pass
+        if clock() >= deadline:
+            return False
+        sleeper(min(interval_seconds, max(0.0, deadline - clock())))
+
+
+async def report_health_after_start(url: str) -> None:
+    ready = await asyncio.to_thread(wait_for_loopback_health, url)
+    stage = "health-ready" if ready else "health-failed"
+    print(stage_message(stage, url=url), flush=True)
+
+
+def run_server(port: int) -> None:
+    """Run uvicorn and report a bounded real loopback health probe."""
+    import uvicorn
+
+    class ReadyReportingServer(uvicorn.Server):
+        _health_task: asyncio.Task[None] | None = None
+
+        async def startup(self, sockets=None):  # type: ignore[no-untyped-def]
+            await super().startup(sockets=sockets)
+            if self.started:
+                self._health_task = asyncio.create_task(
+                    report_health_after_start(f"http://127.0.0.1:{port}/api/health")
+                )
+
+        async def shutdown(self, sockets=None):  # type: ignore[no-untyped-def]
+            if self._health_task and not self._health_task.done():
+                self._health_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await self._health_task
+            await super().shutdown(sockets=sockets)
+
+    configuration = uvicorn.Config("app.main:app", host="127.0.0.1", port=port, log_level="warning")
+    ReadyReportingServer(configuration).run()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=parse_port, default=DEFAULT_PORT)
     args = parser.parse_args(argv)
     temporary = Path(tempfile.mkdtemp(prefix="fab-insight-browser-"))
     try:
-        print("Preparing isolated browser-test database snapshots...", flush=True)
+        print(stage_message("snapshot-preparation", status="start", root=temporary), flush=True)
         environment = browser_test_environment(temporary)
-        print("Browser-test database snapshots ready; starting server...", flush=True)
+        print(stage_message("snapshot-preparation", status="ready", root=temporary), flush=True)
         os.environ.clear()
         os.environ.update(environment)
         os.chdir(PROJECT_DIR)
-        import uvicorn
-        uvicorn.run("app.main:app", host="127.0.0.1", port=args.port, log_level="warning")
+        print(stage_message("port-start", host="127.0.0.1", port=args.port), flush=True)
+        run_server(args.port)
     finally:
         shutil.rmtree(temporary, ignore_errors=True)
     return 0

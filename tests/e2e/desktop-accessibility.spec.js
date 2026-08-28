@@ -1,4 +1,4 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./support/fixture');
 const AxeBuilder = require('@axe-core/playwright').default;
 
 const ADMIN_TOKEN = 'browser-test-admin-token';
@@ -35,7 +35,7 @@ async function expectVisibleFocusRing(locator) {
   expect(style.boxShadow).not.toBe('none');
 }
 
-test('desktop user views and model dialog have no WCAG A/AA violations', async ({page}) => {
+test('E2E-A11Y-001 desktop user views and model dialog have no WCAG A/AA violations', async ({page}) => {
   await readyUser(page);
   await expectNoAxeViolations(page);
   await page.locator('[data-view="knowledge"]').click();
@@ -49,7 +49,7 @@ test('desktop user views and model dialog have no WCAG A/AA violations', async (
   await expectNoAxeViolations(page);
 });
 
-test('desktop keyboard navigation keeps modal focus and activates navigation', async ({page}) => {
+test('E2E-A11Y-002 desktop keyboard navigation keeps modal focus and activates navigation', async ({page}) => {
   await readyUser(page);
   await page.keyboard.press('Tab');
   await expect(page.locator('#modelSettingsButton')).toBeFocused();
@@ -79,7 +79,7 @@ test('desktop keyboard navigation keeps modal focus and activates navigation', a
   await fileChooser;
 });
 
-test('desktop admin auth, runtime, and models meet accessibility requirements', async ({page}) => {
+test('E2E-A11Y-003 desktop admin auth, runtime, and models meet accessibility requirements', async ({page}) => {
   await page.goto('/admin');
   await expect(page.locator('#adminAuthDialog')).toBeVisible();
   await expectNoAxeViolations(page);

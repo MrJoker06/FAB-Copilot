@@ -1,23 +1,4 @@
-const { test, expect } = require('@playwright/test');
-
-function captureBrowserFailures(page) {
-  const failures = [];
-  page.on('pageerror', error => failures.push(`pageerror: ${error.message}`));
-  page.on('console', message => {
-    if (message.type() === 'error') failures.push(`console: ${message.text()}`);
-  });
-  page.on('requestfailed', request => {
-    const error = request.failure()?.errorText || 'failed';
-    const url = new URL(request.url());
-    const expectedPersonalJobEventAbort = request.method() === 'GET'
-      && url.pathname === '/api/knowledge/personal/jobs/events'
-      && /ERR_ABORTED/i.test(error);
-    if (!expectedPersonalJobEventAbort && url.origin === new URL(page.url() || 'http://127.0.0.1').origin) {
-      failures.push(`request: ${request.method()} ${url.pathname} ${error}`);
-    }
-  });
-  return () => expect(failures, failures.join('\n')).toEqual([]);
-}
+const { test, expect } = require('./support/fixture');
 
 async function openIsolatedUser(page, testInfo) {
   const titleFingerprint = [...testInfo.title].reduce((hash, character) => ((hash * 31) + character.charCodeAt(0)) >>> 0, 7).toString(36);
@@ -47,8 +28,7 @@ async function selectModel(page, modelId) {
   await expect(page.locator('#modelDialog')).toBeHidden();
 }
 
-test('desktop settings switches Thinking from unsupported to supported through the real API', async ({ page }, testInfo) => {
-  const assertNoFailures = captureBrowserFailures(page);
+test('E2E-WORKFLOW-001 desktop settings switches Thinking from unsupported to supported through the real API', async ({ page }, testInfo) => {
   await openIsolatedUser(page, testInfo);
 
   await test.step('select the unsupported model and verify the disabled control', async () => {
@@ -62,11 +42,14 @@ test('desktop settings switches Thinking from unsupported to supported through t
     await page.locator('#thinkingToggle').click();
     await expect(page.locator('#thinkingToggle')).toHaveAttribute('aria-pressed', 'true');
   });
-  assertNoFailures();
 });
 
-test('desktop personal knowledge upload reaches ready content through the real ingestion workflow', async ({ page }, testInfo) => {
-  const assertNoFailures = captureBrowserFailures(page);
+test('E2E-WORKFLOW-002 desktop personal knowledge upload reaches ready content through the real ingestion workflow', async ({ page, browserFailures }, testInfo) => {
+  browserFailures.allowRequestFailed({
+    method: 'GET',
+    pathname: '/api/knowledge/personal/jobs/events',
+    errorText: /ERR_ABORTED/i,
+  });
   await openIsolatedUser(page, testInfo);
   const filename = `ux013-${testInfo.workerIndex}-upload.txt`;
 
@@ -90,11 +73,14 @@ test('desktop personal knowledge upload reaches ready content through the real i
     await expect(page.locator('#knowledgeContent')).toContainText('CMP polishing pressure is stable.');
     await expect(page.locator('[data-open-knowledge-upload]')).toHaveCount(1);
   });
-  assertNoFailures();
 });
 
-test('desktop Thinking stream completes and the current session can be archived in its UI', async ({ page }, testInfo) => {
-  const assertNoFailures = captureBrowserFailures(page);
+test('E2E-WORKFLOW-003 desktop Thinking stream completes and the current session can be archived in its UI', async ({ page, browserFailures }, testInfo) => {
+  browserFailures.allowRequestFailed({
+    method: 'GET',
+    pathname: '/api/knowledge/personal/jobs/events',
+    errorText: /ERR_ABORTED/i,
+  });
   const identities = await openIsolatedUser(page, testInfo);
   const question = '请用本地规则分析 CVD-02 的膜厚是否发生漂移。';
 
@@ -127,5 +113,4 @@ test('desktop Thinking stream completes and the current session can be archived 
     await expect(page.locator('#sessionLibraryMeta')).toContainText('已归档');
     await expect(page.locator('#sessionLibraryMessages')).toContainText(question);
   });
-  assertNoFailures();
 });

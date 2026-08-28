@@ -1,21 +1,6 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./support/fixture');
 
 const ADMIN_TOKEN = 'browser-test-admin-token';
-
-function captureBrowserFailures(page) {
-  const failures = [];
-  page.on('pageerror', error => failures.push(`pageerror: ${error.message}`));
-  page.on('console', message => {
-    if (message.type() === 'error') failures.push(`console: ${message.text()}`);
-  });
-  page.on('requestfailed', request => {
-    const url = new URL(request.url());
-    if (url.origin === new URL(page.url() || 'http://127.0.0.1').origin) {
-      failures.push(`request: ${request.method()} ${url.pathname} ${request.failure()?.errorText || 'failed'}`);
-    }
-  });
-  return () => expect(failures, failures.join('\n')).toEqual([]);
-}
 
 async function expectDesktopLayout(page, selectors) {
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -35,8 +20,7 @@ async function expectDesktopLayout(page, selectors) {
   }
 }
 
-test('desktop user dashboard loads without overflow or critical overlap', async ({ page }) => {
-  const assertNoFailures = captureBrowserFailures(page);
+test('E2E-SMOKE-001 desktop user dashboard loads without overflow or critical overlap', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('data-app-ready', 'true');
   await expect(page.locator('.topbar')).toBeVisible();
@@ -46,11 +30,9 @@ test('desktop user dashboard loads without overflow or critical overlap', async 
   await expect(page.locator('#kpiGrid')).not.toBeEmpty();
   await expect(page.locator('#systemStatus')).not.toHaveText(/正在连接数据源/);
   await expectDesktopLayout(page, ['.sidebar', '.main-content', '.agent-panel']);
-  assertNoFailures();
 });
 
-test('desktop admin is locked until a test token opens the real workspace', async ({ page }) => {
-  const assertNoFailures = captureBrowserFailures(page);
+test('E2E-SMOKE-002 desktop admin is locked until a test token opens the real workspace', async ({ page }) => {
   await page.goto('/admin');
   await expect(page.locator('#adminAuthDialog')).toBeVisible();
   await expect(page.locator('#adminWorkspace')).toBeHidden();
@@ -62,5 +44,4 @@ test('desktop admin is locked until a test token opens the real workspace', asyn
   await expect(page.locator('.admin-main')).toBeVisible();
   await expect(page.locator('#runtimeKpis')).not.toBeEmpty();
   await expectDesktopLayout(page, ['.admin-sidebar', '.admin-main']);
-  assertNoFailures();
 });

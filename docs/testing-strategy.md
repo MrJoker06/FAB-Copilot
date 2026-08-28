@@ -4,7 +4,7 @@
 
 审计前有 166 个 Python 测试、19 个 JavaScript 断言和 15 条 RAG 黄金集。完整宿主 Python 回归当时有 2 个失败；`app` 分支覆盖率为 81%。低覆盖重点为 `seed.py`（25%）、`database.py`（76%）、`agent.py`（77%）、`context_resolver.py`（78%）和 `personal_knowledge.py`（80%）。在 coverage run 中，`scripts/evaluate_rag.py`、`scripts/manage_databases.py` 和 `scripts/smoke_stream.py` 均为 0%；其中 RAG 评估另以独立命令实际通过 15/15。
 
-系统测试现有 54 项，按数据报表、知识与个人上传、HTTP/企业契约、模型治理、会话与流式拆分至 `tests/system/`。完整门为每个模块启动独立进程：fixture 在导入 app 前以 SQLite backup 创建参考部门数据库的一致临时快照，并使用独立个人知识目录、日志目录，进程退出时清理。Playwright 覆盖 1440x900 Chromium 的用户总览、管理端锁定/已认证工作区，以及真实隔离 FastAPI 上的模型 Thinking 能力切换、个人知识上传就绪、Thinking 流式回答与会话归档；Axe WCAG 2.0/2.1/2.2 A/AA（含颜色对比度）扫描用户关键视图/模型对话框和管理端认证、运行、模型目录与发布对话框，并验证键盘导航、Dialog 焦点和认证弹窗 Escape 策略。视觉回归使用固定 `zh-CN`、`Asia/Hong_Kong`、浅色主题、CSS 像素缩放和 reduced motion，覆盖长 Markdown 回答及超长多语言个人知识文件名，并同时断言页面与目标区域没有横向溢出。它使用 8899 临时服务、隔离快照和固定测试令牌，不调用真实模型；临时 AI 运营库固定提供一个不支持和一个支持 Thinking 的已发布模型，视觉内容也只写入临时 AI 运营库和知识库快照。失败时保留 trace 与截图至被 Git 忽略的 `test-results/` 和 `playwright-report/`；移动端不在本项范围。
+系统测试现有 54 项，按数据报表、知识与个人上传、HTTP/企业契约、模型治理、会话与流式拆分至 `tests/system/`。完整门为每个模块启动独立进程：fixture 在导入 app 前以 SQLite backup 创建参考部门数据库的一致临时快照，并使用独立个人知识目录、日志目录，进程退出时清理。Playwright 覆盖 1440x900 Chromium 的用户总览、管理端锁定/已认证工作区，以及真实隔离 FastAPI 上的模型 Thinking 能力切换、个人知识上传就绪、Thinking 流式回答与会话归档；Axe WCAG 2.0/2.1/2.2 A/AA（含颜色对比度）扫描用户关键视图/模型对话框和管理端认证、运行、模型目录与发布对话框，并验证键盘导航、Dialog 焦点和认证弹窗 Escape 策略。视觉回归使用固定 `zh-CN`、`Asia/Hong_Kong`、浅色主题、CSS 像素缩放和 reduced motion，覆盖长 Markdown 回答及超长多语言个人知识文件名，并同时断言页面与目标区域没有横向溢出。它使用 8899 临时服务、隔离快照和固定测试令牌，不调用真实模型；临时 AI 运营库固定提供一个不支持和一个支持 Thinking 的已发布模型，视觉内容也只写入临时 AI 运营库和知识库快照。所有桌面用例通过自动 fixture 拦截未声明的页面异常、控制台错误、同源请求失败和 HTTP 5xx；例外必须在当前用例精确声明。`evaluations/e2e_critical_paths.json` 与 Node 契约精确比对 `test(...)` 声明中的 10 条稳定 ID，防止关键用例被删除、重复或只在注释中残留 ID。测试服务依次记录快照准备、端口启动和实际 loopback `/api/health` 成功；Playwright 管道会保留服务 stdout/stderr 以定位失败阶段。失败时保留 trace 与截图至被 Git 忽略的 `test-results/` 和 `playwright-report/`；移动端不在本项范围。
 
 ## 分层与原则
 
@@ -90,6 +90,8 @@ python scripts/run_quality_gate.py full
 质量门在执行前以 AST 统计 unittest 风格测试方法，避免导入测试时污染环境；发现少于最近完整审计确认的 175 个测试即失败。只有完整审计确认的有意删测才能调整此基线；命令首次失败即非零退出。覆盖数据写入 `runtime/quality/`，Playbook 与 Trace 回放报告分别写入 `runtime/quality/playbook_gold_report.json` 和 `runtime/quality/trace_replay_report.json`。
 
 2026-08-28 `REF-008` 宿主 full 实测全通过：发现 452 个 Python 测试，其中 384 个非系统测试；系统模块分别为数据报表 13、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 10；`app` 分支覆盖率 88%，Node 36/36、RAG 15/15、OCR 黄金集 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 桌面 10/10。系统测试总耗时 73.5 秒，全部低于版本化预算；新增 10 项合成边界测试、141 项定向回归、冻结 `refactor_contract_v1.json` 兼容契约及仓库检查通过。`app.agent` 由 1613 行降至 1256 行（减少 357 行），Ready 仅暴露 `submit_analysis`、原始正文空白与实时 fallback facade patch 均保持兼容。
+
+2026-08-29 `QA-005` 宿主 full 实测全通过：发现 455 个 Python 测试，其中 387 个非系统测试；系统模块分别为数据报表 13、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 10；`app` 分支覆盖率 88%，Node 契约文件 15/15、RAG 15/15、OCR 黄金集 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 桌面 10/10。系统模块耗时依次为 16.9、14.8、16.3、13.9、16.2 秒，总计 78.2 秒，全部低于版本化预算；Playwright 通过管道输出快照准备、端口启动和真实 loopback 健康成功阶段，10 条稳定 ID 用例在 30.1 秒内通过且无未声明浏览器失败。
 
 ## 托管 CI
 

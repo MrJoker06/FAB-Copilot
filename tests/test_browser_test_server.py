@@ -7,6 +7,7 @@ import unittest
 from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
+from urllib.request import ProxyHandler
 
 from scripts import run_browser_test_server as server
 
@@ -158,6 +159,45 @@ class BrowserTestServerTests(unittest.TestCase):
         for value in ("1023", "65536"):
             with self.assertRaises(Exception):
                 server.parse_port(value)
+
+    def test_stage_messages_are_bounded_and_identify_startup_phases(self):
+        self.assertEqual(
+            server.stage_message("snapshot-preparation", status="start"),
+            "browser-test stage=snapshot-preparation status=start",
+        )
+        self.assertEqual(
+            server.stage_message("port-start", host="127.0.0.1", port=8899),
+            "browser-test stage=port-start host=127.0.0.1 port=8899",
+        )
+        self.assertEqual(
+            server.stage_message("health-ready", url="http://127.0.0.1:8899/api/health"),
+            "browser-test stage=health-ready url=http://127.0.0.1:8899/api/health",
+        )
+        with self.assertRaisesRegex(ValueError, "unsupported browser-test stage"):
+            server.stage_message("outside-loopback")
+
+    def test_loopback_health_probe_accepts_only_the_app_health_route(self):
+        responses = [OSError("not ready"), type("Response", (), {"status": 200, "close": lambda self: None})()]
+        clock_values = iter((0.0, 0.0, 0.1, 0.1, 0.2))
+
+        def opener(url, timeout):
+            response = responses.pop(0)
+            if isinstance(response, Exception):
+                raise response
+            return response
+
+        self.assertTrue(server.wait_for_loopback_health(
+            "http://127.0.0.1:8899/api/health", timeout_seconds=1, opener=opener,
+            sleeper=lambda seconds: None, clock=lambda: next(clock_values),
+        ))
+        with self.assertRaisesRegex(ValueError, "loopback /api/health"):
+            server.wait_for_loopback_health("http://example.test/api/health")
+        with self.assertRaisesRegex(ValueError, "loopback /api/health"):
+            server.wait_for_loopback_health("http://127.0.0.1:8899/not-health")
+
+    def test_default_loopback_health_opener_disables_environment_proxies(self):
+        self.assertIsInstance(server.DIRECT_LOOPBACK_PROXY_HANDLER, ProxyHandler)
+        self.assertEqual(server.DIRECT_LOOPBACK_PROXY_HANDLER.proxies, {})
 
 
 if __name__ == "__main__":

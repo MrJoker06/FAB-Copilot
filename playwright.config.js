@@ -35,5 +35,7 @@ module.exports = defineConfig({
     url: `http://127.0.0.1:${port}/api/health`,
     reuseExistingServer: false,
     timeout: 300_000,
+    stdout: 'pipe',
+    stderr: 'pipe',
   },
 });
