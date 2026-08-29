@@ -11,7 +11,7 @@ from app.answer_synthesizer import SUBMIT_ANALYSIS_TOOL
 from app.domain_playbooks import select_playbook
 from app.intent_router import route_question
 from app.planner import create_execution_plan
-from app.agent_runtime.synthesis.ready import synthesize_ready_assistant
+from app.agent_runtime.synthesis.ready import ready_synthesis_max_tokens, synthesize_ready_assistant
 from app.agent_runtime.synthesis.result import (
     build_ready_model_unavailable_result,
     build_result,
@@ -19,6 +19,22 @@ from app.agent_runtime.synthesis.result import (
 
 
 class AgentSynthesisBoundaryTests(unittest.TestCase):
+    def test_ready_synthesis_token_budget_expands_only_for_deepseek_thinking(self):
+        self.assertEqual(ready_synthesis_max_tokens("deepseek", True), 32768)
+        self.assertEqual(ready_synthesis_max_tokens("deepseek", False), 8192)
+        self.assertEqual(ready_synthesis_max_tokens("openai-compatible", True), 8192)
+
+    def test_ready_request_payload_uses_thinking_budget_only_for_deepseek(self):
+        captured = []
+        async def completion(_client, _endpoint, _headers, payload, _progress, state):
+            captured.append(payload); state["finish_reason"] = "tool_calls"; return {"tool_calls": []}, {}, "r"
+        class Settings: model_retry_base_seconds = 0
+        for provider, thinking in (("deepseek", True), ("deepseek", False), ("openai-compatible", True)):
+            connection = SimpleNamespace(model="m", provider=provider)
+            with patch("app.agent._stream_completion", completion), patch("app.agent.emit"):
+                asyncio.run(agent._request_ready_synthesis(None, "e", {}, connection, Settings(), [], "run", thinking, 0))
+        self.assertEqual([payload["max_tokens"] for payload in captured], [32768, 8192, 8192])
+
     def test_ready_messages_facade_uses_live_synthesizer_patch(self):
         route = route_question("分析 CMP-03 最近7天 Cpk 不合格", current_date=date(2026, 8, 23))
         plan = create_execution_plan("分析 CMP-03 最近7天 Cpk 不合格", route, select_playbook(route))

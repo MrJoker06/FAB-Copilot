@@ -59,6 +59,18 @@ class QualityGateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             run_quality_gate.quality_commands("nightly")
 
+    def test_live_gate_isolated_from_normal_quick_and_full(self):
+        self.assertEqual(run_quality_gate.quality_commands("live"), [["npm", "run", "test:e2e:live"]])
+        self.assertNotIn(["npm", "run", "test:e2e:live"], run_quality_gate.quality_commands("quick"))
+        self.assertNotIn(["npm", "run", "test:e2e:live"], run_quality_gate.quality_commands("full"))
+
+    def test_live_gate_removes_stale_report_before_authorization(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = Path(temporary); stale = runtime / "live_e2e_report.json"; stale.write_text('{"status":"passed"}', encoding="utf-8")
+            with patch.object(run_quality_gate, "RUNTIME_DIR", runtime), self.assertRaises(RuntimeError):
+                run_quality_gate.main(["live"])
+            self.assertFalse(stale.exists())
+
     def test_ast_count_avoids_importing_test_modules(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

@@ -1,0 +1,16 @@
+"use strict";
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const test = require("node:test");
+test("live E2E config remains isolated and explicitly serialized", () => {
+  const config = fs.readFileSync("playwright.live.config.js", "utf8");
+  assert.match(config, /live-provider\\\.spec\\\.js/);
+  assert.match(config, /retries:\s*0/); assert.match(config, /workers:\s*1/);
+  assert.match(config, /FAB_LIVE_E2E_TIMEOUT_MS \|\| 900_000/);
+  assert.match(fs.readFileSync("tests/e2e/live-provider.spec.js", "utf8"), /FAB_LIVE_E2E_TURN_TIMEOUT_MS \|\| 300_000/);
+  assert.match(fs.readFileSync("tests/e2e/live-provider.spec.js", "utf8"), /await response\.text\(\)[\s\S]*Boolean\(response\.request\(\)\.postDataJSON\(\)\.thinking\)/);
+  assert.match(fs.readFileSync("tests/e2e/live-provider.spec.js", "utf8"), /#closeModelDialog[\s\S]*#modelDialog/);
+  assert.match(fs.readFileSync("package.json", "utf8"), /run_live_e2e/);
+  assert.doesNotMatch(config, /webServer:/);
+  assert.match(fs.readFileSync("playwright.config.js", "utf8"), /testIgnore: \/live-provider/);
+});

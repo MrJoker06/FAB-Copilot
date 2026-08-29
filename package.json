@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "scripts": {
     "install:chromium": "playwright install chromium",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:live": "python scripts/run_live_e2e.py"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

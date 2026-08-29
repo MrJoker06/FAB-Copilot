@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import unittest
 from contextlib import ExitStack, contextmanager
@@ -22,12 +23,39 @@ from app.config import ModelConnection, get_settings
 from app.database import db_session
 from app.main import app
 from app.model_compatibility import ModelCompatibilityError
+from app.model_registry import MODEL_CAPABILITY_DEFAULTS
 from app.seed import seed_reference_data
 
 class ModelGovernanceSystemTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         seed_reference_data()
+
+    def setUp(self):
+        """Arrange the disposable catalog baseline required by these contracts.
+
+        The reference database may legitimately advertise capabilities learned
+        from an administrator-authorized compatibility probe.  System tests
+        exercise unsupported-thinking behavior, so they must establish that
+        precondition in their isolated snapshot rather than infer it from the
+        mutable reference catalog.
+        """
+        capabilities = json.dumps(MODEL_CAPABILITY_DEFAULTS, separators=(",", ":"))
+        with db_session() as connection:
+            connection.execute(
+                "UPDATE agent.model_catalog SET status = 'retired' "
+                "WHERE model_id NOT IN ('deepseekv4-flash', 'deepseekv4-pro')"
+            )
+            updated = connection.execute(
+                """UPDATE agent.model_catalog
+                   SET status = 'published', capabilities_json = ?,
+                       compatibility_json = '{}', compatibility_checked_at = NULL
+                   WHERE model_id IN ('deepseekv4-flash', 'deepseekv4-pro')""",
+                (capabilities,),
+            ).rowcount
+            self.assertEqual(updated, 2, "isolated fixture must contain both default catalog models")
+            connection.execute("DELETE FROM agent.user_model_preferences")
+            connection.commit()
 
     def test_model_can_only_be_selected_from_published_catalog(self):
         with TestClient(app) as client:

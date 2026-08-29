@@ -43,6 +43,7 @@ async def stream_completion(
     usage: dict = {}
     finish_reason: str | None = None
     response_id: str | None = None
+    done_received = False
     stream_started = time.perf_counter()
     last_content_at: float | None = None
 
@@ -80,6 +81,7 @@ async def stream_completion(
                 continue
             data = line[5:].strip()
             if data == "[DONE]":
+                done_received = True
                 break
             chunk = json.loads(data)
             response_id = response_id or chunk.get("id")
@@ -149,6 +151,11 @@ async def stream_completion(
                     item["function"]["name"] += function_delta["name"]
                 if function_delta.get("arguments"):
                     item["function"]["arguments"] += function_delta["arguments"]
+    # A transport EOF is not a successful OpenAI-compatible completion.  In
+    # particular, accepting a partial answer here would make callers persist a
+    # response that the provider never completed.
+    if not done_received:
+        raise ValueError("model stream ended before final [DONE]")
     assistant = {"role": "assistant", "content": "".join(content_parts)}
     if tool_parts:
         assistant["tool_calls"] = [tool_parts[index] for index in sorted(tool_parts)]

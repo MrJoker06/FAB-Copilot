@@ -10,6 +10,15 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
 
+READY_SYNTHESIS_MAX_TOKENS = 8192
+DEEPSEEK_THINKING_READY_SYNTHESIS_MAX_TOKENS = 32768
+
+
+def ready_synthesis_max_tokens(provider: str, thinking: bool) -> int:
+    """Reserve enough completion budget for DeepSeek reasoning before submit_analysis."""
+    return DEEPSEEK_THINKING_READY_SYNTHESIS_MAX_TOKENS if provider == "deepseek" and thinking else READY_SYNTHESIS_MAX_TOKENS
+
+
 @dataclass(slots=True)
 class ReadySynthesisDependencies:
     submit_analysis_tool: dict[str, Any]
@@ -172,7 +181,7 @@ async def request_ready_synthesis(
         "messages": messages,
         "temperature": 0.15,
         "tools": [deps.submit_analysis_tool],
-        "max_tokens": 8192,
+        "max_tokens": ready_synthesis_max_tokens(connection.provider, thinking),
         **deps.provider_request_options(connection.provider, thinking),
     }
     if not (connection.provider == "deepseek" and thinking):

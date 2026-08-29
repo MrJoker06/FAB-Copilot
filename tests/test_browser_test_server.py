@@ -67,28 +67,29 @@ class BrowserTestServerTests(unittest.TestCase):
     def test_model_capability_fixture_only_updates_the_temporary_agent_snapshot(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "isolated"
+            reference = server.REFERENCE_DEPARTMENTS / "ai_operations.db"
+            with closing(sqlite3.connect(reference)) as connection:
+                before_reference_rows = connection.execute(
+                    "SELECT model_id, capabilities_json FROM model_catalog WHERE model_id IN (?, ?) ORDER BY model_id",
+                    tuple(server.BROWSER_TEST_MODEL_CAPABILITIES),
+                ).fetchall()
             environment = server.browser_test_environment(root, {})
             snapshot = Path(environment["FAB_AGENT_DATABASE_PATH"])
-            reference = server.REFERENCE_DEPARTMENTS / "ai_operations.db"
             with closing(sqlite3.connect(snapshot)) as connection:
                 capabilities = dict(connection.execute(
                     "SELECT model_id, capabilities_json FROM model_catalog WHERE model_id IN (?, ?)",
                     tuple(server.BROWSER_TEST_MODEL_CAPABILITIES),
                 ))
             with closing(sqlite3.connect(reference)) as connection:
-                reference_capabilities = dict(connection.execute(
-                    "SELECT model_id, capabilities_json FROM model_catalog WHERE model_id IN (?, ?)",
+                after_reference_rows = connection.execute(
+                    "SELECT model_id, capabilities_json FROM model_catalog WHERE model_id IN (?, ?) ORDER BY model_id",
                     tuple(server.BROWSER_TEST_MODEL_CAPABILITIES),
-                ))
+                ).fetchall()
             self.assertEqual(
                 {model_id: json.loads(value) for model_id, value in capabilities.items()},
                 server.BROWSER_TEST_MODEL_CAPABILITIES,
             )
-            self.assertNotEqual(
-                capabilities["deepseekv4-pro"],
-                reference_capabilities["deepseekv4-pro"],
-            )
-            self.assertEqual(json.loads(reference_capabilities["deepseekv4-pro"])["thinking"], False)
+            self.assertEqual(after_reference_rows, before_reference_rows)
 
     def test_visual_fixtures_only_update_temporary_agent_and_knowledge_snapshots(self):
         with tempfile.TemporaryDirectory() as temporary:

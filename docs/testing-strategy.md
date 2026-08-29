@@ -93,6 +93,8 @@ python scripts/run_quality_gate.py full
 
 2026-08-29 `QA-005` 宿主 full 实测全通过：发现 455 个 Python 测试，其中 387 个非系统测试；系统模块分别为数据报表 13、HTTP/企业契约 15、知识与个人上传 13、模型治理 17、会话与流式 10；`app` 分支覆盖率 88%，Node 契约文件 15/15、RAG 15/15、OCR 黄金集 8/8、Playbook 12/12、Ready 基准 3/3、Trace 回放 7/7、Playwright 桌面 10/10。系统模块耗时依次为 16.9、14.8、16.3、13.9、16.2 秒，总计 78.2 秒，全部低于版本化预算；Playwright 通过管道输出快照准备、端口启动和真实 loopback 健康成功阶段，10 条稳定 ID 用例在 30.1 秒内通过且无未声明浏览器失败。
 
+2026-08-29 `QA-006` 已完成双通道验证：宿主 full 发现 471 个 Python、403 个非系统测试；系统模块依次为 13、15、13、17、10，耗时依次为 12.5、13.4、15.8、13.6、15.9 秒，总计 71.2 秒且低于预算，`app` 覆盖率 88%，Node 42/42、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、确定性 Playwright 10/10（28.9 秒）。Loopback 协议夹具覆盖 429、500、非法 JSON/SSE、首正文超时、截断 partial response 与 graceful 缺失 `[DONE]`。浏览器和模型治理测试均显式安排隔离模型目录基线，不依赖可变的 Admin 参考状态。`deepseekv4-pro` 真实兼容性于 2026-08-29T05:52:38.410+00:00 通过（12556.2ms；connectivity_streaming、tool_calls、context_load、structured_context、thinking_answer、thinking_tool_roundtrip、limits；context_chars=32768）。授权 Chromium `LIVE_PROVIDER` 五轮矩阵 5/5 通过：provider=deepseek、provider_model=deepseek-v4-pro、calls=9、input/output=66859/22083、313235.3ms、fallback/degraded=0，报告未保存正文、密钥或隐藏推理。
+
 ## 托管 CI
 
 `.github/workflows/quality.yml` 在 `experiment/parallel-platform` 的 push、PR 和手动触发时，在固定 Ubuntu 24.04 上使用 Python 3.11、Node 22 执行完整门。视觉回归显式安装 `fonts-noto-core` 和 `fonts-noto-cjk`，避免 Hosted Runner 镜像字体变化被误判为页面回归。CI 只允许在 `CI=true` 时运行 `scripts/prepare_ci_data.py`：它拒绝已存在的部门库，生成固定 730 天、截至 2026-12-25 的合成数据，补齐默认模型目录后再执行治理检查。因此不会读取本地开发数据，不会调用真实模型、Oracle 或生产端点。

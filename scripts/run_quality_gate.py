@@ -151,8 +151,12 @@ def run_system_tests(environment: dict[str, str], *, runner=subprocess.run, cloc
 
 
 def quality_commands(mode: str) -> list[list[str]]:
-    if mode not in {"quick", "full"}:
+    if mode not in {"quick", "full", "live"}:
         raise ValueError(f"unsupported quality gate mode: {mode}")
+    if mode == "live":
+        # Live is deliberately not composed from the normal gate: it is a
+        # manually authorized external-provider operation.
+        return [["npm", "run", "test:e2e:live"]]
     node_tests = sorted(TEST_DIR.glob("*.test.js"))
     static_scripts = sorted((PROJECT_DIR / "app" / "static").glob("*.js"))
     commands: list[list[str]] = []
@@ -188,8 +192,17 @@ def run_commands(commands: Iterable[list[str]], environment: dict[str, str] | No
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("quick", "full"))
+    parser.add_argument("mode", choices=("quick", "full", "live"))
     args = parser.parse_args(argv)
+    if args.mode == "live":
+        (RUNTIME_DIR / "live_e2e_report.json").unlink(missing_ok=True)
+        try:
+            from live_e2e import require_live_authorization
+        except ModuleNotFoundError:
+            from scripts.live_e2e import require_live_authorization
+        require_live_authorization()
+        run_commands(quality_commands("live"), os.environ.copy())
+        return 0
     test_count = count_python_tests()
     if test_count < MIN_PYTHON_TESTS:
         raise SystemExit(f"quality gate rejected {test_count} Python tests; expected at least {MIN_PYTHON_TESTS}")
