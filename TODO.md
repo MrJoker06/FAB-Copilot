@@ -1,14 +1,14 @@
 # Fab Insight Agent TODO
 
-状态基线：`experiment/parallel-platform`，2026-08-29。
+状态基线：`experiment/parallel-platform`，2026-08-30。
 
-当前统计：共 203 个独立任务，已完成 144 个，待做 59 个。
+当前统计：共 203 个独立任务，已完成 145 个，待做 58 个。
 
 另有 2 项 `OPTIONAL` 可选候选，不计入上述主统计。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
-当前结论：`QA-006` 已完成管理员授权的真实 Provider 与本地协议夹具双通道 E2E；`deepseekv4-pro` 的兼容性与五轮 `LIVE_PROVIDER` 矩阵均已通过，且报告未包含正文、密钥或隐藏推理。当前从 `QA-007` 继续补齐个人知识/管理端/Session 关键旅程与双通道 CI，再继续 `REF-009` 至 `REF-021`。剩余 59 项中，当前队列 17 项、用户暂缓 1 项、企业级暂缓 41 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
+当前结论：`QA-007` 已完成个人知识确定性与管理员授权真实 Provider E2E；六轮 `LIVE_PROVIDER` 矩阵均成功，报告保持 metadata-only，未包含正文、密钥或隐藏推理。当前从 `QA-008` 继续补齐管理端/Session 关键旅程与双通道 CI，再继续 `REF-009` 至 `REF-021`。剩余 58 项中，当前队列 16 项、用户暂缓 1 项、企业级暂缓 41 项；详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
 
 ## 标记规则
 
@@ -23,12 +23,12 @@
 
 | 类型 | 任务 | 当前结论 |
 |---|---|---|
-| 当前队列 | `QA-007` 至 `QA-010`，随后 `REF-009` 至 `REF-021` | 先补齐关键业务双通道 E2E，再依次拆分 Agent、API、桌面前端和个人知识后端，最后只读审计第二梯队 |
+| 当前队列 | `QA-008` 至 `QA-010`，随后 `REF-009` 至 `REF-021` | 先补齐关键业务双通道 E2E，再依次拆分 Agent、API、桌面前端和个人知识后端，最后只读审计第二梯队 |
 | 用户暂缓 | `UX-029` | 移动端需求暂不进入当前队列 |
 | 企业级暂缓 | 41 项 | 等待身份提供方、真实数据接口、部署环境和运维边界明确 |
 | 可选候选 | `RAG-024`、`AGENT-039` `OPTIONAL` | 不计入主统计，只在用户明确激活后排期 |
 
-最近一次完整质量门为 2026-08-29 `QA-006` 宿主 full：471 个 Python 发现项、403 个非系统测试，系统数据 13、HTTP 15、知识 13、模型 17、会话 10，耗时依次为 12.5、13.4、15.8、13.6、15.9 秒（总计 71.2 秒），分支覆盖率 88%、Node 42/42、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、确定性 Playwright 10/10（28.9 秒）；全部低于预算。完整基线见 [测试策略](docs/testing-strategy.md)。
+最近一次完整质量门为 2026-08-30 `QA-007` 宿主 full：471 个 Python 发现项、403 个非系统测试，系统数据 13、HTTP 15、知识 13、模型 17、会话 10，耗时依次为 25.2、20.4、21.2、17.5、21.4 秒（总计 105.6 秒），分支覆盖率 88%、Node 42/42、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、确定性 Playwright 12/12（36.7 秒）；全部低于预算。完整基线见 [测试策略](docs/testing-strategy.md)。
 
 ## 工作流清单
 
@@ -42,7 +42,7 @@
 | 日志与运行监控 | [可观测性 TODO](docs/todos/observability.md) | 单实例监控、端到端流式聚合诊断、上下文降级可观测性、消息持久化关联、完整日志到期治理、Trace 语义治理与 `QA-004` 脱敏回放均已完成 |
 | 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 桌面端关键工作流、无障碍治理和视觉回归已完成；移动端 `UX-029` 由用户暂缓 |
 | 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接、运行快照治理和受保护的远程 CI 质量门已完成；其余项均为企业级暂缓 |
-| 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 至 QA-006 已完成；QA-007 至 QA-010 当前排期补齐关键业务闭环和双通道 CI |
+| 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 至 QA-007 已完成；QA-008 至 QA-010 当前排期补齐关键业务闭环和双通道 CI |
 | 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 至 REF-008 已完成；REF-009 至 REF-021 在 QA-010 双通道 E2E 门完成后继续，按 Agent、API、桌面前端、个人知识后端和第二梯队审计串行执行 |
 
 ## 更新要求

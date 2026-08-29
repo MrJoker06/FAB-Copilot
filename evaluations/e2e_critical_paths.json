@@ -11,6 +11,8 @@
     {"id": "E2E-VISUAL-002", "spec": "desktop-visual.spec.js"},
     {"id": "E2E-WORKFLOW-001", "spec": "desktop-workflows.spec.js"},
     {"id": "E2E-WORKFLOW-002", "spec": "desktop-workflows.spec.js"},
-    {"id": "E2E-WORKFLOW-003", "spec": "desktop-workflows.spec.js"}
+    {"id": "E2E-WORKFLOW-003", "spec": "desktop-workflows.spec.js"},
+    {"id": "E2E-KNOWLEDGE-001", "spec": "personal-knowledge.spec.js"},
+    {"id": "E2E-KNOWLEDGE-002", "spec": "personal-knowledge.spec.js"}
   ]
 }

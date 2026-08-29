@@ -19,7 +19,7 @@ except ModuleNotFoundError:  # importable from unittest as scripts.run_live_e2e
     from scripts.run_live_browser_test_server import _metadata, is_secret_environment_name
 
 LIVE_REPORT_PATH = PROJECT_DIR / "runtime" / "quality" / "live_e2e_report.json"
-EXPECTED_LIVE_RUN_COUNT = 5
+EXPECTED_LIVE_RUN_COUNT = 6
 
 
 def browser_environment(environ: dict[str, str], port: int) -> dict[str, str]:
@@ -30,7 +30,7 @@ def browser_environment(environ: dict[str, str], port: int) -> dict[str, str]:
 
 
 def live_matrix_passes(report: dict, model_calls: list[dict], browser_returncode: int) -> bool:
-    """A retry may fail, but each of the five completed traces must recover."""
+    """A retry may fail, but every completed live trace must recover."""
     successful_traces = {str(call.get("trace_id") or "") for call in model_calls if call.get("status") == "success"}
     runs = report["runs"]
     return (

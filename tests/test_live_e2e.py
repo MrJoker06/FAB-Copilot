@@ -13,7 +13,7 @@ import httpx
 from app.model_streaming import stream_completion
 from scripts.live_e2e import enforce_live_bounds, load_live_catalog_model, require_live_authorization, sanitized_live_report, scan_isolated_artifacts, write_sanitized_report
 from scripts.local_openai_protocol_fixture import LocalOpenAIProtocolFixture, fixture_report
-from scripts.run_live_e2e import browser_environment, collect_parent_owned_metadata, finalize_report, live_matrix_passes
+from scripts.run_live_e2e import EXPECTED_LIVE_RUN_COUNT, browser_environment, collect_parent_owned_metadata, finalize_report, live_matrix_passes
 from scripts.run_live_browser_test_server import live_browser_environment, live_retry_settings, merge_live_events
 
 
@@ -91,10 +91,11 @@ class LiveE2ETests(unittest.TestCase):
             self.assertTrue(report.is_file())
 
     def test_live_matrix_allows_recovered_attempt_but_rejects_terminal_or_missing_trace_success(self):
-        runs = [{"trace_id": f"run-{index}", "status": "success"} for index in range(5)]
-        report = sanitized_live_report({"model_id": "live", "provider_model": "provider"}, runs, time.monotonic(), status="passed", model_calls=[{"trace_id": "run-1", "status": "error"}, *[{"trace_id": f"run-{index}", "status": "success"} for index in range(5)]])
+        self.assertEqual(EXPECTED_LIVE_RUN_COUNT, 6)
+        runs = [{"trace_id": f"run-{index}", "status": "success"} for index in range(6)]
+        report = sanitized_live_report({"model_id": "live", "provider_model": "provider"}, runs, time.monotonic(), status="passed", model_calls=[{"trace_id": "run-1", "status": "error"}, *[{"trace_id": f"run-{index}", "status": "success"} for index in range(6)]])
         self.assertTrue(live_matrix_passes(report, report["model_calls"], 0))
-        terminal = sanitized_live_report({"model_id": "live", "provider_model": "provider"}, runs, time.monotonic(), status="passed", model_calls=[{"trace_id": f"run-{index}", "status": "success"} for index in range(4)] + [{"trace_id": "run-4", "status": "error"}])
+        terminal = sanitized_live_report({"model_id": "live", "provider_model": "provider"}, runs, time.monotonic(), status="passed", model_calls=[{"trace_id": f"run-{index}", "status": "success"} for index in range(5)] + [{"trace_id": "run-5", "status": "error"}])
         self.assertFalse(live_matrix_passes(terminal, terminal["model_calls"], 0))
         self.assertFalse(live_matrix_passes(report, report["model_calls"], 1))
 
@@ -131,8 +132,12 @@ class LiveE2ETests(unittest.TestCase):
         self.assertEqual(environment["FAB_MODEL_API_KEY"], "secret")
         self.assertEqual((environment["MODEL_MAX_RETRIES"], environment["MODEL_RETRY_BASE_MS"]), ("4", "1000"))
         self.assertNotIn("DEEPSEEK_API_KEY", environment); self.assertNotIn("FAB_ADMIN_API_TOKEN", environment)
+        self.assertNotIn("FAB_PERSONAL_KNOWLEDGE_API_TOKEN", environment)
         self.assertNotIn("other_api_key", environment); self.assertNotIn("custom_Token", environment)
         self.assertNotIn("API_KEY", environment); self.assertNotIn("token", environment)
+        self.assertEqual(environment["FAB_DEFAULT_TENANT_ID"], "live-provider-e2e")
+        self.assertEqual(environment["FAB_DEFAULT_USER_ID"], "live-provider-e2e-user")
+        self.assertTrue(Path(environment["FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH"]).is_relative_to(Path(temporary)))
 
     def test_parent_owned_root_collects_model_metadata_without_graceful_shutdown(self):
         with tempfile.TemporaryDirectory() as temporary:

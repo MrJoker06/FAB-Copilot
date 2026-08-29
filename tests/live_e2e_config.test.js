@@ -8,6 +8,8 @@ test("live E2E config remains isolated and explicitly serialized", () => {
   assert.match(config, /retries:\s*0/); assert.match(config, /workers:\s*1/);
   assert.match(config, /FAB_LIVE_E2E_TIMEOUT_MS \|\| 900_000/);
   assert.match(fs.readFileSync("tests/e2e/live-provider.spec.js", "utf8"), /FAB_LIVE_E2E_TURN_TIMEOUT_MS \|\| 300_000/);
+  assert.match(fs.readFileSync("tests/e2e/live-provider.spec.js", "utf8"), /LIVE-PROVIDER-002/);
+  assert.match(fs.readFileSync("scripts/run_live_e2e.py", "utf8"), /EXPECTED_LIVE_RUN_COUNT = 6/);
   assert.match(fs.readFileSync("tests/e2e/live-provider.spec.js", "utf8"), /await response\.text\(\)[\s\S]*Boolean\(response\.request\(\)\.postDataJSON\(\)\.thinking\)/);
   assert.match(fs.readFileSync("tests/e2e/live-provider.spec.js", "utf8"), /#closeModelDialog[\s\S]*#modelDialog/);
   assert.match(fs.readFileSync("package.json", "utf8"), /run_live_e2e/);
