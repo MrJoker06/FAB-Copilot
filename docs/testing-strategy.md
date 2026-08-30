@@ -106,3 +106,9 @@ python scripts/run_quality_gate.py full
 ## 完整审计触发条件
 
 在发布或打标签前必须运行完整审计；以下变更也必须触发：依赖或 Python/FastAPI/SQLite 升级、Schema/API/认证/RAG/流式链路重大变化，或上次审计后累计约 5 个 feature/fix 任务。
+
+## QA-008 基线（2026-08-30）
+
+宿主 full 发现 473 个 Python 测试，其中 405 个非系统测试；系统模块数据报表、HTTP/企业契约、知识与个人上传、模型治理、会话与流式分别为 13/15/13/17/10，耗时 13.1/17.7/18.6/23.6/36.8 秒，总计 109.9 秒，全部低于预算。`app` 分支覆盖率 88%，Node 42/42、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、确定性 Playwright 14/14（39.8 秒）；普通 full 的真实模型和外网调用均为 0。
+
+确定性管理治理覆盖实际令牌表单的错误/正确/登出/真实 401 重锁、临时模型发布与严格四能力、能力变更失效、成功及非法参数/图片拒绝/上游不可用分类、兼容性时间/健康/Trace、用户可见性和 Thinking 同步、停用/重新发布；无 `sessionStorage` bypass，Key 不进浏览器或数据库，HTML pattern `/v` 修复由浏览器原生合法/非法校验覆盖。稳定 E2E ID 总数 14。最终授权 Live 三个浏览器场景 3/3：provider=deepseek、provider_model=deepseek-v4-pro、model_id=deepseekv4-pro、runs=7 全部 success、real calls=22、input/output=72515/19433、duration=338309.0ms、fallback/degraded=0；报告 metadata-only，不含正文、请求体、Key 或隐藏推理。4 次短暂 ConnectError 由重试恢复，最终未降级。

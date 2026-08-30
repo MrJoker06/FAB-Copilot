@@ -72,7 +72,7 @@
       <div class="dialog-heading"><div><p class="admin-eyebrow">PUBLISH MODEL</p><h2 id="publishModelDialogTitle">发布新模型</h2></div><button id="closePublishModel" class="icon-button" type="button" aria-label="关闭">×</button></div>
       <div class="dialog-body model-form-grid">
         <label><span>显示名称</span><input id="publishDisplayName" type="text" maxlength="100" required></label>
-        <label><span>模型编号</span><input id="publishModelId" type="text" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9_.-]+" required></label>
+        <label><span>模型编号</span><input id="publishModelId" type="text" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]+" required></label>
         <label><span>提供方</span><select id="publishProvider"><option value="deepseek">DeepSeek</option><option value="openai-compatible">OpenAI Compatible</option></select></label>
         <label><span>提供方模型</span><input id="publishProviderModel" type="text" maxlength="120" required></label>
         <label class="full-field"><span>API Base URL</span><input id="publishBaseUrl" type="url" maxlength="500" value="https://api.deepseek.com" required></label>

@@ -27,6 +27,7 @@ DEPARTMENT_DATABASES = {
     "FAB_AGENT_DATABASE_PATH": "ai_operations.db",
 }
 BROWSER_TEST_ADMIN_TOKEN = "browser-test-admin-token"
+BROWSER_TEST_FIXTURE_KEY = "browser-test-fixture-key"
 DEFAULT_PORT = 8899
 BROWSER_TEST_MODEL_CAPABILITIES = {
     "deepseekv4-flash": {"streaming": True, "tool_calls": True, "thinking": False, "native_multimodal": False},
@@ -235,6 +236,34 @@ def parse_port(value: str) -> int:
     return port
 
 
+def compatibility_fixture_port(app_port: int) -> int:
+    """Reserve the adjacent loopback port without wrapping beyond TCP bounds."""
+    if app_port >= 65535:
+        raise ValueError("browser-test app port must leave room for the compatibility fixture")
+    return app_port + 1
+
+
+def scan_browser_test_artifacts(root: Path) -> None:
+    """Fail closed if the server-only deterministic fixture key reaches disk."""
+    needle = BROWSER_TEST_FIXTURE_KEY.encode()
+    for path in root.rglob("*"):
+        if path.is_file() and needle in path.read_bytes():
+            raise RuntimeError("browser-test fixture key leaked into isolated artifacts")
+
+
+def install_browser_test_compatibility_key() -> None:
+    """Inject the dummy key only into the disposable server's probe connection."""
+    import app.main as main
+    from app.config import ModelConnection
+    original = main.check_model_compatibility
+
+    async def probe(connection, capabilities, **kwargs):
+        fixture_connection = ModelConnection(connection.provider, BROWSER_TEST_FIXTURE_KEY, connection.base_url, connection.model)
+        return await original(fixture_connection, capabilities, **kwargs)
+
+    main.check_model_compatibility = probe
+
+
 def stage_message(stage: str, **fields: str | int) -> str:
     """Format concise lifecycle diagnostics consumed by local Playwright runs."""
     if stage not in {"snapshot-preparation", "port-start", "health-ready", "health-failed"}:
@@ -308,14 +337,20 @@ def main(argv: list[str] | None = None) -> int:
     temporary = Path(tempfile.mkdtemp(prefix="fab-insight-browser-"))
     try:
         print(stage_message("snapshot-preparation", status="start", root=temporary), flush=True)
-        environment = browser_test_environment(temporary)
-        print(stage_message("snapshot-preparation", status="ready", root=temporary), flush=True)
-        os.environ.clear()
-        os.environ.update(environment)
-        os.chdir(PROJECT_DIR)
-        print(stage_message("port-start", host="127.0.0.1", port=args.port), flush=True)
-        run_server(args.port)
+        from local_openai_protocol_fixture import LocalOpenAIProtocolFixture
+        with LocalOpenAIProtocolFixture("compatibility", compatibility_fixture_port(args.port)) as fixture:
+            environment = browser_test_environment(temporary)
+            environment["FAB_BROWSER_TEST_COMPATIBILITY_BASE_URL"] = fixture.base_url
+            print(stage_message("snapshot-preparation", status="ready", root=temporary), flush=True)
+            os.environ.clear()
+            os.environ.update(environment)
+            os.chdir(PROJECT_DIR)
+            install_browser_test_compatibility_key()
+            print(stage_message("port-start", host="127.0.0.1", port=args.port), flush=True)
+            run_server(args.port)
     finally:
+        if temporary.exists():
+            scan_browser_test_artifacts(temporary)
         shutil.rmtree(temporary, ignore_errors=True)
     return 0
 

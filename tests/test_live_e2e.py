@@ -14,7 +14,7 @@ from app.model_streaming import stream_completion
 from scripts.live_e2e import enforce_live_bounds, load_live_catalog_model, require_live_authorization, sanitized_live_report, scan_isolated_artifacts, write_sanitized_report
 from scripts.local_openai_protocol_fixture import LocalOpenAIProtocolFixture, fixture_report
 from scripts.run_live_e2e import EXPECTED_LIVE_RUN_COUNT, browser_environment, collect_parent_owned_metadata, finalize_report, live_matrix_passes
-from scripts.run_live_browser_test_server import live_browser_environment, live_retry_settings, merge_live_events
+from scripts.run_live_browser_test_server import LIVE_BROWSER_ADMIN_TOKEN, live_browser_environment, live_retry_settings, merge_live_events
 
 
 async def _notify(_progress, _event): pass
@@ -66,6 +66,18 @@ class LiveE2ETests(unittest.TestCase):
                         await stream_completion(client, fixture.url, {}, {"model":"fixture","messages":[]}, None, notify=_notify, disclosure_checker=lambda _: False)
         asyncio.run(run())
 
+    def test_loopback_fixture_selects_bounded_probe_failures_by_request_path(self):
+        with LocalOpenAIProtocolFixture("compatibility") as fixture, httpx.Client() as client:
+            invalid = client.post(f"{fixture.scenario_base_url('invalid_tool')}/chat/completions", json={"messages": [], "tools": [{"type": "function"}]})
+            image = client.post(f"{fixture.scenario_base_url('image_rejected')}/chat/completions", json={"messages": [{"content": [{"type": "image_url"}]}]})
+            unavailable = client.post(f"{fixture.scenario_base_url('upstream_unavailable')}/chat/completions", json={"messages": []})
+        self.assertEqual(invalid.status_code, 200)
+        self.assertIn('\\"ok\\":false', invalid.text)
+        self.assertEqual(image.status_code, 422)
+        self.assertEqual(unavailable.status_code, 500)
+        with self.assertRaisesRegex(ValueError, "unsupported"):
+            fixture.scenario_base_url("external")
+
     def test_leakage_scan_rejects_planted_secret_and_reasoning_content(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); (root / "event.json").write_text('{"reasoning_content":"hidden"}', encoding="utf-8")
@@ -91,11 +103,11 @@ class LiveE2ETests(unittest.TestCase):
             self.assertTrue(report.is_file())
 
     def test_live_matrix_allows_recovered_attempt_but_rejects_terminal_or_missing_trace_success(self):
-        self.assertEqual(EXPECTED_LIVE_RUN_COUNT, 6)
-        runs = [{"trace_id": f"run-{index}", "status": "success"} for index in range(6)]
-        report = sanitized_live_report({"model_id": "live", "provider_model": "provider"}, runs, time.monotonic(), status="passed", model_calls=[{"trace_id": "run-1", "status": "error"}, *[{"trace_id": f"run-{index}", "status": "success"} for index in range(6)]])
+        self.assertEqual(EXPECTED_LIVE_RUN_COUNT, 7)
+        runs = [{"trace_id": f"run-{index}", "status": "success"} for index in range(7)]
+        report = sanitized_live_report({"model_id": "live", "provider_model": "provider"}, runs, time.monotonic(), status="passed", model_calls=[{"trace_id": "run-1", "status": "error"}, *[{"trace_id": f"run-{index}", "status": "success"} for index in range(7)]])
         self.assertTrue(live_matrix_passes(report, report["model_calls"], 0))
-        terminal = sanitized_live_report({"model_id": "live", "provider_model": "provider"}, runs, time.monotonic(), status="passed", model_calls=[{"trace_id": f"run-{index}", "status": "success"} for index in range(5)] + [{"trace_id": "run-5", "status": "error"}])
+        terminal = sanitized_live_report({"model_id": "live", "provider_model": "provider"}, runs, time.monotonic(), status="passed", model_calls=[{"trace_id": f"run-{index}", "status": "success"} for index in range(6)] + [{"trace_id": "run-6", "status": "error"}])
         self.assertFalse(live_matrix_passes(terminal, terminal["model_calls"], 0))
         self.assertFalse(live_matrix_passes(report, report["model_calls"], 1))
 
@@ -103,13 +115,17 @@ class LiveE2ETests(unittest.TestCase):
         runs, calls = merge_live_events([
             {"event": "agent_run_finished", "run_id": "live-1", "status": "success"},
             {"event": "model_call_finished", "run_id": "live-1", "status": "success", "phase": "synthesis", "attempt": 2},
+            {"event": "model_compatibility_checked", "run_id": "probe-1", "status": "success", "checks": ["connectivity_streaming", "tool_calls", "context_load", "structured_context", "thinking_answer", "thinking_tool_roundtrip", "limits"]},
             {"event": "model_local_fallback_activated", "run_id": "live-1"},
             {"event": "agent_run_finished", "run_id": "live-2", "status": "success", "degraded": True},
         ])
         self.assertEqual({item["trace_id"] for item in runs}, {"live-1", "live-2"})
         self.assertEqual(len(runs), 2); self.assertTrue(next(item for item in runs if item["trace_id"] == "live-1")["fallback"])
-        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(calls), 7)
         self.assertEqual(calls[0]["attempt"], 2)
+        self.assertEqual(calls[1:], [{"status": "success", "phase": "compatibility", "trace_id": "probe-1"}] * 6)
+        _, native_calls = merge_live_events([{"event": "model_compatibility_checked", "run_id": "probe-native", "status": "success", "checks": ["connectivity_streaming", "tool_calls", "context_load", "structured_context", "thinking_answer", "thinking_tool_roundtrip", "native_multimodal", "limits"]}])
+        self.assertEqual(native_calls, [{"status": "success", "phase": "compatibility", "trace_id": "probe-native"}] * 7)
 
     def test_live_retry_defaults_overrides_and_safe_attempt_diagnostics(self):
         self.assertEqual(live_retry_settings({}), (4, 1000))
@@ -131,7 +147,9 @@ class LiveE2ETests(unittest.TestCase):
             environment = live_browser_environment(Path(temporary), {"FAB_LIVE_E2E_AUTHORIZED": "true", "FAB_LIVE_MODEL_ID": "live", "DEEPSEEK_API_KEY": "secret", "other_api_key": "lower-secret", "custom_Token": "mixed-secret", "API_KEY": "bare-key", "token": "bare-token", "FAB_ADMIN_API_TOKEN": "admin", "FAB_PERSONAL_KNOWLEDGE_API_TOKEN": "personal"})
         self.assertEqual(environment["FAB_MODEL_API_KEY"], "secret")
         self.assertEqual((environment["MODEL_MAX_RETRIES"], environment["MODEL_RETRY_BASE_MS"]), ("4", "1000"))
-        self.assertNotIn("DEEPSEEK_API_KEY", environment); self.assertNotIn("FAB_ADMIN_API_TOKEN", environment)
+        self.assertNotIn("DEEPSEEK_API_KEY", environment)
+        self.assertEqual(environment["FAB_ADMIN_API_TOKEN"], LIVE_BROWSER_ADMIN_TOKEN)
+        self.assertNotEqual(environment["FAB_ADMIN_API_TOKEN"], "admin")
         self.assertNotIn("FAB_PERSONAL_KNOWLEDGE_API_TOKEN", environment)
         self.assertNotIn("other_api_key", environment); self.assertNotIn("custom_Token", environment)
         self.assertNotIn("API_KEY", environment); self.assertNotIn("token", environment)

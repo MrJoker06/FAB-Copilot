@@ -4,7 +4,7 @@ const port = Number(process.env.PLAYWRIGHT_PORT || 8899);
 
 module.exports = defineConfig({
   testDir: './tests/e2e',
-  testIgnore: /live-provider\.spec\.js$/,
+  testIgnore: /live-(?:provider|admin-governance)\.spec\.js$/,
   timeout: 30_000,
   forbidOnly: !!process.env.CI,
   retries: 0,

@@ -160,6 +160,18 @@ class BrowserTestServerTests(unittest.TestCase):
         for value in ("1023", "65536"):
             with self.assertRaises(Exception):
                 server.parse_port(value)
+        self.assertEqual(server.compatibility_fixture_port(8899), 8900)
+        with self.assertRaisesRegex(ValueError, "leave room"):
+            server.compatibility_fixture_port(65535)
+
+    def test_fixture_key_cannot_persist_in_browser_test_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "safe.json").write_text('{"status":"ok"}', encoding="utf-8")
+            server.scan_browser_test_artifacts(root)
+            (root / "leak.log").write_text(server.BROWSER_TEST_FIXTURE_KEY, encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "fixture key leaked"):
+                server.scan_browser_test_artifacts(root)
 
     def test_stage_messages_are_bounded_and_identify_startup_phases(self):
         self.assertEqual(

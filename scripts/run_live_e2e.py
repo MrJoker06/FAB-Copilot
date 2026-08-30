@@ -19,7 +19,7 @@ except ModuleNotFoundError:  # importable from unittest as scripts.run_live_e2e
     from scripts.run_live_browser_test_server import _metadata, is_secret_environment_name
 
 LIVE_REPORT_PATH = PROJECT_DIR / "runtime" / "quality" / "live_e2e_report.json"
-EXPECTED_LIVE_RUN_COUNT = 6
+EXPECTED_LIVE_RUN_COUNT = 7
 
 
 def browser_environment(environ: dict[str, str], port: int) -> dict[str, str]:

@@ -28,6 +28,7 @@ _EXACT_SECRET_ENVIRONMENT_NAMES = frozenset({
     "FAB_PERSONAL_KNOWLEDGE_API_TOKEN",
 })
 _SECRET_ENVIRONMENT_SUFFIXES = ("_API_KEY", "_TOKEN", "_SECRET", "_PASSWORD")
+LIVE_BROWSER_ADMIN_TOKEN = "live-browser-admin-token"
 
 
 def is_secret_environment_name(name: str) -> bool:
@@ -47,7 +48,7 @@ def live_browser_environment(root: Path, environ: dict[str, str] | None = None) 
     key = environment.get("FAB_MODEL_API_KEY") or environment.get("DEEPSEEK_API_KEY") or ""
     safe = {name: value for name, value in environment.items() if not is_secret_environment_name(name)}
     retries, retry_base_ms = live_retry_settings(environment)
-    safe.update({"FAB_DATABASE_DIR": str(departments), "FAB_DATABASE_PATH": str(root / "legacy.db"), **{key: str(value) for key, value in snapshots.items()}, "FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH": str(root / "personal_knowledge"), "FAB_INSTANCE_ID": "live-provider-e2e", "FAB_INSTANCE_ROOT": str(root), "FAB_SOURCE_ROOT": str(PROJECT_DIR), "FAB_WORKSPACE_ENV_FILE": str(root / "missing-workspace.env"), "FAB_PROJECT_ENV_FILE": str(root / "missing-project.env"), "FAB_REQUIRE_IDENTITY": "false", "FAB_DEFAULT_TENANT_ID": "live-provider-e2e", "FAB_DEFAULT_USER_ID": "live-provider-e2e-user", "FAB_DATA_PROVIDER": "synthetic", "FAB_MODEL_PROVIDER": model["provider"], "FAB_MODEL_NAME": model["provider_model"], "FAB_MODEL_BASE_URL": model["base_url"], "FAB_MODEL_API_KEY": key, "MODEL_MAX_RETRIES": str(retries), "MODEL_RETRY_BASE_MS": str(retry_base_ms), "AGENT_LOG_CONTENT": "metadata", "AGENT_LOG_PATH": str(root / "agent_events.jsonl"), "AGENT_RUN_LOG_DIR": str(root / "agent_runs"), "FAB_LIVE_E2E_MODEL_ID": model["model_id"]})
+    safe.update({"FAB_DATABASE_DIR": str(departments), "FAB_DATABASE_PATH": str(root / "legacy.db"), **{key: str(value) for key, value in snapshots.items()}, "FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH": str(root / "personal_knowledge"), "FAB_INSTANCE_ID": "live-provider-e2e", "FAB_INSTANCE_ROOT": str(root), "FAB_SOURCE_ROOT": str(PROJECT_DIR), "FAB_WORKSPACE_ENV_FILE": str(root / "missing-workspace.env"), "FAB_PROJECT_ENV_FILE": str(root / "missing-project.env"), "FAB_REQUIRE_IDENTITY": "false", "FAB_DEFAULT_TENANT_ID": "live-provider-e2e", "FAB_DEFAULT_USER_ID": "live-provider-e2e-user", "FAB_DATA_PROVIDER": "synthetic", "FAB_MODEL_PROVIDER": model["provider"], "FAB_MODEL_NAME": model["provider_model"], "FAB_MODEL_BASE_URL": model["base_url"], "FAB_MODEL_API_KEY": key, "FAB_ADMIN_API_TOKEN": LIVE_BROWSER_ADMIN_TOKEN, "MODEL_MAX_RETRIES": str(retries), "MODEL_RETRY_BASE_MS": str(retry_base_ms), "AGENT_LOG_CONTENT": "metadata", "AGENT_LOG_PATH": str(root / "agent_events.jsonl"), "AGENT_RUN_LOG_DIR": str(root / "agent_runs"), "FAB_LIVE_E2E_MODEL_ID": model["model_id"]})
     return safe
 
 
@@ -69,6 +70,9 @@ def merge_live_events(events: list[dict]) -> tuple[list[dict], list[dict]]:
     for event in events:
         run_id = str(event.get("run_id") or "")
         if not run_id: continue
+        if event.get("event") == "model_compatibility_checked" and event.get("status") == "success":
+            checks = event.get("checks") if isinstance(event.get("checks"), list) else []
+            calls.extend({"status": "success", "phase": "compatibility", "trace_id": run_id} for check in checks if check != "limits")
         if event.get("event") == "model_call_finished":
             calls.append({key: event.get(key) for key in ("status", "phase", "input_tokens", "output_tokens", "duration_ms", "error_type", "failure_reason", "retryable", "will_retry", "attempt") if key in event} | {"trace_id": run_id})
         if event.get("event") in {"agent_run_finished", "model_local_fallback_activated"}:
