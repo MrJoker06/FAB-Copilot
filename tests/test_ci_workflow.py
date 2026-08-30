@@ -6,7 +6,9 @@ from pathlib import Path
 import yaml
 
 
-WORKFLOW_PATH = Path(__file__).parents[1] / ".github" / "workflows" / "quality.yml"
+WORKFLOW_DIR = Path(__file__).parents[1] / ".github" / "workflows"
+WORKFLOW_PATH = WORKFLOW_DIR / "quality.yml"
+LIVE_WORKFLOW_PATH = WORKFLOW_DIR / "live-quality.yml"
 
 
 class CiWorkflowTests(unittest.TestCase):
@@ -53,3 +55,36 @@ class CiWorkflowTests(unittest.TestCase):
         self.assertNotIn("oracle", self.text.lower())
         self.assertNotIn("deepseek", self.text.lower())
         self.assertNotIn("*.db", self.text)
+
+    def test_live_workflow_is_manual_protected_and_uses_only_server_secret(self):
+        workflow = yaml.load(LIVE_WORKFLOW_PATH.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+        rendered = LIVE_WORKFLOW_PATH.read_text(encoding="utf-8")
+        self.assertEqual(workflow["on"], {"workflow_dispatch": {"inputs": {"model_id": {"description": "Published, compatibility-verified model catalog ID", "required": "true", "type": "string"}}}})
+        self.assertEqual(workflow["permissions"], {"contents": "read"})
+        job = workflow["jobs"]["live-e2e"]
+        self.assertEqual(job["name"], "Live E2E quality gate")
+        self.assertEqual(job["runs-on"], "ubuntu-24.04")
+        self.assertEqual(job["timeout-minutes"], "20")
+        self.assertEqual(job["environment"], "live-e2e")
+        self.assertEqual(job["env"], {"CI": "true"})
+        self.assertFalse(set(job["env"]) & {"FAB_LIVE_E2E_TARGET", "FAB_LIVE_E2E_AUTHORIZED", "FAB_LIVE_MODEL_ID", "FAB_MODEL_API_KEY"})
+        run = next(step for step in job["steps"] if step.get("name") == "Run full authorized Live E2E gate")
+        self.assertEqual(run["env"], {"FAB_LIVE_E2E_TARGET": "full", "FAB_LIVE_E2E_AUTHORIZED": "true", "FAB_LIVE_MODEL_ID": "${{ inputs.model_id }}", "FAB_MODEL_API_KEY": "${{ secrets.FAB_MODEL_API_KEY }}"})
+        self.assertEqual(rendered.count("secrets."), 1)
+        self.assertNotIn("DEEPSEEK_API_KEY", rendered)
+        self.assertIn("python scripts/run_quality_gate.py live", rendered)
+
+    def test_live_workflow_uses_fixed_runtimes_and_only_safe_metadata_artifact(self):
+        workflow = yaml.load(LIVE_WORKFLOW_PATH.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+        job = workflow["jobs"]["live-e2e"]
+        steps = job["steps"]
+        python_setup = next(step for step in steps if step.get("uses") == "actions/setup-python@v6")
+        node_setup = next(step for step in steps if step.get("uses") == "actions/setup-node@v6")
+        self.assertEqual(python_setup["with"]["python-version"], "3.11")
+        self.assertEqual(node_setup["with"]["node-version"], "22")
+        self.assertIn("npx playwright install --with-deps chromium", "\n".join(str(step) for step in steps))
+        artifact = next(step for step in steps if step.get("uses") == "actions/upload-artifact@v7")
+        self.assertEqual(artifact["if"], "${{ always() && !cancelled() }}")
+        self.assertEqual(artifact["with"]["path"], "runtime/quality/live_e2e_report.json")
+        self.assertNotIn("playwright-report", str(artifact))
+        self.assertNotIn("test-results", str(artifact))

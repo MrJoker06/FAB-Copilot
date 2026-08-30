@@ -103,6 +103,8 @@ python scripts/run_quality_gate.py full
 
 失败且未被取消时，只允许通过 `actions/upload-artifact@v7` 上传 `playwright-report/`、`test-results/` 和 `runtime/quality/` 诊断；数据库、日志及完整内容均不在 artifact 范围。workflow 使用最小 `contents: read` 权限与同一分支并发取消。远程分支保护已要求与基线严格同步，并要求由 GitHub Actions App 产生的 `Full quality gate`；CI 失败会阻止受保护的合并。
 
+`QA-010` 的本地工作流实现新增 `.github/workflows/live-quality.yml`，它只接受管理员 `workflow_dispatch`，并在 `live-e2e` Environment 审批后以 Environment Secret `FAB_MODEL_API_KEY` 和必填 `model_id` 执行完整七轮 Live 门。它不在 push 或 PR 触发，标准 `Full quality gate` 名称和离线路径也不变。`evaluations/live_e2e_budgets.json` 为 `full` 与仅诊断用途的 `provider-matrix` 分别版本化 runs、调用数、input/output/total token、启动、单测和总时长硬上限；环境变量只能收紧，不能放宽。Live artifact 始终仅为精确的 metadata-only `runtime/quality/live_e2e_report.json`，不上传 Playwright 报告、截图、数据库、日志、正文、请求体或密钥。2026-08-30 用户明确暂缓本地与远程完整 7-run Live 验收：本地治理实现与完整离线门已通过，可作为检查点提交，但 `QA-010` 仍未完成且不宣称 Live 门通过；该暂缓例外下允许继续纯结构重构 `REF-009`。发布或打标签前仍必须对目标 commit 手动运行受保护的完整 `full` Live 门，`provider-matrix` 不可替代它。本地故障协议夹具、标准确定性门和真实 Provider 门需分别统计。远程仍须创建 `live-e2e` Environment、配置 required reviewers 与 `FAB_MODEL_API_KEY`，并完成首次远程完整实测后才能将 `QA-010` 标记完成。
+
 ## 完整审计触发条件
 
 在发布或打标签前必须运行完整审计；以下变更也必须触发：依赖或 Python/FastAPI/SQLite 升级、Schema/API/认证/RAG/流式链路重大变化，或上次审计后累计约 5 个 feature/fix 任务。

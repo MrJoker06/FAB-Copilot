@@ -10,11 +10,11 @@ from pathlib import Path
 from urllib.request import ProxyHandler, build_opener
 
 try:
-    from live_e2e import enforce_live_bounds, require_live_authorization, sanitized_live_report, scan_isolated_artifacts, write_sanitized_report
+    from live_e2e import enforce_live_bounds, require_live_authorization, resolve_live_budget, sanitized_live_report, scan_isolated_artifacts, write_sanitized_report
     from run_browser_test_server import PROJECT_DIR, wait_for_loopback_health
     from run_live_browser_test_server import _metadata, is_secret_environment_name
 except ModuleNotFoundError:  # importable from unittest as scripts.run_live_e2e
-    from scripts.live_e2e import enforce_live_bounds, require_live_authorization, sanitized_live_report, scan_isolated_artifacts, write_sanitized_report
+    from scripts.live_e2e import enforce_live_bounds, require_live_authorization, resolve_live_budget, sanitized_live_report, scan_isolated_artifacts, write_sanitized_report
     from scripts.run_browser_test_server import PROJECT_DIR, wait_for_loopback_health
     from scripts.run_live_browser_test_server import _metadata, is_secret_environment_name
 
@@ -24,20 +24,39 @@ PROVIDER_MATRIX_LIVE_RUN_COUNT = 5
 LIVE_E2E_TARGET_ENV = "FAB_LIVE_E2E_TARGET"
 
 
-def resolve_live_target(environ: dict[str, str]) -> tuple[list[str], int]:
+def resolve_live_target(environ: dict[str, str]) -> tuple[str, list[str], int]:
     """Return the fixed, allowlisted Live E2E selection and report contract."""
     target = environ.get(LIVE_E2E_TARGET_ENV)
     if target is None or target == "" or target == "full":
-        return [], EXPECTED_LIVE_RUN_COUNT
+        return "full", [], EXPECTED_LIVE_RUN_COUNT
     if target == "provider-matrix":
-        return ["--grep", "LIVE-PROVIDER-001"], PROVIDER_MATRIX_LIVE_RUN_COUNT
+        return "provider-matrix", ["--grep", "LIVE-PROVIDER-001"], PROVIDER_MATRIX_LIVE_RUN_COUNT
     raise RuntimeError(f"unsupported {LIVE_E2E_TARGET_ENV}: {target!r}")
 
 
-def browser_environment(environ: dict[str, str], port: int) -> dict[str, str]:
+def validate_live_target_budget(target_name: str, contract_run_count: int, budget: dict[str, int]) -> int:
+    """Reject any drift between the hard-coded browser contract and versioned budget."""
+    if budget.get("expected_run_count") != contract_run_count:
+        raise RuntimeError(f"live E2E {target_name} expected run count budget does not match target contract")
+    return budget["expected_run_count"]
+
+
+def remaining_duration_seconds(started: float, budget: dict[str, int], *, clock=time.monotonic) -> float:
+    remaining_ms = budget["max_duration_ms"] - (clock() - started) * 1000
+    if remaining_ms <= 0:
+        raise RuntimeError("live E2E total duration budget exhausted")
+    return remaining_ms / 1000
+
+
+def browser_timeout_seconds(started: float, budget: dict[str, int], *, clock=time.monotonic) -> float:
+    return min(budget["max_test_ms"] / 1000, remaining_duration_seconds(started, budget, clock=clock))
+
+
+def browser_environment(environ: dict[str, str], port: int, budget: dict[str, int] | None = None) -> dict[str, str]:
     safe = {key: value for key, value in environ.items() if not is_secret_environment_name(key)}
     safe["PLAYWRIGHT_LIVE_PORT"] = str(port)
     safe["FAB_LIVE_MODEL_ID"] = environ["FAB_LIVE_MODEL_ID"]
+    safe["FAB_LIVE_E2E_TIMEOUT_MS"] = str((budget or resolve_live_budget("full", environ))["max_test_ms"])
     return safe
 
 
@@ -69,10 +88,15 @@ def finalize_report(
     *,
     report_path: Path = LIVE_REPORT_PATH,
     expected_run_count: int = EXPECTED_LIVE_RUN_COUNT,
+    target_name: str = "full",
+    budget: dict[str, int] | None = None,
+    startup_ms: float = 0,
+    test_ms: float = 0,
+    environ: dict[str, str] | None = None,
 ) -> dict:
     metadata = json.loads(private_path.read_text(encoding="utf-8")) if private_path.is_file() else {}
     model = metadata.get("model") or {"model_id": "unknown", "provider_model": "unknown", "provider": "unknown"}
-    report = sanitized_live_report(model, metadata.get("runs") or [], started, status="passed" if browser_returncode == 0 else "failed", model_calls=metadata.get("model_calls") or [])
+    report = sanitized_live_report(model, metadata.get("runs") or [], started, status="passed" if browser_returncode == 0 else "failed", model_calls=metadata.get("model_calls") or [], target=target_name, commit_sha=(environ or os.environ).get("GITHUB_SHA", "local"), startup_ms=startup_ms, test_ms=test_ms, budget=budget or resolve_live_budget(target_name, environ))
     report["duration_ms"] = round((time.monotonic() - started) * 1000, 1)
     if not live_matrix_passes(
         report,
@@ -83,7 +107,7 @@ def finalize_report(
         report["status"] = "failed"
     target = report_path
     try:
-        enforce_live_bounds(report)
+        enforce_live_bounds(report, environ)
         write_sanitized_report(target, report)
         scan_isolated_artifacts(target.parent, api_key)
     except Exception:
@@ -112,7 +136,9 @@ def collect_parent_owned_metadata(root: Path, model_id: str, api_key: str, start
 def main(argv: list[str] | None = None) -> int:
     del argv
     environment = os.environ.copy(); require_live_authorization(environment)
-    playwright_arguments, expected_run_count = resolve_live_target(environment)
+    target_name, playwright_arguments, contract_run_count = resolve_live_target(environment)
+    budget = resolve_live_budget(target_name, environment)
+    expected_run_count = validate_live_target_budget(target_name, contract_run_count, budget)
     api_key = environment.get("FAB_MODEL_API_KEY") or environment.get("DEEPSEEK_API_KEY") or ""
     port = int(environment.get("PLAYWRIGHT_LIVE_PORT", "8900")); started = time.monotonic(); child = None
     LIVE_REPORT_PATH.unlink(missing_ok=True)
@@ -120,13 +146,21 @@ def main(argv: list[str] | None = None) -> int:
         private = Path(temporary) / "private_metadata.json"; server_root = Path(temporary) / "server-root"; server_env = environment.copy()
         try:
             child = subprocess.Popen([os.sys.executable, "scripts/run_live_browser_test_server.py", "--port", str(port), "--root", str(server_root)], cwd=PROJECT_DIR, env=server_env)
-            if not wait_for_loopback_health(f"http://127.0.0.1:{port}/api/health", timeout_seconds=20, opener=build_opener(ProxyHandler({})).open): raise RuntimeError("live E2E server health check failed")
-            browser = subprocess.run(
-                ["npx", "playwright", "test", "--config=playwright.live.config.js", *playwright_arguments],
-                cwd=PROJECT_DIR,
-                env=browser_environment(environment, port),
-                check=False,
-            )
+            health_timeout = min(20, budget["max_startup_ms"] / 1000, remaining_duration_seconds(started, budget))
+            if not wait_for_loopback_health(f"http://127.0.0.1:{port}/api/health", timeout_seconds=health_timeout, opener=build_opener(ProxyHandler({})).open): raise RuntimeError("live E2E server health check failed")
+            startup_ms = (time.monotonic() - started) * 1000
+            browser_started = time.monotonic()
+            try:
+                browser = subprocess.run(
+                    ["npx", "playwright", "test", "--config=playwright.live.config.js", *playwright_arguments],
+                    cwd=PROJECT_DIR,
+                    env=browser_environment(environment, port, budget),
+                    check=False,
+                    timeout=browser_timeout_seconds(started, budget),
+                )
+            except subprocess.TimeoutExpired:
+                browser = subprocess.CompletedProcess([], 1)
+            test_ms = (time.monotonic() - browser_started) * 1000
         finally:
             if child is not None:
                 child.terminate()
@@ -146,6 +180,11 @@ def main(argv: list[str] | None = None) -> int:
             started,
             report_path=LIVE_REPORT_PATH,
             expected_run_count=expected_run_count,
+            target_name=target_name,
+            budget=budget,
+            startup_ms=locals().get("startup_ms", (time.monotonic() - started) * 1000),
+            test_ms=locals().get("test_ms", 0),
+            environ=environment,
         )
     return 0
 

@@ -7,6 +7,7 @@ test("live E2E config remains isolated and explicitly serialized", () => {
   assert.match(config, /live-\(\?:provider\|admin-governance\)\\\.spec\\\.js/);
   assert.match(config, /retries:\s*0/); assert.match(config, /workers:\s*1/);
   assert.match(config, /FAB_LIVE_E2E_TIMEOUT_MS \|\| 900_000/);
+  assert.match(config, /timeoutMs > 900_000/);
   assert.match(config, /actionTimeout:\s*30_000/);
   assert.match(fs.readFileSync("tests/e2e/live-provider.spec.js", "utf8"), /FAB_LIVE_E2E_TURN_TIMEOUT_MS \|\| 300_000/);
   assert.match(fs.readFileSync("tests/e2e/live-provider.spec.js", "utf8"), /LIVE-PROVIDER-002/);

@@ -11,9 +11,9 @@ from unittest.mock import patch
 import httpx
 
 from app.model_streaming import stream_completion
-from scripts.live_e2e import enforce_live_bounds, load_live_catalog_model, require_live_authorization, sanitized_live_report, scan_isolated_artifacts, write_sanitized_report
+from scripts.live_e2e import enforce_live_bounds, load_live_budgets, load_live_catalog_model, require_live_authorization, resolve_live_budget, sanitized_live_report, scan_isolated_artifacts, write_sanitized_report
 from scripts.local_openai_protocol_fixture import LocalOpenAIProtocolFixture, fixture_report
-from scripts.run_live_e2e import EXPECTED_LIVE_RUN_COUNT, LIVE_E2E_TARGET_ENV, PROVIDER_MATRIX_LIVE_RUN_COUNT, browser_environment, collect_parent_owned_metadata, finalize_report, live_matrix_passes, resolve_live_target
+from scripts.run_live_e2e import EXPECTED_LIVE_RUN_COUNT, LIVE_E2E_TARGET_ENV, PROVIDER_MATRIX_LIVE_RUN_COUNT, browser_environment, browser_timeout_seconds, collect_parent_owned_metadata, finalize_report, live_matrix_passes, remaining_duration_seconds, resolve_live_target, validate_live_target_budget
 from scripts.run_live_browser_test_server import LIVE_BROWSER_ADMIN_TOKEN, live_browser_environment, live_retry_settings, merge_live_events
 
 
@@ -45,8 +45,49 @@ class LiveE2ETests(unittest.TestCase):
             target = Path(temporary) / "report.json"; write_sanitized_report(target, report)
             self.assertTrue(target.is_file())
             with self.assertRaises(ValueError): write_sanitized_report(target, {"answer": "leak"})
-        with self.assertRaisesRegex(RuntimeError, "model call count"):
+        with self.assertRaisesRegex(RuntimeError, "may only tighten"):
             enforce_live_bounds(report, {"FAB_LIVE_E2E_MAX_MODEL_CALLS": "0"})
+
+    def test_versioned_live_budgets_are_complete_and_overrides_only_tighten(self):
+        budgets = load_live_budgets()
+        self.assertEqual(set(budgets), {"full", "provider-matrix"})
+        full = resolve_live_budget("full", {})
+        self.assertEqual(full["expected_run_count"], EXPECTED_LIVE_RUN_COUNT)
+        self.assertEqual(resolve_live_budget("provider-matrix", {"FAB_LIVE_E2E_MAX_MODEL_CALLS": "19"})["max_model_calls"], 19)
+        for environment in ({"FAB_LIVE_E2E_MAX_MODEL_CALLS": "31"}, {"FAB_LIVE_E2E_MAX_TEST_MS": "many"}):
+            with self.assertRaisesRegex(RuntimeError, "budget|integer"):
+                resolve_live_budget("full", environment)
+
+    def test_live_target_contract_rejects_budget_run_count_drift_for_both_targets(self):
+        for target, expected in (("full", EXPECTED_LIVE_RUN_COUNT), ("provider-matrix", PROVIDER_MATRIX_LIVE_RUN_COUNT)):
+            budget = resolve_live_budget(target, {})
+            self.assertEqual(validate_live_target_budget(target, expected, budget), expected)
+            drifted = dict(budget); drifted["expected_run_count"] += 1
+            with self.assertRaisesRegex(RuntimeError, "does not match"):
+                validate_live_target_budget(target, expected, drifted)
+
+    def test_total_duration_remaining_time_bounds_browser_and_health_wait(self):
+        budget = resolve_live_budget("full", {"FAB_LIVE_E2E_MAX_DURATION_MS": "100", "FAB_LIVE_E2E_MAX_STARTUP_MS": "50", "FAB_LIVE_E2E_MAX_TEST_MS": "90"})
+        self.assertAlmostEqual(remaining_duration_seconds(0, budget, clock=lambda: 0.04), 0.06)
+        self.assertAlmostEqual(browser_timeout_seconds(0, budget, clock=lambda: 0.04), 0.06)
+        with self.assertRaisesRegex(RuntimeError, "exhausted"):
+            browser_timeout_seconds(0, budget, clock=lambda: 0.1)
+
+    def test_live_budget_rejects_each_runtime_and_token_boundary(self):
+        budget = resolve_live_budget("provider-matrix", {})
+        report = sanitized_live_report({"model_id": "live", "provider_model": "provider"}, [], time.monotonic(), status="failed", target="provider-matrix", budget=budget)
+        for key, value, error in (("real_model_call_count", budget["max_model_calls"] + 1, "model call"), ("startup_ms", budget["max_startup_ms"] + 1, "startup"), ("test_ms", budget["max_test_ms"] + 1, "test"), ("duration_ms", budget["max_duration_ms"] + 1, "total")):
+            broken = dict(report); broken[key] = value
+            with self.assertRaisesRegex(RuntimeError, error): enforce_live_bounds(broken, {})
+        for key, maximum in (("input", "max_input_tokens"), ("output", "max_output_tokens"), ("total", "max_total_tokens")):
+            broken = dict(report); broken["token_totals"] = dict(report["token_totals"]); broken["token_totals"][key] = budget[maximum] + 1
+            with self.assertRaisesRegex(RuntimeError, key): enforce_live_bounds(broken, {})
+        for key in ("real_model_call_count", "startup_ms", "test_ms", "duration_ms"):
+            broken = dict(report); broken[key] = -1
+            with self.assertRaises(RuntimeError): enforce_live_bounds(broken, {})
+        for key in ("input", "output", "total"):
+            broken = dict(report); broken["token_totals"] = dict(report["token_totals"]); broken["token_totals"][key] = -1
+            with self.assertRaises(RuntimeError): enforce_live_bounds(broken, {})
 
     def test_loopback_protocol_fixture_exercises_failures_and_done_requirement(self):
         for scenario, error_type in (("rate_limit", httpx.HTTPStatusError), ("server_error", httpx.HTTPStatusError), ("invalid_json", json.JSONDecodeError), ("missing_done", ValueError), ("partial_disconnect", httpx.RequestError)):
@@ -112,12 +153,12 @@ class LiveE2ETests(unittest.TestCase):
         self.assertFalse(live_matrix_passes(report, report["model_calls"], 1))
 
     def test_live_target_is_allowlisted_with_a_fixed_provider_matrix_contract(self):
-        self.assertEqual(resolve_live_target({}), ([], EXPECTED_LIVE_RUN_COUNT))
-        self.assertEqual(resolve_live_target({LIVE_E2E_TARGET_ENV: ""}), ([], EXPECTED_LIVE_RUN_COUNT))
-        self.assertEqual(resolve_live_target({LIVE_E2E_TARGET_ENV: "full"}), ([], EXPECTED_LIVE_RUN_COUNT))
+        self.assertEqual(resolve_live_target({}), ("full", [], EXPECTED_LIVE_RUN_COUNT))
+        self.assertEqual(resolve_live_target({LIVE_E2E_TARGET_ENV: ""}), ("full", [], EXPECTED_LIVE_RUN_COUNT))
+        self.assertEqual(resolve_live_target({LIVE_E2E_TARGET_ENV: "full"}), ("full", [], EXPECTED_LIVE_RUN_COUNT))
         self.assertEqual(
             resolve_live_target({LIVE_E2E_TARGET_ENV: "provider-matrix"}),
-            (["--grep", "LIVE-PROVIDER-001"], PROVIDER_MATRIX_LIVE_RUN_COUNT),
+            ("provider-matrix", ["--grep", "LIVE-PROVIDER-001"], PROVIDER_MATRIX_LIVE_RUN_COUNT),
         )
         for invalid in (" ", "provider", "LIVE-PROVIDER-001", "provider-matrix "):
             with self.assertRaisesRegex(RuntimeError, "unsupported"):
