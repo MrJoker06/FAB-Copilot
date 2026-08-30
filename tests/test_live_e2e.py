@@ -13,7 +13,7 @@ import httpx
 from app.model_streaming import stream_completion
 from scripts.live_e2e import enforce_live_bounds, load_live_catalog_model, require_live_authorization, sanitized_live_report, scan_isolated_artifacts, write_sanitized_report
 from scripts.local_openai_protocol_fixture import LocalOpenAIProtocolFixture, fixture_report
-from scripts.run_live_e2e import EXPECTED_LIVE_RUN_COUNT, browser_environment, collect_parent_owned_metadata, finalize_report, live_matrix_passes
+from scripts.run_live_e2e import EXPECTED_LIVE_RUN_COUNT, LIVE_E2E_TARGET_ENV, PROVIDER_MATRIX_LIVE_RUN_COUNT, browser_environment, collect_parent_owned_metadata, finalize_report, live_matrix_passes, resolve_live_target
 from scripts.run_live_browser_test_server import LIVE_BROWSER_ADMIN_TOKEN, live_browser_environment, live_retry_settings, merge_live_events
 
 
@@ -110,6 +110,31 @@ class LiveE2ETests(unittest.TestCase):
         terminal = sanitized_live_report({"model_id": "live", "provider_model": "provider"}, runs, time.monotonic(), status="passed", model_calls=[{"trace_id": f"run-{index}", "status": "success"} for index in range(6)] + [{"trace_id": "run-6", "status": "error"}])
         self.assertFalse(live_matrix_passes(terminal, terminal["model_calls"], 0))
         self.assertFalse(live_matrix_passes(report, report["model_calls"], 1))
+
+    def test_live_target_is_allowlisted_with_a_fixed_provider_matrix_contract(self):
+        self.assertEqual(resolve_live_target({}), ([], EXPECTED_LIVE_RUN_COUNT))
+        self.assertEqual(resolve_live_target({LIVE_E2E_TARGET_ENV: ""}), ([], EXPECTED_LIVE_RUN_COUNT))
+        self.assertEqual(resolve_live_target({LIVE_E2E_TARGET_ENV: "full"}), ([], EXPECTED_LIVE_RUN_COUNT))
+        self.assertEqual(
+            resolve_live_target({LIVE_E2E_TARGET_ENV: "provider-matrix"}),
+            (["--grep", "LIVE-PROVIDER-001"], PROVIDER_MATRIX_LIVE_RUN_COUNT),
+        )
+        for invalid in (" ", "provider", "LIVE-PROVIDER-001", "provider-matrix "):
+            with self.assertRaisesRegex(RuntimeError, "unsupported"):
+                resolve_live_target({LIVE_E2E_TARGET_ENV: invalid})
+
+    def test_provider_matrix_requires_exactly_five_successful_runs(self):
+        runs = [{"trace_id": f"run-{index}", "status": "success"} for index in range(PROVIDER_MATRIX_LIVE_RUN_COUNT)]
+        calls = [{"trace_id": f"run-{index}", "status": "success"} for index in range(PROVIDER_MATRIX_LIVE_RUN_COUNT)]
+        report = sanitized_live_report(
+            {"model_id": "live", "provider_model": "provider"},
+            runs,
+            time.monotonic(),
+            status="passed",
+            model_calls=calls,
+        )
+        self.assertTrue(live_matrix_passes(report, calls, 0, expected_run_count=PROVIDER_MATRIX_LIVE_RUN_COUNT))
+        self.assertFalse(live_matrix_passes(report, calls, 0))
 
     def test_live_metadata_merges_only_fresh_event_runs_without_duplicates(self):
         runs, calls = merge_live_events([

@@ -1,6 +1,7 @@
 // Selected only by playwright.live.config.js; this process has no provider or
 // admin credential.  The browser drives the product UI, not a test-only fetch.
 const { test, expect } = require('./support/fixture');
+const sourcePresenter = require('../../app/static/source_presenter.js');
 const turnTimeout = Number(process.env.FAB_LIVE_E2E_TURN_TIMEOUT_MS || 300_000);
 
 async function sendThroughUi(page, message, thinking) {
@@ -21,6 +22,38 @@ async function sendThroughUi(page, message, thinking) {
   expect(result.run_id).toEqual(expect.any(String));
   expect(result.answer?.trim()).not.toBe('');
   return result;
+}
+
+async function assertRenderedResult(page, result) {
+  const assistant = page.locator('.message.assistant').last();
+  const normalizeVisibleText = value => value
+    .replace(/\[[^\]]+\]\([^)]*\)/g, match => match.replace(/\]\([^)]*\)/, ''))
+    .replace(/^[\t ]*(?:[-+*]\s+|\d+[.)]\s+|>\s*|#{1,6}\s+)/gm, '')
+    .replace(/[#*_`]/g, '')
+    .replace(/\s+/g, ' ').trim();
+  const visibleAnswer = normalizeVisibleText(sourcePresenter.replaceReferenceIds(result.answer, result.sources));
+  const actualAnswer = normalizeVisibleText(await assistant.locator('.message-content').innerText());
+  expect(actualAnswer).toContain(visibleAnswer.slice(0, Math.min(40, visibleAnswer.length)));
+  expect(actualAnswer).toContain(visibleAnswer.slice(-Math.min(40, visibleAnswer.length)));
+  const trace = assistant.locator('.analysis-trace');
+  if (result.tool_trace?.length) {
+    await expect(trace).toHaveCount(1);
+    await expect(trace).toContainText(result.run_id.slice(0, 8));
+    await trace.locator('summary').click();
+    await expect(trace.locator('li')).toHaveCount(result.tool_trace.length);
+  } else await expect(trace).toHaveCount(0);
+  const sourcePanel = assistant.locator('.source-list');
+  if (!result.sources?.length) return;
+  await expect(sourcePanel).toHaveCount(1);
+  await expect(sourcePanel).not.toHaveAttribute('open', '');
+  await sourcePanel.locator('summary').click();
+  const groups = sourcePresenter.groupSources(result.sources);
+  expect(await sourcePanel.locator('.source-group').count()).toBe(groups.length);
+  for (let index = 0; index < groups.length; index += 1) {
+    const group = sourcePanel.locator('.source-group').nth(index);
+    await expect(group).toContainText(groups[index].name);
+    expect(await group.locator('.source-link').count()).toBe(groups[index].items.length);
+  }
 }
 
 test('LIVE-PROVIDER-001 real provider completes the five-turn UI matrix without fallback', async ({ page }) => {
@@ -49,12 +82,20 @@ test('LIVE-PROVIDER-001 real provider completes the five-turn UI matrix without 
     const assistant = persisted.messages.filter(item => item.role === 'assistant').at(-1);
     expect(assistant.content).toBe(result.answer);
     expect(assistant.metadata.run_id).toBe(result.run_id);
+    await assertRenderedResult(page, result);
     const audit = await page.evaluate(runId => fetch(`/api/agent-runs/${runId}/audit`).then(async response => ({ok: response.ok, payload: await response.json()})), result.run_id);
     expect(audit.ok).toBe(true);
     expect(audit.payload.run.run_id).toBe(result.run_id);
     expect(audit.payload.run.status).toBe('success');
     expect(audit.payload.timeline).toContainEqual(expect.objectContaining({event: 'run_finished', status: 'success'}));
   }
+  const sessionId = await page.evaluate(() => localStorage.getItem('fabInsightSessionId'));
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-app-ready', 'true');
+  const restored = await page.evaluate(id => fetch(`/api/sessions/${id}`).then(response => response.json()), sessionId);
+  expect(restored.messages.filter(item => item.role === 'user')).toHaveLength(turns.length);
+  expect(restored.messages.filter(item => item.role === 'assistant')).toHaveLength(turns.length);
+  await expect(page.locator('#chatMessages .message.assistant')).toHaveCount(turns.length);
 });
 
 test('LIVE-PROVIDER-002 real provider retrieves newly uploaded personal knowledge and removes it cleanly', async ({ page, browserFailures }, testInfo) => {

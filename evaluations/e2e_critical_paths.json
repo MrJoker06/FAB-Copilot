@@ -15,6 +15,9 @@
     {"id": "E2E-KNOWLEDGE-001", "spec": "personal-knowledge.spec.js"},
     {"id": "E2E-KNOWLEDGE-002", "spec": "personal-knowledge.spec.js"},
     {"id": "E2E-ADMIN-001", "spec": "admin-governance.spec.js"},
-    {"id": "E2E-ADMIN-002", "spec": "admin-governance.spec.js"}
+    {"id": "E2E-ADMIN-002", "spec": "admin-governance.spec.js"},
+    {"id": "E2E-JOURNEY-001", "spec": "desktop-journeys.spec.js"},
+    {"id": "E2E-JOURNEY-002", "spec": "desktop-journeys.spec.js"},
+    {"id": "E2E-JOURNEY-003", "spec": "desktop-journeys.spec.js"}
   ]
 }

@@ -39,6 +39,13 @@ BROWSER_TEST_VISUAL_SESSION_ID = "ux015-visual-session"
 BROWSER_TEST_VISUAL_DOCUMENT_ID = "ux015-visual-document"
 BROWSER_TEST_VISUAL_CHUNK_ID = "ux015-visual-chunk-0001"
 BROWSER_TEST_VISUAL_TIMESTAMP = "2026-08-19T09:30:00+00:00"
+BROWSER_TEST_JOURNEY_TENANT_ID = "qa009-journey"
+BROWSER_TEST_JOURNEY_USER_ID = "qa009-user"
+BROWSER_TEST_JOURNEY_KNOWLEDGE_OWNER_ID = "qa009-journey:qa009-user"
+BROWSER_TEST_JOURNEY_SESSION_ID = "qa009-sources-session"
+BROWSER_TEST_JOURNEY_PERSONAL_DOCUMENT_ID = "qa009-personal-document"
+BROWSER_TEST_JOURNEY_FACTORY_SOURCE = "QA009-CVD-SOP"
+BROWSER_TEST_JOURNEY_CASE_ID = "QA009-CVD-CASE"
 BROWSER_TEST_VISUAL_DOCUMENT_FILENAME = (
     "2026-Q3-CMP-Polishing-超长文件名-多语言术语-"
     "wafer-surface-defect-SPC-control-plan-设备维护与异常处置指南-v1.0.txt"
@@ -185,6 +192,36 @@ def prepare_browser_test_visual_fixtures(agent_database_path: Path, knowledge_da
         connection.commit()
 
 
+def prepare_browser_test_journey_fixtures(agent_database_path: Path, knowledge_database_path: Path) -> None:
+    """Seed QA-009's source/trace journey into disposable snapshots only."""
+    timestamp = "2026-08-30T09:00:00+00:00"
+    sources = [
+        {"reference_id": "QA009-P-1", "source_type": "personal", "document_id": BROWSER_TEST_JOURNEY_PERSONAL_DOCUMENT_ID, "chunk_id": "qa009-personal-chunk-1", "title": "QA009 个人 CVD 复核笔记", "section": "第 1 页"},
+        {"reference_id": "QA009-P-2", "source_type": "personal", "document_id": BROWSER_TEST_JOURNEY_PERSONAL_DOCUMENT_ID, "chunk_id": "qa009-personal-chunk-2", "title": "QA009 个人 CVD 复核笔记", "section": "第 2 页"},
+        {"reference_id": "QA009-K-1", "source_type": "knowledge", "source": BROWSER_TEST_JOURNEY_FACTORY_SOURCE, "chunk_id": 900901, "title": "QA009 CVD 工厂 SOP", "section": "第 3 节"},
+        {"reference_id": "QA009-K-2", "source_type": "knowledge", "source": BROWSER_TEST_JOURNEY_FACTORY_SOURCE, "chunk_id": 900902, "title": "QA009 CVD 工厂 SOP", "section": "第 4 节"},
+        {"reference_id": "QA009-C-1", "source_type": "case", "case_id": BROWSER_TEST_JOURNEY_CASE_ID, "title": "QA009 CVD 历史案例", "section": "处置结果"},
+    ]
+    metadata = json.dumps({"sources": sources, "run_id": "qa009-trace-run", "tool_trace": [{"tool": "query_metrics", "status": "success", "rows": 2, "duration_ms": 12}]}, ensure_ascii=False)
+    with closing(sqlite3.connect(agent_database_path)) as connection:
+        connection.execute("INSERT OR REPLACE INTO chat_sessions(session_id, tenant_id, owner_user_id, title, created_at, updated_at, model, last_message_preview) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (BROWSER_TEST_JOURNEY_SESSION_ID, BROWSER_TEST_JOURNEY_TENANT_ID, BROWSER_TEST_JOURNEY_USER_ID, "QA009 来源与 Trace", timestamp, timestamp, "deepseekv4-pro", "请复核 CVD 来源。"))
+        connection.execute("DELETE FROM chat_messages WHERE session_id = ?", (BROWSER_TEST_JOURNEY_SESSION_ID,))
+        connection.executemany("INSERT INTO chat_messages(session_id, role, content, metadata_json, client_message_id, created_at) VALUES (?, ?, ?, ?, ?, ?)", [(BROWSER_TEST_JOURNEY_SESSION_ID, "user", "请复核 CVD 来源。", "{}", "qa009-user", timestamp), (BROWSER_TEST_JOURNEY_SESSION_ID, "assistant", "QA009 CVD 复核完成。[来源 QA009-P-1, QA009-K-1, QA009-C-1]", metadata, None, timestamp)])
+        connection.commit()
+    with closing(sqlite3.connect(knowledge_database_path)) as connection:
+        connection.execute("DELETE FROM personal_knowledge_fts WHERE document_id = ?", (BROWSER_TEST_JOURNEY_PERSONAL_DOCUMENT_ID,))
+        connection.execute("DELETE FROM personal_knowledge_chunks WHERE document_id = ?", (BROWSER_TEST_JOURNEY_PERSONAL_DOCUMENT_ID,))
+        connection.execute("DELETE FROM personal_knowledge_documents WHERE document_id = ?", (BROWSER_TEST_JOURNEY_PERSONAL_DOCUMENT_ID,))
+        connection.execute("INSERT INTO personal_knowledge_documents(document_id, owner_user_id, filename, title, mime_type, size_bytes, checksum_sha256, process_steps_json, equipment_ids_json, effective_date, tags_json, tags_source, status, storage_key, parser_version, idempotency_key, created_at, updated_at) VALUES (?, ?, ?, ?, 'text/plain', 40, ?, '[]', '[]', '', '[]', 'user', 'ready', ?, 'qa009', ?, ?, ?)", (BROWSER_TEST_JOURNEY_PERSONAL_DOCUMENT_ID, BROWSER_TEST_JOURNEY_KNOWLEDGE_OWNER_ID, "qa009-personal.txt", "QA009 个人 CVD 复核笔记", "qa009-checksum", "qa009/personal.txt", "qa009-idempotency", timestamp, timestamp))
+        for index in (1, 2):
+            chunk_id = f"qa009-personal-chunk-{index}"
+            connection.execute("INSERT INTO personal_knowledge_chunks(chunk_id, document_id, owner_user_id, page_number, section_path, chunk_index, content, token_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 8, ?)", (chunk_id, BROWSER_TEST_JOURNEY_PERSONAL_DOCUMENT_ID, BROWSER_TEST_JOURNEY_KNOWLEDGE_OWNER_ID, index, f"第 {index} 页", index - 1, f"QA009 personal CVD evidence {index}", timestamp))
+            connection.execute("INSERT INTO personal_knowledge_fts(title, section_path, content, owner_user_id, document_id, chunk_id) VALUES (?, ?, ?, ?, ?, ?)", ("QA009 个人 CVD 复核笔记", f"第 {index} 页", f"QA009 personal CVD evidence {index}", BROWSER_TEST_JOURNEY_KNOWLEDGE_OWNER_ID, BROWSER_TEST_JOURNEY_PERSONAL_DOCUMENT_ID, chunk_id))
+        connection.execute("INSERT OR REPLACE INTO knowledge_documents(source, title, doc_type, version, status, effective_date, owner, authority, process_steps, equipment_families, tags) VALUES (?, ?, 'SOP', '1.0', 'active', '2026-08-30', 'QA', 5, 'CVD', 'CVD', 'qa009')", (BROWSER_TEST_JOURNEY_FACTORY_SOURCE, "QA009 CVD 工厂 SOP"))
+        for chunk_id, section in ((900901, "第 3 节"), (900902, "第 4 节")):
+            connection.execute("INSERT OR REPLACE INTO knowledge_chunks(chunk_id, title, source, section, content) VALUES (?, ?, ?, ?, ?)", (chunk_id, "QA009 CVD 工厂 SOP", BROWSER_TEST_JOURNEY_FACTORY_SOURCE, section, f"QA009 factory CVD evidence {section}"))
+        connection.execute("INSERT OR REPLACE INTO historical_cases(case_id, title, process_step, equipment_id, occurred_date, severity, problem, solution, result, summary, tags, equipment_family, defect_type, symptoms, root_cause, root_cause_confidence, validation_method, recurrence_status, approved_by, case_status) VALUES (?, ?, 'CVD', 'CVD-02', '2026-08-30', 'medium', 'QA009 problem', 'QA009 solution', 'QA009 result', 'QA009 summary', 'qa009', 'CVD', 'Thickness', 'QA009 symptom', 'QA009 root cause', 1.0, 'QA009 validation', 'Closed', 'QA009', 'Validated')", (BROWSER_TEST_JOURNEY_CASE_ID, "QA009 CVD 历史案例"))
+        connection.commit()
 def browser_test_environment(root: Path, environ: dict[str, str] | None = None) -> dict[str, str]:
     """Return deterministic isolated settings without inherited application state."""
     environment = dict(os.environ if environ is None else environ)
@@ -197,6 +234,9 @@ def browser_test_environment(root: Path, environ: dict[str, str] | None = None) 
         backup_database(REFERENCE_DEPARTMENTS / destination.name, destination)
     prepare_browser_test_model_capabilities(snapshots["FAB_AGENT_DATABASE_PATH"])
     prepare_browser_test_visual_fixtures(
+        snapshots["FAB_AGENT_DATABASE_PATH"], snapshots["FAB_KNOWLEDGE_DATABASE_PATH"]
+    )
+    prepare_browser_test_journey_fixtures(
         snapshots["FAB_AGENT_DATABASE_PATH"], snapshots["FAB_KNOWLEDGE_DATABASE_PATH"]
     )
     environment.update({

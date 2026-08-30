@@ -29,6 +29,7 @@ class BrowserTestServerTests(unittest.TestCase):
                 patch.object(server, "backup_database") as backup,
                 patch.object(server, "prepare_browser_test_model_capabilities") as prepare,
                 patch.object(server, "prepare_browser_test_visual_fixtures") as prepare_visual,
+                patch.object(server, "prepare_browser_test_journey_fixtures") as prepare_journey,
             ):
                 environment = server.browser_test_environment(root, {
                     "FAB_MODEL_API_KEY": "secret", "FAB_REQUIRE_IDENTITY": "true", "FAB_DATA_PROVIDER": "live",
@@ -39,6 +40,9 @@ class BrowserTestServerTests(unittest.TestCase):
             self.assertEqual(backup.call_count, 5)
             prepare.assert_called_once_with(Path(environment["FAB_AGENT_DATABASE_PATH"]))
             prepare_visual.assert_called_once_with(
+                Path(environment["FAB_AGENT_DATABASE_PATH"]), Path(environment["FAB_KNOWLEDGE_DATABASE_PATH"])
+            )
+            prepare_journey.assert_called_once_with(
                 Path(environment["FAB_AGENT_DATABASE_PATH"]), Path(environment["FAB_KNOWLEDGE_DATABASE_PATH"])
             )
             self.assertEqual(environment["SAFE"], "kept")
@@ -141,6 +145,46 @@ class BrowserTestServerTests(unittest.TestCase):
                 connection.commit()
             with self.assertRaisesRegex(RuntimeError, "deepseekv4-pro"):
                 server.prepare_browser_test_model_capabilities(database)
+
+    def test_journey_fixtures_are_isolated_and_provide_two_chunks_per_document(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            agent_snapshot, knowledge_snapshot = root / "agent.db", root / "knowledge.db"
+            server.backup_database(server.REFERENCE_DEPARTMENTS / "ai_operations.db", agent_snapshot)
+            server.backup_database(server.REFERENCE_DEPARTMENTS / "process_knowledge.db", knowledge_snapshot)
+            server.prepare_browser_test_journey_fixtures(agent_snapshot, knowledge_snapshot)
+            with closing(sqlite3.connect(agent_snapshot)) as connection:
+                session = connection.execute("SELECT tenant_id, owner_user_id FROM chat_sessions WHERE session_id = ?", (server.BROWSER_TEST_JOURNEY_SESSION_ID,)).fetchone()
+                metadata = json.loads(connection.execute("SELECT metadata_json FROM chat_messages WHERE session_id = ? AND role = 'assistant'", (server.BROWSER_TEST_JOURNEY_SESSION_ID,)).fetchone()[0])
+            with closing(sqlite3.connect(knowledge_snapshot)) as connection:
+                personal_owners = {
+                    row[0]
+                    for row in connection.execute(
+                        "SELECT owner_user_id FROM personal_knowledge_documents WHERE document_id = ? "
+                        "UNION SELECT owner_user_id FROM personal_knowledge_chunks WHERE document_id = ? "
+                        "UNION SELECT owner_user_id FROM personal_knowledge_fts WHERE document_id = ?",
+                        (server.BROWSER_TEST_JOURNEY_PERSONAL_DOCUMENT_ID,) * 3,
+                    )
+                }
+                chunks = connection.execute("SELECT count(*) FROM personal_knowledge_chunks WHERE document_id = ?", (server.BROWSER_TEST_JOURNEY_PERSONAL_DOCUMENT_ID,)).fetchone()[0]
+                factory = connection.execute("SELECT count(*) FROM knowledge_chunks WHERE source = ?", (server.BROWSER_TEST_JOURNEY_FACTORY_SOURCE,)).fetchone()[0]
+                case = connection.execute("SELECT title FROM historical_cases WHERE case_id = ?", (server.BROWSER_TEST_JOURNEY_CASE_ID,)).fetchone()
+            self.assertEqual(tuple(session), (server.BROWSER_TEST_JOURNEY_TENANT_ID, server.BROWSER_TEST_JOURNEY_USER_ID))
+            self.assertEqual(personal_owners, {server.BROWSER_TEST_JOURNEY_KNOWLEDGE_OWNER_ID})
+            self.assertEqual((chunks, factory), (2, 2))
+            self.assertEqual(case[0], "QA009 CVD 历史案例")
+            self.assertEqual(metadata["run_id"], "qa009-trace-run")
+            self.assertEqual(len(metadata["tool_trace"]), 1)
+            sources = metadata["sources"]
+            self.assertEqual({item["source_type"] for item in sources}, {"personal", "knowledge", "case"})
+            self.assertEqual(sum(item["source_type"] == "personal" for item in sources), 2)
+            self.assertEqual(sum(item["source_type"] == "knowledge" for item in sources), 2)
+            with closing(sqlite3.connect(server.REFERENCE_DEPARTMENTS / "ai_operations.db")) as connection:
+                self.assertIsNone(connection.execute("SELECT 1 FROM chat_sessions WHERE session_id = ?", (server.BROWSER_TEST_JOURNEY_SESSION_ID,)).fetchone())
+            with closing(sqlite3.connect(server.REFERENCE_DEPARTMENTS / "process_knowledge.db")) as connection:
+                self.assertIsNone(connection.execute("SELECT 1 FROM personal_knowledge_documents WHERE document_id = ?", (server.BROWSER_TEST_JOURNEY_PERSONAL_DOCUMENT_ID,)).fetchone())
+                self.assertIsNone(connection.execute("SELECT 1 FROM knowledge_documents WHERE source = ?", (server.BROWSER_TEST_JOURNEY_FACTORY_SOURCE,)).fetchone())
+                self.assertIsNone(connection.execute("SELECT 1 FROM historical_cases WHERE case_id = ?", (server.BROWSER_TEST_JOURNEY_CASE_ID,)).fetchone())
 
     def test_backup_uses_read_only_source_and_closes_connections(self):
         with tempfile.TemporaryDirectory() as temporary:

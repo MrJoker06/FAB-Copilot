@@ -106,7 +106,10 @@ test('LIVE-ADMIN-001 real admin governance clones the selected provider, probes,
   expect(restoredPayload).toEqual(selected.capabilities);
   await expect(row).toContainText('能力配置已变更');
   const beforeHealth = await row.locator('.model-health').innerText();
-  const probe = page.waitForResponse(response => response.url().endsWith(`/api/admin/models/${modelId}/compatibility-check`) && response.request().method() === 'POST');
+  const probe = page.waitForResponse(
+    response => response.url().endsWith(`/api/admin/models/${modelId}/compatibility-check`) && response.request().method() === 'POST',
+    {timeout: turnTimeout},
+  );
   await row.locator('[data-action="compatibility"]').click();
   expect((await probe).status()).toBe(200);
   await expect(row.locator('.model-health')).toHaveText(beforeHealth);

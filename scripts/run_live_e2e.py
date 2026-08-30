@@ -20,6 +20,18 @@ except ModuleNotFoundError:  # importable from unittest as scripts.run_live_e2e
 
 LIVE_REPORT_PATH = PROJECT_DIR / "runtime" / "quality" / "live_e2e_report.json"
 EXPECTED_LIVE_RUN_COUNT = 7
+PROVIDER_MATRIX_LIVE_RUN_COUNT = 5
+LIVE_E2E_TARGET_ENV = "FAB_LIVE_E2E_TARGET"
+
+
+def resolve_live_target(environ: dict[str, str]) -> tuple[list[str], int]:
+    """Return the fixed, allowlisted Live E2E selection and report contract."""
+    target = environ.get(LIVE_E2E_TARGET_ENV)
+    if target is None or target == "" or target == "full":
+        return [], EXPECTED_LIVE_RUN_COUNT
+    if target == "provider-matrix":
+        return ["--grep", "LIVE-PROVIDER-001"], PROVIDER_MATRIX_LIVE_RUN_COUNT
+    raise RuntimeError(f"unsupported {LIVE_E2E_TARGET_ENV}: {target!r}")
 
 
 def browser_environment(environ: dict[str, str], port: int) -> dict[str, str]:
@@ -29,13 +41,19 @@ def browser_environment(environ: dict[str, str], port: int) -> dict[str, str]:
     return safe
 
 
-def live_matrix_passes(report: dict, model_calls: list[dict], browser_returncode: int) -> bool:
+def live_matrix_passes(
+    report: dict,
+    model_calls: list[dict],
+    browser_returncode: int,
+    *,
+    expected_run_count: int = EXPECTED_LIVE_RUN_COUNT,
+) -> bool:
     """A retry may fail, but every completed live trace must recover."""
     successful_traces = {str(call.get("trace_id") or "") for call in model_calls if call.get("status") == "success"}
     runs = report["runs"]
     return (
         browser_returncode == 0
-        and report["run_count"] == EXPECTED_LIVE_RUN_COUNT
+        and report["run_count"] == expected_run_count
         and report["real_model_call_count"] > 0
         and report["fallback_count"] == 0
         and report["degraded_count"] == 0
@@ -43,12 +61,25 @@ def live_matrix_passes(report: dict, model_calls: list[dict], browser_returncode
     )
 
 
-def finalize_report(private_path: Path, browser_returncode: int, api_key: str, started: float, *, report_path: Path = LIVE_REPORT_PATH) -> dict:
+def finalize_report(
+    private_path: Path,
+    browser_returncode: int,
+    api_key: str,
+    started: float,
+    *,
+    report_path: Path = LIVE_REPORT_PATH,
+    expected_run_count: int = EXPECTED_LIVE_RUN_COUNT,
+) -> dict:
     metadata = json.loads(private_path.read_text(encoding="utf-8")) if private_path.is_file() else {}
     model = metadata.get("model") or {"model_id": "unknown", "provider_model": "unknown", "provider": "unknown"}
     report = sanitized_live_report(model, metadata.get("runs") or [], started, status="passed" if browser_returncode == 0 else "failed", model_calls=metadata.get("model_calls") or [])
     report["duration_ms"] = round((time.monotonic() - started) * 1000, 1)
-    if not live_matrix_passes(report, metadata.get("model_calls") or [], browser_returncode):
+    if not live_matrix_passes(
+        report,
+        metadata.get("model_calls") or [],
+        browser_returncode,
+        expected_run_count=expected_run_count,
+    ):
         report["status"] = "failed"
     target = report_path
     try:
@@ -81,6 +112,7 @@ def collect_parent_owned_metadata(root: Path, model_id: str, api_key: str, start
 def main(argv: list[str] | None = None) -> int:
     del argv
     environment = os.environ.copy(); require_live_authorization(environment)
+    playwright_arguments, expected_run_count = resolve_live_target(environment)
     api_key = environment.get("FAB_MODEL_API_KEY") or environment.get("DEEPSEEK_API_KEY") or ""
     port = int(environment.get("PLAYWRIGHT_LIVE_PORT", "8900")); started = time.monotonic(); child = None
     LIVE_REPORT_PATH.unlink(missing_ok=True)
@@ -89,7 +121,12 @@ def main(argv: list[str] | None = None) -> int:
         try:
             child = subprocess.Popen([os.sys.executable, "scripts/run_live_browser_test_server.py", "--port", str(port), "--root", str(server_root)], cwd=PROJECT_DIR, env=server_env)
             if not wait_for_loopback_health(f"http://127.0.0.1:{port}/api/health", timeout_seconds=20, opener=build_opener(ProxyHandler({})).open): raise RuntimeError("live E2E server health check failed")
-            browser = subprocess.run(["npx", "playwright", "test", "--config=playwright.live.config.js"], cwd=PROJECT_DIR, env=browser_environment(environment, port), check=False)
+            browser = subprocess.run(
+                ["npx", "playwright", "test", "--config=playwright.live.config.js", *playwright_arguments],
+                cwd=PROJECT_DIR,
+                env=browser_environment(environment, port),
+                check=False,
+            )
         finally:
             if child is not None:
                 child.terminate()
@@ -102,7 +139,14 @@ def main(argv: list[str] | None = None) -> int:
             # Keep finalization authoritative and fail closed even if the child
             # was killed before creating the snapshot/audit files.
             private.write_text("{}", encoding="utf-8")
-        finalize_report(private, browser.returncode if "browser" in locals() else 1, api_key, started, report_path=LIVE_REPORT_PATH)
+        finalize_report(
+            private,
+            browser.returncode if "browser" in locals() else 1,
+            api_key,
+            started,
+            report_path=LIVE_REPORT_PATH,
+            expected_run_count=expected_run_count,
+        )
     return 0
 
 

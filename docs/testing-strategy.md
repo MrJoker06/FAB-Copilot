@@ -107,8 +107,10 @@ python scripts/run_quality_gate.py full
 
 在发布或打标签前必须运行完整审计；以下变更也必须触发：依赖或 Python/FastAPI/SQLite 升级、Schema/API/认证/RAG/流式链路重大变化，或上次审计后累计约 5 个 feature/fix 任务。
 
-## QA-008 基线（2026-08-30）
+## QA-009 基线（2026-08-30）
 
-宿主 full 发现 473 个 Python 测试，其中 405 个非系统测试；系统模块数据报表、HTTP/企业契约、知识与个人上传、模型治理、会话与流式分别为 13/15/13/17/10，耗时 13.1/17.7/18.6/23.6/36.8 秒，总计 109.9 秒，全部低于预算。`app` 分支覆盖率 88%，Node 42/42、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、确定性 Playwright 14/14（39.8 秒）；普通 full 的真实模型和外网调用均为 0。
+宿主 full 发现 476 个 Python 测试，其中 408 个非系统测试；系统模块数据报表、HTTP/企业契约、知识与个人上传、模型治理、会话与流式分别为 13/15/13/17/10，耗时 12.7/15.3/16.8/13.7/15.9 秒，总计 74.4 秒，全部低于预算。`app` 分支覆盖率 88%，Node 42/42、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、确定性 Playwright 17/17（39.6 秒）；普通 full 的真实模型和外网调用均为 0。
 
-确定性管理治理覆盖实际令牌表单的错误/正确/登出/真实 401 重锁、临时模型发布与严格四能力、能力变更失效、成功及非法参数/图片拒绝/上游不可用分类、兼容性时间/健康/Trace、用户可见性和 Thinking 同步、停用/重新发布；无 `sessionStorage` bypass，Key 不进浏览器或数据库，HTML pattern `/v` 修复由浏览器原生合法/非法校验覆盖。稳定 E2E ID 总数 14。最终授权 Live 三个浏览器场景 3/3：provider=deepseek、provider_model=deepseek-v4-pro、model_id=deepseekv4-pro、runs=7 全部 success、real calls=22、input/output=72515/19433、duration=338309.0ms、fallback/degraded=0；报告 metadata-only，不含正文、请求体、Key 或隐藏推理。4 次短暂 ConnectError 由重试恢复，最终未降级。
+新增 `E2E-JOURNEY-001` 至 `003` 后，稳定 E2E ID 总数为 17。确定性路径覆盖 Session 全生命周期、来源默认折叠与个人/工厂/案例分组、同文档双 chunk、三类来源导航、复制脱敏与 Trace；固定日期 dashboard、ETCH capability、knowledge/case 真实 API，以及无桌面横向溢出和未声明 browser failure 门。
+
+首次完整 Live 尝试为 runs=3、calls=11、input/output=12672/3300、duration=128780.9ms、fallback/degraded=0，因 Admin compatibility 等待仍为 30 秒和 Markdown 列表可见文本归一化断言而失败，非 Provider fallback。修复后，用户选择只运行必要的 `FAB_LIVE_E2E_TARGET=provider-matrix`：其白名单固定 grep `LIVE-PROVIDER-001` 和 expected=5，默认完整 7-run 行为不变、非法 target fail-closed。最终五轮 Provider 矩阵为 provider=deepseek、provider_model=deepseek-v4-pro、model_id=deepseekv4-pro，runs=5 全部 success、calls=11、input/output=64753/19058、duration=298100ms、fallback/degraded=0，报告 metadata-only；断言浏览器正文首尾、Session 五轮刷新恢复、sourcePresenter 分组/link 数和 Trace/run_id 一致。两轮累计 22 calls，未超过批准的 30；未重跑非必要 Admin/personal 场景，因此不能将该结果表述为完整 7-run Live 门通过。
