@@ -1,16 +1,55 @@
 from __future__ import annotations
 
+import inspect
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from app import agent
 from app.agent_runtime.contracts import AgentRunLifecycle, AgentRunRequest
-from app.agent_runtime.coordinator import coordinate_agent_run
+from app.agent_runtime.coordinator import CoordinatorDependencies, coordinate_agent_run
+from app.agent_runtime.coordinator_ready import execute_ready_synthesis
+from app.agent_runtime.coordinator_state import CoordinatorRunState
 from app.agent_runtime.telemetry import notify
 
 
 class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
+    def test_compatibility_exports_preserve_async_reflection_for_patching(self):
+        async_names = (
+            "_notify", "_stream_answer", "_execute_ready_plan",
+            "_request_ready_synthesis", "_prefetch_general_knowledge",
+            "_stream_completion", "_resolve_conversation_turn",
+        )
+        for name in async_names:
+            self.assertTrue(inspect.iscoroutinefunction(getattr(agent, name)), name)
+
+        with patch("app.agent._notify") as async_mock:
+            self.assertIsInstance(async_mock, AsyncMock)
+        with patch("app.agent._emit_answer_synthesis") as sync_mock:
+            self.assertIsInstance(sync_mock, MagicMock)
+            self.assertNotIsInstance(sync_mock, AsyncMock)
+        self.assertFalse(inspect.iscoroutinefunction(agent._emit_answer_synthesis))
+
+    def test_coordinator_state_default_containers_are_run_local(self):
+        first = CoordinatorRunState("问题一", None, "run-1", None, False)
+        second = CoordinatorRunState("问题二", None, "run-2", None, False)
+
+        first.trace.append({"tool": "one"})
+        first.sources["one"] = {"reference_id": "one"}
+        first.total_usage["total_tokens"] = 1
+        first.knowledge_fallback["used"] = True
+
+        self.assertEqual(second.trace, [])
+        self.assertEqual(second.sources, {})
+        self.assertEqual(second.total_usage, {})
+        self.assertEqual(second.knowledge_fallback, {})
+
+    async def test_ready_stage_skips_non_ready_plan(self):
+        state = CoordinatorRunState("问题", None, "run-1", None, False)
+        state.execution_plan = SimpleNamespace(status="needs_model")
+
+        self.assertIsNone(await execute_ready_synthesis(state, deps=object()))
+
     def test_request_preserves_legacy_input_identity(self):
         history = [{"role": "user", "content": "原始对象"}]
         request = AgentRunRequest("问题", history, "run-1", thinking=True)
@@ -19,28 +58,33 @@ class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(request.history, history)
         self.assertEqual((request.run_id, request.thinking), ("run-1", True))
 
-    async def test_coordinator_forwards_exact_legacy_arguments_and_result(self):
+    async def test_run_impl_preserves_history_and_constructs_live_dependencies(self):
         history = [{"role": "user"}]
-        request = AgentRunRequest("问题", history, "run-1", thinking=True)
-        progress = object()
         result = {"answer": "完成"}
-        implementation = AsyncMock(return_value=result)
+        coordinator = AsyncMock(return_value=result)
 
-        actual = await coordinate_agent_run(
-            request,
-            progress,
-            implementation=implementation,
-        )
+        with patch("app.agent.coordinate_agent_run", new=coordinator):
+            actual = await agent._run_agent_impl("问题", history, "run-1", thinking=True)
 
         self.assertIs(actual, result)
-        implementation.assert_awaited_once_with("问题", history, "run-1", progress, True)
+        request = coordinator.await_args.args[0]
+        self.assertIsInstance(request, AgentRunRequest)
+        self.assertIs(request.history, history)
+        self.assertEqual((request.question, request.run_id, request.thinking), ("问题", "run-1", True))
+        deps = coordinator.await_args.kwargs["deps"]
+        self.assertIsInstance(deps, CoordinatorDependencies)
+        self.assertIs(deps.prepare_agent_run, agent.prepare_agent_run)
 
-    async def test_coordinator_propagates_legacy_exception(self):
+    async def test_coordinator_propagates_dependency_exception(self):
         request = AgentRunRequest("问题", None, "run-1")
-        implementation = AsyncMock(side_effect=RuntimeError("legacy failure"))
+        preparation = AsyncMock(side_effect=RuntimeError("dependency failure"))
 
-        with self.assertRaisesRegex(RuntimeError, "legacy failure"):
-            await coordinate_agent_run(request, None, implementation=implementation)
+        with patch("app.agent.prepare_agent_run", new=preparation):
+            deps = agent._coordinator_dependencies()
+            with self.assertRaisesRegex(RuntimeError, "dependency failure"):
+                await coordinate_agent_run(request, None, deps=deps)
+
+        preparation.assert_awaited_once()
 
     def test_lifecycle_records_only_first_answer_delta(self):
         lifecycle = AgentRunLifecycle(10.0, "2026-08-26T00:00:00.000+00:00")

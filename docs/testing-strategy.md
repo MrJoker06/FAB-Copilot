@@ -116,3 +116,7 @@ python scripts/run_quality_gate.py full
 新增 `E2E-JOURNEY-001` 至 `003` 后，稳定 E2E ID 总数为 17。确定性路径覆盖 Session 全生命周期、来源默认折叠与个人/工厂/案例分组、同文档双 chunk、三类来源导航、复制脱敏与 Trace；固定日期 dashboard、ETCH capability、knowledge/case 真实 API，以及无桌面横向溢出和未声明 browser failure 门。
 
 首次完整 Live 尝试为 runs=3、calls=11、input/output=12672/3300、duration=128780.9ms、fallback/degraded=0，因 Admin compatibility 等待仍为 30 秒和 Markdown 列表可见文本归一化断言而失败，非 Provider fallback。修复后，用户选择只运行必要的 `FAB_LIVE_E2E_TARGET=provider-matrix`：其白名单固定 grep `LIVE-PROVIDER-001` 和 expected=5，默认完整 7-run 行为不变、非法 target fail-closed。最终五轮 Provider 矩阵为 provider=deepseek、provider_model=deepseek-v4-pro、model_id=deepseekv4-pro，runs=5 全部 success、calls=11、input/output=64753/19058、duration=298100ms、fallback/degraded=0，报告 metadata-only；断言浏览器正文首尾、Session 五轮刷新恢复、sourcePresenter 分组/link 数和 Trace/run_id 一致。两轮累计 22 calls，未超过批准的 30；未重跑非必要 Admin/personal 场景，因此不能将该结果表述为完整 7-run Live 门通过。
+
+## REF-009 基线（2026-08-30）
+
+宿主 full 发现 485 个 Python 测试，其中 417 个非系统测试；系统模块数据报表、HTTP/企业契约、知识与个人上传、模型治理、会话与流式分别为 13/15/13/17/10，耗时 13.6/18.2/17.5/14.1/15.6 秒，总计 79.1 秒，全部低于预算。`app` 分支覆盖率 88%，Node 42/42、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、确定性 Playwright 17/17（40.0 秒）；普通 full 的真实模型和外网调用均为 0。

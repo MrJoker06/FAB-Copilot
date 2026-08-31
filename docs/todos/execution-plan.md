@@ -21,8 +21,8 @@
 
 | 类型 | 数量 | 任务 |
 |---|---:|---|
-| 已完成 | 147 | 以各分类 TODO 为准；`QA-005` 至 `QA-009` 已完成 E2E 基础、双通道验证与桌面关键旅程 |
-| 当前队列 | 14 | `QA-010`（2026-08-30 用户暂缓本地与远程完整 7-run Live 验收，保持未完成），随后在该暂缓例外下继续纯结构重构 `REF-009` 至 `REF-021` |
+| 已完成 | 148 | 以各分类 TODO 为准；`QA-005` 至 `QA-009` 已完成 E2E 基础、双通道验证与桌面关键旅程，`REF-009` 已完成 Agent coordinator 收口 |
+| 当前队列 | 13 | `QA-010`（2026-08-30 用户暂缓本地与远程完整 7-run Live 验收，保持未完成），随后在该暂缓例外下继续纯结构重构 `REF-010` 至 `REF-021` |
 | 用户暂缓 | 1 | `UX-029` |
 | 企业级暂缓 | 41 | 见本文件末尾分类清单 |
 | 可选候选 | 2 | `RAG-024`、`AGENT-039` `OPTIONAL`，不计入主任务统计 |
@@ -50,7 +50,7 @@
 | 17 | `QA-008` | `QA-006`、`AUTH-004`、`MODEL-001` 至 `MODEL-007` | 管理端真实治理闭环 | 已完成：令牌表单、严格四能力模型发布/失效/探针/状态、用户端 Thinking 同步、协议失败分类及三场景授权 Live 通过；凭据不进入前端或 artifact |
 | 18 | `QA-009` | `QA-005`、`QA-006`、`QA-007` | 桌面关键旅程收口 | 已完成：Session 生命周期、来源分组/复制/Trace、固定日期 dashboard、ETCH capability、knowledge/case 真实 API、17 条确定性 E2E 通过；必要 Live Provider 五轮矩阵通过，完整 7-run 门未重跑 |
 | 19 | `QA-010` | `QA-005` 至 `QA-009`、`DEPLOY-012` | 双通道 CI 治理 | 本地实现：push/PR 确定性门与仅手动完整 Live 门分离，调用/Token/耗时预算和 metadata-only artifact 收口；待远程 `live-e2e` Environment 审批、Secret 与首次完整实测验收 |
-| 20 | `REF-009` | `REF-008`、`QA-010` | Agent coordinator 收口 | `agent.py` 成为兼容门面，完整质量门通过 |
+| 20 | `REF-009` | `REF-008`、`QA-010` | Agent coordinator 收口 | 已完成：每调用 namespace snapshot 的 `AgentCompatibilityFacade` 保持 async/sync wrapper 和实时 patch；`CoordinatorRunState` 协调 prepare、availability、model、ready、loop 五阶段，`run_agent` 生命周期不变，`agent.py` 1256→164、coordinator→108，174 项定向回归、契约、仓库检查和宿主 full 通过 |
 | 21 | `REF-010` | `REF-009` | API 基础边界 | application、errors、schemas、dependencies 等价迁移 |
 | 22 | `REF-011` | `REF-010` | 领域 Router | URL、认证、状态码、响应和 OpenAPI 等价迁移 |
 | 23 | `REF-012` | `REF-011` | Chat 与流式服务 | NDJSON、取消、持久化、Session 和遥测不变 |
@@ -70,7 +70,7 @@
 
 ### 检查点 E：结构可维护性
 
-`REF-001` 至 `REF-008` 及 `QA-005` 至 `QA-009` 已完成，跨层兼容、桌面 E2E、个人知识、管理端治理和桌面关键旅程已经冻结。`QA-010` 的本地治理实现与完整离线门已通过，可作为检查点提交；但 2026-08-30 用户明确暂缓本地与远程完整 7-run Live 验收，故仍保持未完成且不得宣称 Live 门通过。在此暂缓验收例外下，继续从 `REF-009` 按照 Agent、API、桌面前端和个人知识后端四个边界串行拆分，最后只读审计第二梯队。普通 push/PR 不访问真实模型；必要 Live `provider-matrix` 不替代完整 7-run Live 门，未来发布或打标签前仍必须完成受保护的完整 Live 门；任一任务若产生未批准的产品行为差异，不得作为测试或重构完成。
+`REF-001` 至 `REF-009` 及 `QA-005` 至 `QA-009` 已完成，跨层兼容、桌面 E2E、个人知识、管理端治理、桌面关键旅程和 Agent coordinator 结构已经冻结。`QA-010` 的本地治理实现与完整离线门已通过，可作为检查点提交；但 2026-08-30 用户明确暂缓本地与远程完整 7-run Live 验收，故仍保持未完成且不得宣称 Live 门通过。在此暂缓验收例外下，下一项为 `REF-010`，再按照 API、桌面前端和个人知识后端三个边界串行拆分，最后只读审计第二梯队。普通 push/PR 不访问真实模型；必要 Live `provider-matrix` 不替代完整 7-run Live 门，未来发布或打标签前仍必须完成受保护的完整 Live 门；任一任务若产生未批准的产品行为差异，不得作为测试或重构完成。
 
 ### 检查点 D：上一阶段收口
 
