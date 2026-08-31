@@ -121,3 +121,5 @@
 更新的完整测试基线统一保留在 [测试策略](../testing-strategy.md)。
 
 2026-08-30 `REF-009` 完成 Agent coordinator 与兼容门面收口：每次调用由 `AgentCompatibilityFacade` 快照 `app.agent` namespace，保持 async/sync wrapper 语义与实时 patch；`CoordinatorRunState` 将执行流明确为 prepare、availability、model、ready、loop 五阶段，`run_agent` 继续负责运行生命周期。`app/agent.py` 由 1256 行降至 164 行，coordinator 降至 108 行；174 项定向回归、冻结契约与仓库检查均通过。宿主 full 为 485/417 Python、系统 13/15/13/17/10 耗时 13.6/18.2/17.5/14.1/15.6 秒（79.1 秒）、覆盖率 88%、Node 42/42、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 17/17（40.0 秒）；普通 full 的真实模型和外网调用均为 0。`QA-010` 的完整 7-run Live 验收仍由用户暂缓，未因本次结构重构而标记完成。
+
+2026-08-31 `REF-010` 完成 API 基础边界收口：`app/api/` 分离 application、errors、schemas 与 dependencies，`app.main` 保留 app、lifespan、异常 handler、Pydantic schema 和个人用户/Admin 鉴权兼容导出，并在调用时保持实时 patch；URL、OpenAPI、认证、状态码和响应不变。新增 5 项 API 边界测试、78 项必要回归、冻结契约与仓库检查均通过，`app/main.py` 由 1267 行降至 1125 行。宿主 full 为 490/422 Python、系统 13/15/13/17/10 耗时 13.5/15.4/18.0/15.6/17.0 秒（79.4 秒）、覆盖率 88%、Node 42/42、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 17/17（41.8 秒）；普通 full 的真实模型和外网调用均为 0。`QA-010` 的完整 7-run Live 验收仍由用户暂缓，未因本次结构重构而标记完成。

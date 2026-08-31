@@ -15,8 +15,6 @@ import httpx
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from starlette.concurrency import run_in_threadpool
 
 from .agent import run_agent
@@ -82,6 +80,22 @@ from .sessions import (
     restore_session,
     session_history,
 )
+from .api.application import ApplicationDependencies, create_application, lifespan_for
+from .api.dependencies import AuthenticationDependencies, current_admin as _current_admin, current_personal_user as _current_personal_user
+from .api.errors import ErrorDependencies, error_payload as _error_payload, handlers as _error_handlers, http_problem, personal_problem as _personal_problem
+from .api.schemas import (
+    AdminModelCapabilitiesRequest,
+    AdminModelPublishRequest,
+    AdminModelStatusRequest,
+    BulkSessionDeleteRequest,
+    ChatMessage,
+    ChatRequest,
+    ModelCapabilitiesRequest,
+    ModelConfigRequest,
+    PersonalSearchPreviewRequest,
+    SessionUpdateRequest,
+    StreamTelemetryRequest,
+)
 
 
 PERSONAL_JOB_ACTIVE_STATUSES = frozenset({"uploaded", "parsing", "chunking", "indexing", "deleting"})
@@ -146,170 +160,56 @@ async def read_personal_job_snapshots(owner_user_id: str) -> list[dict]:
     return await asyncio.to_thread(list_personal_job_snapshots, owner_user_id)
 
 
+def _application_dependencies() -> ApplicationDependencies:
+    return ApplicationDependencies(
+        ensure_department_databases=ensure_department_databases,
+        recover_interrupted_executions=recover_interrupted_executions,
+        ensure_model_catalog=ensure_model_catalog,
+        db_session=db_session,
+        manufacturing_steps=MANUFACTURING_STEPS,
+        generate_database=generate_database,
+        seed_reference_data=seed_reference_data,
+        pending_personal_jobs=pending_personal_jobs,
+        process_personal_document=process_personal_document,
+        process_personal_document_deletion=process_personal_document_deletion,
+        to_thread=asyncio.to_thread,
+    )
+
+
 @asynccontextmanager
-async def lifespan(_: FastAPI):
-    ensure_department_databases()
-    recover_interrupted_executions()
-    ensure_model_catalog()
-    with db_session() as connection:
-        populated_steps = {
-            row[0]
-            for row in connection.execute(
-                "SELECT DISTINCT process_step FROM process_runs WHERE measurement_value IS NOT NULL"
-            )
-        }
-        has_sensor_data = bool(
-            connection.execute("SELECT EXISTS(SELECT 1 FROM sensor_readings LIMIT 1)").fetchone()[0]
-        )
-        max_operation = connection.execute("SELECT MAX(operation_seq) FROM process_runs").fetchone()[0] or 0
-        knowledge_count = connection.execute("SELECT COUNT(*) FROM knowledge_chunks").fetchone()[0]
-    if not set(MANUFACTURING_STEPS).issubset(populated_steps) or not has_sensor_data or max_operation < 18:
-        generate_database()
-    elif knowledge_count == 0:
-        seed_reference_data()
-    for document_id, owner_user_id, job_id, status in pending_personal_jobs():
-        worker = process_personal_document_deletion if status == "deleting" else process_personal_document
-        await asyncio.to_thread(worker, document_id, owner_user_id, job_id)
-    yield
+async def lifespan(app_instance: FastAPI):
+    async with lifespan_for(_application_dependencies())(app_instance):
+        yield
 
 
-app = FastAPI(
-    title="Fab Insight Agent",
-    version="1.0.0",
-    description="虚拟半导体制造报表、RAG 与数据分析 Agent",
+app = create_application(
     lifespan=lifespan,
+    project_dir=PROJECT_DIR,
+    principal_context_middleware=PrincipalContextMiddleware,
+    request_audit_middleware=RequestAuditMiddleware,
 )
-app.add_middleware(PrincipalContextMiddleware)
-app.add_middleware(RequestAuditMiddleware)
-app.mount("/static", StaticFiles(directory=PROJECT_DIR / "app" / "static"), name="static")
 
 
 def error_payload(error_code: str, detail: str, retryable: bool = False, **extra) -> dict:
-    return {
-        "error_code": error_code,
-        "detail": detail,
-        "request_id": current_request_id(),
-        "retryable": retryable,
-        **extra,
-    }
-
-
-def http_problem(status_code: int, error_code: str, detail: str, retryable: bool = False) -> HTTPException:
-    return HTTPException(status_code=status_code, detail={
-        "error_code": error_code,
-        "message": detail,
-        "retryable": retryable,
-    })
+    return _error_payload(error_code, detail, retryable, deps=ErrorDependencies(current_request_id=current_request_id, emit=emit), **extra)
 
 
 @app.exception_handler(HTTPException)
 async def handle_http_error(_: Request, exc: HTTPException) -> JSONResponse:
-    if isinstance(exc.detail, dict):
-        detail = str(exc.detail.get("message") or "请求失败")
-        error_code = str(exc.detail.get("error_code") or "HTTP_ERROR")
-        retryable = bool(exc.detail.get("retryable", exc.status_code >= 500))
-    else:
-        detail = str(exc.detail)
-        error_code = "NOT_FOUND" if exc.status_code == 404 else "HTTP_ERROR"
-        retryable = exc.status_code >= 500
-    return JSONResponse(status_code=exc.status_code, content=error_payload(error_code, detail, retryable), headers=exc.headers)
+    handler, _, _ = _error_handlers(ErrorDependencies(current_request_id=current_request_id, emit=emit))
+    return await handler(_, exc)
 
 
 @app.exception_handler(RequestValidationError)
 async def handle_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
-    fields = [".".join(str(part) for part in item.get("loc", [])[1:]) for item in exc.errors()]
-    return JSONResponse(
-        status_code=422,
-        content=error_payload("VALIDATION_ERROR", "请求参数不符合要求", False, fields=[field for field in fields if field]),
-    )
+    _, handler, _ = _error_handlers(ErrorDependencies(current_request_id=current_request_id, emit=emit))
+    return await handler(_, exc)
 
 
 @app.exception_handler(Exception)
 async def handle_unexpected_error(_: Request, exc: Exception) -> JSONResponse:
-    request_id = current_request_id() or f"error-{uuid.uuid4()}"
-    emit(
-        "api_exception",
-        request_id,
-        status="error",
-        error_type=type(exc).__name__,
-        full_content={"error_message": str(exc), "traceback": traceback.format_exc()},
-    )
-    return JSONResponse(status_code=500, content=error_payload("INTERNAL_ERROR", "服务器内部错误", True))
-
-
-class ChatMessage(BaseModel):
-    role: str
-    content: str
-
-
-class ChatRequest(BaseModel):
-    message: str = Field(min_length=2, max_length=4000)
-    history: list[ChatMessage] = Field(default_factory=list, max_length=20)
-    session_id: str | None = None
-    client_message_id: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
-    thinking: StrictBool = False
-
-
-class StreamTelemetryRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    run_id: str = Field(min_length=8, max_length=64)
-    read_chunks: int = Field(default=0, ge=0, le=100000)
-    progress_events: int = Field(default=0, ge=0, le=100000)
-    answer_events: int = Field(default=0, ge=0, le=100000)
-    answer_chars: int = Field(default=0, ge=0, le=1000000)
-    max_read_gap_ms: float = Field(default=0, ge=0, le=3600000)
-    max_buffer_pending: int = Field(default=0, ge=0, le=1000000)
-    render_frames: int = Field(default=0, ge=0, le=100000)
-    max_render_ms: float = Field(default=0, ge=0, le=3600000)
-    total_render_ms: float = Field(default=0, ge=0, le=3600000)
-    hidden_resumes: int = Field(default=0, ge=0, le=10000)
-    stable_appends: int = Field(default=0, ge=0, le=100000)
-    tail_replacements: int = Field(default=0, ge=0, le=100000)
-    stream_resets: int = Field(default=0, ge=0, le=10000)
-    max_tail_chars: int = Field(default=0, ge=0, le=1000000)
-    max_visible_step: int = Field(default=0, ge=0, le=1000000)
-    final_match: bool = False
-    duration_ms: float = Field(default=0, ge=0, le=3600000)
-
-
-class ModelConfigRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    model: str = Field(min_length=2, max_length=64)
-
-
-class ModelCapabilitiesRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    streaming: StrictBool = True
-    tool_calls: StrictBool = True
-    thinking: StrictBool = False
-    native_multimodal: StrictBool = False
-
-
-class AdminModelPublishRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    model_id: str = Field(min_length=2, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]+$")
-    display_name: str = Field(min_length=2, max_length=100)
-    provider: str = Field(pattern=r"^(deepseek|openai-compatible)$")
-    provider_model: str = Field(min_length=2, max_length=120)
-    base_url: str = Field(min_length=8, max_length=500, pattern=r"^https?://")
-    capabilities: ModelCapabilitiesRequest = Field(default_factory=ModelCapabilitiesRequest)
-
-
-class AdminModelStatusRequest(BaseModel):
-    status: str = Field(pattern=r"^(published|retired)$")
-
-
-class AdminModelCapabilitiesRequest(BaseModel):
-    """An explicit, complete administrator declaration (no extension keys)."""
-
-    model_config = ConfigDict(extra="forbid")
-    streaming: StrictBool
-    tool_calls: StrictBool
-    thinking: StrictBool
-    native_multimodal: StrictBool
+    _, _, handler = _error_handlers(ErrorDependencies(current_request_id=current_request_id, emit=emit))
+    return await handler(_, exc)
 
 
 def _compatibility_failure_report(exc: ModelCompatibilityError) -> dict:
@@ -322,62 +222,20 @@ def _compatibility_failure_report(exc: ModelCompatibilityError) -> dict:
     }
 
 
-class SessionUpdateRequest(BaseModel):
-    title: str = Field(min_length=1, max_length=80)
-
-
-class BulkSessionDeleteRequest(BaseModel):
-    session_ids: list[str] = Field(min_length=1, max_length=200)
-
-
-class PersonalSearchPreviewRequest(BaseModel):
-    query: str = Field(min_length=2, max_length=500)
-    limit: int = Field(default=10, ge=1, le=20)
-    document_ids: list[str] = Field(default_factory=list, max_length=100)
-
-
 def current_personal_user(
     authorization: Annotated[str | None, Header()] = None,
 ) -> str:
-    settings = get_settings()
-    configured_token = settings.personal_knowledge_api_token
-    if configured_token:
-        scheme, _, provided_token = (authorization or "").partition(" ")
-        if scheme.lower() != "bearer" or not secrets.compare_digest(provided_token, configured_token):
-            raise HTTPException(
-                status_code=401,
-                detail={
-                    "error_code": "AUTHENTICATION_REQUIRED",
-                    "message": "个人知识库访问令牌无效",
-                    "retryable": False,
-                },
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-    return current_principal().knowledge_owner_id
+    return _current_personal_user(authorization, deps=AuthenticationDependencies(get_settings, current_principal, http_problem, secrets.compare_digest))
 
 
 def current_admin(
     authorization: Annotated[str | None, Header()] = None,
 ) -> str:
-    configured_token = get_settings().admin_api_token
-    if not configured_token:
-        raise http_problem(503, "ADMIN_NOT_CONFIGURED", "管理端访问令牌尚未配置", False)
-    scheme, _, provided_token = (authorization or "").partition(" ")
-    if scheme.lower() != "bearer" or not secrets.compare_digest(provided_token, configured_token):
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error_code": "ADMIN_AUTHENTICATION_REQUIRED",
-                "message": "管理端访问令牌无效",
-                "retryable": False,
-            },
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return "administrator"
+    return _current_admin(authorization, deps=AuthenticationDependencies(get_settings, current_principal, http_problem, secrets.compare_digest))
 
 
 def personal_problem(exc: PersonalKnowledgeError) -> HTTPException:
-    return http_problem(exc.status_code, exc.error_code, exc.detail, exc.retryable)
+    return _personal_problem(exc)
 
 
 _VERSIONED_PAGE_TEMPLATES = {
