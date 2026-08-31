@@ -1,28 +1,28 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
 import json
 import os
 import secrets
 import traceback
-import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
-from typing import Annotated, Literal
+from typing import Annotated
 
 import httpx
-from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
-from starlette.concurrency import run_in_threadpool
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from .agent import run_agent
 from .audit import GIT_COMMIT, current_request_id, emit, monitoring_summary, read_events
 from .config import APP_VERSION, PROJECT_DIR, ModelConnection, get_settings
 from .database import db_session, department_paths, ensure_department_databases
 from .enterprise_data import EnterpriseDataError, get_enterprise_provider
-from .execution_store import RunExecutionRecorder, get_run_audit, recover_interrupted_executions
+from .execution_store import (
+    RunExecutionRecorder,
+    get_run_audit,
+    recover_interrupted_executions,
+)
 from .identity import Principal, PrincipalContextMiddleware, current_principal
 from .model_registry import (
     ensure_model_catalog,
@@ -81,8 +81,18 @@ from .sessions import (
     session_history,
 )
 from .api.application import ApplicationDependencies, create_application, lifespan_for
-from .api.dependencies import AuthenticationDependencies, current_admin as _current_admin, current_personal_user as _current_personal_user
-from .api.errors import ErrorDependencies, error_payload as _error_payload, handlers as _error_handlers, http_problem, personal_problem as _personal_problem
+from .api.dependencies import (
+    AuthenticationDependencies,
+    current_admin as _current_admin,
+    current_personal_user as _current_personal_user,
+)
+from .api.errors import (
+    ErrorDependencies,
+    error_payload as _error_payload,
+    handlers as _error_handlers,
+    http_problem,
+    personal_problem as _personal_problem,
+)
 from .api.schemas import (
     AdminModelCapabilitiesRequest,
     AdminModelPublishRequest,
@@ -96,68 +106,24 @@ from .api.schemas import (
     SessionUpdateRequest,
     StreamTelemetryRequest,
 )
-
-
-PERSONAL_JOB_ACTIVE_STATUSES = frozenset({"uploaded", "parsing", "chunking", "indexing", "deleting"})
-
-
-def personal_job_event_id(job: dict) -> str:
-    """A line-safe identifier; reconnection always replays the current snapshot."""
-    return f"{job['job_id']}-{job['updated_at']}".replace("\r", "").replace("\n", "")
-
-
-def encode_personal_job_event(job: dict) -> str:
-    data = json.dumps(job, ensure_ascii=False, separators=(",", ":"))
-    return f"retry: 1200\nid: {personal_job_event_id(job)}\nevent: job\ndata: {data}\n\n"
-
-
-def personal_job_snapshot_fingerprint(job: dict) -> str:
-    return json.dumps(job, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-
-async def iter_personal_job_events(
-    owner_user_id: str,
-    *,
-    snapshot_reader=list_personal_job_snapshots,
-    sleep=asyncio.sleep,
-    is_disconnected=None,
-    poll_seconds: float = 0.5,
-    heartbeat_seconds: float = 15.0,
-):
-    """Yield snapshots and changes without retaining cross-user event history."""
-    snapshots = snapshot_reader(owner_user_id)
-    if inspect.isawaitable(snapshots):
-        snapshots = await snapshots
-    known = {job["job_id"]: personal_job_snapshot_fingerprint(job) for job in snapshots}
-    for job in snapshots:
-        yield encode_personal_job_event(job)
-    if not any(job["status"] in PERSONAL_JOB_ACTIVE_STATUSES for job in snapshots):
-        return
-    quiet_for = 0.0
-    while True:
-        await sleep(poll_seconds)
-        if is_disconnected is not None and await is_disconnected():
-            return
-        snapshots = snapshot_reader(owner_user_id)
-        if inspect.isawaitable(snapshots):
-            snapshots = await snapshots
-        changed = False
-        for job in snapshots:
-            fingerprint = personal_job_snapshot_fingerprint(job)
-            if known.get(job["job_id"]) != fingerprint:
-                known[job["job_id"]] = fingerprint
-                changed = True
-                yield encode_personal_job_event(job)
-        if not any(job["status"] in PERSONAL_JOB_ACTIVE_STATUSES for job in snapshots):
-            return
-        quiet_for = 0.0 if changed else quiet_for + poll_seconds
-        if quiet_for >= heartbeat_seconds:
-            quiet_for = 0.0
-            yield ": heartbeat\n\n"
-
-
-async def read_personal_job_snapshots(owner_user_id: str) -> list[dict]:
-    return await asyncio.to_thread(list_personal_job_snapshots, owner_user_id)
+from .api.services.personal_job_events import (
+    PERSONAL_JOB_ACTIVE_STATUSES,
+    encode_personal_job_event,
+    iter_personal_job_events,
+    personal_job_event_id,
+    personal_job_snapshot_fingerprint,
+    read_personal_job_snapshots,
+)
+from .api.routers import (
+    admin as admin_router,
+    enterprise as enterprise_router,
+    knowledge as knowledge_router,
+    models as models_router,
+    monitor as monitor_router,
+    reports as reports_router,
+    sessions as sessions_router,
+    system as system_router,
+)
 
 
 def _application_dependencies() -> ApplicationDependencies:
@@ -190,48 +156,64 @@ app = create_application(
 )
 
 
-def error_payload(error_code: str, detail: str, retryable: bool = False, **extra) -> dict:
-    return _error_payload(error_code, detail, retryable, deps=ErrorDependencies(current_request_id=current_request_id, emit=emit), **extra)
+def error_payload(
+    error_code: str, detail: str, retryable: bool = False, **extra
+) -> dict:
+    return _error_payload(
+        error_code,
+        detail,
+        retryable,
+        deps=ErrorDependencies(current_request_id=current_request_id, emit=emit),
+        **extra,
+    )
 
 
 @app.exception_handler(HTTPException)
 async def handle_http_error(_: Request, exc: HTTPException) -> JSONResponse:
-    handler, _, _ = _error_handlers(ErrorDependencies(current_request_id=current_request_id, emit=emit))
+    handler, _, _ = _error_handlers(
+        ErrorDependencies(current_request_id=current_request_id, emit=emit)
+    )
     return await handler(_, exc)
 
 
 @app.exception_handler(RequestValidationError)
-async def handle_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
-    _, handler, _ = _error_handlers(ErrorDependencies(current_request_id=current_request_id, emit=emit))
+async def handle_validation_error(
+    _: Request, exc: RequestValidationError
+) -> JSONResponse:
+    _, handler, _ = _error_handlers(
+        ErrorDependencies(current_request_id=current_request_id, emit=emit)
+    )
     return await handler(_, exc)
 
 
 @app.exception_handler(Exception)
 async def handle_unexpected_error(_: Request, exc: Exception) -> JSONResponse:
-    _, _, handler = _error_handlers(ErrorDependencies(current_request_id=current_request_id, emit=emit))
+    _, _, handler = _error_handlers(
+        ErrorDependencies(current_request_id=current_request_id, emit=emit)
+    )
     return await handler(_, exc)
-
-
-def _compatibility_failure_report(exc: ModelCompatibilityError) -> dict:
-    return {
-        "status": "failed",
-        "summary": exc.summary[:500],
-        "category": exc.category,
-        "retryable": bool(exc.retryable),
-        "checked_at": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
-    }
 
 
 def current_personal_user(
     authorization: Annotated[str | None, Header()] = None,
 ) -> str:
-    return _current_personal_user(authorization, deps=AuthenticationDependencies(get_settings, current_principal, http_problem, secrets.compare_digest))
+    return _current_personal_user(
+        authorization,
+        deps=AuthenticationDependencies(
+            get_settings, current_principal, http_problem, secrets.compare_digest
+        ),
+    )
 
 
 def current_admin(
     authorization: Annotated[str | None, Header()] = None,
 ) -> str:
-    return _current_admin(authorization, deps=AuthenticationDependencies(get_settings, current_principal, http_problem, secrets.compare_digest))
+    return _current_admin(
+        authorization,
+        deps=AuthenticationDependencies(
+            get_settings, current_principal, http_problem, secrets.compare_digest
+        ),
+    )
 
 
 def personal_problem(exc: PersonalKnowledgeError) -> HTTPException:
@@ -244,522 +226,96 @@ _VERSIONED_PAGE_TEMPLATES = {
 }
 
 
-def render_versioned_page(page: Literal["index", "admin"]) -> HTMLResponse:
-    """Render one of the trusted frontend templates with the active build version."""
-    html = _VERSIONED_PAGE_TEMPLATES[page].read_text(encoding="utf-8").replace("__APP_VERSION__", APP_VERSION)
-    return HTMLResponse(html, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
-
-
-@app.get("/", include_in_schema=False)
-async def index():
-    return render_versioned_page("index")
-
-
-@app.get("/admin", include_in_schema=False)
-async def admin_index():
-    return render_versioned_page("admin")
-
-
-@app.get("/api/health")
-def health() -> dict:
-    settings = get_settings()
-    principal = current_principal()
-    model_config = public_user_model_config(principal)
-    enterprise = get_enterprise_provider().manifest(principal)
-    department_names = {"main": "manufacturing"}
-    with db_session() as connection:
-        lots = connection.execute("SELECT COUNT(*) FROM lots").fetchone()[0]
-        date_range = connection.execute("SELECT MIN(date(start_time)), MAX(date(COALESCE(complete_time, start_time))) FROM lots").fetchone()
-        knowledge_chunks = connection.execute("SELECT COUNT(*) FROM knowledge_chunks").fetchone()[0]
-        historical_cases = connection.execute("SELECT COUNT(*) FROM historical_cases").fetchone()[0]
-        process_runs = connection.execute("SELECT COUNT(*) FROM process_runs").fetchone()[0]
-        sensor_readings = connection.execute("SELECT COUNT(*) FROM sensor_readings").fetchone()[0]
-        wafer_maps = connection.execute("SELECT COUNT(*) FROM wafer_maps").fetchone()[0]
-    return {
-        "status": "ok",
-        "database": {"lots": lots, "process_runs": process_runs, "sensor_readings": sensor_readings, "wafer_maps": wafer_maps, "start": date_range[0], "end": date_range[1]},
-        "database_departments": {
-            department_names.get(name, name): {
-                "path": str(path),
-                "size_bytes": path.stat().st_size if path.exists() else 0,
-            }
-            for name, path in department_paths().items()
-        },
-        "model": model_config["provider_model"],
-        "model_health": model_config.get("health", {}),
-        "agent_configured": model_config["api_key_configured"],
-        "build": {"version": APP_VERSION, "git_commit": GIT_COMMIT},
-        "instance": {
-            "id": os.getenv("FAB_INSTANCE_ID", "unisolated"),
-            "root": os.getenv("FAB_INSTANCE_ROOT", str(PROJECT_DIR)),
-            "source_root": os.getenv("FAB_SOURCE_ROOT", str(PROJECT_DIR)),
-        },
-        "reference_data": {"knowledge_chunks": knowledge_chunks, "historical_cases": historical_cases},
-        "enterprise": enterprise,
-    }
-
-
-@app.get("/api/version")
-def version() -> dict:
-    return {
-        "version": APP_VERSION,
-        "git_commit": GIT_COMMIT,
-        "instance_id": os.getenv("FAB_INSTANCE_ID", "unisolated"),
-    }
-
-
-@app.get("/api/enterprise/context")
-def enterprise_context() -> dict:
-    settings = get_settings()
-    principal = current_principal()
-    return {
-        "mode": "enterprise" if settings.enterprise_mode else "personal",
-        "identity": principal.public_dict(),
-        "knowledge_owner_scope": principal.knowledge_owner_id,
-        "data": get_enterprise_provider().manifest(principal),
-    }
-
-
-def _enterprise_page(entity: str, limit: int, cursor: str | None, filters: dict) -> dict:
-    try:
-        query_filters = {key: value for key, value in filters.items() if key not in {"entity", "limit", "cursor"}}
-        return get_enterprise_provider().page(entity, current_principal(), limit, cursor, query_filters)
-    except EnterpriseDataError as exc:
-        raise http_problem(400, exc.error_code, exc.detail, False) from exc
-
-
-@app.get("/api/enterprise/data/manifest")
-def enterprise_manifest() -> dict:
-    return get_enterprise_provider().manifest(current_principal())
-
-
-@app.get("/api/enterprise/data/summary")
-def enterprise_summary(
-    start: str | None = None,
-    end: str | None = None,
-    process_step: str | None = Query(None, pattern=PROCESS_STEP_PATTERN),
-    equipment_id: str | None = Query(None, min_length=2, max_length=64),
-) -> dict:
-    try:
-        return get_enterprise_provider().summary(
-            current_principal(),
-            {
-                "start": start,
-                "end": end,
-                "process_step": process_step,
-                "equipment_id": equipment_id,
-            },
-        )
-    except EnterpriseDataError as exc:
-        raise http_problem(400, exc.error_code, exc.detail, False) from exc
-
-
-@app.get("/api/enterprise/data/lots")
-def enterprise_lots(
-    limit: int = Query(100, ge=1, le=500),
-    cursor: str | None = None,
-    start: str | None = None,
-    end: str | None = None,
-    product: str | None = None,
-    status: str | None = None,
-) -> dict:
-    return _enterprise_page("lots", limit, cursor, locals())
-
-
-@app.get("/api/enterprise/data/process-runs")
-def enterprise_process_runs(
-    limit: int = Query(100, ge=1, le=500),
-    cursor: str | None = None,
-    start: str | None = None,
-    end: str | None = None,
-    process_step: str | None = None,
-    equipment_id: str | None = None,
-) -> dict:
-    return _enterprise_page("process-runs", limit, cursor, locals())
-
-
-@app.get("/api/enterprise/data/sensor-events")
-def enterprise_sensor_events(
-    limit: int = Query(100, ge=1, le=500),
-    cursor: str | None = None,
-    start: str | None = None,
-    end: str | None = None,
-    process_step: str | None = None,
-    equipment_id: str | None = None,
-    signal_name: str | None = None,
-) -> dict:
-    return _enterprise_page("sensor-events", limit, cursor, locals())
-
-
-@app.get("/api/settings/model")
-def get_model_config() -> dict:
-    return public_user_model_config()
-
-
-@app.post("/api/settings/model")
-def set_model_config(request: ModelConfigRequest) -> dict:
-    try:
-        result = select_user_model(request.model)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    emit(
-        "model_config_changed",
-        f"config-{uuid.uuid4()}",
-        status="success",
-        model=result["model"],
-        tenant_id=current_principal().tenant_id,
-        user_id=current_principal().user_id,
-    )
-    return result
-
-
-@app.get("/api/admin/overview")
-def admin_overview(
-    _: Annotated[str, Depends(current_admin)],
-    hours: int = Query(24, ge=1, le=720),
-    recent_limit: int = Query(30, ge=1, le=100),
-) -> dict:
-    overview = admin_runtime_overview(hours, recent_limit)
-    overview["agent"] = monitoring_summary(hours, recent_limit)
-    overview["build"] = {"version": APP_VERSION, "git_commit": GIT_COMMIT}
-    return overview
-
-
-@app.get("/api/admin/models")
-def admin_models(_: Annotated[str, Depends(current_admin)]) -> list[dict]:
-    return list_models(include_retired=True)
-
-
-@app.post("/api/admin/models", status_code=201)
-async def admin_publish_model(
-    request: AdminModelPublishRequest,
-    admin_user: Annotated[str, Depends(current_admin)],
-) -> dict:
-    try:
-        model = publish_model(
-            request.model_id,
-            request.display_name,
-            request.provider,
-            request.provider_model,
-            request.base_url,
-            request.capabilities.model_dump(),
-            admin_user,
-        )
-    except ValueError as exc:
-        message = str(exc)
-        status_code = 409 if "已经存在" in message else 400
-        raise http_problem(status_code, "MODEL_PUBLICATION_FAILED", message, False) from exc
-    emit(
-        "model_published",
-        f"model-{uuid.uuid4()}",
-        status="success",
-        model_id=model["model_id"],
-        provider=model["provider"],
-        provider_model=model["provider_model"],
-        created_by=admin_user,
-    )
-    return model
-
-
-@app.patch("/api/admin/models/{model_id}")
-def admin_update_model_status(
-    model_id: str,
-    request: AdminModelStatusRequest,
-    admin_user: Annotated[str, Depends(current_admin)],
-) -> dict:
-    try:
-        model = set_model_status(model_id, request.status)
-    except ValueError as exc:
-        raise http_problem(400, "MODEL_STATUS_UPDATE_FAILED", str(exc), False) from exc
-    emit(
-        "model_status_changed",
-        f"model-{uuid.uuid4()}",
-        status="success",
-        model_id=model_id,
-        model_status=request.status,
-        changed_by=admin_user,
-    )
-    return model
-
-
-@app.patch("/api/admin/models/{model_id}/capabilities")
-def admin_update_model_capabilities(
-    model_id: str,
-    request: AdminModelCapabilitiesRequest,
-    admin_user: Annotated[str, Depends(current_admin)],
-) -> dict:
-    try:
-        model = update_model_capabilities(model_id, request.model_dump())
-    except ValueError as exc:
-        raise http_problem(400, "MODEL_CAPABILITIES_UPDATE_FAILED", str(exc), False) from exc
-    emit("model_capabilities_updated", f"model-{uuid.uuid4()}", status="success", model_id=model_id, changed_by=admin_user)
-    return model
-
-
-@app.post("/api/admin/models/{model_id}/compatibility-check")
-async def admin_check_model_compatibility(
-    model_id: str,
-    admin_user: Annotated[str, Depends(current_admin)],
-) -> dict:
-    with db_session() as connection:
-        row = connection.execute(
-            "SELECT provider, provider_model, base_url, capabilities_json FROM agent.model_catalog WHERE model_id = ?", (model_id,)
-        ).fetchone()
-    if row is None:
-        raise http_problem(404, "MODEL_COMPATIBILITY_FAILED", "模型不存在", False)
-    try:
-        capabilities = json.loads(row["capabilities_json"] or "{}")
-    except (TypeError, json.JSONDecodeError):
-        capabilities = {}
-    try:
-        configured = get_settings().model_connection
-        report = await check_model_compatibility(
-            ModelConnection(row["provider"], configured.api_key, row["base_url"], row["provider_model"]), capabilities
-        )
-        model = save_model_compatibility_report(model_id, report)
-    except ModelCompatibilityError as exc:
-        failed = _compatibility_failure_report(exc)
-        save_model_compatibility_report(model_id, failed)
-        emit("model_compatibility_checked", f"model-{uuid.uuid4()}", status="error", model_id=model_id, error_category=exc.category, retryable=exc.retryable, checked_by=admin_user)
-        raise http_problem(422, "MODEL_COMPATIBILITY_FAILED", exc.summary, exc.retryable) from exc
-    except ValueError as exc:
-        raise http_problem(400, "MODEL_COMPATIBILITY_FAILED", str(exc), False) from exc
-    emit("model_compatibility_checked", f"model-{uuid.uuid4()}", status="success", model_id=model_id, checks=[item.get("name") for item in report.get("checks", [])], duration_ms=report.get("duration_ms"), checked_by=admin_user)
-    return model
-
-
-@app.get("/api/reports/dashboard")
-def dashboard(start: str | None = None, end: str | None = None) -> dict:
-    try:
-        return report_bundle(start, end)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@app.get("/api/reports/capability")
-def capability(
-    process_step: str = Query("CVD", pattern=PROCESS_STEP_PATTERN),
-    start: str | None = None,
-    end: str | None = None,
-) -> list[dict]:
-    try:
-        return process_capability(start, end, process_step)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@app.get("/api/knowledge/documents")
-def knowledge_documents() -> list[dict]:
-    return list_knowledge_documents()
-
-
-@app.get("/api/knowledge/chunks/{chunk_id}")
-def knowledge_document(chunk_id: int) -> dict:
-    try:
-        return get_knowledge_document(chunk_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
-@app.post("/api/knowledge/personal/documents", status_code=202)
-async def upload_personal_knowledge_document(
-    background_tasks: BackgroundTasks,
-    file: Annotated[UploadFile, File()],
-    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=8, max_length=128)],
-    owner_user_id: Annotated[str, Depends(current_personal_user)],
-    metadata: Annotated[str | None, Form()] = None,
-) -> dict:
-    settings = get_settings()
-    try:
-        data = await file.read(settings.personal_knowledge_max_upload_bytes + 1)
-        result = await run_in_threadpool(
-            create_personal_upload,
-            owner_user_id,
-            file.filename,
-            data,
-            metadata,
-            idempotency_key,
-        )
-    except PersonalKnowledgeError as exc:
-        raise personal_problem(exc) from exc
-    finally:
-        await file.close()
-    if result.pop("_start_processing", False):
-        background_tasks.add_task(
-            process_personal_document,
-            result["document_id"],
-            owner_user_id,
-            result["job_id"],
-        )
-    return result
-
-
-@app.get("/api/knowledge/personal/jobs/events")
-async def personal_knowledge_job_events(
-    request: Request,
-    owner_user_id: Annotated[str, Depends(current_personal_user)],
-    last_event_id: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
-) -> StreamingResponse:
-    # Last-Event-ID is accepted for standards-compatible clients.  Current SQLite
-    # state is deliberately replayed, so reconnect recovery has no memory dependency.
-    del last_event_id
-    return StreamingResponse(
-        iter_personal_job_events(
-            owner_user_id,
-            snapshot_reader=read_personal_job_snapshots,
-            is_disconnected=request.is_disconnected,
-        ),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
-
-
-@app.get("/api/knowledge/jobs/{job_id}")
-def personal_knowledge_job(
-    job_id: str,
-    owner_user_id: Annotated[str, Depends(current_personal_user)],
-) -> dict:
-    try:
-        return get_personal_job(job_id, owner_user_id)
-    except PersonalKnowledgeError as exc:
-        raise personal_problem(exc) from exc
-
-
-@app.get("/api/knowledge/personal/documents")
-def personal_knowledge_documents(
-    owner_user_id: Annotated[str, Depends(current_personal_user)],
-    q: str = Query("", max_length=100),
-    status: str | None = Query(None, pattern=r"^(uploaded|parsing|chunking|indexing|ready|failed|deleting)$"),
-    limit: int = Query(20, ge=1, le=100),
-    cursor: str | None = Query(None, max_length=500),
-) -> dict:
-    try:
-        return list_personal_documents(owner_user_id, q, status, limit, cursor)
-    except PersonalKnowledgeError as exc:
-        raise personal_problem(exc) from exc
-
-
-@app.get("/api/knowledge/personal/documents/{document_id}")
-def personal_knowledge_document(
-    document_id: str,
-    owner_user_id: Annotated[str, Depends(current_personal_user)],
-) -> dict:
-    try:
-        return get_personal_document(document_id, owner_user_id)
-    except PersonalKnowledgeError as exc:
-        raise personal_problem(exc) from exc
-
-
-@app.get("/api/knowledge/personal/documents/{document_id}/content")
-def personal_knowledge_document_content(
-    document_id: str,
-    owner_user_id: Annotated[str, Depends(current_personal_user)],
-) -> dict:
-    try:
-        return get_personal_document(document_id, owner_user_id, include_chunks=True)
-    except PersonalKnowledgeError as exc:
-        raise personal_problem(exc) from exc
-
-
-@app.get("/api/knowledge/personal/documents/{document_id}/file")
-def download_personal_knowledge_document(
-    document_id: str,
-    owner_user_id: Annotated[str, Depends(current_personal_user)],
-):
-    try:
-        path, filename, mime_type = personal_document_file(document_id, owner_user_id)
-    except PersonalKnowledgeError as exc:
-        raise personal_problem(exc) from exc
-    return FileResponse(path, media_type=mime_type, filename=filename)
-
-
-@app.patch("/api/knowledge/personal/documents/{document_id}")
-def patch_personal_knowledge_document(
-    document_id: str,
-    request: PersonalDocumentPatch,
-    owner_user_id: Annotated[str, Depends(current_personal_user)],
-) -> dict:
-    try:
-        return update_personal_document(document_id, owner_user_id, request)
-    except PersonalKnowledgeError as exc:
-        raise personal_problem(exc) from exc
-
-
-@app.post("/api/knowledge/personal/documents/{document_id}/retry", status_code=202)
-def retry_personal_knowledge_document(
-    document_id: str,
-    background_tasks: BackgroundTasks,
-    owner_user_id: Annotated[str, Depends(current_personal_user)],
-) -> dict:
-    try:
-        result = retry_personal_document(document_id, owner_user_id)
-    except PersonalKnowledgeError as exc:
-        raise personal_problem(exc) from exc
-    background_tasks.add_task(process_personal_document, document_id, owner_user_id, result["job_id"])
-    return result
-
-
-@app.delete("/api/knowledge/personal/documents/{document_id}", status_code=202)
-def delete_personal_knowledge_document(
-    document_id: str,
-    background_tasks: BackgroundTasks,
-    owner_user_id: Annotated[str, Depends(current_personal_user)],
-) -> dict:
-    try:
-        result = begin_delete_personal_document(document_id, owner_user_id)
-    except PersonalKnowledgeError as exc:
-        raise personal_problem(exc) from exc
-    background_tasks.add_task(process_personal_document_deletion, document_id, owner_user_id, result["job_id"])
-    return result
-
-
-@app.post("/api/knowledge/personal/search-preview")
-def personal_knowledge_search_preview(
-    request: PersonalSearchPreviewRequest,
-    owner_user_id: Annotated[str, Depends(current_personal_user)],
-) -> dict:
-    try:
-        results = search_personal_knowledge(owner_user_id, request.query, request.limit, request.document_ids)
-    except PersonalKnowledgeError as exc:
-        raise personal_problem(exc) from exc
-    return {"query": request.query, "count": len(results), "results": results}
-
-
-@app.get("/api/knowledge/personal/chunks/{chunk_id}")
-def personal_knowledge_chunk(
-    chunk_id: str,
-    owner_user_id: Annotated[str, Depends(current_personal_user)],
-) -> dict:
-    try:
-        return get_personal_chunk(chunk_id, owner_user_id)
-    except PersonalKnowledgeError as exc:
-        raise personal_problem(exc) from exc
-
-
-@app.get("/api/cases")
-def historical_cases() -> list[dict]:
-    return list_historical_cases()
-
-
-@app.get("/api/cases/{case_id}")
-def historical_case(case_id: str) -> dict:
-    try:
-        return get_historical_case(case_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
-@app.get("/api/rag/search")
-def rag_search(
-    q: str = Query(min_length=2, max_length=500),
-    limit: int = Query(6, ge=1, le=10),
-    process_step: str | None = None,
-    equipment_id: str | None = None,
-    defect_type: str | None = None,
-    source_type: list[str] | None = Query(None),
-) -> dict:
-    results = search_knowledge(q, limit, process_step, equipment_id, defect_type, source_type)
-    return {"query": q, "count": len(results), "results": results}
+def _router_namespace():
+    """Expose the live main namespace to extracted routes for patch compatibility."""
+    return globals()
+
+
+def _include_domain_router(router) -> None:
+    """Include a router while retaining legacy concrete ``app.routes`` inspection."""
+    before_count = len(app.router.routes)
+    app.include_router(router)
+    added = app.router.routes[before_count:]
+    if len(added) == 1 and not hasattr(added[0], "path"):
+        app.router.routes[before_count:] = router.routes
+
+
+_system_routes = system_router.create_router(_router_namespace)
+_enterprise_routes = enterprise_router.create_router(_router_namespace)
+_model_routes = models_router.create_router(_router_namespace)
+_admin_routes = admin_router.create_router(_router_namespace, current_admin)
+_report_routes = reports_router.create_router(_router_namespace)
+_knowledge_routes = knowledge_router.create_router(
+    _router_namespace, current_personal_user
+)
+
+_include_domain_router(_system_routes.router)
+_include_domain_router(_enterprise_routes.router)
+_include_domain_router(_model_routes.router)
+_include_domain_router(_admin_routes.router)
+_include_domain_router(_report_routes.router)
+_include_domain_router(_knowledge_routes.router)
+
+render_versioned_page = _system_routes.exports["render_versioned_page"]
+index = _system_routes.exports["index"]
+admin_index = _system_routes.exports["admin_index"]
+health = _system_routes.exports["health"]
+version = _system_routes.exports["version"]
+enterprise_context = _enterprise_routes.exports["enterprise_context"]
+_enterprise_page = _enterprise_routes.exports["_enterprise_page"]
+enterprise_manifest = _enterprise_routes.exports["enterprise_manifest"]
+enterprise_summary = _enterprise_routes.exports["enterprise_summary"]
+enterprise_lots = _enterprise_routes.exports["enterprise_lots"]
+enterprise_process_runs = _enterprise_routes.exports["enterprise_process_runs"]
+enterprise_sensor_events = _enterprise_routes.exports["enterprise_sensor_events"]
+get_model_config = _model_routes.exports["get_model_config"]
+set_model_config = _model_routes.exports["set_model_config"]
+_compatibility_failure_report = _admin_routes.exports["_compatibility_failure_report"]
+admin_overview = _admin_routes.exports["admin_overview"]
+admin_models = _admin_routes.exports["admin_models"]
+admin_publish_model = _admin_routes.exports["admin_publish_model"]
+admin_update_model_status = _admin_routes.exports["admin_update_model_status"]
+admin_update_model_capabilities = _admin_routes.exports[
+    "admin_update_model_capabilities"
+]
+admin_check_model_compatibility = _admin_routes.exports[
+    "admin_check_model_compatibility"
+]
+dashboard = _report_routes.exports["dashboard"]
+capability = _report_routes.exports["capability"]
+knowledge_documents = _knowledge_routes.exports["knowledge_documents"]
+knowledge_document = _knowledge_routes.exports["knowledge_document"]
+upload_personal_knowledge_document = _knowledge_routes.exports[
+    "upload_personal_knowledge_document"
+]
+personal_knowledge_job_events = _knowledge_routes.exports[
+    "personal_knowledge_job_events"
+]
+personal_knowledge_job = _knowledge_routes.exports["personal_knowledge_job"]
+personal_knowledge_documents = _knowledge_routes.exports["personal_knowledge_documents"]
+personal_knowledge_document = _knowledge_routes.exports["personal_knowledge_document"]
+personal_knowledge_document_content = _knowledge_routes.exports[
+    "personal_knowledge_document_content"
+]
+download_personal_knowledge_document = _knowledge_routes.exports[
+    "download_personal_knowledge_document"
+]
+patch_personal_knowledge_document = _knowledge_routes.exports[
+    "patch_personal_knowledge_document"
+]
+retry_personal_knowledge_document = _knowledge_routes.exports[
+    "retry_personal_knowledge_document"
+]
+delete_personal_knowledge_document = _knowledge_routes.exports[
+    "delete_personal_knowledge_document"
+]
+personal_knowledge_search_preview = _knowledge_routes.exports[
+    "personal_knowledge_search_preview"
+]
+personal_knowledge_chunk = _knowledge_routes.exports["personal_knowledge_chunk"]
+historical_cases = _knowledge_routes.exports["historical_cases"]
+historical_case = _knowledge_routes.exports["historical_case"]
+rag_search = _knowledge_routes.exports["rag_search"]
 
 
 @app.post("/api/chat")
@@ -805,7 +361,12 @@ async def chat(request: ChatRequest) -> dict:
             user_message_id=user_message["message_id"] if user_message else None,
             assistant_message_id=message["message_id"],
         )
-        finish_agent_run(principal, "success", str(result.get("run_id") or ""), str(result.get("model") or selected_model))
+        finish_agent_run(
+            principal,
+            "success",
+            str(result.get("run_id") or ""),
+            str(result.get("model") or selected_model),
+        )
         return result
     except httpx.HTTPStatusError as exc:
         recorder.fail(str(exc))
@@ -815,93 +376,53 @@ async def chat(request: ChatRequest) -> dict:
     except httpx.RequestError as exc:
         recorder.fail(str(exc))
         finish_agent_run(principal, "error", model=selected_model, error=str(exc))
-        raise http_problem(502, "MODEL_NETWORK_ERROR", f"无法连接模型 API: {exc}", True) from exc
+        raise http_problem(
+            502, "MODEL_NETWORK_ERROR", f"无法连接模型 API: {exc}", True
+        ) from exc
     except Exception as exc:
         recorder.fail(str(exc))
         finish_agent_run(principal, "error", model=selected_model, error=str(exc))
         raise
 
 
-@app.post("/api/sessions")
-def start_session() -> dict:
-    return create_session()
+_session_routes = sessions_router.create_router(_router_namespace)
+_include_domain_router(_session_routes.router)
 
-
-@app.get("/api/sessions")
-def session_list(
-    q: str = Query("", max_length=100),
-    limit: int = Query(100, ge=1, le=200),
-    include_archived: bool = False,
-) -> list[dict]:
-    return list_sessions(q, limit, include_archived)
-
-
-@app.patch("/api/sessions/{session_id}")
-def update_session(session_id: str, request: SessionUpdateRequest) -> dict:
-    try:
-        return rename_session(session_id, request.title)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
-@app.delete("/api/sessions/{session_id}")
-def delete_session(session_id: str) -> dict:
-    try:
-        return archive_session(session_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
-@app.post("/api/sessions/{session_id}/restore")
-def restore_archived_session(session_id: str) -> dict:
-    try:
-        return restore_session(session_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
-@app.delete("/api/sessions/{session_id}/permanent")
-def permanently_delete_session(session_id: str) -> dict:
-    try:
-        return delete_session_permanently(session_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
-@app.post("/api/sessions/bulk-delete")
-def bulk_delete_sessions(request: BulkSessionDeleteRequest) -> dict:
-    return delete_sessions_permanently(request.session_ids)
-
-
-@app.get("/api/sessions/{session_id}")
-def read_session(session_id: str) -> dict:
-    try:
-        return get_session(session_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
-@app.get("/api/agent-runs/{run_id}/audit")
-def read_agent_run_audit(run_id: str) -> dict:
-    try:
-        return get_run_audit(run_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+start_session = _session_routes.exports["start_session"]
+session_list = _session_routes.exports["session_list"]
+update_session = _session_routes.exports["update_session"]
+delete_session = _session_routes.exports["delete_session"]
+restore_archived_session = _session_routes.exports["restore_archived_session"]
+permanently_delete_session = _session_routes.exports["permanently_delete_session"]
+bulk_delete_sessions = _session_routes.exports["bulk_delete_sessions"]
+read_session = _session_routes.exports["read_session"]
+read_agent_run_audit = _session_routes.exports["read_agent_run_audit"]
 
 
 def _stream_line(event_type: str, **payload) -> bytes:
-    return (json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str) + "\n").encode("utf-8")
+    return (
+        json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str)
+        + "\n"
+    ).encode("utf-8")
 
 
-def _prepare_chat(request: ChatRequest) -> tuple[str, list[dict], dict | None, dict | None]:
+def _prepare_chat(
+    request: ChatRequest,
+) -> tuple[str, list[dict], dict | None, dict | None]:
     try:
-        session = create_session(request.message[:50]) if not request.session_id else get_session(request.session_id)
+        session = (
+            create_session(request.message[:50])
+            if not request.session_id
+            else get_session(request.session_id)
+        )
     except ValueError as exc:
         raise http_problem(404, "SESSION_NOT_FOUND", str(exc), False) from exc
     session_id = session["session_id"]
     existing_content = client_message_content(session_id, request.client_message_id)
     if existing_content is not None and existing_content != request.message:
-        raise http_problem(409, "IDEMPOTENCY_CONFLICT", "同一客户端消息编号不能用于不同内容", False)
+        raise http_problem(
+            409, "IDEMPOTENCY_CONFLICT", "同一客户端消息编号不能用于不同内容", False
+        )
     cached = cached_agent_result(session_id, request.client_message_id)
     if cached:
         return session_id, [], cached, None
@@ -912,7 +433,12 @@ def _prepare_chat(request: ChatRequest) -> tuple[str, list[dict], dict | None, d
         request.message,
         client_message_id=request.client_message_id,
     )
-    if user_message.get("duplicate") and history and history[-1].get("role") == "user" and history[-1].get("content") == request.message:
+    if (
+        user_message.get("duplicate")
+        and history
+        and history[-1].get("role") == "user"
+        and history[-1].get("content") == request.message
+    ):
         history = history[:-1]
     return session_id, history, None, user_message
 
@@ -985,7 +511,9 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                 delivery["answer_events"] += 1
                 delivery["answer_chars"] += len(str(event.get("delta") or ""))
                 if last_answer_enqueued is None:
-                    delivery["first_answer_ms"] = round((enqueued_at - stream_started) * 1000, 1)
+                    delivery["first_answer_ms"] = round(
+                        (enqueued_at - stream_started) * 1000, 1
+                    )
                 else:
                     delivery["max_enqueue_gap_ms"] = max(
                         delivery["max_enqueue_gap_ms"],
@@ -995,15 +523,22 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             await queue.put((event, enqueued_at))
             await asyncio.sleep(0)
 
-        task = asyncio.create_task(run_agent(
-            request.message, history, progress, thinking=request.thinking,
-            session_id=session_id,
-            user_message_id=user_message["message_id"] if user_message else None,
-        ))
+        task = asyncio.create_task(
+            run_agent(
+                request.message,
+                history,
+                progress,
+                thinking=request.thinking,
+                session_id=session_id,
+                user_message_id=user_message["message_id"] if user_message else None,
+            )
+        )
         try:
             while not task.done() or not queue.empty():
                 try:
-                    event, enqueued_at = await asyncio.wait_for(queue.get(), timeout=0.25)
+                    event, enqueued_at = await asyncio.wait_for(
+                        queue.get(), timeout=0.25
+                    )
                 except TimeoutError:
                     continue
                 now = asyncio.get_running_loop().time()
@@ -1015,20 +550,27 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                         first_answer_yielded = now
                     if last_answer_yielded is not None:
                         delivery["max_sse_gap_ms"] = max(
-                            delivery["max_sse_gap_ms"], round((now - last_answer_yielded) * 1000, 1)
+                            delivery["max_sse_gap_ms"],
+                            round((now - last_answer_yielded) * 1000, 1),
                         )
                     last_answer_yielded = now
                 yield _stream_line("progress", **event)
             result = await task
-            delivery["duration_ms"] = round((asyncio.get_running_loop().time() - stream_started) * 1000, 1)
+            delivery["duration_ms"] = round(
+                (asyncio.get_running_loop().time() - stream_started) * 1000, 1
+            )
             delivery["answer_stream_duration_ms"] = (
                 round((last_answer_yielded - first_answer_yielded) * 1000, 1)
                 if first_answer_yielded is not None and last_answer_yielded is not None
                 else None
             )
-            trace_semantics = result.setdefault("trace_semantics", {"schema_version": "1.0"})
+            trace_semantics = result.setdefault(
+                "trace_semantics", {"schema_version": "1.0"}
+            )
             if isinstance(trace_semantics, dict):
-                trace_semantics["stream_duration_ms"] = delivery["answer_stream_duration_ms"]
+                trace_semantics["stream_duration_ms"] = delivery[
+                    "answer_stream_duration_ms"
+                ]
             recorder.complete(result)
             result["session_id"] = session_id
             result["request_id"] = current_request_id()
@@ -1048,15 +590,31 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                 user_message_id=user_message["message_id"] if user_message else None,
                 assistant_message_id=message["message_id"],
             )
-            finish_agent_run(principal, "success", str(result.get("run_id") or ""), str(result.get("model") or selected_model))
+            finish_agent_run(
+                principal,
+                "success",
+                str(result.get("run_id") or ""),
+                str(result.get("model") or selected_model),
+            )
             activity_finished = True
-            emit("stream_delivery_summary", str(result.get("run_id") or session_id), **delivery)
-            yield _stream_line("progress", event="stream_delivery_summary", run_id=result.get("run_id"), **delivery)
+            emit(
+                "stream_delivery_summary",
+                str(result.get("run_id") or session_id),
+                **delivery,
+            )
+            yield _stream_line(
+                "progress",
+                event="stream_delivery_summary",
+                run_id=result.get("run_id"),
+                **delivery,
+            )
             yield _stream_line("result", result=result)
         except asyncio.CancelledError:
             task.cancel()
             recorder.fail("客户端已断开连接", interrupted=True)
-            finish_agent_run(principal, "error", model=selected_model, error="客户端已断开连接")
+            finish_agent_run(
+                principal, "error", model=selected_model, error="客户端已断开连接"
+            )
             activity_finished = True
             raise
         except httpx.HTTPStatusError as exc:
@@ -1065,15 +623,33 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             activity_finished = True
             detail, retryable = _model_status_error(exc)
             problem = error_payload("MODEL_UPSTREAM_ERROR", detail, retryable)
-            emit("api_stream_error", current_request_id() or session_id, status="error", error_type="MODEL_UPSTREAM_ERROR", session_id=session_id, retryable=retryable)
+            emit(
+                "api_stream_error",
+                current_request_id() or session_id,
+                status="error",
+                error_type="MODEL_UPSTREAM_ERROR",
+                session_id=session_id,
+                retryable=retryable,
+            )
             yield _stream_line("error", detail=detail, error=problem)
         except httpx.RequestError as exc:
             recorder.fail(str(exc))
             finish_agent_run(principal, "error", model=selected_model, error=str(exc))
             activity_finished = True
             detail = f"无法连接模型 API: {exc}"
-            emit("api_stream_error", current_request_id() or session_id, status="error", error_type="MODEL_NETWORK_ERROR", session_id=session_id, retryable=True)
-            yield _stream_line("error", detail=detail, error=error_payload("MODEL_NETWORK_ERROR", detail, True))
+            emit(
+                "api_stream_error",
+                current_request_id() or session_id,
+                status="error",
+                error_type="MODEL_NETWORK_ERROR",
+                session_id=session_id,
+                retryable=True,
+            )
+            yield _stream_line(
+                "error",
+                detail=detail,
+                error=error_payload("MODEL_NETWORK_ERROR", detail, True),
+            )
         except Exception as exc:
             recorder.fail(str(exc))
             finish_agent_run(principal, "error", model=selected_model, error=str(exc))
@@ -1086,14 +662,26 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                 error_type=type(exc).__name__,
                 session_id=session_id,
                 retryable=False,
-                full_content={"error_message": str(exc), "traceback": traceback.format_exc()},
+                full_content={
+                    "error_message": str(exc),
+                    "traceback": traceback.format_exc(),
+                },
             )
-            yield _stream_line("error", detail=detail, error=error_payload("ANALYSIS_ERROR", detail, False))
+            yield _stream_line(
+                "error",
+                detail=detail,
+                error=error_payload("ANALYSIS_ERROR", detail, False),
+            )
         finally:
             if not task.done():
                 task.cancel()
             if not activity_finished:
-                finish_agent_run(principal, "error", model=selected_model, error="Agent 运行未正常完成")
+                finish_agent_run(
+                    principal,
+                    "error",
+                    model=selected_model,
+                    error="Agent 运行未正常完成",
+                )
 
     return StreamingResponse(
         event_stream(),
@@ -1102,24 +690,8 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
     )
 
 
-@app.post("/api/telemetry/stream")
-def record_stream_telemetry(request: StreamTelemetryRequest) -> dict:
-    emit("browser_stream_summary", request.run_id, **request.model_dump(exclude={"run_id"}))
-    return {"accepted": True}
-
-
-@app.get("/api/monitor/summary")
-def monitor_summary(
-    _: Annotated[str, Depends(current_admin)],
-    hours: int = Query(24, ge=1, le=720),
-    recent_limit: int = Query(20, ge=1, le=100),
-) -> dict:
-    return monitoring_summary(hours, recent_limit)
-
-
-@app.get("/api/monitor/events")
-def monitor_events(
-    _: Annotated[str, Depends(current_admin)],
-    limit: int = Query(100, ge=1, le=1000),
-) -> list[dict]:
-    return list(reversed(read_events(limit)))
+_monitor_routes = monitor_router.create_router(_router_namespace, current_admin)
+_include_domain_router(_monitor_routes.router)
+record_stream_telemetry = _monitor_routes.exports["record_stream_telemetry"]
+monitor_summary = _monitor_routes.exports["monitor_summary"]
+monitor_events = _monitor_routes.exports["monitor_events"]

@@ -105,6 +105,8 @@ python scripts/run_quality_gate.py full
 
 `QA-010` 的本地工作流实现新增 `.github/workflows/live-quality.yml`，它只接受管理员 `workflow_dispatch`，并在 `live-e2e` Environment 审批后以 Environment Secret `FAB_MODEL_API_KEY` 和必填 `model_id` 执行完整七轮 Live 门。它不在 push 或 PR 触发，标准 `Full quality gate` 名称和离线路径也不变。`evaluations/live_e2e_budgets.json` 为 `full` 与仅诊断用途的 `provider-matrix` 分别版本化 runs、调用数、input/output/total token、启动、单测和总时长硬上限；环境变量只能收紧，不能放宽。Live artifact 始终仅为精确的 metadata-only `runtime/quality/live_e2e_report.json`，不上传 Playwright 报告、截图、数据库、日志、正文、请求体或密钥。2026-08-30 用户明确暂缓本地与远程完整 7-run Live 验收：本地治理实现与完整离线门已通过，可作为检查点提交，但 `QA-010` 仍未完成且不宣称 Live 门通过；该暂缓例外下允许继续纯结构重构 `REF-009`。发布或打标签前仍必须对目标 commit 手动运行受保护的完整 `full` Live 门，`provider-matrix` 不可替代它。本地故障协议夹具、标准确定性门和真实 Provider 门需分别统计。远程仍须创建 `live-e2e` Environment、配置 required reviewers 与 `FAB_MODEL_API_KEY`，并完成首次远程完整实测后才能将 `QA-010` 标记完成。
 
+2026-08-31 `REF-011` 宿主 full 离线验证通过：发现 493 个 Python 测试，其中 425 个非系统测试；系统模块数据报表、HTTP/企业契约、知识与个人上传、模型治理、会话与流式分别为 13/15/13/17/10，耗时 30.2/30.5/35.0/40.5/39.6 秒，总计 175.8 秒，全部低于失败预算（总计低于 180 秒 warning，但接近该阈值）。`app` 分支覆盖率 88%，Node 42/42、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 17/17；真实模型和外网调用均为 0。主代理定向复验为 94/94（17.909 秒），冻结契约、仓库检查和 diff 检查均通过。`QA-010` 的完整 7-run Live 门未运行，仍由用户暂缓且未完成。
+
 ## 完整审计触发条件
 
 在发布或打标签前必须运行完整审计；以下变更也必须触发：依赖或 Python/FastAPI/SQLite 升级、Schema/API/认证/RAG/流式链路重大变化，或上次审计后累计约 5 个 feature/fix 任务。
