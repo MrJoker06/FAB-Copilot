@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import secrets
-import traceback
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-import httpx
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 
 from .agent import run_agent
 from .audit import GIT_COMMIT, current_request_id, emit, monitoring_summary, read_events
@@ -23,7 +20,7 @@ from .execution_store import (
     get_run_audit,
     recover_interrupted_executions,
 )
-from .identity import Principal, PrincipalContextMiddleware, current_principal
+from .identity import PrincipalContextMiddleware, current_principal
 from .model_registry import (
     ensure_model_catalog,
     list_models,
@@ -114,8 +111,11 @@ from .api.services.personal_job_events import (
     personal_job_snapshot_fingerprint,
     read_personal_job_snapshots,
 )
+from .api.services.chat import ChatService
+from .api.services.chat_stream import ChatStreamService
 from .api.routers import (
     admin as admin_router,
+    chat as chat_router,
     enterprise as enterprise_router,
     knowledge as knowledge_router,
     models as models_router,
@@ -318,71 +318,17 @@ historical_case = _knowledge_routes.exports["historical_case"]
 rag_search = _knowledge_routes.exports["rag_search"]
 
 
-@app.post("/api/chat")
-async def chat(request: ChatRequest) -> dict:
-    principal, selected_model = _validate_chat_model_capabilities(request)
-    session_id, history, cached, user_message = _prepare_chat(request)
-    if cached:
-        cached["session_id"] = session_id
-        cached["request_id"] = current_request_id()
-        return cached
-    recorder = RunExecutionRecorder(
-        session_id,
-        user_message["message_id"] if user_message else None,
-        request.message,
-        selected_model,
-    )
-    begin_agent_run(principal, session_id, request.message, selected_model)
-    try:
-        result = await run_agent(
-            request.message,
-            history or [item.model_dump() for item in request.history],
-            recorder.observe,
-            thinking=request.thinking,
-            session_id=session_id,
-            user_message_id=user_message["message_id"] if user_message else None,
-        )
-        recorder.complete(result)
-        result["session_id"] = session_id
-        result["request_id"] = current_request_id()
-        result["client_message_id"] = request.client_message_id
-        message = append_message(session_id, "assistant", result["answer"], result)
-        record_agent_result(
-            session_id,
-            message["message_id"],
-            result,
-            user_message_id=user_message["message_id"] if user_message else None,
-            question=request.message,
-        )
-        emit(
-            "agent_run_persisted",
-            str(result.get("run_id") or session_id),
-            session_id=session_id,
-            user_message_id=user_message["message_id"] if user_message else None,
-            assistant_message_id=message["message_id"],
-        )
-        finish_agent_run(
-            principal,
-            "success",
-            str(result.get("run_id") or ""),
-            str(result.get("model") or selected_model),
-        )
-        return result
-    except httpx.HTTPStatusError as exc:
-        recorder.fail(str(exc))
-        finish_agent_run(principal, "error", model=selected_model, error=str(exc))
-        detail, retryable = _model_status_error(exc)
-        raise http_problem(502, "MODEL_UPSTREAM_ERROR", detail, retryable) from exc
-    except httpx.RequestError as exc:
-        recorder.fail(str(exc))
-        finish_agent_run(principal, "error", model=selected_model, error=str(exc))
-        raise http_problem(
-            502, "MODEL_NETWORK_ERROR", f"无法连接模型 API: {exc}", True
-        ) from exc
-    except Exception as exc:
-        recorder.fail(str(exc))
-        finish_agent_run(principal, "error", model=selected_model, error=str(exc))
-        raise
+_chat_service = ChatService(_router_namespace)
+_chat_stream_service = ChatStreamService(_router_namespace)
+_chat_routes = chat_router.create_router(_router_namespace)
+_include_domain_router(_chat_routes.router)
+
+chat = _chat_routes.exports["chat"]
+chat_stream = _chat_routes.exports["chat_stream"]
+_prepare_chat = _chat_service.prepare_chat
+_validate_chat_model_capabilities = _chat_service.validate_chat_model_capabilities
+_model_status_error = _chat_service.model_status_error
+_stream_line = _chat_stream_service.stream_line
 
 
 _session_routes = sessions_router.create_router(_router_namespace)
@@ -397,297 +343,6 @@ permanently_delete_session = _session_routes.exports["permanently_delete_session
 bulk_delete_sessions = _session_routes.exports["bulk_delete_sessions"]
 read_session = _session_routes.exports["read_session"]
 read_agent_run_audit = _session_routes.exports["read_agent_run_audit"]
-
-
-def _stream_line(event_type: str, **payload) -> bytes:
-    return (
-        json.dumps({"type": event_type, **payload}, ensure_ascii=False, default=str)
-        + "\n"
-    ).encode("utf-8")
-
-
-def _prepare_chat(
-    request: ChatRequest,
-) -> tuple[str, list[dict], dict | None, dict | None]:
-    try:
-        session = (
-            create_session(request.message[:50])
-            if not request.session_id
-            else get_session(request.session_id)
-        )
-    except ValueError as exc:
-        raise http_problem(404, "SESSION_NOT_FOUND", str(exc), False) from exc
-    session_id = session["session_id"]
-    existing_content = client_message_content(session_id, request.client_message_id)
-    if existing_content is not None and existing_content != request.message:
-        raise http_problem(
-            409, "IDEMPOTENCY_CONFLICT", "同一客户端消息编号不能用于不同内容", False
-        )
-    cached = cached_agent_result(session_id, request.client_message_id)
-    if cached:
-        return session_id, [], cached, None
-    history = session_history(session_id)
-    user_message = append_message(
-        session_id,
-        "user",
-        request.message,
-        client_message_id=request.client_message_id,
-    )
-    if (
-        user_message.get("duplicate")
-        and history
-        and history[-1].get("role") == "user"
-        and history[-1].get("content") == request.message
-    ):
-        history = history[:-1]
-    return session_id, history, None, user_message
-
-
-def _validate_chat_model_capabilities(request: ChatRequest) -> tuple[Principal, str]:
-    """Reject unsupported request modes before any session or run write."""
-    principal = current_principal()
-    config = public_user_model_config(principal)
-    if request.thinking and not config["capabilities"].get("thinking", False):
-        raise http_problem(
-            400,
-            "MODEL_CAPABILITY_UNSUPPORTED",
-            "当前模型不支持 Thinking 请求",
-            False,
-        )
-    return principal, config["model"]
-
-
-def _model_status_error(exc: httpx.HTTPStatusError) -> tuple[str, bool]:
-    status_code = exc.response.status_code
-    detail = f"模型 API 返回 {status_code}"
-    try:
-        api_error = exc.response.json().get("error", {}).get("message")
-        if api_error:
-            detail += f": {str(api_error)[:300]}"
-    except Exception:
-        pass
-    return detail, status_code == 429 or status_code >= 500
-
-
-@app.post("/api/chat/stream")
-async def chat_stream(request: ChatRequest) -> StreamingResponse:
-    principal, selected_model = _validate_chat_model_capabilities(request)
-    session_id, history, cached, user_message = _prepare_chat(request)
-    recorder = RunExecutionRecorder(
-        session_id,
-        user_message["message_id"] if user_message else None,
-        request.message,
-        selected_model,
-    )
-
-    async def event_stream():
-        yield _stream_line("session", session_id=session_id)
-        if cached:
-            cached["session_id"] = session_id
-            cached["request_id"] = current_request_id()
-            yield _stream_line("result", result=cached)
-            return
-        begin_agent_run(principal, session_id, request.message, selected_model)
-        activity_finished = False
-        queue: asyncio.Queue[tuple[dict, float]] = asyncio.Queue()
-        stream_started = asyncio.get_running_loop().time()
-        delivery = {
-            "answer_events": 0,
-            "answer_chars": 0,
-            "first_answer_ms": None,
-            "max_enqueue_gap_ms": 0.0,
-            "max_queue_wait_ms": 0.0,
-            "max_sse_gap_ms": 0.0,
-        }
-        last_answer_enqueued: float | None = None
-        first_answer_yielded: float | None = None
-        last_answer_yielded: float | None = None
-
-        async def progress(event: dict) -> None:
-            nonlocal last_answer_enqueued
-            await recorder.observe(event)
-            enqueued_at = asyncio.get_running_loop().time()
-            if event.get("event") == "answer_delta":
-                delivery["answer_events"] += 1
-                delivery["answer_chars"] += len(str(event.get("delta") or ""))
-                if last_answer_enqueued is None:
-                    delivery["first_answer_ms"] = round(
-                        (enqueued_at - stream_started) * 1000, 1
-                    )
-                else:
-                    delivery["max_enqueue_gap_ms"] = max(
-                        delivery["max_enqueue_gap_ms"],
-                        round((enqueued_at - last_answer_enqueued) * 1000, 1),
-                    )
-                last_answer_enqueued = enqueued_at
-            await queue.put((event, enqueued_at))
-            await asyncio.sleep(0)
-
-        task = asyncio.create_task(
-            run_agent(
-                request.message,
-                history,
-                progress,
-                thinking=request.thinking,
-                session_id=session_id,
-                user_message_id=user_message["message_id"] if user_message else None,
-            )
-        )
-        try:
-            while not task.done() or not queue.empty():
-                try:
-                    event, enqueued_at = await asyncio.wait_for(
-                        queue.get(), timeout=0.25
-                    )
-                except TimeoutError:
-                    continue
-                now = asyncio.get_running_loop().time()
-                delivery["max_queue_wait_ms"] = max(
-                    delivery["max_queue_wait_ms"], round((now - enqueued_at) * 1000, 1)
-                )
-                if event.get("event") == "answer_delta":
-                    if first_answer_yielded is None:
-                        first_answer_yielded = now
-                    if last_answer_yielded is not None:
-                        delivery["max_sse_gap_ms"] = max(
-                            delivery["max_sse_gap_ms"],
-                            round((now - last_answer_yielded) * 1000, 1),
-                        )
-                    last_answer_yielded = now
-                yield _stream_line("progress", **event)
-            result = await task
-            delivery["duration_ms"] = round(
-                (asyncio.get_running_loop().time() - stream_started) * 1000, 1
-            )
-            delivery["answer_stream_duration_ms"] = (
-                round((last_answer_yielded - first_answer_yielded) * 1000, 1)
-                if first_answer_yielded is not None and last_answer_yielded is not None
-                else None
-            )
-            trace_semantics = result.setdefault(
-                "trace_semantics", {"schema_version": "1.0"}
-            )
-            if isinstance(trace_semantics, dict):
-                trace_semantics["stream_duration_ms"] = delivery[
-                    "answer_stream_duration_ms"
-                ]
-            recorder.complete(result)
-            result["session_id"] = session_id
-            result["request_id"] = current_request_id()
-            result["client_message_id"] = request.client_message_id
-            message = append_message(session_id, "assistant", result["answer"], result)
-            record_agent_result(
-                session_id,
-                message["message_id"],
-                result,
-                user_message_id=user_message["message_id"] if user_message else None,
-                question=request.message,
-            )
-            emit(
-                "agent_run_persisted",
-                str(result.get("run_id") or session_id),
-                session_id=session_id,
-                user_message_id=user_message["message_id"] if user_message else None,
-                assistant_message_id=message["message_id"],
-            )
-            finish_agent_run(
-                principal,
-                "success",
-                str(result.get("run_id") or ""),
-                str(result.get("model") or selected_model),
-            )
-            activity_finished = True
-            emit(
-                "stream_delivery_summary",
-                str(result.get("run_id") or session_id),
-                **delivery,
-            )
-            yield _stream_line(
-                "progress",
-                event="stream_delivery_summary",
-                run_id=result.get("run_id"),
-                **delivery,
-            )
-            yield _stream_line("result", result=result)
-        except asyncio.CancelledError:
-            task.cancel()
-            recorder.fail("客户端已断开连接", interrupted=True)
-            finish_agent_run(
-                principal, "error", model=selected_model, error="客户端已断开连接"
-            )
-            activity_finished = True
-            raise
-        except httpx.HTTPStatusError as exc:
-            recorder.fail(str(exc))
-            finish_agent_run(principal, "error", model=selected_model, error=str(exc))
-            activity_finished = True
-            detail, retryable = _model_status_error(exc)
-            problem = error_payload("MODEL_UPSTREAM_ERROR", detail, retryable)
-            emit(
-                "api_stream_error",
-                current_request_id() or session_id,
-                status="error",
-                error_type="MODEL_UPSTREAM_ERROR",
-                session_id=session_id,
-                retryable=retryable,
-            )
-            yield _stream_line("error", detail=detail, error=problem)
-        except httpx.RequestError as exc:
-            recorder.fail(str(exc))
-            finish_agent_run(principal, "error", model=selected_model, error=str(exc))
-            activity_finished = True
-            detail = f"无法连接模型 API: {exc}"
-            emit(
-                "api_stream_error",
-                current_request_id() or session_id,
-                status="error",
-                error_type="MODEL_NETWORK_ERROR",
-                session_id=session_id,
-                retryable=True,
-            )
-            yield _stream_line(
-                "error",
-                detail=detail,
-                error=error_payload("MODEL_NETWORK_ERROR", detail, True),
-            )
-        except Exception as exc:
-            recorder.fail(str(exc))
-            finish_agent_run(principal, "error", model=selected_model, error=str(exc))
-            activity_finished = True
-            detail = f"分析失败: {exc}"
-            emit(
-                "api_stream_error",
-                current_request_id() or session_id,
-                status="error",
-                error_type=type(exc).__name__,
-                session_id=session_id,
-                retryable=False,
-                full_content={
-                    "error_message": str(exc),
-                    "traceback": traceback.format_exc(),
-                },
-            )
-            yield _stream_line(
-                "error",
-                detail=detail,
-                error=error_payload("ANALYSIS_ERROR", detail, False),
-            )
-        finally:
-            if not task.done():
-                task.cancel()
-            if not activity_finished:
-                finish_agent_run(
-                    principal,
-                    "error",
-                    model=selected_model,
-                    error="Agent 运行未正常完成",
-                )
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="application/x-ndjson",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
 
 
 _monitor_routes = monitor_router.create_router(_router_namespace, current_admin)

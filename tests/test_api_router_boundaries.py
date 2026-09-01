@@ -9,6 +9,7 @@ from fastapi.routing import APIRoute
 import app.main as main
 from app.api.routers import (
     admin,
+    chat,
     enterprise,
     knowledge,
     models,
@@ -49,6 +50,7 @@ class ApiRouterBoundaryTests(unittest.TestCase):
             reports,
             models,
             admin,
+            chat,
             knowledge,
             sessions,
             monitor,
@@ -82,6 +84,7 @@ class ApiRouterBoundaryTests(unittest.TestCase):
             "/api/settings/model": "app.api.routers.models",
             "/api/admin/overview": "app.api.routers.admin",
             "/api/knowledge/documents": "app.api.routers.knowledge",
+            "/api/chat": "app.api.routers.chat",
             "/api/sessions": "app.api.routers.sessions",
             "/api/monitor/summary": "app.api.routers.monitor",
         }
@@ -147,6 +150,7 @@ class ApiRouterBoundaryTests(unittest.TestCase):
                 "read_session",
                 "read_agent_run_audit",
             },
+            "_chat_routes": {"chat", "chat_stream"},
             "_monitor_routes": {
                 "record_stream_telemetry",
                 "monitor_summary",

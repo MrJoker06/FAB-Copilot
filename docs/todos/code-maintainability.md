@@ -76,7 +76,7 @@ app/
 
 - [x] `REF-010` 建立 API application、errors、schemas 与 dependencies：application 提取 lifespan、errors 提取异常协议、schemas 提取 Pydantic 请求模型、dependencies 提取个人用户和 Admin 鉴权；`app.main.app`、lifespan、异常 handler、schema 与鉴权兼容导出继续可用，并在调用时保持实时 patch。URL、OpenAPI、认证、状态码和响应不变。新增 5 项 API 边界测试、78 项必要回归、冻结契约、仓库检查及 2026-08-31 宿主 full 均通过；`app/main.py` 由 1267 行降至 1125 行。
 - [x] `REF-011` 按 system、enterprise、reports、models、admin、knowledge、sessions 和 monitor 拆分领域 Router；保持全部 URL、HTTP 方法、认证、状态码、响应结构和 OpenAPI 等价。已完成：8 个 `APIRouter` 经 `app.main` 运行时 namespace 保持实时 patch，同名兼容导出不变；Personal Job SSE 迁至 `app/api/services/personal_job_events.py`，`app/main.py` 1125→697（减少 428 行），新增 3 项 Router 边界测试；Chat/stream 留待 `REF-012`。
-- [ ] `REF-012` 拆分聊天请求与流式服务：迁移 `_prepare_chat`、模型能力检查、`chat`、`chat_stream`、NDJSON 编码、取消/异常处理和消息持久化；保持事件顺序、首答行为、Session 关联和遥测不变。
+- [x] `REF-012` 拆分聊天请求与流式服务：新增 `app/api/routers/chat.py`、`services/chat.py` 与 `services/chat_stream.py`；迁移 `_prepare_chat`、模型能力检查/状态分类、非流式生命周期与持久化、NDJSON、队列/delivery metrics、成功/取消/HTTP/network/unexpected 错误和 finally。`app.main` 同名兼容导出及每调用 namespace patch 保持，`run_agent`、`emit` 与 helper patch 实时；URL/方法/认证/状态/响应/OpenAPI、事件顺序、首答、Session 关联和遥测不变，`main.py` 697→352（减少 345 行），新增 9 项 Chat 边界测试。
 - [ ] `REF-013` 收口 `app/main.py`：只保留应用创建、Router 注册和必要兼容导出，删除已迁移实现；目标约 150～250 行，所有 TestClient 和 OpenAPI 契约通过。
 
 ### 桌面前端

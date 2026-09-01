@@ -21,8 +21,8 @@
 
 | 类型 | 数量 | 任务 |
 |---|---:|---|
-| 已完成 | 150 | 以各分类 TODO 为准；`QA-005` 至 `QA-009` 已完成 E2E 基础、双通道验证与桌面关键旅程，`REF-011` 已完成领域 Router 收口 |
-| 当前队列 | 11 | `QA-010`（2026-08-30 用户暂缓本地与远程完整 7-run Live 验收，保持未完成），随后在该暂缓例外下继续纯结构重构 `REF-012` 至 `REF-021` |
+| 已完成 | 151 | 以各分类 TODO 为准；`QA-005` 至 `QA-009` 已完成 E2E 基础、双通道验证与桌面关键旅程，`REF-012` 已完成 Chat 与流式服务收口 |
+| 当前队列 | 10 | `QA-010`（2026-08-30 用户暂缓本地与远程完整 7-run Live 验收，保持未完成），随后在该暂缓例外下继续纯结构重构 `REF-013` 至 `REF-021` |
 | 用户暂缓 | 1 | `UX-029` |
 | 企业级暂缓 | 41 | 见本文件末尾分类清单 |
 | 可选候选 | 2 | `RAG-024`、`AGENT-039` `OPTIONAL`，不计入主任务统计 |
@@ -53,7 +53,7 @@
 | 20 | `REF-009` | `REF-008`、`QA-010` | Agent coordinator 收口 | 已完成：每调用 namespace snapshot 的 `AgentCompatibilityFacade` 保持 async/sync wrapper 和实时 patch；`CoordinatorRunState` 协调 prepare、availability、model、ready、loop 五阶段，`run_agent` 生命周期不变，`agent.py` 1256→164、coordinator→108，174 项定向回归、契约、仓库检查和宿主 full 通过 |
 | 21 | `REF-010` | `REF-009` | API 基础边界 | 已完成：application、errors、schemas、dependencies 等价迁移；main app/lifespan/handler/schema/auth 兼容导出与实时 patch 保持，URL/OpenAPI/认证/状态码/响应不变 |
 | 22 | `REF-011` | `REF-010` | 领域 Router | 已完成：8 个领域 `APIRouter`、main runtime namespace 实时 patch、同名兼容导出与 Personal Job SSE service 收口；URL、认证、状态码、响应和 OpenAPI 等价，`main.py` 1125→697（减少 428 行） |
-| 23 | `REF-012` | `REF-011` | Chat 与流式服务 | NDJSON、取消、持久化、Session 和遥测不变 |
+| 23 | `REF-012` | `REF-011` | Chat 与流式服务 | 已完成：Chat Router、非流式与 NDJSON 流式服务、兼容导出与实时 patch 收口；契约、事件顺序、Session 和遥测不变 |
 | 24 | `REF-013` | `REF-012` | `main.py` 收口 | 只保留应用创建、Router 注册和兼容导出 |
 | 25 | `REF-014` | `REF-013` | 前端核心层 | state、API、DOM、Toast 和版本检查等价迁移 |
 | 26 | `REF-015` | `REF-014` | 前端业务控制器 | 知识、报表、能力和模型设置交互不变 |
@@ -70,7 +70,7 @@
 
 ### 检查点 E：结构可维护性
 
-`REF-001` 至 `REF-011` 及 `QA-005` 至 `QA-009` 已完成，跨层兼容、桌面 E2E、个人知识、管理端治理、桌面关键旅程、Agent coordinator、API 基础与领域 Router 边界已经冻结。`QA-010` 的本地治理实现与完整离线门已通过，可作为检查点提交；但 2026-08-30 用户明确暂缓本地与远程完整 7-run Live 验收，故仍保持未完成且不得宣称 Live 门通过。在此暂缓验收例外下，下一项为 `REF-012`，再按照 Chat、桌面前端和个人知识后端三个边界串行拆分，最后只读审计第二梯队。普通 push/PR 不访问真实模型；必要 Live `provider-matrix` 不替代完整 7-run Live 门，未来发布或打标签前仍必须完成受保护的完整 Live 门；任一任务若产生未批准的产品行为差异，不得作为测试或重构完成。
+`REF-001` 至 `REF-012` 及 `QA-005` 至 `QA-009` 已完成，跨层兼容、桌面 E2E、个人知识、管理端治理、桌面关键旅程、Agent coordinator、API 基础、领域 Router 与 Chat/流式服务边界已经冻结。`QA-010` 的本地治理实现与完整离线门已通过，可作为检查点提交；但 2026-08-30 用户明确暂缓本地与远程完整 7-run Live 验收，故仍保持未完成且不得宣称 Live 门通过。在此暂缓验收例外下，下一项为 `REF-013`，再按照 main 收口、桌面前端和个人知识后端三个边界串行拆分，最后只读审计第二梯队。普通 push/PR 不访问真实模型；必要 Live `provider-matrix` 不替代完整 7-run Live 门，未来发布或打标签前仍必须完成受保护的完整 Live 门；任一任务若产生未批准的产品行为差异，不得作为测试或重构完成。
 
 ### 检查点 D：上一阶段收口
 
