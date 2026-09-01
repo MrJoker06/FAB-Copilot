@@ -1,0 +1,222 @@
+"""Explicit live dependencies published by :mod:`app.main` for route compatibility."""
+
+from __future__ import annotations
+
+import os
+
+from ..agent import run_agent
+from ..audit import (
+    GIT_COMMIT,
+    current_request_id,
+    emit,
+    monitoring_summary,
+    read_events,
+)
+from ..config import APP_VERSION, PROJECT_DIR, ModelConnection, get_settings
+from ..database import db_session, department_paths, ensure_department_databases
+from ..enterprise_data import EnterpriseDataError, get_enterprise_provider
+from ..execution_store import (
+    RunExecutionRecorder,
+    get_run_audit,
+    recover_interrupted_executions,
+)
+from ..identity import PrincipalContextMiddleware, current_principal
+from ..model_compatibility import ModelCompatibilityError, check_model_compatibility
+from ..model_registry import (
+    ensure_model_catalog,
+    list_models,
+    public_user_model_config,
+    publish_model,
+    save_model_compatibility_report,
+    select_user_model,
+    set_model_status,
+    update_model_capabilities,
+)
+from ..observability import RequestAuditMiddleware
+from ..personal_knowledge import (
+    PersonalDocumentPatch,
+    PersonalKnowledgeError,
+    begin_delete_personal_document,
+    create_personal_upload,
+    get_personal_chunk,
+    get_personal_document,
+    get_personal_job,
+    list_personal_job_snapshots,
+    list_personal_documents,
+    pending_personal_jobs,
+    personal_document_file,
+    process_personal_document,
+    process_personal_document_deletion,
+    retry_personal_document,
+    search_personal_knowledge,
+    update_personal_document,
+)
+from ..processes import MANUFACTURING_STEPS, PROCESS_STEP_PATTERN
+from ..rag import (
+    get_historical_case,
+    get_knowledge_document,
+    list_historical_cases,
+    list_knowledge_documents,
+    search_knowledge,
+)
+from ..reports import process_capability, report_bundle
+from ..runtime_status import admin_runtime_overview, begin_agent_run, finish_agent_run
+from ..seed import generate_database, seed_reference_data
+from ..sessions import (
+    append_message,
+    archive_session,
+    cached_agent_result,
+    client_message_content,
+    create_session,
+    delete_session_permanently,
+    delete_sessions_permanently,
+    get_session,
+    list_sessions,
+    record_agent_result,
+    rename_session,
+    restore_session,
+    session_history,
+)
+from .routers import (
+    admin as admin_router,
+    chat as chat_router,
+    enterprise as enterprise_router,
+    knowledge as knowledge_router,
+    models as models_router,
+    monitor as monitor_router,
+    reports as reports_router,
+    sessions as sessions_router,
+    system as system_router,
+)
+from .schemas import (
+    AdminModelCapabilitiesRequest,
+    AdminModelPublishRequest,
+    AdminModelStatusRequest,
+    BulkSessionDeleteRequest,
+    ChatMessage,
+    ChatRequest,
+    ModelCapabilitiesRequest,
+    ModelConfigRequest,
+    PersonalSearchPreviewRequest,
+    SessionUpdateRequest,
+    StreamTelemetryRequest,
+)
+from .services.chat import ChatService
+from .services.chat_stream import ChatStreamService
+from .services.personal_job_events import (
+    PERSONAL_JOB_ACTIVE_STATUSES,
+    encode_personal_job_event,
+    iter_personal_job_events,
+    personal_job_event_id,
+    personal_job_snapshot_fingerprint,
+    read_personal_job_snapshots,
+)
+
+
+__all__ = (
+    "APP_VERSION",
+    "AdminModelCapabilitiesRequest",
+    "AdminModelPublishRequest",
+    "AdminModelStatusRequest",
+    "BulkSessionDeleteRequest",
+    "ChatMessage",
+    "ChatRequest",
+    "ChatService",
+    "ChatStreamService",
+    "EnterpriseDataError",
+    "GIT_COMMIT",
+    "MANUFACTURING_STEPS",
+    "ModelCapabilitiesRequest",
+    "ModelCompatibilityError",
+    "ModelConfigRequest",
+    "ModelConnection",
+    "PERSONAL_JOB_ACTIVE_STATUSES",
+    "PROCESS_STEP_PATTERN",
+    "PROJECT_DIR",
+    "PersonalDocumentPatch",
+    "PersonalKnowledgeError",
+    "PersonalSearchPreviewRequest",
+    "PrincipalContextMiddleware",
+    "RequestAuditMiddleware",
+    "RunExecutionRecorder",
+    "SessionUpdateRequest",
+    "StreamTelemetryRequest",
+    "admin_router",
+    "admin_runtime_overview",
+    "append_message",
+    "archive_session",
+    "begin_agent_run",
+    "begin_delete_personal_document",
+    "cached_agent_result",
+    "chat_router",
+    "check_model_compatibility",
+    "client_message_content",
+    "create_personal_upload",
+    "create_session",
+    "current_principal",
+    "current_request_id",
+    "db_session",
+    "delete_session_permanently",
+    "delete_sessions_permanently",
+    "department_paths",
+    "emit",
+    "encode_personal_job_event",
+    "ensure_department_databases",
+    "ensure_model_catalog",
+    "enterprise_router",
+    "finish_agent_run",
+    "generate_database",
+    "get_enterprise_provider",
+    "get_historical_case",
+    "get_knowledge_document",
+    "get_personal_chunk",
+    "get_personal_document",
+    "get_personal_job",
+    "get_run_audit",
+    "get_session",
+    "get_settings",
+    "iter_personal_job_events",
+    "knowledge_router",
+    "list_historical_cases",
+    "list_knowledge_documents",
+    "list_models",
+    "list_personal_documents",
+    "list_personal_job_snapshots",
+    "list_sessions",
+    "models_router",
+    "monitor_router",
+    "monitoring_summary",
+    "os",
+    "pending_personal_jobs",
+    "personal_document_file",
+    "personal_job_event_id",
+    "personal_job_snapshot_fingerprint",
+    "process_capability",
+    "process_personal_document",
+    "process_personal_document_deletion",
+    "public_user_model_config",
+    "publish_model",
+    "read_events",
+    "read_personal_job_snapshots",
+    "record_agent_result",
+    "recover_interrupted_executions",
+    "rename_session",
+    "report_bundle",
+    "reports_router",
+    "restore_session",
+    "retry_personal_document",
+    "run_agent",
+    "save_model_compatibility_report",
+    "search_knowledge",
+    "search_personal_knowledge",
+    "seed_reference_data",
+    "select_user_model",
+    "session_history",
+    "sessions_router",
+    "set_model_status",
+    "system_router",
+    "update_model_capabilities",
+    "update_personal_document",
+)
+
+RUNTIME_DEPENDENCIES = {name: globals()[name] for name in __all__}
