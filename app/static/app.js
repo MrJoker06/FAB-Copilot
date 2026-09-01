@@ -1,12 +1,12 @@
-const state = { dashboard: null, history: [], sessionId: null, sessionLibrary: [], sessionLibraryFilter: 'active', selectedLibrarySessionId: null, selectedSessionIds: new Set(), sessionBatchMode: false, sessionLibraryRequestId: 0, sessionLibraryPreviewRequestId: 0, pendingRenameSessionId: null, pendingDeleteSessionIds: [], toastTimer: null, activeView: 'dashboard', previousView: 'dashboard', streaming: false, chartPoints: [], activeStep: 'CVD', modelConfig: null, enterpriseContext: null, knowledgeMode: 'factory', knowledgeDocuments: [], knowledgeIndexPromise: null, personalKnowledgeDocuments: [], selectedPersonalDocumentId: null, selectedPersonalDocument: null, personalKnowledgeRequestId: 0, personalKnowledgePollTimer: null, personalJobEventsController: null, personalJobEventsRetryTimer: null, personalJobEventsRefreshTimer: null, personalJobEventsProbeTimer: null, personalJobEventsStableTimer: null, personalJobEventsLastId: '', personalJobEventsFallback: false, personalJobEventsPolicy: null, personalUploadQueue: [], personalUploadInProgress: false, pendingPersonalMetadataId: null, pendingPersonalDeleteId: null, cases: [], casesPromise: null, capabilityCache: new Map(), capabilityController: null, capabilityRequestId: 0 };
-const $ = (selector) => document.querySelector(selector);
+const state = globalThis.FabAppState.createState();
+const { $, escapeHtml, formatFileSize, formatNumber, isoDate, setInitialDates } = globalThis.FabAppDom;
+const { FabApiError, identityHeaders, apiError, api } = globalThis.FabAppApi;
+const { dismissToast, showToast } = globalThis.FabAppToast.createToast(state);
+const { APP_VERSION, handleBuildVersion, checkAppVersion } = globalThis.FabAppVersion.createVersion({ api, $ });
 const AGENT_WIDTH_KEY = 'fabInsightAgentWidth';
 const CHAT_DRAFT_KEY = 'fabInsightChatDraft';
-const TENANT_ID_KEY = 'fabInsightTenantId';
-const USER_ID_KEY = 'fabInsightUserId';
 const AGENT_MIN_WIDTH = 300;
 const AGENT_MAX_WIDTH = 620;
-const APP_VERSION = document.querySelector('meta[name="app-version"]')?.content || 'unknown';
 const processLabels = { LITHO: '光刻', ETCH: '刻蚀', CVD: '化学气相沉积', PVD: '物理气相沉积', DIFFUSION: '扩散/炉管', IMPLANT: '离子注入', CMP: '化学机械研磨', CLEAN: '湿法清洗', METROLOGY: '量测' };
 const toolLabels = { get_enterprise_data_manifest: '查询企业数据目录', get_enterprise_fab_summary: '聚合企业模拟数据', query_enterprise_data: '抽取企业模拟数据', get_fab_overview: '查询工厂总览', get_yield_trend: '查询良率趋势', get_equipment_health: '查询设备健康', get_equipment_productivity: '查询设备生产状态', get_process_capability: '查询制程能力', get_defect_pareto: '查询缺陷 Pareto', get_recent_excursions: '查询近期异常', get_sensor_summary: '查询传感器摘要', search_knowledge: '检索知识与案例', query_manufacturing_data: '执行制造数据查询' };
 const sourcePresenter = globalThis.FabSourcePresenter;
@@ -14,55 +14,6 @@ const personalKnowledgeMetadata = globalThis.FabPersonalKnowledgeMetadata;
 const thinkingControl = globalThis.FabThinkingControl;
 const personalJobEvents = globalThis.FabPersonalJobEvents;
 
-function isoDate(date) { return date.toISOString().slice(0, 10); }
-function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
-function formatNumber(value) { const number = Number(value); return Number.isFinite(number) ? number.toLocaleString('zh-CN') : String(value ?? '—'); }
-function formatFileSize(value) { const bytes = Number(value) || 0; if (bytes < 1024) return `${bytes} B`; if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`; return `${(bytes / 1024 ** 2).toFixed(1)} MB`; }
-function identityHeaders(initial = {}) {
-  const headers = new Headers(initial);
-  const tenantId = localStorage.getItem(TENANT_ID_KEY), userId = localStorage.getItem(USER_ID_KEY);
-  if (tenantId) headers.set('X-Tenant-ID', tenantId);
-  if (userId) headers.set('X-User-ID', userId);
-  return headers;
-}
-
-class FabApiError extends Error {
-  constructor(message, {code = 'REQUEST_ERROR', requestId = '', retryable = false, status = 0} = {}) {
-    super(message);
-    this.name = 'FabApiError';
-    this.code = code;
-    this.requestId = requestId;
-    this.retryable = retryable;
-    this.status = status;
-  }
-}
-
-function apiError(payload = {}, response = null) {
-  return new FabApiError(payload.detail || `请求失败 (${response?.status || '网络错误'})`, {
-    code: payload.error_code || 'REQUEST_ERROR',
-    requestId: payload.request_id || response?.headers?.get('x-request-id') || '',
-    retryable: Boolean(payload.retryable),
-    status: response?.status || 0,
-  });
-}
-
-function setInitialDates() {
-  const end = new Date();
-  const start = new Date();
-  start.setDate(end.getDate() - 89);
-  $('#startDate').value = isoDate(start);
-  $('#endDate').value = isoDate(end);
-}
-
-async function api(url, options) {
-  const headers = identityHeaders(options?.headers || {});
-  let response;
-  try { response = await fetch(url, {...(options || {}), headers}); }
-  catch (error) { throw new FabApiError('无法连接 Fab Insight 服务', {code:'NETWORK_ERROR', retryable:true}); }
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw apiError(payload, response);
-  return payload;
-}
 
 function updateSystemStatus(modelLabel) {
   const enterprise = state.enterpriseContext;
@@ -72,42 +23,11 @@ function updateSystemStatus(modelLabel) {
   if (enterprise) $('#systemStatus').title = `${formatNumber(enterprise.virtual_scale?.lots || 0)} 个虚拟批次；支持服务端聚合；数据不代表真实生产`;
 }
 
-function handleBuildVersion(build) {
-  if (!build?.version || build.version === APP_VERSION) return;
-  if (sessionStorage.getItem('fabInsightDismissedVersion') === build.version) return;
-  $('#versionBanner').dataset.version = build.version;
-  $('#versionBanner').hidden = false;
-}
-
-async function checkAppVersion() {
-  try { handleBuildVersion(await api('/api/version')); }
-  catch { /* Keep version checks silent; normal API requests expose connectivity failures. */ }
-}
 
 function newClientMessageId() {
   return globalThis.crypto?.randomUUID?.() || `msg-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-function dismissToast() {
-  window.clearTimeout(state.toastTimer);
-  state.toastTimer = null;
-  $('#toastRegion').innerHTML = '';
-}
-
-function showToast(message, {actionLabel = '', onAction = null, tone = 'default', duration = 5200} = {}) {
-  dismissToast();
-  const toast = document.createElement('div');
-  toast.className = `toast${tone === 'error' ? ' error' : ''}`;
-  toast.innerHTML = `<span class="toast-message">${escapeHtml(message)}</span>${actionLabel ? `<button type="button" class="toast-action">${escapeHtml(actionLabel)}</button>` : ''}<button type="button" class="toast-close" aria-label="关闭提示">×</button>`;
-  $('#toastRegion').appendChild(toast);
-  toast.querySelector('.toast-close').addEventListener('click', dismissToast);
-  toast.querySelector('.toast-action')?.addEventListener('click', async () => {
-    dismissToast();
-    try { await onAction?.(); }
-    catch (error) { showToast(`操作失败：${error.message}`, {tone:'error'}); }
-  });
-  state.toastTimer = window.setTimeout(dismissToast, duration);
-}
 
 function sourceNavigationAttributes(source) {
   const documentAttribute = source.document_id ? ` data-source-document-id="${escapeHtml(source.document_id)}"` : '';
