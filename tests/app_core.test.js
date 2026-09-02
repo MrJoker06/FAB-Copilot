@@ -117,8 +117,19 @@ test('index loads core scripts in dependency order and keeps app last', () => {
     '/static/stream_markdown.js?v=__APP_VERSION__', '/static/source_presenter.js?v=__APP_VERSION__',
     '/static/personal_upload_queue.js?v=__APP_VERSION__', '/static/personal_knowledge_metadata.js?v=__APP_VERSION__',
     '/static/personal_job_events.js?v=__APP_VERSION__', '/static/thinking_control.js?v=__APP_VERSION__',
+    '/static/app/knowledge/controller.js?v=__APP_VERSION__', '/static/app/model/controller.js?v=__APP_VERSION__',
+    '/static/app/dashboard/controller.js?v=__APP_VERSION__',
     '/static/app.js?v=__APP_VERSION__',
   ]);
+});
+
+test('business controller factories expose isolated public facades', () => {
+  const knowledge = require('../app/static/app/knowledge/controller.js');
+  const model = require('../app/static/app/model/controller.js');
+  const dashboard = require('../app/static/app/dashboard/controller.js');
+  assert.notEqual(knowledge.createKnowledgeController({}), knowledge.createKnowledgeController({}));
+  assert.equal(typeof model.createModelController, 'function');
+  assert.equal(typeof dashboard.createDashboardController, 'function');
 });
 
 test('app uses all five core facades without retaining extracted implementations', () => {

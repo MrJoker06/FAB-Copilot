@@ -82,7 +82,7 @@ app/
 ### 桌面前端
 
 - [x] `REF-014` 提取前端核心层：新增 `app/static/app/core/{state,dom,api,toast,version}.js` 五个 UMD/CommonJS+globalThis 模块，完成 state 全字段/容器、DOM/格式、身份 headers、FabApiError/API、Toast 和版本检查等价迁移。index 保持普通 defer，core 按 state→dom→api→toast→version 在原 8 个辅助脚本前加载，原相对顺序不变、app.js 最后；冻结契约仅更新 index script_sources。错误文案、状态含义、API、Toast、版本 Banner/focus/visibility、DOM IDs 和视觉行为不变；`app.js` 1959→1879（减少 80 行），新增 8 项 `app_core` 边界测试。
-- [ ] `REF-015` 拆分知识、报表、能力和模型设置控制器：迁移个人知识上传/文档/Job SSE、Dashboard/Capability/图表及 Thinking/模型配置；保持 DOM 标识、API 请求、上传队列和选择状态不变。
+- [x] `REF-015` 拆分知识、报表、能力和模型设置控制器：新增 `app/static/app/{knowledge,model,dashboard}/controller.js` 三个 UMD/CommonJS+globalThis 模块，个人知识上传/文档/Job SSE、工厂知识/历史案例、Dashboard/Capability/图表及 Thinking/模型配置均以显式依赖注入迁移；`app.js` 保留同名 facade、共享 state 与 `personalUploadQueue` 对象身份/事件绑定。DOM 标识、API 请求、上传队列、选择状态、Thinking、SSE 和请求取消不变；index 保持普通 defer、leaf helper 后加载 controller、app.js 最后，冻结契约仅更新 script_sources。`app.js` 1879→1153（减少 726 行），新增 6 项 Node 边界测试，Node 50→56。
 - [ ] `REF-016` 拆分 Session、聊天流和 Live Answer：迁移 Session Library、对话状态、流式请求、增量 Markdown、复制、重试、归档和流诊断；保持回答呈现、引用位置、取消语义和浏览器遥测不变。
 - [ ] `REF-017` 拆分视图布局、Agent 面板和启动流程：迁移视图切换、面板开合/宽度、事件绑定与 `init()`，以 `bootstrap.js` 统一启动；`app.js` 最终只保留兼容入口并控制在约 150 行以内，不改变桌面视觉基线。
 
