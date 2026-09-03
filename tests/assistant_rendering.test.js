@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const script = fs.readFileSync('app/static/app.js', 'utf8');
+const script = fs.readFileSync('app/static/app/chat/presenter.js', 'utf8');
 
 function functionBody(name) {
   const start = script.indexOf(`function ${name}(`);

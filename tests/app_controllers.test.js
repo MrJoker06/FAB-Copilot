@@ -108,10 +108,10 @@ test('dashboard controller requests the selected date range and stores the rende
   assert.equal(nodes['#rangeSummary'].textContent, '2026-01-01 至 2026-01-31 · 2 个批次');
 });
 
-test('app mounts all three business facades and no longer declares representative migrated functions', () => {
+test('app mounts business, session, and chat facades without retaining migrated implementations', () => {
   const source = fs.readFileSync(path.join(__dirname, '../app/static/app.js'), 'utf8');
-  for (const factory of ['FabKnowledgeController', 'FabModelController', 'FabDashboardController']) assert.match(source, new RegExp(`globalThis\\.${factory}\\.create`));
-  for (const declaration of ['function loadPersonalKnowledgeDocuments', 'function saveModelSettings', 'function loadDashboard']) assert.equal(source.includes(declaration), false);
+  for (const factory of ['FabKnowledgeController', 'FabModelController', 'FabDashboardController', 'FabSessionController', 'FabChatController']) assert.match(source, new RegExp(`globalThis\\.${factory}\\.create`));
+  for (const declaration of ['function loadPersonalKnowledgeDocuments', 'function saveModelSettings', 'function loadDashboard', 'function createConversation', 'function streamAgent']) assert.equal(source.includes(declaration), false);
   assert.match(source, /const personalUploadQueue = globalThis\.FabPersonalUploadQueue;/);
   assert.match(source, /personalUploadQueue \}\);/);
   assert.match(source, /personalUploadQueue\.remove\(/);
