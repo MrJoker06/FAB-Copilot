@@ -25,7 +25,7 @@
 | 当前队列 | 7 | `QA-010`（2026-08-30 用户暂缓本地与远程完整 7-run Live 验收，保持未完成），随后在该暂缓例外下继续纯结构重构 `REF-016` 至 `REF-021` |
 | 用户暂缓 | 1 | `UX-029` |
 | 企业级暂缓 | 41 | 见本文件末尾分类清单 |
-| 可选候选 | 2 | `RAG-024`、`AGENT-039` `OPTIONAL`，不计入主任务统计 |
+| 可选候选 | 3 | `RAG-024`、`AGENT-039`、`REF-022` `OPTIONAL`，不计入主任务统计 |
 
 ## 当前串行队列
 
@@ -84,6 +84,7 @@
 |---|---|---|---|
 | `RAG-024` | `OPTIONAL` | 不排期 | 评估是否接入 Ragas；保留现有确定性 Hit Rate/MRR/Source Coverage/Forbidden Hits/ACL/引用页码门，候选观察 Context Precision/Recall、Faithfulness/Response Groundedness、Answer Relevancy、Factual Correctness 和 Noise Sensitivity。评审模型与 embedding 必须固定并显式配置，禁止隐式联网；只有用户明确激活后才转为普通 `[ ]` 并排期。 |
 | `AGENT-039` | `OPTIONAL` | 不排期 | 评估/设计统一 Memory Manager：生命周期采用感官/输入 → 短期/工作 → 长期记忆，长期再分语义、情景、程序；覆盖输入规范化与过滤、状态/上下文预算/checkpoint、长期写入与召回、Writer、Retrieval Gate、Consolidation/冲突与遗忘治理。复用 Session/Context/Plan/Trace、知识/案例/个人知识及 Playbook/Planner/Guard，不重复造 RAG；落实 ACL/租户隔离、来源/置信度、版本/生效期/TTL/删除权，不从日志直接生成记忆、不保存隐藏思维链，程序变更须离线回放/黄金集和人工审批。只有用户明确激活后才转为普通 `[ ]` 并排期，不混入 `REF-006` 至 `REF-021`。 |
+| `REF-022` | `OPTIONAL` | `REF-021` 后且不排期 | 收口 Agent Coordinator 阶段拓扑与依赖边界：保留唯一 `coordinate_agent_run()` 总协调器，将 prepare/availability/model/ready/loop 明确为 `agent_runtime/stages/` 阶段，拆分过宽的 `CoordinatorDependencies`，分组 `CoordinatorRunState` 字段并收口重复的证据/综合结果逻辑。必须保持 `app.agent` 实时 patch、每运行一次依赖快照、单一主状态、Ready 确定性执行、Agent Loop、进度/审计事件和返回契约不变；只有用户明确激活后才转为普通 `[ ]` 并排期。 |
 
 ## 用户暂缓（非当前）
 

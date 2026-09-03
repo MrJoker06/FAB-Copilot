@@ -96,6 +96,17 @@ app/
 
 - [ ] `REF-021` 只读审计其余大模块：评估 `database.py`、`answer_synthesizer.py`、`seed.py`、`planner.py`、`domain_playbooks.py` 和 `intent_router.py` 的变化原因、依赖方向和真实维护成本。只生成后续候选计划；未经用户确认，不因行数机械拆分，也不实施代码改动。
 
+### Coordinator 后续候选
+
+- `REF-022` `OPTIONAL` 收口 Agent Coordinator 阶段拓扑与依赖边界：该任务依赖 `REF-021` 审计，不进入当前 `REF-016` 至 `REF-021` 串行队列。目标结构保留 `agent_runtime/coordinator.py` 作为唯一总协调器、`coordinator_state.py` 作为单次运行唯一主状态，新增 `dependencies.py` 与 `stages/{prepare,availability,model,ready,loop}.py`。
+  1. 首先冻结五阶段顺序、提前返回、Ready/离线/Loop 三条路径、Progress/Audit/Trace 事件、最终返回结构及 `app.agent.*` 实时 patch 契约。
+  2. 再将现有 `coordinator_{prepare,availability,model,ready,loop}.py` 迁入 `agent_runtime/stages/`，旧模块保留兼容导出，不为减少文件数重新合并阶段。
+  3. 将过宽的 `CoordinatorDependencies` 拆为 Preparation、Availability、Model、Ready Execution、Agent Loop 和 Result 阶段依赖；`app.agent` 每次运行仍只快照一次实时依赖，阶段不得重新读取全局 namespace。
+  4. 在不创建第二个可变事实源的前提下，按 Preparation、Model、Execution 和 Synthesis 分组 `CoordinatorRunState` 字段；兼容 `AgentLoopContext` 结束后必须同步回主状态。
+  5. 最后仅收口已被契约测试覆盖的证据验证通知、Answer Synthesis 审计、模型健康记录和结果组装重复逻辑，不建立新的通用万能 helper。
+- 验收要求：`app.agent.run_agent()` 签名、`coordinate_agent_run()` 唯一入口、依赖快照/对象身份、Ready 的零模型工具选择、离线降级、Agent Loop 停止/取消、事件顺序和响应字段全部不变；定向运行 Agent runtime/execution/module/preparation/tool-runtime、Ready Plan、冻结契约与仓库检查，再运行一次完整离线 `python scripts/run_quality_gate.py full`。`QA-010` 完整 7-run Live 不属于该任务验收。
+- 风险与回退：最高风险为实时 patch 失效、阶段事件重排、Ready/Loop 状态分叉和兼容导入破坏；实施时应分为“阶段目录与兼容导出”、“分阶段依赖”、“状态/重复逻辑收口”三个独立提交，任一阶段出现行为差异时只回退对应提交。只有用户明确激活后，`REF-022` 才转为普通 `[ ]` 并纳入主统计和排期。
+
 ## 主要职责迁移映射
 
 | 当前职责 | 目标模块 |
