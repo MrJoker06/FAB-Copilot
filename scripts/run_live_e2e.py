@@ -52,6 +52,11 @@ def browser_timeout_seconds(started: float, budget: dict[str, int], *, clock=tim
     return min(budget["max_test_ms"] / 1000, remaining_duration_seconds(started, budget, clock=clock))
 
 
+def startup_timeout_seconds(started: float, budget: dict[str, int], *, clock=time.monotonic) -> float:
+    """Bound health waiting by the versioned startup and total-duration budgets."""
+    return min(budget["max_startup_ms"] / 1000, remaining_duration_seconds(started, budget, clock=clock))
+
+
 def browser_environment(environ: dict[str, str], port: int, budget: dict[str, int] | None = None) -> dict[str, str]:
     safe = {key: value for key, value in environ.items() if not is_secret_environment_name(key)}
     safe["PLAYWRIGHT_LIVE_PORT"] = str(port)
@@ -146,7 +151,7 @@ def main(argv: list[str] | None = None) -> int:
         private = Path(temporary) / "private_metadata.json"; server_root = Path(temporary) / "server-root"; server_env = environment.copy()
         try:
             child = subprocess.Popen([os.sys.executable, "scripts/run_live_browser_test_server.py", "--port", str(port), "--root", str(server_root)], cwd=PROJECT_DIR, env=server_env)
-            health_timeout = min(20, budget["max_startup_ms"] / 1000, remaining_duration_seconds(started, budget))
+            health_timeout = startup_timeout_seconds(started, budget)
             if not wait_for_loopback_health(f"http://127.0.0.1:{port}/api/health", timeout_seconds=health_timeout, opener=build_opener(ProxyHandler({})).open): raise RuntimeError("live E2E server health check failed")
             startup_ms = (time.monotonic() - started) * 1000
             browser_started = time.monotonic()
