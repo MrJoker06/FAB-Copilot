@@ -21,8 +21,8 @@
 
 | 类型 | 数量 | 任务 |
 |---|---:|---|
-| 已完成 | 155 | 以各分类 TODO 为准；`QA-005` 至 `QA-009` 已完成 E2E 基础、双通道验证与桌面关键旅程，`REF-016` 已完成 Session、聊天流与 Live Answer 拆分 |
-| 当前队列 | 6 | `QA-010`（2026-08-30 用户暂缓本地与远程完整 7-run Live 验收，保持未完成），随后在该暂缓例外下继续纯结构重构 `REF-017` 至 `REF-021` |
+| 已完成 | 156 | 以各分类 TODO 为准；`QA-005` 至 `QA-009` 已完成 E2E 基础、双通道验证与桌面关键旅程，`REF-017` 已完成布局与启动收口 |
+| 当前队列 | 5 | `QA-010`（本地完整 7-run 已通过、远程验收由用户暂缓，保持未完成），随后 `REF-018` 至 `REF-021` |
 | 用户暂缓 | 1 | `UX-029` |
 | 企业级暂缓 | 41 | 见本文件末尾分类清单 |
 | 可选候选 | 3 | `RAG-024`、`AGENT-039`、`REF-022` `OPTIONAL`，不计入主任务统计 |
@@ -49,7 +49,7 @@
 | 16 | `QA-007` | `QA-006`、`UX-025` 至 `UX-028` | 个人知识 E2E 闭环 | 已完成：确定性个人知识闭环与 six-run Live 召回/来源/复制/删除验证通过，普通 full 零外部调用 |
 | 17 | `QA-008` | `QA-006`、`AUTH-004`、`MODEL-001` 至 `MODEL-007` | 管理端真实治理闭环 | 已完成：令牌表单、严格四能力模型发布/失效/探针/状态、用户端 Thinking 同步、协议失败分类及三场景授权 Live 通过；凭据不进入前端或 artifact |
 | 18 | `QA-009` | `QA-005`、`QA-006`、`QA-007` | 桌面关键旅程收口 | 已完成：Session 生命周期、来源分组/复制/Trace、固定日期 dashboard、ETCH capability、knowledge/case 真实 API、17 条确定性 E2E 通过；必要 Live Provider 五轮矩阵通过，完整 7-run 门未重跑 |
-| 19 | `QA-010` | `QA-005` 至 `QA-009`、`DEPLOY-012` | 双通道 CI 治理 | 本地实现：push/PR 确定性门与仅手动完整 Live 门分离，调用/Token/耗时预算和 metadata-only artifact 收口；待远程 `live-e2e` Environment 审批、Secret 与首次完整实测验收 |
+| 19 | `QA-010` | `QA-005` 至 `QA-009`、`DEPLOY-012` | 双通道 CI 治理 | 本地完整 Live 已通过；2026-09-05 用户暂缓远程 `live-e2e` Environment、Secret 与首次完整实测验收，私有仓库 required reviewer API 返回 422 |
 | 20 | `REF-009` | `REF-008`、`QA-010` | Agent coordinator 收口 | 已完成：每调用 namespace snapshot 的 `AgentCompatibilityFacade` 保持 async/sync wrapper 和实时 patch；`CoordinatorRunState` 协调 prepare、availability、model、ready、loop 五阶段，`run_agent` 生命周期不变，`agent.py` 1256→164、coordinator→108，174 项定向回归、契约、仓库检查和宿主 full 通过 |
 | 21 | `REF-010` | `REF-009` | API 基础边界 | 已完成：application、errors、schemas、dependencies 等价迁移；main app/lifespan/handler/schema/auth 兼容导出与实时 patch 保持，URL/OpenAPI/认证/状态码/响应不变 |
 | 22 | `REF-011` | `REF-010` | 领域 Router | 已完成：8 个领域 `APIRouter`、main runtime namespace 实时 patch、同名兼容导出与 Personal Job SSE service 收口；URL、认证、状态码、响应和 OpenAPI 等价，`main.py` 1125→697（减少 428 行） |
@@ -58,7 +58,7 @@
 | 25 | `REF-014` | `REF-013` | 前端核心层 | 已完成：五个 Core UMD 模块、defer 依赖顺序、app.js facade 及契约等价迁移 |
 | 26 | `REF-015` | `REF-014` | 前端业务控制器 | 已完成：知识/案例、上传/Job SSE、Dashboard/Capability/图表和 Thinking/模型配置迁入三个 controller；同名 facade、共享状态、脚本顺序和产品交互不变 |
 | 27 | `REF-016` | `REF-015` | Session 与聊天流 | 已完成：Presenter、Session 与 Chat/Live controller 显式分层；增量 Markdown、复制、重试消息 ID、归档、取消与遥测不变，`app.js` 1153→426 行 |
-| 28 | `REF-017` | `REF-016` | 布局与启动收口 | `app.js` 成为兼容启动门面，视觉基线不变 |
+| 28 | `REF-017` | `REF-016` | 布局与启动收口 | 已完成：layout/bootstrap 模块化，`app.js` 426→89 行，视觉基线不变 |
 | 29 | `REF-018` | `REF-017` | 个人知识基础边界 | contracts、metadata、storage 与 ACL 等价迁移 |
 | 30 | `REF-019` | `REF-018` | 个人知识处理流程 | Job、抽取器、OCR、入库、重试和删除语义不变 |
 | 31 | `REF-020` | `REF-019` | 个人知识查询收口 | 文档、Cursor、FTS、Chunk 与兼容导出不变 |
@@ -70,7 +70,7 @@
 
 ### 检查点 E：结构可维护性
 
-`REF-001` 至 `REF-016` 及 `QA-005` 至 `QA-009` 已完成，跨层兼容、桌面 E2E、个人知识、管理端治理、桌面关键旅程、Agent coordinator、API 基础、领域 Router、Chat/流式服务、main composition、前端核心层、业务控制器及 Session/Live Answer 边界已经冻结。`QA-010` 的本地治理实现与完整离线门已通过，可作为检查点提交；但 2026-08-30 用户明确暂缓本地与远程完整 7-run Live 验收，故仍保持未完成且不得宣称 Live 门通过。在此暂缓验收例外下，下一项为 `REF-017`，再按照桌面布局启动和个人知识后端边界串行拆分，最后只读审计第二梯队。普通 push/PR 不访问真实模型；必要 Live `provider-matrix` 不替代完整 7-run Live 门，未来发布或打标签前仍必须完成受保护的完整 Live 门；任一任务若产生未批准的产品行为差异，不得作为测试或重构完成。
+`REF-001` 至 `REF-017` 及 `QA-005` 至 `QA-009` 已完成，跨层兼容、桌面 E2E、个人知识、管理端治理、桌面关键旅程、Agent coordinator、API 基础、领域 Router、Chat/流式服务、main composition、前端核心层、业务控制器及布局/启动边界已经冻结。`QA-010` 本地完整 7-run 已于 2026-09-04 通过，但远程 Environment/Secret/full 验收于 2026-09-05 由用户暂缓，故仍保持未完成。下一项为 `REF-018`，再按照个人知识后端边界串行拆分，最后只读审计第二梯队。普通 push/PR 不访问真实模型；必要 Live `provider-matrix` 不替代完整 7-run Live 门，未来发布或打标签前仍必须完成受保护的完整 Live 门；任一任务若产生未批准的产品行为差异，不得作为测试或重构完成。
 
 ### 检查点 D：上一阶段收口
 

@@ -112,7 +112,11 @@ test('app mounts business, session, and chat facades without retaining migrated 
   const source = fs.readFileSync(path.join(__dirname, '../app/static/app.js'), 'utf8');
   for (const factory of ['FabKnowledgeController', 'FabModelController', 'FabDashboardController', 'FabSessionController', 'FabChatController']) assert.match(source, new RegExp(`globalThis\\.${factory}\\.create`));
   for (const declaration of ['function loadPersonalKnowledgeDocuments', 'function saveModelSettings', 'function loadDashboard', 'function createConversation', 'function streamAgent']) assert.equal(source.includes(declaration), false);
-  assert.match(source, /const personalUploadQueue = globalThis\.FabPersonalUploadQueue;/);
-  assert.match(source, /personalUploadQueue \}\);/);
-  assert.match(source, /personalUploadQueue\.remove\(/);
+  assert.match(source, /personalUploadQueue:\s*globalThis\.FabPersonalUploadQueue/);
+  const sessionFactory = source.indexOf('FabSessionController.createSessionController');
+  const layoutFactory = source.indexOf('FabLayoutController.createLayoutController');
+  assert.ok(sessionFactory >= 0 && sessionFactory < layoutFactory);
+  assert.match(source, /createLayoutController\(\{\s*state, \$, \.\.\.knowledge, \.\.\.dashboard, \.\.\.sessions,/s);
+  const bootstrap = fs.readFileSync(path.join(__dirname, '../app/static/app/bootstrap.js'), 'utf8');
+  assert.match(bootstrap, /personalUploadQueue\.remove\(/);
 });
