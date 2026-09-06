@@ -7,305 +7,64 @@ import io
 import json
 import re
 import uuid
-import zipfile
-from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Iterable
-
-from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from .audit import emit
 from .config import get_settings
 from .database import db_session
 from .ocr import OCRFailedError, OCRUnavailableError, extract_image_result
 from .ocr_quality import OCRObservation, POLICY_VERSION, evaluate_observations
-from .processes import MANUFACTURING_STEPS, PROCESS_ALIASES, process_query_terms
+from .personal_knowledge_runtime.contracts import (
+    ExtractedSection,
+    PersonalDocumentMetadata,
+    PersonalDocumentPatch,
+    PersonalKnowledgeError,
+)
+from .personal_knowledge_runtime import metadata as _metadata
+from .personal_knowledge_runtime.metadata import (
+    _automatic_tags,
+    _document_dict,
+    _json_list,
+    _normalise_tags,
+    parse_metadata,
+)
+from .personal_knowledge_runtime import storage as _storage
+from .processes import process_query_terms
 
 
 PARSER_VERSION = "personal-v2-ocr"
-SUPPORTED_SUFFIXES = {".pdf", ".docx", ".md", ".txt", ".csv", ".xlsx", ".png", ".jpg", ".jpeg", ".tif", ".tiff"}
-MIME_TYPES = {
-    ".pdf": "application/pdf",
-    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ".md": "text/markdown",
-    ".txt": "text/plain",
-    ".csv": "text/csv",
-    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".tif": "image/tiff",
-    ".tiff": "image/tiff",
-}
-IMAGE_FORMATS = {
-    ".png": "PNG",
-    ".jpg": "JPEG",
-    ".jpeg": "JPEG",
-    ".tif": "TIFF",
-    ".tiff": "TIFF",
-}
-MAX_OCR_PDF_PAGES = 100
-MAX_OCR_IMAGE_PIXELS = 20_000_000
-MAX_OCR_RENDERED_PIXELS = 80_000_000
+SUPPORTED_SUFFIXES = _storage.SUPPORTED_SUFFIXES
+MIME_TYPES = _storage.MIME_TYPES
+IMAGE_FORMATS = _storage.IMAGE_FORMATS
+MAX_OCR_PDF_PAGES = _storage.MAX_OCR_PDF_PAGES
+MAX_OCR_IMAGE_PIXELS = _storage.MAX_OCR_IMAGE_PIXELS
+MAX_OCR_RENDERED_PIXELS = _storage.MAX_OCR_RENDERED_PIXELS
 MIN_NATIVE_PDF_TEXT = 20
-
-# Canonical, reviewable vocabulary used for deterministic metadata extraction.
-DOCUMENT_TYPE_TAGS = {
-    "SOP": ("sop", "standard operating procedure", "标准作业程序", "作业指导书"),
-    "CONTROL PLAN": ("control plan", "控制计划"),
-    "GUIDE": ("guide", "guideline", "指南", "指引"),
-    "REPORT": ("report", "报告"),
-    "RECORD": ("record", "记录"),
-    "TRAINING": ("training", "培训"),
-}
-TOPIC_TAGS = {
-    "SCRATCH": ("scratch", "划伤", "刮伤"),
-    "PARTICLE": ("particle", "颗粒"),
-    "MAINTENANCE": ("maintenance", "维护", "保养"),
-    "SPC": ("spc", "statistical process control", "统计过程控制"),
-    "YIELD": ("yield", "良率"),
-    "CPK": ("cpk", "process capability index", "过程能力指数"),
-    "RECIPE": ("recipe", "配方"),
-    "ALARM": ("alarm", "报警", "告警"),
-}
-MAX_TAG_SOURCE_CHARS = 200_000
-
-
-class PersonalKnowledgeError(Exception):
-    def __init__(self, status_code: int, error_code: str, detail: str, retryable: bool = False):
-        super().__init__(detail)
-        self.status_code = status_code
-        self.error_code = error_code
-        self.detail = detail
-        self.retryable = retryable
-
-
-class PersonalDocumentMetadata(BaseModel):
-    title: str | None = Field(default=None, max_length=200)
-    process_steps: list[str] = Field(default_factory=list, max_length=20)
-    equipment_ids: list[str] = Field(default_factory=list, max_length=100)
-    effective_date: date | None = None
-    tags: list[str] = Field(default_factory=list, max_length=30)
-
-    @field_validator("title")
-    @classmethod
-    def clean_title(cls, value: str | None) -> str | None:
-        cleaned = " ".join((value or "").strip().split())
-        return cleaned or None
-
-    @field_validator("process_steps")
-    @classmethod
-    def clean_process_steps(cls, values: list[str]) -> list[str]:
-        cleaned = list(dict.fromkeys(value.strip().upper() for value in values if value.strip()))
-        invalid = [value for value in cleaned if value not in MANUFACTURING_STEPS]
-        if invalid:
-            raise ValueError(f"不支持的制程: {', '.join(invalid)}")
-        return cleaned
-
-    @field_validator("equipment_ids")
-    @classmethod
-    def clean_equipment_ids(cls, values: list[str]) -> list[str]:
-        cleaned = list(dict.fromkeys(value.strip().upper() for value in values if value.strip()))
-        if any(not re.fullmatch(r"[A-Z][A-Z0-9_-]{1,31}", value) for value in cleaned):
-            raise ValueError("设备编号格式不正确")
-        return cleaned
-
-    @field_validator("tags")
-    @classmethod
-    def clean_tags(cls, values: list[str]) -> list[str]:
-        cleaned: list[str] = []
-        seen: set[str] = set()
-        for value in values:
-            tag = " ".join(value.strip().split())
-            key = tag.casefold()
-            if tag and key not in seen:
-                cleaned.append(tag)
-                seen.add(key)
-        if any(len(value) > 40 for value in cleaned):
-            raise ValueError("单个标签不能超过 40 个字符")
-        return cleaned
-
-
-class PersonalDocumentPatch(BaseModel):
-    title: str | None = Field(default=None, min_length=1, max_length=200)
-    process_steps: list[str] | None = Field(default=None, max_length=20)
-    equipment_ids: list[str] | None = Field(default=None, max_length=100)
-    effective_date: date | None = None
-    tags: list[str] | None = Field(default=None, max_length=30)
-
-    @field_validator("title")
-    @classmethod
-    def clean_title(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        cleaned = " ".join(value.strip().split())
-        if not cleaned:
-            raise ValueError("标题不能为空")
-        return cleaned
-
-    @field_validator("process_steps")
-    @classmethod
-    def clean_process_steps(cls, values: list[str] | None) -> list[str] | None:
-        return None if values is None else PersonalDocumentMetadata.clean_process_steps(values)
-
-    @field_validator("equipment_ids")
-    @classmethod
-    def clean_equipment_ids(cls, values: list[str] | None) -> list[str] | None:
-        return None if values is None else PersonalDocumentMetadata.clean_equipment_ids(values)
-
-    @field_validator("tags")
-    @classmethod
-    def clean_tags(cls, values: list[str] | None) -> list[str] | None:
-        return None if values is None else PersonalDocumentMetadata.clean_tags(values)
-
-
-@dataclass(frozen=True)
-class ExtractedSection:
-    page_number: int | None
-    section_path: str
-    content: str
-    ocr_observation: OCRObservation | None = None
-
+DOCUMENT_TYPE_TAGS = _metadata.DOCUMENT_TYPE_TAGS
+TOPIC_TAGS = _metadata.TOPIC_TAGS
+MAX_TAG_SOURCE_CHARS = _metadata.MAX_TAG_SOURCE_CHARS
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def _json_list(value: str | None) -> list[str]:
-    try:
-        result = json.loads(value or "[]")
-    except json.JSONDecodeError:
-        return []
-    return result if isinstance(result, list) else []
-
-
-def _document_dict(row) -> dict:
-    item = dict(row)
-    item["process_steps"] = _json_list(item.pop("process_steps_json", "[]"))
-    item["equipment_ids"] = _json_list(item.pop("equipment_ids_json", "[]"))
-    item["tags"] = _json_list(item.pop("tags_json", "[]"))
-    item["tags_source"] = item.get("tags_source", "auto")
-    item.pop("owner_user_id", None)
-    item.pop("storage_key", None)
-    item.pop("idempotency_key", None)
-    return item
-
-
-def _normalise_tags(values: Iterable[str]) -> list[str]:
-    """Return stable, case-insensitively unique tags within the public limits."""
-    result: list[str] = []
-    seen: set[str] = set()
-    for value in values:
-        tag = " ".join(str(value).strip().split())
-        key = tag.casefold()
-        if tag and len(tag) <= 40 and key not in seen:
-            result.append(tag)
-            seen.add(key)
-        if len(result) == 30:
-            break
-    return result
-
-
-def _automatic_tags(title: str, filename: str, sections: Iterable[ExtractedSection]) -> list[str]:
-    """Derive explainable tags from document text without a model call."""
-    parts = [title, filename]
-    remaining = MAX_TAG_SOURCE_CHARS - sum(len(part) for part in parts)
-    for section in sections:
-        if remaining <= 0:
-            break
-        part = f"{section.section_path}\n{section.content}"
-        parts.append(part[:remaining])
-        remaining -= len(part)
-    text = "\n".join(parts)
-    compact = text.casefold().replace(" ", "")
-    tags: list[str] = []
-    for step in MANUFACTURING_STEPS:
-        aliases = PROCESS_ALIASES[step]
-        if step.casefold() in text.casefold() or any(alias.casefold().replace(" ", "") in compact for alias in aliases):
-            tags.append(step)
-    # Equipment identifiers intentionally follow the same conservative contract as metadata,
-    # while requiring a digit, dash or underscore so ordinary prose is not labelled equipment.
-    tags.extend(re.findall(r"\b(?=[A-Za-z][A-Za-z0-9_-]{1,31}\b)(?=[A-Za-z0-9_-]*[0-9_-])[A-Za-z][A-Za-z0-9_-]+\b", text))
-    suffix = Path(filename).suffix.lstrip(".").upper()
-    for tag, aliases in DOCUMENT_TYPE_TAGS.items():
-        if any(alias.casefold().replace(" ", "") in compact for alias in aliases):
-            tags.append(tag)
-    if suffix:
-        tags.append(suffix)
-    for tag, aliases in TOPIC_TAGS.items():
-        if any(alias.casefold().replace(" ", "") in compact for alias in aliases):
-            tags.append(tag)
-    return _normalise_tags(tags)
-
-
-def parse_metadata(raw: str | None) -> PersonalDocumentMetadata:
-    try:
-        return PersonalDocumentMetadata.model_validate_json(raw or "{}")
-    except ValidationError as exc:
-        fields = [".".join(str(part) for part in error["loc"]) for error in exc.errors()]
-        raise PersonalKnowledgeError(400, "INVALID_METADATA", f"元数据不符合要求: {', '.join(fields)}") from exc
-
-
 def _safe_filename(filename: str | None) -> str:
-    cleaned = (filename or "").replace("\\", "/").rsplit("/", 1)[-1].strip()
-    if not cleaned or len(cleaned) > 255:
-        raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "文件名为空或过长")
-    return cleaned
+    return _storage._safe_filename(filename)
 
 
 def _validate_file(filename: str, data: bytes) -> tuple[str, str]:
-    suffix = Path(filename).suffix.lower()
-    if suffix not in SUPPORTED_SUFFIXES:
-        raise PersonalKnowledgeError(415, "UNSUPPORTED_FILE_TYPE", "当前不支持该文件类型")
-    if not data:
-        raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "文件内容为空")
-    try:
-        if suffix == ".pdf" and not data.startswith(b"%PDF-"):
-            raise ValueError("invalid PDF signature")
-        if suffix in {".docx", ".xlsx"}:
-            with zipfile.ZipFile(io.BytesIO(data)) as archive:
-                names = set(archive.namelist())
-                expanded_size = sum(item.file_size for item in archive.infolist())
-                compressed_size = max(1, sum(item.compress_size for item in archive.infolist()))
-            expected = "word/document.xml" if suffix == ".docx" else "xl/workbook.xml"
-            if expected not in names or expanded_size > 200 * 1024 * 1024 or expanded_size / compressed_size > 100:
-                raise ValueError("invalid Office document signature")
-        if suffix in {".md", ".txt", ".csv"}:
-            if b"\x00" in data[:8192]:
-                raise ValueError("binary content")
-            data.decode("utf-8-sig")
-        if suffix in IMAGE_FORMATS:
-            from PIL import Image, UnidentifiedImageError
-            try:
-                with Image.open(io.BytesIO(data)) as image:
-                    image.verify()
-                with Image.open(io.BytesIO(data)) as image:
-                    frame_count = getattr(image, "n_frames", 1)
-                    if image.format != IMAGE_FORMATS[suffix] or frame_count > MAX_OCR_PDF_PAGES:
-                        raise ValueError("invalid image content")
-                    rendered_pixels = 0
-                    for frame_index in range(frame_count):
-                        image.seek(frame_index)
-                        pixels = image.width * image.height
-                        if pixels > MAX_OCR_IMAGE_PIXELS:
-                            raise ValueError("invalid image content")
-                        rendered_pixels += pixels
-                    if rendered_pixels > MAX_OCR_RENDERED_PIXELS:
-                        raise ValueError("invalid image content")
-            except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
-                raise ValueError("invalid image content") from exc
-    except (UnicodeDecodeError, ValueError, zipfile.BadZipFile) as exc:
-        raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "文件内容与声明类型不匹配或已经损坏") from exc
-    return suffix, MIME_TYPES[suffix]
+    return _storage._validate_file(
+        filename, data,
+        max_ocr_pdf_pages=MAX_OCR_PDF_PAGES,
+        max_ocr_image_pixels=MAX_OCR_IMAGE_PIXELS,
+        max_ocr_rendered_pixels=MAX_OCR_RENDERED_PIXELS,
+    )
 
 
 def _storage_path(storage_key: str) -> Path:
-    root = get_settings().personal_knowledge_storage_path.resolve()
-    target = (root / storage_key).resolve()
-    if root != target and root not in target.parents:
-        raise PersonalKnowledgeError(500, "STORAGE_PATH_ERROR", "文件存储路径不安全")
-    return target
+    return _storage._storage_path(storage_key, storage_root=get_settings().personal_knowledge_storage_path)
 
 
 def _latest_job(connection, document_id: str, owner_user_id: str):

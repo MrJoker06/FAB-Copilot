@@ -88,7 +88,7 @@ app/
 
 ### 个人知识后端
 
-- [ ] `REF-018` 拆分个人知识 contracts、metadata 与 storage：迁移错误类型、Metadata/Patch/Section、Tag、文件名校验和存储路径；`app.personal_knowledge` 保留兼容导出，数据模型和 ACL 不变。
+- [x] `REF-018` 拆分个人知识 contracts、metadata 与 storage：新增 `personal_knowledge_runtime/{contracts,metadata,storage}.py`，迁移错误类型、Metadata/Patch/Section、Tag、文件名校验和存储路径；`app.personal_knowledge` 保留对象身份兼容导出，并以薄 wrapper 实时传递 facade 的 OCR 安全限制和 `get_settings` patch。自动标签顺序/上限、ACL 脱敏、错误文本、数据模型和 API 不变。新增 5 项模块边界测试；2026-09-06 标准环境 full 为 Python 510 发现项、442/442 非系统，系统 13/15/13/17/10（88.8155 秒）及全部预算通过，coverage 89%、Node 61/61、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 17/17（45.1 秒）、repository/refactor contract/diff 均通过，普通 full 的真实模型和外网调用均为 0。
 - [ ] `REF-019` 拆分上传 Job、抽取器和入库流程：按文本、Office、PDF、图片划分抽取职责，迁移上传、进度、失败、OCR、分段、入库、重试和删除 Job；保持事务、状态机、幂等和清理语义不变。
 - [ ] `REF-020` 拆分文档查询、搜索和兼容门面：迁移文档列表/更新/删除、Cursor、FTS 查询、Chunk 与 pending job；保持分页、召回、权限、引用和既有调用路径不变。
 
