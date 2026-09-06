@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import io
+import inspect
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +13,9 @@ from PIL import Image
 
 import app.personal_knowledge as facade
 from app.personal_knowledge_runtime import contracts, metadata, storage
+from app.personal_knowledge_runtime import ingestion, jobs
+from app.personal_knowledge_runtime.extractors import extract_sections
+from app.personal_knowledge_runtime.extractors.pdf import extract_pdf
 
 
 class PersonalKnowledgeModuleBoundaryTests(unittest.TestCase):
@@ -63,6 +68,88 @@ class PersonalKnowledgeModuleBoundaryTests(unittest.TestCase):
         self.assertIs(facade.SUPPORTED_SUFFIXES, storage.SUPPORTED_SUFFIXES)
         self.assertNotIn("ZipFile", facade._validate_file.__code__.co_names)
         self.assertEqual(facade._safe_filename(r"folder\\ document.txt"), "document.txt")
+
+    def test_runtime_extractors_dispatch_by_format_without_facade_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "note.txt"
+            path.write_text("body", encoding="utf-8")
+            sections = extract_sections(
+                path, ".txt", "title", max_pdf_pages=1, max_image_pixels=1,
+                max_rendered_pixels=1, extract_image_result=lambda value: None,
+            )
+        self.assertEqual(sections[0].content, "body")
+        self.assertEqual(ingestion.split_content("a"), ["a"])
+        self.assertNotIn("_text_sections", facade._extract_sections.__code__.co_names)
+        self.assertNotIn("_extract_sections", ingestion.process_document.__code__.co_names)
+
+    def test_facade_ocr_function_patch_reaches_runtime_dispatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "image.png"
+            path.write_bytes(self._png())
+            result = SimpleNamespace(text="patched")
+            with patch("app.personal_knowledge.extract_image_result", return_value=result):
+                sections = facade._extract_sections(path, ".png", "image")
+        self.assertEqual(sections[0].content, "patched")
+
+    def test_facade_job_wrappers_resolve_patched_dependencies_at_call_time(self):
+        row = {
+            "job_id": "job", "document_id": "document", "status": "ready", "stage": "ready",
+            "progress": 100, "attempt": 1, "error_code": None, "error_message": None,
+            "retryable": 0, "created_at": "now", "updated_at": "now",
+        }
+        with patch.object(facade._jobs, "latest_job", return_value=row) as latest:
+            self.assertIs(facade._latest_job("connection", "document", "owner"), row)
+        latest.assert_called_once_with("connection", "document", "owner")
+        self.assertNotIn("SELECT job_id", inspect.getsource(facade._latest_job))
+        self.assertNotIn("DELETE FROM", inspect.getsource(facade.process_personal_document_deletion))
+
+    def test_facade_now_patch_reaches_job_update_without_a_database(self):
+        executed: list[tuple[str, tuple]] = []
+
+        class Connection:
+            def execute(self, sql, parameters):
+                executed.append((sql, parameters))
+
+            def commit(self):
+                pass
+
+        class Session:
+            def __enter__(self):
+                return Connection()
+
+            def __exit__(self, *unused):
+                return False
+
+        with patch("app.personal_knowledge.db_session", return_value=Session()), patch(
+            "app.personal_knowledge._now", return_value="PATCHED-NOW"
+        ):
+            facade._update_progress("document", "owner", "job", "parsing", "extracting_text", 10)
+        self.assertEqual(len(executed), 2)
+        self.assertEqual(executed[0][1][1], "PATCHED-NOW")
+        self.assertEqual(executed[1][1][3], "PATCHED-NOW")
+
+    def test_pdf_pymupdf_open_error_has_legacy_invalid_content_mapping(self):
+        from pypdf import PdfWriter
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "readable-by-pypdf.pdf"
+            writer = PdfWriter()
+            writer.add_blank_page(width=72, height=72)
+            with path.open("wb") as handle:
+                writer.write(handle)
+            fake_pymupdf = SimpleNamespace(open=lambda unused: (_ for _ in ()).throw(RuntimeError("bad")))
+            with patch.dict(sys.modules, {"pymupdf": fake_pymupdf}):
+                with self.assertRaises(facade.PersonalKnowledgeError) as caught:
+                    extract_pdf(
+                        path,
+                        "title",
+                        max_pdf_pages=10,
+                        max_rendered_pixels=1_000_000,
+                        min_native_pdf_text=20,
+                        extract_image_result=lambda value: None,
+                    )
+        self.assertEqual(caught.exception.error_code, "INVALID_FILE_CONTENT")
+        self.assertEqual(caught.exception.detail, "PDF 文件已经损坏，无法解析")
 
 
 if __name__ == "__main__":

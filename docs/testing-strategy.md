@@ -121,6 +121,8 @@ python scripts/run_quality_gate.py full
 
 2026-09-06 `REF-018` 标准环境 full 通过：发现 Python 510 个、非系统 442/442；系统数据、HTTP、知识、模型、会话为 13/15/13/17/10，墙钟 15.0381/17.6511/19.2154/17.6434/19.2673 秒、总计 88.8155 秒，全部预算通过；coverage 89%，Node 61/61、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 17/17（45.1 秒）通过，repository/refactor contract/diff 均通过，普通 full 的真实模型和外网调用均为 0。该任务只迁移错误、Pydantic 契约、标签/ACL 序列化和文件安全校验；Facade 的 OCR 限制与配置 patch 继续按调用实时传递，未改变 API、OpenAPI、数据库或 Job 状态机。`QA-010` 远程 Live 继续由用户暂缓。
 
+2026-09-06 `REF-019` 标准环境 full 通过：发现 Python 515 个、非系统 447/447；系统数据、HTTP、知识、模型、会话均通过，墙钟 14.9755/23.3130/20.4623/18.6199/25.3240 秒、总计 102.6949 秒，全部预算通过；coverage 89%，Node 20/20、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 17/17 通过，repository/refactor contract/diff 均通过，普通 full 的真实模型和外网调用均为 0。抽取器、Job 与入库迁出后，Facade 的运行时依赖仍按调用解析；QA-010 远程 Live 继续由用户暂缓，下一项为 `REF-020`。`refactor_contracts.py` 无参数检查模式已通过。
+
 ## 完整审计触发条件
 
 在发布或打标签前必须运行完整审计；以下变更也必须触发：依赖或 Python/FastAPI/SQLite 升级、Schema/API/认证/RAG/流式链路重大变化，或上次审计后累计约 5 个 feature/fix 任务。

@@ -1,27 +1,28 @@
 from __future__ import annotations
 
 import base64
-import csv
-import hashlib
-import io
 import json
 import re
-import uuid
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Iterable
 
 from .audit import emit
 from .config import get_settings
 from .database import db_session
-from .ocr import OCRFailedError, OCRUnavailableError, extract_image_result
-from .ocr_quality import OCRObservation, POLICY_VERSION, evaluate_observations
+from .ocr import extract_image_result
+from .ocr_quality import POLICY_VERSION, evaluate_observations
+from .personal_knowledge_runtime import ingestion as _ingestion
+from .personal_knowledge_runtime import jobs as _jobs
 from .personal_knowledge_runtime.contracts import (
     ExtractedSection,
     PersonalDocumentMetadata,
     PersonalDocumentPatch,
     PersonalKnowledgeError,
 )
+from .personal_knowledge_runtime.extractors import extract_sections as _runtime_extract_sections
+from .personal_knowledge_runtime.extractors.text import text_sections as _extractor_text_sections
 from .personal_knowledge_runtime import metadata as _metadata
 from .personal_knowledge_runtime.metadata import (
     _automatic_tags,
@@ -46,6 +47,31 @@ DOCUMENT_TYPE_TAGS = _metadata.DOCUMENT_TYPE_TAGS
 TOPIC_TAGS = _metadata.TOPIC_TAGS
 MAX_TAG_SOURCE_CHARS = _metadata.MAX_TAG_SOURCE_CHARS
 
+
+def _ingestion_dependencies() -> SimpleNamespace:
+    """Resolve facade globals at call time so tests and integrations may patch them."""
+    return SimpleNamespace(
+        db_session=db_session,
+        get_settings=get_settings,
+        safe_filename=_safe_filename,
+        validate_file=_validate_file,
+        parse_metadata=parse_metadata,
+        normalise_tags=_normalise_tags,
+        initial_upload_job=_initial_upload_job,
+        latest_job=_latest_job,
+        storage_path=_storage_path,
+        now=_now,
+        emit=emit,
+        parser_version=PARSER_VERSION,
+        update_progress=_update_progress,
+        extract_sections=_extract_sections,
+        evaluate_observations=evaluate_observations,
+        policy_version=POLICY_VERSION,
+        automatic_tags=_automatic_tags,
+        mark_failed=_mark_failed,
+    )
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
@@ -68,39 +94,16 @@ def _storage_path(storage_key: str) -> Path:
 
 
 def _latest_job(connection, document_id: str, owner_user_id: str):
-    return connection.execute(
-        """SELECT job_id, document_id, status, stage, progress, attempt,
-                  error_code, error_message, retryable, created_at, updated_at
-           FROM personal_knowledge_jobs
-           WHERE document_id = ? AND owner_user_id = ?
-           ORDER BY attempt DESC, created_at DESC, job_id DESC LIMIT 1""",
-        (document_id, owner_user_id),
-    ).fetchone()
+    return _jobs.latest_job(connection, document_id, owner_user_id)
 
 
 def _initial_upload_job(connection, document_id: str, owner_user_id: str):
     """Return the immutable first upload attempt for an idempotent replay."""
-    return connection.execute(
-        """SELECT job_id, document_id, status, stage, progress, attempt,
-                  error_code, error_message, retryable, created_at, updated_at
-           FROM personal_knowledge_jobs
-           WHERE document_id = ? AND owner_user_id = ?
-           ORDER BY attempt ASC, created_at ASC, job_id ASC LIMIT 1""",
-        (document_id, owner_user_id),
-    ).fetchone()
+    return _jobs.initial_upload_job(connection, document_id, owner_user_id)
 
 
 def _job_dict(row) -> dict:
-    item = dict(row)
-    error_code = item.pop("error_code", None)
-    error_message = item.pop("error_message", None)
-    retryable = bool(item.pop("retryable", 0))
-    item["error"] = (
-        {"error_code": error_code, "detail": error_message, "retryable": retryable}
-        if error_code
-        else None
-    )
-    return item
+    return _jobs.job_dict(row)
 
 
 def create_personal_upload(
@@ -110,105 +113,18 @@ def create_personal_upload(
     metadata_raw: str | None,
     idempotency_key: str,
 ) -> dict:
-    settings = get_settings()
-    if len(data) > settings.personal_knowledge_max_upload_bytes:
-        raise PersonalKnowledgeError(413, "FILE_TOO_LARGE", "文件超过当前上传大小限制")
-    safe_name = _safe_filename(filename)
-    suffix, mime_type = _validate_file(safe_name, data)
-    metadata = parse_metadata(metadata_raw)
-    tags_source = "user" if "tags" in metadata.model_fields_set else "auto"
-    checksum = hashlib.sha256(data).hexdigest()
-
-    with db_session() as connection:
-        idempotent = connection.execute(
-            """SELECT * FROM personal_knowledge_documents
-               WHERE owner_user_id = ? AND idempotency_key = ?""",
-            (owner_user_id, idempotency_key),
-        ).fetchone()
-        if idempotent is not None:
-            if idempotent["checksum_sha256"] != checksum:
-                raise PersonalKnowledgeError(409, "IDEMPOTENCY_CONFLICT", "同一幂等键不能用于不同文件")
-            # A replay identifies the original upload transaction, not a later
-            # retry.  Document detail continues to expose the latest job.
-            job = _initial_upload_job(connection, idempotent["document_id"], owner_user_id)
-            response = _upload_response(idempotent, job)
-            response["_start_processing"] = False
-            return response
-        duplicate = connection.execute(
-            """SELECT document_id FROM personal_knowledge_documents
-               WHERE owner_user_id = ? AND checksum_sha256 = ?""",
-            (owner_user_id, checksum),
-        ).fetchone()
-        if duplicate is not None:
-            raise PersonalKnowledgeError(409, "DUPLICATE_DOCUMENT", "当前个人知识库已存在完全相同的文件")
-
-    document_id = str(uuid.uuid4())
-    job_id = str(uuid.uuid4())
-    owner_directory = hashlib.sha256(owner_user_id.encode("utf-8")).hexdigest()[:24]
-    storage_key = f"{owner_directory}/{document_id}/original{suffix}"
-    target = _storage_path(storage_key)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_suffix(target.suffix + ".part")
-    temporary.write_bytes(data)
-    temporary.replace(target)
-    timestamp = _now()
-    title = metadata.title or Path(safe_name).stem[:200] or "未命名文档"
-    try:
-        with db_session() as connection:
-            connection.execute(
-                """INSERT INTO knowledge.personal_knowledge_documents(
-                       document_id, owner_user_id, filename, title, mime_type, size_bytes,
-                       checksum_sha256, process_steps_json, equipment_ids_json, effective_date,
-                       tags_json, tags_source, status, storage_key, parser_version, idempotency_key,
-                       created_at, updated_at
-                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploaded', ?, ?, ?, ?, ?)""",
-                (
-                    document_id, owner_user_id, safe_name, title, mime_type, len(data), checksum,
-                    json.dumps(metadata.process_steps), json.dumps(metadata.equipment_ids),
-                    metadata.effective_date.isoformat() if metadata.effective_date else None,
-                    json.dumps(_normalise_tags(metadata.tags), ensure_ascii=False), tags_source, storage_key, PARSER_VERSION,
-                    idempotency_key, timestamp, timestamp,
-                ),
-            )
-            connection.execute(
-                """INSERT INTO knowledge.personal_knowledge_jobs(
-                       job_id, document_id, owner_user_id, status, stage, progress, attempt,
-                       created_at, updated_at
-                   ) VALUES (?, ?, ?, 'uploaded', 'queued', 0, 1, ?, ?)""",
-                (job_id, document_id, owner_user_id, timestamp, timestamp),
-            )
-            connection.commit()
-    except Exception:
-        target.unlink(missing_ok=True)
-        raise
-
-    emit(
-        "personal_knowledge_uploaded",
-        job_id,
-        status="success",
-        document_id=document_id,
-        owner_fingerprint=hashlib.sha256(owner_user_id.encode("utf-8")).hexdigest()[:12],
-        filename_suffix=suffix,
-        size_bytes=len(data),
+    return _ingestion.create_upload(
+        _ingestion_dependencies(),
+        owner_user_id,
+        filename,
+        data,
+        metadata_raw,
+        idempotency_key,
     )
-    with db_session() as connection:
-        document = connection.execute(
-            "SELECT * FROM personal_knowledge_documents WHERE document_id = ?", (document_id,)
-        ).fetchone()
-        job = _latest_job(connection, document_id, owner_user_id)
-    response = _upload_response(document, job)
-    response["_start_processing"] = True
-    return response
 
 
 def _upload_response(document, job) -> dict:
-    return {
-        "document_id": document["document_id"],
-        "job_id": job["job_id"],
-        "status": document["status"],
-        "filename": document["filename"],
-        "status_url": f"/api/knowledge/jobs/{job['job_id']}",
-    }
+    return _ingestion.upload_response(document, job)
 
 
 def _update_progress(
@@ -219,22 +135,16 @@ def _update_progress(
     stage: str,
     progress: int,
 ) -> None:
-    timestamp = _now()
-    with db_session() as connection:
-        connection.execute(
-            """UPDATE knowledge.personal_knowledge_documents
-               SET status = ?, error_code = NULL, error_message = NULL, updated_at = ?
-               WHERE document_id = ? AND owner_user_id = ?""",
-            (status, timestamp, document_id, owner_user_id),
-        )
-        connection.execute(
-            """UPDATE knowledge.personal_knowledge_jobs
-               SET status = ?, stage = ?, progress = ?, error_code = NULL,
-                   error_message = NULL, retryable = 0, updated_at = ?
-               WHERE job_id = ? AND owner_user_id = ?""",
-            (status, stage, progress, timestamp, job_id, owner_user_id),
-        )
-        connection.commit()
+    _jobs.update_progress(
+        db_session,
+        document_id,
+        owner_user_id,
+        job_id,
+        status,
+        stage,
+        progress,
+        now=_now,
+    )
 
 
 def _mark_failed(
@@ -245,347 +155,49 @@ def _mark_failed(
     detail: str,
     retryable: bool,
 ) -> None:
-    timestamp = _now()
-    with db_session() as connection:
-        connection.execute(
-            """UPDATE knowledge.personal_knowledge_documents
-               SET status = 'failed', error_code = ?, error_message = ?, updated_at = ?
-               WHERE document_id = ? AND owner_user_id = ?""",
-            (error_code, detail, timestamp, document_id, owner_user_id),
-        )
-        connection.execute(
-            """UPDATE knowledge.personal_knowledge_jobs
-               SET status = 'failed', stage = 'failed', error_code = ?, error_message = ?,
-                   retryable = ?, updated_at = ?
-               WHERE job_id = ? AND owner_user_id = ?""",
-            (error_code, detail, int(retryable), timestamp, job_id, owner_user_id),
-        )
-        connection.commit()
+    _jobs.mark_failed(
+        db_session,
+        document_id,
+        owner_user_id,
+        job_id,
+        error_code,
+        detail,
+        retryable,
+        now=_now,
+    )
 
 
 def _text_sections(text: str, default_title: str, markdown: bool = False) -> list[ExtractedSection]:
-    sections: list[ExtractedSection] = []
-    heading = default_title
-    body: list[str] = []
-    for raw_line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
-        line = raw_line.rstrip()
-        is_heading = markdown and bool(re.match(r"^#{1,6}\s+\S", line))
-        if is_heading:
-            content = "\n".join(body).strip()
-            if content:
-                sections.append(ExtractedSection(None, heading, content))
-            heading = re.sub(r"^#{1,6}\s+", "", line).strip()
-            body = []
-        else:
-            body.append(line)
-    content = "\n".join(body).strip()
-    if content:
-        sections.append(ExtractedSection(None, heading, content))
-    return sections
+    return _extractor_text_sections(text, default_title, markdown)
 
 
 def _extract_sections(path: Path, suffix: str, title: str) -> list[ExtractedSection]:
-    if suffix in {".txt", ".md"}:
-        return _text_sections(path.read_text(encoding="utf-8-sig"), title, suffix == ".md")
-    if suffix == ".csv":
-        with path.open("r", encoding="utf-8-sig", newline="") as handle:
-            rows = ["\t".join(cell.strip() for cell in row) for row in csv.reader(handle)]
-        return [ExtractedSection(None, title, "\n".join(row for row in rows if row.strip()).strip())]
-    if suffix == ".pdf":
-        from pypdf import PdfReader
-
-        try:
-            reader = PdfReader(str(path))
-        except Exception as exc:
-            raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "PDF 文件已经损坏，无法解析") from exc
-        if reader.is_encrypted and not reader.decrypt(""):
-            raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "PDF 已加密，无法解析")
-        if len(reader.pages) > MAX_OCR_PDF_PAGES:
-            raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "PDF 页数超过安全限制")
-        try:
-            native = [(page.extract_text() or "").strip() for page in reader.pages]
-        except Exception as exc:
-            raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "PDF 文件已经损坏，无法解析") from exc
-        try:
-            import pymupdf
-        except ImportError as exc:
-            raise PersonalKnowledgeError(503, "OCR_UNAVAILABLE", "离线 OCR 引擎不可用", True) from exc
-        sections = []
-        rendered_pixels = 0
-        try:
-            document = pymupdf.open(path)
-        except Exception as exc:
-            raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "PDF 文件已经损坏，无法解析") from exc
-        try:
-            for index, text in enumerate(native, start=1):
-                if len(text) >= MIN_NATIVE_PDF_TEXT:
-                    sections.append(ExtractedSection(index, f"第 {index} 页", text))
-                    continue
-                page = document.load_page(index - 1)
-                pixmap = page.get_pixmap(matrix=pymupdf.Matrix(2, 2), alpha=False)
-                rendered_pixels += pixmap.width * pixmap.height
-                if rendered_pixels > MAX_OCR_RENDERED_PIXELS:
-                    raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "OCR 渲染内容超过安全限制")
-                try:
-                    result = extract_image_result(pixmap.tobytes("png"))
-                    text = result.text
-                except OCRUnavailableError as exc:
-                    raise PersonalKnowledgeError(503, "OCR_UNAVAILABLE", "离线 OCR 引擎不可用", True) from exc
-                except OCRFailedError as exc:
-                    raise PersonalKnowledgeError(422, "OCR_FAILED", "离线 OCR 识别失败", True) from exc
-                combined = "\n".join(part for part in (native[index - 1], text) if part).strip()
-                sections.append(
-                    ExtractedSection(
-                        index,
-                        f"第 {index} 页",
-                        combined,
-                        OCRObservation(
-                            "mixed_pdf" if native[index - 1] else "scanned_pdf",
-                            result,
-                        ),
-                    )
-                )
-        finally:
-            document.close()
-        return sections
-    if suffix in IMAGE_FORMATS:
-        from PIL import Image, ImageOps
-        try:
-            with Image.open(path) as image:
-                sections = []
-                rendered_pixels = 0
-                for frame_index in range(getattr(image, "n_frames", 1)):
-                    image.seek(frame_index)
-                    frame = ImageOps.exif_transpose(image).convert("RGB")
-                    pixels = frame.width * frame.height
-                    rendered_pixels += pixels
-                    if pixels > MAX_OCR_IMAGE_PIXELS or rendered_pixels > MAX_OCR_RENDERED_PIXELS:
-                        raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "图片像素超过安全限制")
-                    result = extract_image_result(frame.copy())
-                    text = result.text
-                    category = "multipage_tiff" if getattr(image, "n_frames", 1) > 1 else "image"
-                    sections.append(
-                        ExtractedSection(
-                            frame_index + 1,
-                            f"第 {frame_index + 1} 页",
-                            text,
-                            OCRObservation(category, result),
-                        )
-                    )
-        except OCRUnavailableError as exc:
-            raise PersonalKnowledgeError(503, "OCR_UNAVAILABLE", "离线 OCR 引擎不可用", True) from exc
-        except OCRFailedError as exc:
-            raise PersonalKnowledgeError(422, "OCR_FAILED", "离线 OCR 识别失败", True) from exc
-        return sections
-    if suffix == ".docx":
-        from docx import Document
-
-        document = Document(str(path))
-        sections: list[ExtractedSection] = []
-        heading = title
-        body: list[str] = []
-        for paragraph in document.paragraphs:
-            text = paragraph.text.strip()
-            if not text:
-                continue
-            if paragraph.style and paragraph.style.name.lower().startswith("heading"):
-                if body:
-                    sections.append(ExtractedSection(None, heading, "\n".join(body)))
-                heading, body = text, []
-            else:
-                body.append(text)
-        if body:
-            sections.append(ExtractedSection(None, heading, "\n".join(body)))
-        for index, table in enumerate(document.tables, start=1):
-            rows = ["\t".join(cell.text.strip() for cell in row.cells) for row in table.rows]
-            content = "\n".join(row for row in rows if row.strip()).strip()
-            if content:
-                sections.append(ExtractedSection(None, f"表格 {index}", content))
-        return sections
-    if suffix == ".xlsx":
-        from openpyxl import load_workbook
-
-        workbook = load_workbook(path, read_only=True, data_only=True)
-        sections = []
-        try:
-            for worksheet in workbook.worksheets:
-                rows = []
-                for row in worksheet.iter_rows(values_only=True):
-                    values = ["" if value is None else str(value) for value in row]
-                    if any(value.strip() for value in values):
-                        rows.append("\t".join(values).rstrip())
-                if rows:
-                    sections.append(ExtractedSection(None, worksheet.title, "\n".join(rows)))
-        finally:
-            workbook.close()
-        return sections
-    raise PersonalKnowledgeError(415, "UNSUPPORTED_FILE_TYPE", "当前不支持该文件类型")
+    return _runtime_extract_sections(
+        path,
+        suffix,
+        title,
+        max_pdf_pages=MAX_OCR_PDF_PAGES,
+        min_native_pdf_text=MIN_NATIVE_PDF_TEXT,
+        max_image_pixels=MAX_OCR_IMAGE_PIXELS,
+        max_rendered_pixels=MAX_OCR_RENDERED_PIXELS,
+        extract_image_result=extract_image_result,
+    )
 
 
 def _split_content(content: str, max_chars: int = 2600, overlap_chars: int = 260) -> list[str]:
-    normalized = re.sub(r"\n{3,}", "\n\n", content).strip()
-    if not normalized:
-        return []
-    chunks: list[str] = []
-    start = 0
-    while start < len(normalized):
-        end = min(len(normalized), start + max_chars)
-        if end < len(normalized):
-            boundary = max(normalized.rfind("\n", start + max_chars // 2, end), normalized.rfind("。", start + max_chars // 2, end))
-            if boundary > start:
-                end = boundary + 1
-        chunk = normalized[start:end].strip()
-        if chunk:
-            chunks.append(chunk)
-        if end >= len(normalized):
-            break
-        start = max(start + 1, end - overlap_chars)
-    return chunks
+    return _ingestion.split_content(content, max_chars, overlap_chars)
 
 
 def process_personal_document(document_id: str, owner_user_id: str, job_id: str) -> None:
-    try:
-        _update_progress(document_id, owner_user_id, job_id, "parsing", "extracting_text", 10)
-        with db_session() as connection:
-            document = connection.execute(
-                """SELECT * FROM personal_knowledge_documents
-                   WHERE document_id = ? AND owner_user_id = ?""",
-                (document_id, owner_user_id),
-            ).fetchone()
-        if document is None:
-            raise PersonalKnowledgeError(404, "DOCUMENT_NOT_FOUND", "个人知识文档不存在")
-        path = _storage_path(document["storage_key"])
-        if not path.exists():
-            raise PersonalKnowledgeError(500, "STORAGE_FILE_MISSING", "原始文件不存在", True)
-        sections = _extract_sections(path, path.suffix.lower(), document["title"])
-        observations = [
-            section.ocr_observation
-            for section in sections
-            if section.ocr_observation
-        ]
-        decision = evaluate_observations(observations)
-        if observations:
-            emit(
-                "personal_knowledge_ocr_quality",
-                job_id,
-                status="success" if decision.accepted else "rejected",
-                policy_version=POLICY_VERSION,
-                categories=sorted({item.category for item in observations}),
-                ocr_pages=decision.ocr_pages,
-                recognized_pages=decision.recognized_pages,
-                mean_confidence=decision.mean_confidence,
-                low_confidence_ratio=decision.low_confidence_ratio,
-                reason=decision.reason,
-            )
-        if not decision.accepted:
-            raise PersonalKnowledgeError(422, "OCR_QUALITY_LOW", "OCR 识别质量不足，未写入知识库", False)
-        automatic_tags = _automatic_tags(document["title"], document["filename"], sections)
-        _update_progress(document_id, owner_user_id, job_id, "chunking", "chunking", 45)
-        chunks: list[tuple[int | None, str, str]] = []
-        for section in sections:
-            chunks.extend(
-                (section.page_number, section.section_path, content)
-                for content in _split_content(section.content)
-            )
-        if not chunks:
-            raise PersonalKnowledgeError(422, "INVALID_FILE_CONTENT", "文件中没有可索引文本")
-        _update_progress(document_id, owner_user_id, job_id, "indexing", "full_text_index", 75)
-        timestamp = _now()
-        with db_session() as connection:
-            connection.execute(
-                "DELETE FROM knowledge.personal_knowledge_fts WHERE document_id = ?", (document_id,)
-            )
-            connection.execute(
-                "DELETE FROM knowledge.personal_knowledge_chunks WHERE document_id = ?", (document_id,)
-            )
-            for index, (page_number, section_path, content) in enumerate(chunks):
-                chunk_id = str(uuid.uuid4())
-                cursor = connection.execute(
-                    """INSERT INTO knowledge.personal_knowledge_chunks(
-                           chunk_id, document_id, owner_user_id, page_number, section_path,
-                           chunk_index, content, token_count, created_at
-                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (
-                        chunk_id, document_id, owner_user_id, page_number, section_path,
-                        index, content, max(1, len(content) // 2), timestamp,
-                    ),
-                )
-                connection.execute(
-                    """INSERT INTO knowledge.personal_knowledge_fts(
-                           rowid, title, section_path, content, owner_user_id, document_id, chunk_id
-                       ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                    (cursor.lastrowid, document["title"], section_path, content, owner_user_id, document_id, chunk_id),
-                )
-            connection.execute(
-                """UPDATE knowledge.personal_knowledge_documents
-                   SET status = 'ready', error_code = NULL, error_message = NULL,
-                       tags_json = CASE WHEN tags_source = 'auto' THEN ? ELSE tags_json END,
-                       updated_at = ?
-                   WHERE document_id = ? AND owner_user_id = ?""",
-                (json.dumps(automatic_tags, ensure_ascii=False), timestamp, document_id, owner_user_id),
-            )
-            connection.execute(
-                """UPDATE knowledge.personal_knowledge_jobs
-                   SET status = 'ready', stage = 'ready', progress = 100, error_code = NULL,
-                       error_message = NULL, retryable = 0, updated_at = ?
-                   WHERE job_id = ? AND owner_user_id = ?""",
-                (timestamp, job_id, owner_user_id),
-            )
-            connection.commit()
-        emit(
-            "personal_knowledge_ingestion_finished",
-            job_id,
-            status="success",
-            document_id=document_id,
-            chunks=len(chunks),
-        )
-    except PersonalKnowledgeError as exc:
-        _mark_failed(document_id, owner_user_id, job_id, exc.error_code, exc.detail, exc.retryable)
-        emit("personal_knowledge_ingestion_finished", job_id, status="error", document_id=document_id, error_code=exc.error_code)
-    except Exception as exc:
-        _mark_failed(document_id, owner_user_id, job_id, "INGESTION_FAILED", "文档解析或索引失败", True)
-        emit(
-            "personal_knowledge_ingestion_finished",
-            job_id,
-            status="error",
-            document_id=document_id,
-            error_code="INGESTION_FAILED",
-            error_type=type(exc).__name__,
-        )
+    _ingestion.process_document(_ingestion_dependencies(), document_id, owner_user_id, job_id)
 
 
 def get_personal_job(job_id: str, owner_user_id: str) -> dict:
-    with db_session() as connection:
-        row = connection.execute(
-            """SELECT job_id, document_id, status, stage, progress, attempt,
-                      error_code, error_message, retryable, created_at, updated_at
-               FROM personal_knowledge_jobs WHERE job_id = ? AND owner_user_id = ?""",
-            (job_id, owner_user_id),
-        ).fetchone()
-    if row is None:
-        raise PersonalKnowledgeError(404, "DOCUMENT_NOT_FOUND", "任务不存在")
-    return _job_dict(row)
+    return _jobs.get_job(db_session, job_id, owner_user_id)
 
 
 def list_personal_job_snapshots(owner_user_id: str, limit: int = 100) -> list[dict]:
-    """Return the newest public job state for each of an owner's documents."""
-    with db_session() as connection:
-        rows = connection.execute(
-            """SELECT job_id, document_id, status, stage, progress, attempt,
-                      error_code, error_message, retryable, created_at, updated_at
-               FROM (
-                 SELECT j.*, ROW_NUMBER() OVER (
-                   PARTITION BY document_id
-                   ORDER BY attempt DESC, created_at DESC, job_id DESC
-                 ) AS row_number
-                 FROM personal_knowledge_jobs j
-                 WHERE owner_user_id = ?
-               ) WHERE row_number = 1
-               ORDER BY CASE WHEN status IN ('uploaded', 'parsing', 'chunking', 'indexing', 'deleting') THEN 0 ELSE 1 END,
-                        updated_at DESC, job_id DESC LIMIT ?""",
-            (owner_user_id, limit),
-        ).fetchall()
-    return [_job_dict(row) for row in rows]
+    return _jobs.list_job_snapshots(db_session, owner_user_id, limit)
 
 
 def _encode_cursor(updated_at: str, document_id: str) -> str:
@@ -717,125 +329,23 @@ def update_personal_document(document_id: str, owner_user_id: str, patch: Person
 
 
 def retry_personal_document(document_id: str, owner_user_id: str) -> dict:
-    timestamp = _now()
-    with db_session() as connection:
-        document = connection.execute(
-            """SELECT * FROM personal_knowledge_documents
-               WHERE document_id = ? AND owner_user_id = ?""",
-            (document_id, owner_user_id),
-        ).fetchone()
-        if document is None:
-            raise PersonalKnowledgeError(404, "DOCUMENT_NOT_FOUND", "个人知识文档不存在")
-        if document["status"] != "failed":
-            raise PersonalKnowledgeError(409, "INVALID_DOCUMENT_STATE", "只有失败的文档可以重试")
-        if document["error_code"] == "DELETE_FAILED":
-            raise PersonalKnowledgeError(409, "INVALID_DOCUMENT_STATE", "删除失败的文档应重新执行删除")
-        attempt = connection.execute(
-            "SELECT COALESCE(MAX(attempt), 0) + 1 FROM personal_knowledge_jobs WHERE document_id = ?",
-            (document_id,),
-        ).fetchone()[0]
-        job_id = str(uuid.uuid4())
-        connection.execute(
-            """UPDATE knowledge.personal_knowledge_documents
-               SET status = 'uploaded', error_code = NULL, error_message = NULL, updated_at = ?
-               WHERE document_id = ? AND owner_user_id = ?""",
-            (timestamp, document_id, owner_user_id),
-        )
-        connection.execute(
-            """INSERT INTO knowledge.personal_knowledge_jobs(
-                   job_id, document_id, owner_user_id, status, stage, progress, attempt,
-                   created_at, updated_at
-               ) VALUES (?, ?, ?, 'uploaded', 'queued', 0, ?, ?, ?)""",
-            (job_id, document_id, owner_user_id, attempt, timestamp, timestamp),
-        )
-        connection.commit()
-    return {"document_id": document_id, "job_id": job_id, "status": "uploaded", "status_url": f"/api/knowledge/jobs/{job_id}"}
+    return _jobs.retry_document(db_session, document_id, owner_user_id, now=_now)
 
 
 def begin_delete_personal_document(document_id: str, owner_user_id: str) -> dict:
-    timestamp = _now()
-    job_id = str(uuid.uuid4())
-    with db_session() as connection:
-        document = connection.execute(
-            """SELECT status FROM personal_knowledge_documents
-               WHERE document_id = ? AND owner_user_id = ?""",
-            (document_id, owner_user_id),
-        ).fetchone()
-        if document is None:
-            raise PersonalKnowledgeError(404, "DOCUMENT_NOT_FOUND", "个人知识文档不存在")
-        if document["status"] == "deleting":
-            raise PersonalKnowledgeError(409, "INVALID_DOCUMENT_STATE", "文档已经在删除中")
-        connection.execute(
-            """UPDATE knowledge.personal_knowledge_documents SET status = 'deleting', updated_at = ?
-               WHERE document_id = ? AND owner_user_id = ?""",
-            (timestamp, document_id, owner_user_id),
-        )
-        connection.execute(
-            """INSERT INTO knowledge.personal_knowledge_jobs(
-                   job_id, document_id, owner_user_id, status, stage, progress, attempt,
-                   created_at, updated_at
-               ) VALUES (?, ?, ?, 'deleting', 'deleting', 0, 1, ?, ?)""",
-            (job_id, document_id, owner_user_id, timestamp, timestamp),
-        )
-        connection.commit()
-    return {"document_id": document_id, "job_id": job_id, "status": "deleting"}
+    return _jobs.begin_delete(db_session, document_id, owner_user_id, now=_now)
 
 
 def process_personal_document_deletion(document_id: str, owner_user_id: str, job_id: str) -> None:
-    try:
-        with db_session() as connection:
-            document = connection.execute(
-                """SELECT storage_key FROM personal_knowledge_documents
-                   WHERE document_id = ? AND owner_user_id = ?""",
-                (document_id, owner_user_id),
-            ).fetchone()
-        if document is None:
-            raise PersonalKnowledgeError(404, "DOCUMENT_NOT_FOUND", "个人知识文档不存在")
-        path = _storage_path(document["storage_key"])
-        path.unlink(missing_ok=True)
-        for directory in (path.parent, path.parent.parent):
-            try:
-                directory.rmdir()
-            except OSError:
-                pass
-        timestamp = _now()
-        with db_session() as connection:
-            connection.execute(
-                "DELETE FROM knowledge.personal_knowledge_fts WHERE document_id = ? AND owner_user_id = ?",
-                (document_id, owner_user_id),
-            )
-            connection.execute(
-                """DELETE FROM knowledge.personal_knowledge_documents
-                   WHERE document_id = ? AND owner_user_id = ?""",
-                (document_id, owner_user_id),
-            )
-            connection.execute(
-                """UPDATE knowledge.personal_knowledge_jobs
-                   SET status = 'deleted', stage = 'deleted', progress = 100, updated_at = ?
-                   WHERE job_id = ? AND owner_user_id = ?""",
-                (timestamp, job_id, owner_user_id),
-            )
-            connection.commit()
-        emit("personal_knowledge_deleted", job_id, status="success", document_id=document_id)
-    except Exception as exc:
-        timestamp = _now()
-        with db_session() as connection:
-            connection.execute(
-                """UPDATE knowledge.personal_knowledge_documents
-                   SET status = 'failed', error_code = 'DELETE_FAILED',
-                       error_message = '个人知识文档删除失败', updated_at = ?
-                   WHERE document_id = ? AND owner_user_id = ?""",
-                (timestamp, document_id, owner_user_id),
-            )
-            connection.execute(
-                """UPDATE knowledge.personal_knowledge_jobs
-                   SET status = 'failed', stage = 'failed', error_code = 'DELETE_FAILED',
-                       error_message = '个人知识文档删除失败', retryable = 1, updated_at = ?
-                   WHERE job_id = ? AND owner_user_id = ?""",
-                (timestamp, job_id, owner_user_id),
-            )
-            connection.commit()
-        emit("personal_knowledge_deleted", job_id, status="error", document_id=document_id, error_type=type(exc).__name__)
+    _jobs.process_deletion(
+        db_session,
+        _storage_path,
+        emit,
+        document_id,
+        owner_user_id,
+        job_id,
+        now=_now,
+    )
 
 
 def personal_document_file(document_id: str, owner_user_id: str) -> tuple[Path, str, str]:
@@ -995,13 +505,4 @@ def get_personal_chunk(chunk_id: str, owner_user_id: str) -> dict:
 
 
 def pending_personal_jobs() -> list[tuple[str, str, str, str]]:
-    with db_session() as connection:
-        rows = connection.execute(
-            """SELECT j.document_id, j.owner_user_id, j.job_id, d.status
-               FROM personal_knowledge_jobs j
-               JOIN personal_knowledge_documents d ON d.document_id = j.document_id
-               WHERE j.status IN ('uploaded', 'parsing', 'chunking', 'indexing', 'deleting')
-                 AND j.created_at = (SELECT MAX(j2.created_at) FROM personal_knowledge_jobs j2
-                                     WHERE j2.document_id = j.document_id)"""
-        ).fetchall()
-    return [(row["document_id"], row["owner_user_id"], row["job_id"], row["status"]) for row in rows]
+    return _jobs.pending_jobs(db_session)
