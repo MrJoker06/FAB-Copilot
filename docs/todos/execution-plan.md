@@ -1,6 +1,6 @@
 # 非企业级 TODO 执行计划
 
-状态基线：`experiment/parallel-platform`，2026-08-30。
+状态基线：`experiment/parallel-platform`，2026-09-07。
 
 本计划只安排当前单机样例和产品能力建设。企业 SSO、真实制造系统、分布式数据基础设施、多实例治理、网关和生产部署统一暂缓，未经用户重新确认不进入开发。
 
@@ -21,11 +21,11 @@
 
 | 类型 | 数量 | 任务 |
 |---|---:|---|
-| 已完成 | 158 | 以各分类 TODO 为准；`QA-005` 至 `QA-009` 已完成 E2E 基础、双通道验证与桌面关键旅程，`REF-019` 已完成个人知识处理边界 |
-| 当前队列 | 3 | `QA-010`（本地完整 7-run 已通过、远程验收由用户暂缓，保持未完成），随后 `REF-020` 至 `REF-021` |
+| 已完成 | 160 | 以各分类 TODO 为准；`QA-005` 至 `QA-009` 已完成 E2E 基础、双通道验证与桌面关键旅程，`REF-021` 已完成第二梯队只读审计 |
+| 当前队列 | 1 | `QA-010`（本地完整 7-run 已通过、远程验收由用户暂缓，保持未完成）；当前没有可自动继续的非暂缓任务 |
 | 用户暂缓 | 1 | `UX-029` |
-| 企业级暂缓 | 41 | 见本文件末尾分类清单 |
-| 可选候选 | 3 | `RAG-024`、`AGENT-039`、`REF-022` `OPTIONAL`，不计入主任务统计 |
+| 企业级暂缓 | 42 | 见本文件末尾分类清单 |
+| 可选候选 | 7 | `RAG-024`、`AGENT-039`、`REF-022` 至 `REF-026` `OPTIONAL`，不计入主任务统计 |
 
 ## 当前串行队列
 
@@ -61,8 +61,8 @@
 | 28 | `REF-017` | `REF-016` | 布局与启动收口 | 已完成：layout/bootstrap 模块化，`app.js` 426→89 行，视觉基线不变 |
 | 29 | `REF-018` | `REF-017` | 个人知识基础边界 | 已完成：contracts、metadata、storage 与 ACL 等价迁移；标准环境 full 510 Python、442/442 非系统及全部预算通过 |
 | 30 | `REF-019` | `REF-018` | 个人知识处理流程 | 已完成；Job、抽取器、OCR、入库、重试和删除语义保持不变，标准环境 full 515 Python、447/447 非系统及全部预算通过 |
-| 31 | `REF-020` | `REF-019` | 个人知识查询收口 | 文档、Cursor、FTS、Chunk 与兼容导出不变 |
-| 32 | `REF-021` | `REF-020` | 第二梯队只读审计 | 只生成候选计划，不机械拆分、不改代码 |
+| 31 | `REF-020` | `REF-019` | 个人知识查询收口 | 已完成：文档/Cursor 与 FTS/Chunk 分入独立 runtime 模块；SQLite、ACL、排序、引用和 facade 实时 patch 不变，标准环境 full 517 Python、449/449 非系统及全部预算通过 |
+| 32 | `REF-021` | `REF-020` | 第二梯队只读审计 | 已完成：按职责、依赖、变化压力、覆盖率和维护风险审计六个模块；仅生成四项 `OPTIONAL` 候选，未修改产品代码 |
 
 已完成的 `UX-015` 只覆盖桌面端；移动视口、触摸交互和移动端回归统一由用户暂缓的 `UX-029` 后续处理。
 
@@ -85,6 +85,10 @@
 | `RAG-024` | `OPTIONAL` | 不排期 | 评估是否接入 Ragas；保留现有确定性 Hit Rate/MRR/Source Coverage/Forbidden Hits/ACL/引用页码门，候选观察 Context Precision/Recall、Faithfulness/Response Groundedness、Answer Relevancy、Factual Correctness 和 Noise Sensitivity。评审模型与 embedding 必须固定并显式配置，禁止隐式联网；只有用户明确激活后才转为普通 `[ ]` 并排期。 |
 | `AGENT-039` | `OPTIONAL` | 不排期 | 评估/设计统一 Memory Manager：生命周期采用感官/输入 → 短期/工作 → 长期记忆，长期再分语义、情景、程序；覆盖输入规范化与过滤、状态/上下文预算/checkpoint、长期写入与召回、Writer、Retrieval Gate、Consolidation/冲突与遗忘治理。复用 Session/Context/Plan/Trace、知识/案例/个人知识及 Playbook/Planner/Guard，不重复造 RAG；落实 ACL/租户隔离、来源/置信度、版本/生效期/TTL/删除权，不从日志直接生成记忆、不保存隐藏思维链，程序变更须离线回放/黄金集和人工审批。只有用户明确激活后才转为普通 `[ ]` 并排期，不混入 `REF-006` 至 `REF-021`。 |
 | `REF-022` | `OPTIONAL` | `REF-021` 后且不排期 | 收口 Agent Coordinator 阶段拓扑与依赖边界：保留唯一 `coordinate_agent_run()` 总协调器，将 prepare/availability/model/ready/loop 明确为 `agent_runtime/stages/` 阶段，拆分过宽的 `CoordinatorDependencies`，分组 `CoordinatorRunState` 字段并收口重复的证据/综合结果逻辑。必须保持 `app.agent` 实时 patch、每运行一次依赖快照、单一主状态、Ready 确定性执行、Agent Loop、进度/审计事件和返回契约不变；只有用户明确激活后才转为普通 `[ ]` 并排期。 |
+| `REF-023` | `OPTIONAL` | 不排期 | 拆分确定性 Intent Router 的 contracts、规则、制造范围和时间解析边界；保留 `app.intent_router` facade、路由字典、置信度、澄清、风险、语义提示优先级和 prompt 完全等价。仅在继续修改 Router 时激活。 |
+| `REF-024` | `OPTIONAL` | `REF-023` 后且不排期 | 拆分 Planner contracts、范围/SQL 参数、工具步骤和计划装配；保留公开类型身份、plan ID/JSON、步骤顺序、依赖、预算与证据语义完全等价。仅在 Planner 继续扩展时激活。 |
+| `REF-025` | `OPTIONAL` | 不排期 | 拆分 Answer Synthesizer 的工具 Schema、contracts、解析、声明守卫、渲染和服务编排；冻结工具 Schema 哈希、证据降级、引用、章节顺序、措辞与报告。因其安全敏感，只在继续修改综合规则时激活。 |
+| `REF-026` | `OPTIONAL` | 与 `DATA-019` 协调且不排期 | 拆分 SQLite schema、迁移、连接/Session、部门库和缺陷目录边界，保留 `app.database` facade；不实现 Oracle/MySQL Provider、不迁移 Schema。仅在数据库结构或 Provider 工作重启前激活。 |
 
 ## 用户暂缓（非当前）
 
@@ -94,12 +98,12 @@
 
 ## 企业级暂缓清单
 
-以下 41 项保持 `[ ]`，但不进入当前执行队列：
+以下 42 项保持 `[ ]`，但不进入当前执行队列：
 
 | 工作流 | 暂缓任务 |
 |---|---|
 | 身份与权限 | `AUTH-007` 至 `AUTH-013` |
-| 企业数据 | `DATA-008` 至 `DATA-015`、`DATA-017`、`DATA-018` |
+| 企业数据 | `DATA-008` 至 `DATA-015`、`DATA-017` 至 `DATA-019` |
 | 模型治理 | `MODEL-008`、`MODEL-010`、`MODEL-011`、`MODEL-012` |
 | 可观测性 | `OBS-008` 至 `OBS-013` |
 | RAG 与知识库 | `RAG-013`、`RAG-014`、`RAG-015`、`RAG-017`、`RAG-018`、`RAG-019`、`RAG-020` |
