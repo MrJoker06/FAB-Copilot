@@ -21,11 +21,11 @@
 
 | 类型 | 数量 | 任务 |
 |---|---:|---|
-| 已完成 | 160 | 以各分类 TODO 为准；`QA-005` 至 `QA-009` 已完成 E2E 基础、双通道验证与桌面关键旅程，`REF-021` 已完成第二梯队只读审计 |
-| 当前队列 | 1 | `QA-010`（本地完整 7-run 已通过、远程验收由用户暂缓，保持未完成）；当前没有可自动继续的非暂缓任务 |
+| 已完成 | 161 | 以各分类 TODO 为准；`QA-005` 至 `QA-009` 已完成 E2E 基础、双通道验证与桌面关键旅程，`REF-022` 已完成 Coordinator 边界收口 |
+| 当前队列 | 3 | `QA-010`（本地完整 7-run 已通过、远程验收由用户暂缓，保持未完成），随后 `REF-023`、`REF-024` |
 | 用户暂缓 | 1 | `UX-029` |
 | 企业级暂缓 | 42 | 见本文件末尾分类清单 |
-| 可选候选 | 7 | `RAG-024`、`AGENT-039`、`REF-022` 至 `REF-026` `OPTIONAL`，不计入主任务统计 |
+| 可选候选 | 4 | `RAG-024`、`AGENT-039`、`REF-025`、`REF-026` `OPTIONAL`，不计入主任务统计 |
 
 ## 当前串行队列
 
@@ -63,6 +63,9 @@
 | 30 | `REF-019` | `REF-018` | 个人知识处理流程 | 已完成；Job、抽取器、OCR、入库、重试和删除语义保持不变，标准环境 full 515 Python、447/447 非系统及全部预算通过 |
 | 31 | `REF-020` | `REF-019` | 个人知识查询收口 | 已完成：文档/Cursor 与 FTS/Chunk 分入独立 runtime 模块；SQLite、ACL、排序、引用和 facade 实时 patch 不变，标准环境 full 517 Python、449/449 非系统及全部预算通过 |
 | 32 | `REF-021` | `REF-020` | 第二梯队只读审计 | 已完成：按职责、依赖、变化压力、覆盖率和维护风险审计六个模块；仅生成四项 `OPTIONAL` 候选，未修改产品代码 |
+| 33 | `REF-022` | `REF-021` | Coordinator 阶段边界 | 已完成：五阶段迁入 `stages/`、兼容导出、依赖分组和单一状态实时视图；不改变运行路径 |
+| 34 | `REF-023` | `REF-022` | Intent Router 边界 | 用户已激活，下一项 |
+| 35 | `REF-024` | `REF-023` | Planner 边界 | 用户已激活，等待 `REF-023` |
 
 已完成的 `UX-015` 只覆盖桌面端；移动视口、触摸交互和移动端回归统一由用户暂缓的 `UX-029` 后续处理。
 
@@ -70,7 +73,7 @@
 
 ### 检查点 E：结构可维护性
 
-`REF-001` 至 `REF-021` 及 `QA-005` 至 `QA-009` 已完成，跨层兼容、桌面 E2E、个人知识、管理端治理、桌面关键旅程、Agent coordinator、API 基础、领域 Router、Chat/流式服务、main composition、前端核心层、业务控制器、布局/启动及个人知识基础、处理与查询边界已经冻结。`REF-021` 只读审计仅产生 `REF-023` 至 `REF-026` 四项 `OPTIONAL` 候选，没有修改产品代码。`QA-010` 本地完整 7-run 已于 2026-09-04 通过，但远程 Environment/Secret/full 验收于 2026-09-05 由用户暂缓，故仍保持未完成；当前没有可自动继续的非暂缓任务。普通 push/PR 不访问真实模型；必要 Live `provider-matrix` 不替代完整 7-run Live 门，未来发布或打标签前仍必须完成受保护的完整 Live 门；任一任务若产生未批准的产品行为差异，不得作为测试或重构完成。
+`REF-001` 至 `REF-022` 及 `QA-005` 至 `QA-009` 已完成；Coordinator 的五阶段、依赖快照和单一状态视图已经冻结。用户已激活 `REF-023`、`REF-024`，必须按顺序执行；`REF-025`、`REF-026` 仍为 `OPTIONAL`。`QA-010` 本地完整 7-run 已于 2026-09-04 通过，但远程 Environment/Secret/full 验收于 2026-09-05 由用户暂缓，故仍保持未完成。普通 push/PR 不访问真实模型；必要 Live `provider-matrix` 不替代完整 7-run Live 门，未来发布或打标签前仍必须完成受保护的完整 Live 门；任一任务若产生未批准的产品行为差异，不得作为测试或重构完成。
 
 ### 检查点 D：上一阶段收口
 
@@ -84,9 +87,6 @@
 |---|---|---|---|
 | `RAG-024` | `OPTIONAL` | 不排期 | 评估是否接入 Ragas；保留现有确定性 Hit Rate/MRR/Source Coverage/Forbidden Hits/ACL/引用页码门，候选观察 Context Precision/Recall、Faithfulness/Response Groundedness、Answer Relevancy、Factual Correctness 和 Noise Sensitivity。评审模型与 embedding 必须固定并显式配置，禁止隐式联网；只有用户明确激活后才转为普通 `[ ]` 并排期。 |
 | `AGENT-039` | `OPTIONAL` | 不排期 | 评估/设计统一 Memory Manager：生命周期采用感官/输入 → 短期/工作 → 长期记忆，长期再分语义、情景、程序；覆盖输入规范化与过滤、状态/上下文预算/checkpoint、长期写入与召回、Writer、Retrieval Gate、Consolidation/冲突与遗忘治理。复用 Session/Context/Plan/Trace、知识/案例/个人知识及 Playbook/Planner/Guard，不重复造 RAG；落实 ACL/租户隔离、来源/置信度、版本/生效期/TTL/删除权，不从日志直接生成记忆、不保存隐藏思维链，程序变更须离线回放/黄金集和人工审批。只有用户明确激活后才转为普通 `[ ]` 并排期，不混入 `REF-006` 至 `REF-021`。 |
-| `REF-022` | `OPTIONAL` | `REF-021` 后且不排期 | 收口 Agent Coordinator 阶段拓扑与依赖边界：保留唯一 `coordinate_agent_run()` 总协调器，将 prepare/availability/model/ready/loop 明确为 `agent_runtime/stages/` 阶段，拆分过宽的 `CoordinatorDependencies`，分组 `CoordinatorRunState` 字段并收口重复的证据/综合结果逻辑。必须保持 `app.agent` 实时 patch、每运行一次依赖快照、单一主状态、Ready 确定性执行、Agent Loop、进度/审计事件和返回契约不变；只有用户明确激活后才转为普通 `[ ]` 并排期。 |
-| `REF-023` | `OPTIONAL` | 不排期 | 拆分确定性 Intent Router 的 contracts、规则、制造范围和时间解析边界；保留 `app.intent_router` facade、路由字典、置信度、澄清、风险、语义提示优先级和 prompt 完全等价。仅在继续修改 Router 时激活。 |
-| `REF-024` | `OPTIONAL` | `REF-023` 后且不排期 | 拆分 Planner contracts、范围/SQL 参数、工具步骤和计划装配；保留公开类型身份、plan ID/JSON、步骤顺序、依赖、预算与证据语义完全等价。仅在 Planner 继续扩展时激活。 |
 | `REF-025` | `OPTIONAL` | 不排期 | 拆分 Answer Synthesizer 的工具 Schema、contracts、解析、声明守卫、渲染和服务编排；冻结工具 Schema 哈希、证据降级、引用、章节顺序、措辞与报告。因其安全敏感，只在继续修改综合规则时激活。 |
 | `REF-026` | `OPTIONAL` | 与 `DATA-019` 协调且不排期 | 拆分 SQLite schema、迁移、连接/Session、部门库和缺陷目录边界，保留 `app.database` facade；不实现 Oracle/MySQL Provider、不迁移 Schema。仅在数据库结构或 Provider 工作重启前激活。 |
 

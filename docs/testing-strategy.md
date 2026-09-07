@@ -125,6 +125,8 @@ python scripts/run_quality_gate.py full
 
 2026-09-07 `REF-020` 标准环境 full 通过：发现 Python 517 个、非系统 449/449；系统数据、HTTP、知识、模型、会话为 13/15/13/17/10，墙钟 22.4605/37.5268/34.3948/19.7824/18.1820 秒、总计 132.3467 秒，全部预算通过；coverage 89%，Node 20/20、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 17/17（47.1 秒）通过，repository/refactor contract/diff 均通过，普通 full 的真实模型和外网调用均为 0。沙箱首轮因三个 loopback fixture 无 socket 权限停止，宿主权限同命令重跑成功；个人知识文档和检索实现迁入两个 runtime 模块后，Facade 原导出、ACL、SQLite FTS/排序/引用和实时 patch 契约保持不变。QA-010 远程 Live 继续由用户暂缓，下一项为只读审计 `REF-021`。
 
+2026-09-07 `REF-022` 标准环境 full 通过：Coordinator 五阶段目录化、依赖分组和单一状态实时视图均未改变确定性离线门的事件、Trace、Ready、Loop、降级或返回契约。定向 Agent runtime/execution/preparation/tool/ready/synthesis 39/39、`refactor_contracts.py`、`check_repository.py` 和 `git diff --check` 通过；完整质量门仍保持真实模型和外网调用为 0。完整 Live `QA-010` 仍由用户暂缓。
+
 ## 完整审计触发条件
 
 在发布或打标签前必须运行完整审计；以下变更也必须触发：依赖或 Python/FastAPI/SQLite 升级、Schema/API/认证/RAG/流式链路重大变化，或上次审计后累计约 5 个 feature/fix 任务。

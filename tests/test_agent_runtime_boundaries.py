@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import sys
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -8,8 +9,25 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from app import agent
 from app.agent_runtime.contracts import AgentRunLifecycle, AgentRunRequest
 from app.agent_runtime.coordinator import CoordinatorDependencies, coordinate_agent_run
+from app.agent_runtime.coordinator_availability import handle_model_availability as legacy_availability
+from app.agent_runtime.coordinator_loop import execute_agent_loop as legacy_loop
+from app.agent_runtime.coordinator_model import prepare_model_stage as legacy_model
+from app.agent_runtime.coordinator_prepare import prepare_immediate as legacy_prepare
 from app.agent_runtime.coordinator_ready import execute_ready_synthesis
 from app.agent_runtime.coordinator_state import CoordinatorRunState
+from app.agent_runtime.dependencies import (
+    AvailabilityDependencies,
+    LoopDependencies,
+    ModelDependencies,
+    PreparationDependencies,
+    ReadyDependencies,
+)
+from app.agent_runtime.stages import (
+    execute_agent_loop,
+    handle_model_availability,
+    prepare_immediate,
+    prepare_model_stage,
+)
 from app.agent_runtime.telemetry import notify
 
 
@@ -43,6 +61,39 @@ class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(second.sources, {})
         self.assertEqual(second.total_usage, {})
         self.assertEqual(second.knowledge_fallback, {})
+
+    def test_coordinator_state_views_are_live_and_run_local(self):
+        first = CoordinatorRunState("问题一", None, "run-1", None, False)
+        second = CoordinatorRunState("问题二", None, "run-2", None, False)
+
+        first.preparation_state.analysis_question = "归一化问题"
+        first.model_state.messages = [{"role": "system", "content": "提示"}]
+        first.result_state.trace = [{"tool": "one"}]
+
+        self.assertEqual(first.analysis_question, "归一化问题")
+        self.assertEqual(first.messages, [{"role": "system", "content": "提示"}])
+        self.assertEqual(first.trace, [{"tool": "one"}])
+        self.assertEqual(second.analysis_question, "")
+        self.assertEqual(second.messages, [])
+        self.assertEqual(second.trace, [])
+
+    def test_stage_shims_and_dependency_groups_preserve_legacy_access(self):
+        self.assertIs(legacy_prepare, prepare_immediate)
+        self.assertIs(legacy_availability, handle_model_availability)
+        self.assertIs(legacy_model, prepare_model_stage)
+        self.assertIs(legacy_loop, execute_agent_loop)
+        self.assertIn("stages.ready", execute_ready_synthesis.__module__)
+        self.assertNotIn("async def", inspect.getsource(sys.modules["app.agent_runtime.coordinator_prepare"]))
+
+        deps = agent._coordinator_dependencies()
+        self.assertIsInstance(deps, CoordinatorDependencies)
+        self.assertIsInstance(deps.preparation, PreparationDependencies)
+        self.assertIsInstance(deps.availability, AvailabilityDependencies)
+        self.assertIsInstance(deps.model, ModelDependencies)
+        self.assertIsInstance(deps.ready, ReadyDependencies)
+        self.assertIsInstance(deps.loop, LoopDependencies)
+        self.assertIs(deps.prepare_agent_run, deps.preparation.prepare_agent_run)
+        self.assertIs(deps.stream_answer, deps.preparation.stream_answer)
 
     async def test_ready_stage_skips_non_ready_plan(self):
         state = CoordinatorRunState("问题", None, "run-1", None, False)
