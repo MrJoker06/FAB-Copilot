@@ -103,18 +103,18 @@ app/
 | `database.py` | 1016 行、288 条语句、覆盖率 79% | 同时承担 400 余行 legacy Schema、增量迁移、连接/Journal、五部门库附加/校验、legacy 搬迁和缺陷目录；被大部分持久化模块直接依赖，且历次数据、Session、模型和知识功能持续追加 | 有真实边界，但与未来多数据库治理相邻；列为 `REF-026 OPTIONAL`，不得借结构重构实现 `DATA-017`/`DATA-019` |
 | `answer_synthesizer.py` | 762 行、325 条语句、覆盖率 86% | 同时包含 `submit_analysis` Schema、答案契约、解析、证据/范围/因果守卫、降级、Markdown 渲染和 legacy 路径；历史修复多集中在安全与证据保持 | 安全敏感且有真实阶段边界，列为 `REF-025 OPTIONAL` |
 | `seed.py` | 727 行、370 条语句、覆盖率 81% | 主要是固定市场锚点、制造模拟常量和一个强确定性生成流程；变化低频，拆分容易使随机数消费顺序和固定夹具漂移 | 当前不拆分；仅在模拟模型再次扩展时重审 |
-| `planner.py` | 695 行、332 条语句、覆盖率 98% | 数据契约、范围、查询参数、步骤装配和预算已由函数分层，但 Validator/Guard 仍从实现模块导入公开类型，制造范围修复会跨多个 helper | 存在依赖方向和契约边界，`REF-024` 已激活并在 `REF-023` 后执行 |
+| `planner.py` | 695 行、332 条语句、覆盖率 98% | 数据契约、范围、查询参数、步骤装配和预算已由函数分层，但 Validator/Guard 仍从实现模块导入公开类型，制造范围修复会跨多个 helper | 存在依赖方向和契约边界，`REF-024` 已完成 |
 | `domain_playbooks.py` | 599 行、70 条语句、覆盖率 97% | 绝大多数行是六个不可变 Playbook 声明；选择和 prompt 逻辑很薄，集中展示有利于证据/安全规则统一评审 | 当前不拆分，不转成 YAML，也不为每个 Playbook 建文件 |
-| `intent_router.py` | 597 行、255 条语句、覆盖率 96% | 混合声明式规则、文本模式、范围识别、时间解析、风险、确定性路由、语义提示和 prompt；历史上多次因通用问答、上下文与制造范围边界修复 | 变化压力最高且有真实阶段边界，`REF-023` 已激活并成为下一项 |
+| `intent_router.py` | 597 行、255 条语句、覆盖率 96% | 混合声明式规则、文本模式、范围识别、时间解析、风险、确定性路由、语义提示和 prompt；历史上多次因通用问答、上下文与制造范围边界修复 | 变化压力最高且有真实阶段边界，`REF-023` 已完成 |
 
 ### 第二梯队候选与排期
 
 - [x] `REF-023` 建立 `intent_runtime/{contracts,rules,scope,time,routing}.py`，`app/intent_router.py` 成为兼容门面并保留类型、常量、公开函数和内部 helper 身份/入口。规则、范围、日期和路由逻辑机械迁移，词表、优先级、日期、风险、语义 hint 与 system message 不变；新增门面、运行时反向依赖、对象身份和日期/规则快照测试，完整离线质量门通过。
-- [ ] `REF-024` 建立 `planning_runtime/{contracts,scope,queries,steps,service}.py`，保留 `app/planner.py` 的公开 dataclass 身份与函数入口。拆分纯 contracts、范围/参数来源、制造查询、工具调用和 Ready 计划装配；plan ID、JSON、SQL 文本、步骤 ID/顺序/依赖、required、结果上限、预算及证据语义不得变化。依赖 `REF-023` 或证明可独立保持 `IntentRoute` 身份；验收覆盖 Planner、Validator、Guard、Ready execution、Playbook 和 Trace 回放。
+- [x] `REF-024` 建立 `planning_runtime/{contracts,scope,queries,steps,service}.py`，`app/planner.py` 为薄兼容门面并保持公开 dataclass/函数与私有 helper 入口。运行时直接依赖 `intent_runtime.contracts`，计划 schema、plan ID、JSON、SQL、步骤、范围和预算语义机械保持；Planner、Validator、Guard、Ready、Playbook、Agent 回归与完整离线质量门通过。
 - `REF-025` `OPTIONAL`：建立 `answer_synthesis_runtime/{contracts,tool_schema,parsing,claim_guard,rendering,service}.py`，保留 `app/answer_synthesizer.py` 兼容门面。冻结 `SUBMIT_ANALYSIS_TOOL` 完整 Schema 哈希、`AnswerContract`/报告/结果身份、source ref 规范化、结构化语义验证、范围/因果过度声明降级、模型知识披露、章节顺序、中文措辞和 legacy answer。验收覆盖 Answer Synthesizer、Evidence Validator/Semantics、Agent synthesis、Ready 与 Trace 回放；任何安全降级差异均回退。
 - `REF-026` `OPTIONAL`：建立 `database_runtime/{schema,migrations,connections,departments,defect_catalog}.py`，保留 `app/database.py` 所有兼容导出。只重排现有 SQLite 实现，保持 `SCHEMA`/部门 Schema 执行结果、迁移顺序和幂等性、Row factory、Journal、busy timeout、ATTACH/TEMP VIEW、事务、legacy 搬迁、FTS rebuild、校验和缺陷别名完全不变。该任务不创建通用数据库抽象、不接入 MySQL/Oracle、不改 Schema，必须与 `DATA-019` 的 Provider 边界协调；验收至少覆盖 Database Manager、系统隔离快照、Schema/迁移等价、RAG/Session/模型持久化和宿主 full。
 
-`REF-023`、`REF-024` 已由用户激活，计入主任务统计并按上述顺序串行执行；`REF-025`、`REF-026` 仍不排期、不计入主任务统计。
+`REF-022`、`REF-023`、`REF-024` 已完成；`REF-025`、`REF-026` 仍不排期、不计入主任务统计。
 
 ### Coordinator 后续候选
 

@@ -129,6 +129,8 @@ python scripts/run_quality_gate.py full
 
 2026-09-07 `REF-023` 标准环境 full 通过：Intent Router 的 contracts、规则、范围、日期和路由目录化后，门面导出、规则快照、日期边界和制造范围契约不变。定向 130/130、冻结契约、仓库和 diff 检查通过；普通 full 真实模型和外网调用均为 0。
 
+2026-09-07 `REF-024` 标准环境 full 通过：Planner 的 contracts、范围、查询、步骤和服务边界目录化后，计划契约、SQL、参数和 Ready 执行语义不变。定向 62/62、冻结契约、仓库和 diff 检查通过；普通 full 真实模型和外网调用均为 0。
+
 ## 完整审计触发条件
 
 在发布或打标签前必须运行完整审计；以下变更也必须触发：依赖或 Python/FastAPI/SQLite 升级、Schema/API/认证/RAG/流式链路重大变化，或上次审计后累计约 5 个 feature/fix 任务。
