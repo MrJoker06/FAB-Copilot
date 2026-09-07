@@ -127,6 +127,8 @@ python scripts/run_quality_gate.py full
 
 2026-09-07 `REF-022` 标准环境 full 通过：Coordinator 五阶段目录化、依赖分组和单一状态实时视图均未改变确定性离线门的事件、Trace、Ready、Loop、降级或返回契约。定向 Agent runtime/execution/preparation/tool/ready/synthesis 39/39、`refactor_contracts.py`、`check_repository.py` 和 `git diff --check` 通过；完整质量门仍保持真实模型和外网调用为 0。完整 Live `QA-010` 仍由用户暂缓。
 
+2026-09-07 `REF-023` 标准环境 full 通过：Intent Router 的 contracts、规则、范围、日期和路由目录化后，门面导出、规则快照、日期边界和制造范围契约不变。定向 130/130、冻结契约、仓库和 diff 检查通过；普通 full 真实模型和外网调用均为 0。
+
 ## 完整审计触发条件
 
 在发布或打标签前必须运行完整审计；以下变更也必须触发：依赖或 Python/FastAPI/SQLite 升级、Schema/API/认证/RAG/流式链路重大变化，或上次审计后累计约 5 个 feature/fix 任务。
