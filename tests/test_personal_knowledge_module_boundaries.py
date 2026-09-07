@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import io
 import inspect
+import io
 import sys
 import tempfile
 import unittest
@@ -12,8 +12,14 @@ from unittest.mock import patch
 from PIL import Image
 
 import app.personal_knowledge as facade
-from app.personal_knowledge_runtime import contracts, metadata, storage
-from app.personal_knowledge_runtime import ingestion, jobs
+from app.personal_knowledge_runtime import (
+    contracts,
+    documents,
+    ingestion,
+    metadata,
+    search,
+    storage,
+)
 from app.personal_knowledge_runtime.extractors import extract_sections
 from app.personal_knowledge_runtime.extractors.pdf import extract_pdf
 
@@ -102,6 +108,64 @@ class PersonalKnowledgeModuleBoundaryTests(unittest.TestCase):
         latest.assert_called_once_with("connection", "document", "owner")
         self.assertNotIn("SELECT job_id", inspect.getsource(facade._latest_job))
         self.assertNotIn("DELETE FROM", inspect.getsource(facade.process_personal_document_deletion))
+
+    def test_query_facade_is_sql_free_and_runtime_does_not_depend_on_facade(self):
+        for function in (
+            facade.list_personal_documents,
+            facade.get_personal_document,
+            facade.update_personal_document,
+            facade.personal_document_file,
+            facade.search_personal_knowledge,
+            facade.get_personal_chunk,
+        ):
+            source = inspect.getsource(function)
+            self.assertNotIn("SELECT ", source)
+            self.assertNotIn("UPDATE ", source)
+            self.assertNotIn("MATCH ", source)
+        self.assertNotIn("personal_knowledge import", inspect.getsource(documents))
+        self.assertNotIn("personal_knowledge import", inspect.getsource(search))
+
+    def test_query_wrappers_resolve_patched_facade_globals_at_call_time(self):
+        patched_session = object()
+        with patch("app.personal_knowledge.db_session", patched_session), patch(
+            "app.personal_knowledge._encode_cursor", return_value="encoded"
+        ) as encode_cursor, patch(
+            "app.personal_knowledge._decode_cursor", return_value=("time", "document")
+        ) as decode_cursor, patch.object(
+            facade._documents, "list_documents", return_value={"items": [], "next_cursor": None}
+        ) as list_documents:
+            self.assertEqual(facade.list_personal_documents("owner"), {"items": [], "next_cursor": None})
+        document_deps = list_documents.call_args.args[0]
+        self.assertIs(document_deps.db_session, patched_session)
+        self.assertEqual(document_deps.encode_cursor("time", "document"), "encoded")
+        self.assertEqual(document_deps.decode_cursor("cursor"), ("time", "document"))
+        encode_cursor.assert_called_once_with("time", "document")
+        decode_cursor.assert_called_once_with("cursor")
+
+        with patch("app.personal_knowledge.get_personal_document", return_value={"document_id": "patched"}), patch.object(
+            facade._documents, "update_document", return_value={"document_id": "patched"}
+        ) as update_document:
+            self.assertEqual(
+                facade.update_personal_document("document", "owner", facade.PersonalDocumentPatch()),
+                {"document_id": "patched"},
+            )
+        self.assertEqual(
+            update_document.call_args.args[0].get_document("document", "owner"),
+            {"document_id": "patched"},
+        )
+
+        with patch("app.personal_knowledge._fts_query", return_value='"patched"'), patch(
+            "app.personal_knowledge._json_list", return_value=["patched-json"]
+        ), patch.object(
+            facade._search, "search_knowledge", return_value=[]
+        ) as search_knowledge:
+            self.assertEqual(facade.search_personal_knowledge("owner", "query"), [])
+        search_deps = search_knowledge.call_args.args[0]
+        self.assertEqual(search_deps.fts_query("anything"), '"patched"')
+        self.assertEqual(search_deps.json_list("[]"), ["patched-json"])
+
+        with patch("app.personal_knowledge.process_query_terms", return_value=["patched-term"]):
+            self.assertIn('"patched-term"', facade._fts_query("ignored"))
 
     def test_facade_now_patch_reaches_job_update_without_a_database(self):
         executed: list[tuple[str, tuple]] = []
