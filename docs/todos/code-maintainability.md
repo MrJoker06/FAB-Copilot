@@ -1,6 +1,6 @@
 # 代码可维护性 TODO
 
-状态基线：`experiment/parallel-platform`，2026-09-07。
+状态基线：`experiment/parallel-platform`，2026-09-08。
 
 本清单只处理结构、模块边界和可读性，不改变业务逻辑、API 契约、SSE/NDJSON 事件、工具调用顺序、Trace、数据库结构或前端交互。每项重构都保留必要的兼容门面，并以现有回归测试作为行为基线。
 
@@ -12,7 +12,9 @@
 4. 工具目录、注册、执行和领域实现分层：运行时只负责 Schema、Handler 映射、权限/预算与结果归一化；`reports.py`、`enterprise_data.py`、`rag.py` 和 `answer_synthesizer.py` 继续拥有真实业务实现。
 5. 一次只完成一个 `REF` 编号并独立提交。行为变化、数据库迁移或 API 调整必须另建任务，不能混入结构重构。
 
-## 目标目录
+## 第一轮目标目录（历史设计）
+
+以下保留第一轮阶段拆分设计；新一轮根目录归档以“领域目录重构”中的映射为准。既有运行时边界不因命名统一再次搬迁。
 
 ```text
 app/
@@ -127,7 +129,63 @@ app/
 - 验收要求：`app.agent.run_agent()` 签名、`coordinate_agent_run()` 唯一入口、依赖快照/对象身份、Ready 的零模型工具选择、离线降级、Agent Loop 停止/取消、事件顺序和响应字段全部不变；定向运行 Agent runtime/execution/module/preparation/tool-runtime、Ready Plan、冻结契约与仓库检查，再运行一次完整离线 `python scripts/run_quality_gate.py full`。`QA-010` 完整 7-run Live 不属于该任务验收。
 - 风险与回退：最高风险为实时 patch 失效、阶段事件重排、Ready/Loop 状态分叉和兼容导入破坏；阶段目录、依赖分组和状态视图已在同一任务提交中通过定向与完整质量门验证，出现行为差异时整体回退该提交。
 
-## 主要职责迁移映射
+## 领域目录重构（已批准待做）
+
+2026-09-08 用户确认方案并要求写入 TODO、提交。本节登记 8 项普通任务，不表示实现已经开始或完成。只调整文件归属、导入和必要兼容装配，不改变业务设计；`REF-025`、`REF-026` 继续 OPTIONAL，不激活内部拆分。未来激活这两项时，应基于届时规范路径重新评审目录，不能恢复重复实现。
+
+### 目标归属与迁移映射
+
+| 当前 app 根目录文件 | 目标位置 | 责任边界 |
+|---|---|---|
+| `__init__.py`、`main.py`、`config.py`、`identity.py` | 保持原位置 | 包入口、应用装配、配置路径锚点及跨领域身份上下文 |
+| `agent.py`、`personal_knowledge.py` | 保持原位置 | 必须保留的兼容入口，不迁回真实业务实现 |
+| `context_resolver.py`、`turn_decision.py`、`decision_arbiter.py`、`sessions.py` | `conversation/` 下同名文件 | 上下文、会话动作与仲裁、会话生命周期 |
+| `model_registry.py`、`model_compatibility.py`、`model_health.py`、`model_streaming.py` | `model_gateway/{registry,compatibility,health,streaming}.py` | 模型访问及治理，不是新增网关服务 |
+| `evidence_semantics.py`、`evidence_validator.py`、`answer_synthesizer.py` | `evidence/{semantics,validator,answer_synthesizer}.py` | 证据范围、验证与答案契约/渲染；本轮不拆综合器内部实现 |
+| `rag.py`、`knowledge_decision.py`、`ocr.py`、`ocr_quality.py` | `knowledge/{rag,decision,ocr,ocr_quality}.py` | 公共检索、知识决策与共享 OCR |
+| `processes.py`、`domain_playbooks.py`、`reports.py`、`enterprise_data.py`、`seed.py` | `manufacturing/{processes,playbooks,reports,enterprise_data,seed}.py` | 制造定义、报表、现有模拟 Provider 与种子数据 |
+| `database.py`、`department_schemas.py`、`execution_store.py` | `persistence/` 下同名文件 | SQLite 连接/Schema/迁移、执行记录；本轮不拆 database 内部实现 |
+| `audit.py`、`observability.py`、`runtime_status.py` | `telemetry/{audit,http,runtime_status}.py` | 审计、HTTP 遥测和运行状态 |
+| `assistant_capabilities.py`、`loop_guard.py` | `agent_runtime/assistant_capabilities.py`、`agent_runtime/execution/loop_guard.py` | 能力声明与运行循环守卫 |
+| `agent_tools.py`、`intent_router.py`、`planner.py` | 真实实现继续由现有运行时持有 | 旧入口先审计消费者，再决定保留或退役 |
+
+保留 `api/`、`agent_runtime/`、`intent_runtime/`、`planning_runtime/`、`personal_knowledge_runtime/` 既有职责；`static/` 本轮不动。`knowledge/` 不重复个人文档的上传、Job、存储、搜索实现。Session 业务归 conversation，制造查询归 manufacturing，不因使用数据库而统一塞入 persistence。
+
+### 普通任务与验收
+
+- [ ] `REF-027` 归属与兼容基线：核实上述全部根文件的实际消费者，包括生产导入、启动脚本、测试、动态 patch 和资源路径；形成允许依赖表、旧路径兼容清单及入口退出条件，补充模块边界测试。明确现有不理想依赖的过渡白名单，不借基线任务改写业务。验收为所有根文件都有归属、每个兼容入口都有消费者/保留原因、可执行检查可以阻止新增反向依赖，既有冻结契约通过。
+- [ ] `REF-028` 制造领域归档：按映射迁移 processes、playbooks、reports、enterprise_data、seed，更新消费者和必要门面。保持 SQL、工艺别名、Playbook 顺序/安全声明、虚拟数据过滤/Cursor、确定性种子及工具注册行为。验证报表、Playbook/Planner/Router、企业模拟、种子生成和工具对象身份；不新增 Oracle/MySQL Provider。
+- [ ] `REF-029` 存储基础归档：迁移 database、department_schemas、execution_store，保持 db_session、Schema、初始化、事务、连接关闭、Journal、ATTACH/TEMP VIEW、FTS、迁移幂等性和中断恢复行为。验证 Database Manager、系统隔离快照、执行记录及 RAG/Session/模型持久化；不迁移真实数据，不改变数据库文件位置，不激活 REF-026。
+- [ ] `REF-030` 遥测领域归档：迁移 audit、observability、runtime_status，保持请求 ID/ContextVar、脱敏、完整日志策略及到期回退、日志路径、事件/Trace 字段、取消/finally 与运行状态。验证审计策略、HTTP 系统测试、Trace 回放及监控响应，不改变日志结构。
+- [ ] `REF-031` 模型访问归档：迁移 registry、compatibility、health、streaming，保持管理员显式配置与主动探针、Thinking 策略、解析、重试、熔断和恢复租约。验证模型连接/发布/能力/兼容/健康、流式及治理系统测试；不自动联网判断能力，不更改 Provider 协议。
+- [ ] `REF-032` 会话与运行时归档：迁移 Context、TurnDecision、DecisionArbiter、Session，以及 capabilities、loop_guard。保持原问题与补全问题的来源、意图决策、消息 ID、幂等、历史回忆、归档/恢复/删除、预算和停止条件。验证 Context/Arbiter/Guard、Agent 准备阶段、Session 流式系统测试和桌面会话旅程。
+- [ ] `REF-033` 知识与证据归档：迁移 RAG/OCR/知识决策与证据语义/验证/答案综合。保持 FTS 查询、ACL、Tag/排序/limit、OCR 质量门及模型资源定位、引用、声明守卫、降级和最终渲染。验证 RAG/OCR 黄金集、个人知识、证据/综合、Ready/Trace 回放和知识桌面旅程；不激活 REF-025、不重复个人知识运行时。
+- [ ] `REF-034` 兼容入口退役与收口：依据 REF-027 清单删除满足条件的旧路径，清理内部旧导入、更新启动/架构文档和测试路径；验证完整依赖图、导入顺序、测试发现、服务启动与全量回归。必须保留的入口继续受契约测试保护，无法证明外部消费者已迁移的路径保留并说明退出条件。完成标准是可按领域找到唯一实现、边界有测试保护、剩余门面均有理由，不以根文件数或行数为硬指标。
+
+### 兼容与依赖规则
+
+1. `app.main`、`app.agent`、`app.personal_knowledge` 按既有约定长期保留。其余旧路径分为“内部可退役”与“外部使用不明需保留”，不一律永久保留，也不未经审计删除。
+2. 重新导出函数不等于保留旧模块实时 patch：必须保留的 patch 契约需验证实际执行；内部测试可以迁至真实实现或显式注入点，但断言强度不降低。类型/异常/注册表对象身份同样需验证。
+3. 每项只保留一份真实实现；禁止通过复制实现或大规模 sys.modules 别名掩盖问题。过渡门面登记目标、消费者、保留原因及退出条件。
+4. API/协调器负责装配，领域模块不得反向依赖 app.main 或协调器；contracts、规则和纯计算模块不得引入数据库/网络/应用入口依赖。对既有例外登记并防止扩大，需要设计变更的部分另行评审。
+5. 每项同时更新生产代码、脚本、测试和文档中的消费者；迁移期间允许登记的过渡入口，但每个任务提交均须可独立运行及验收。
+
+### 验证、风险与交付
+
+每项运行对应领域定向测试，并执行：
+
+```bash
+conda run -n fab-insight-agent python scripts/refactor_contracts.py
+conda run -n fab-insight-agent python scripts/check_repository.py
+conda run -n fab-insight-agent python scripts/run_quality_gate.py full
+git diff --check
+```
+
+额外检查导入顺序/循环依赖、实时 patch/对象身份、`__file__` 和相对资源路径、配置与脚本启动、工具 Schema/调用次数、API/事件顺序、数据库事务/FTS/租户隔离/引用及测试发现无遗漏。不得通过刷新行为基线消除不符合预期的差异。普通 full 零真实模型/外网；QA-010 远程 Live 继续暂缓，不作为本轮前置条件。本次计划登记只做文档检查，不宣称已运行上述实现验收。
+
+一个任务一个提交，主代理先规划、按 AGENTS.md 委派代码实现，再独立审查和验证。实现后同步 TODO、执行计划、相关架构文档及 execution-history；计划登记不写成实现完成记录。遇到行为差异保持未完成，按依赖逆序撤销相关结构提交；不需要数据库数据回滚，不通过破坏性重置丢弃其他改动。
+
+## 主要职责迁移映射（第一轮）
 
 | 当前职责 | 目标模块 |
 |---|---|
