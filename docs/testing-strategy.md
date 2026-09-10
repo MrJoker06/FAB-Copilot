@@ -131,6 +131,8 @@ python scripts/run_quality_gate.py full
 
 2026-09-07 `REF-024` 标准环境 full 通过：Planner 的 contracts、范围、查询、步骤和服务边界目录化后，计划契约、SQL、参数和 Ready 执行语义不变。定向 62/62、冻结契约、仓库和 diff 检查通过；普通 full 真实模型和外网调用均为 0。
 
+2026-09-10 `REF-027` 宿主完整离线质量门通过：发现 536 个 Python 测试，其中非系统 468/468；系统模块数据报表、HTTP/企业契约、知识与个人上传、模型治理、会话与流式分别为 13/15/13/17/10，墙钟 16.8838/18.9283/21.2746/16.8507/19.3026 秒、总计 93.2402 秒，全部低于预算。`app` 分支覆盖率 89%，Node 61/61、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、确定性 Playwright 17/17 均通过；`refactor_contracts.py` 与 repository baseline 通过。首次受限沙箱运行只在三项 loopback fixture 上出现 socket PermissionError，宿主授权重跑 exit 0；普通完整门未调用真实模型或外网。
+
 ## 完整审计触发条件
 
 在发布或打标签前必须运行完整审计；以下变更也必须触发：依赖或 Python/FastAPI/SQLite 升级、Schema/API/认证/RAG/流式链路重大变化，或上次审计后累计约 5 个 feature/fix 任务。

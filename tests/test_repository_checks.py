@@ -56,3 +56,4 @@ class RepositoryCheckTests(unittest.TestCase):
         self.assertEqual(calls[0][1:5], ["-m", "compileall", "-q", "app"])
         self.assertEqual(calls[1][:5], [check_repository.sys.executable, "-m", "ruff", "check", "--select"])
         self.assertIn("E9,F63,F7,F82", calls[1])
+        self.assertEqual(calls[2], [check_repository.sys.executable, "scripts/check_module_boundaries.py"])

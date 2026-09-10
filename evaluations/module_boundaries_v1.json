@@ -1,0 +1,1127 @@
+{
+  "schema_version": 1,
+  "package_ownership": {
+    "target": "app",
+    "compatibility": "retain",
+    "exit_condition": "package anchor remains public",
+    "consumers": {
+      "production": [
+        "app/main.py"
+      ],
+      "scripts": [
+        "run.sh"
+      ],
+      "tests": [
+        "tests/test_version_contract.py"
+      ],
+      "patches": []
+    }
+  },
+  "canonical_modules": {
+    "app.agent": "agent_runtime.coordinator",
+    "app.agent_tools": "agent_runtime.tools",
+    "app.answer_synthesizer": "evidence.answer_synthesizer",
+    "app.assistant_capabilities": "agent_runtime.assistant_capabilities",
+    "app.audit": "telemetry.audit",
+    "app.context_resolver": "conversation.context_resolver",
+    "app.database": "persistence.database",
+    "app.decision_arbiter": "conversation.decision_arbiter",
+    "app.department_schemas": "persistence.department_schemas",
+    "app.domain_playbooks": "manufacturing.playbooks",
+    "app.enterprise_data": "manufacturing.enterprise_data",
+    "app.evidence_semantics": "evidence.semantics",
+    "app.evidence_validator": "evidence.validator",
+    "app.execution_store": "persistence.execution_store",
+    "app.knowledge_decision": "knowledge.decision",
+    "app.loop_guard": "agent_runtime.loop_guard",
+    "app.model_compatibility": "model_gateway.compatibility",
+    "app.model_health": "model_gateway.health",
+    "app.model_registry": "model_gateway.registry",
+    "app.model_streaming": "model_gateway.streaming",
+    "app.observability": "telemetry.http",
+    "app.ocr": "knowledge.ocr",
+    "app.ocr_quality": "knowledge.ocr_quality",
+    "app.personal_knowledge": "personal_knowledge_runtime.facade",
+    "app.planner": "planning_runtime.service",
+    "app.processes": "manufacturing.processes",
+    "app.rag": "knowledge.rag",
+    "app.reports": "manufacturing.reports",
+    "app.runtime_status": "telemetry.runtime_status",
+    "app.seed": "manufacturing.seed",
+    "app.sessions": "conversation.sessions",
+    "app.turn_decision": "conversation.turn_decision",
+    "app.config": "configuration.facade",
+    "app.identity": "identity.facade",
+    "app.intent_router": "intent_runtime.facade"
+  },
+  "allowed_domain_dependencies": {
+    "agent_runtime": [
+      "agent_runtime",
+      "conversation",
+      "evidence",
+      "knowledge",
+      "manufacturing",
+      "model_gateway",
+      "planning_runtime",
+      "telemetry"
+    ],
+    "conversation": [
+      "conversation",
+      "manufacturing",
+      "planning_runtime",
+      "persistence"
+    ],
+    "evidence": [
+      "evidence",
+      "manufacturing",
+      "planning_runtime"
+    ],
+    "knowledge": [
+      "knowledge",
+      "manufacturing",
+      "persistence",
+      "personal_knowledge_runtime"
+    ],
+    "manufacturing": [
+      "manufacturing",
+      "persistence"
+    ],
+    "model_gateway": [
+      "model_gateway",
+      "persistence",
+      "conversation"
+    ],
+    "persistence": [
+      "persistence",
+      "model_gateway"
+    ],
+    "planning_runtime": [
+      "planning_runtime",
+      "manufacturing"
+    ],
+    "telemetry": [
+      "telemetry",
+      "persistence"
+    ],
+    "configuration": [
+      "configuration"
+    ],
+    "identity": [
+      "identity"
+    ],
+    "intent_runtime": [
+      "intent_runtime",
+      "manufacturing"
+    ],
+    "personal_knowledge_runtime": [
+      "personal_knowledge_runtime",
+      "knowledge",
+      "manufacturing",
+      "persistence"
+    ]
+  },
+  "policy": {
+    "forbidden_targets": [
+      "app.main",
+      "app.agent",
+      "app.agent_runtime.coordinator"
+    ],
+    "assembly_modules": [
+      "app.main",
+      "app.api.application",
+      "app.api.runtime_dependencies",
+      "app.agent_runtime.compatibility"
+    ],
+    "pure_modules": [
+      "app.assistant_capabilities",
+      "app.department_schemas",
+      "app.evidence_semantics",
+      "app.intent_runtime.contracts",
+      "app.intent_runtime.rules",
+      "app.planning_runtime.contracts",
+      "app.processes",
+      "app.turn_decision"
+    ],
+    "pure_forbidden_targets": [
+      "app.database",
+      "app.main",
+      "app.agent",
+      "app.agent_runtime.coordinator"
+    ],
+    "pure_forbidden_prefixes": [
+      "sqlite3",
+      "socket",
+      "httpx",
+      "requests",
+      "urllib",
+      "app.database",
+      "app.main",
+      "app.agent"
+    ]
+  },
+  "existing_edge_exceptions": [
+    {
+      "source": "app.domain_playbooks",
+      "target": "app.intent_router",
+      "reason": "legacy playbook selection uses routing contract before REF-028/REF-032",
+      "exit_condition": "REF-028 moves playbook consumers to the canonical routing contract"
+    },
+    {
+      "source": "app.agent_runtime",
+      "target": "app.agent_runtime.coordinator",
+      "reason": "package initializer re-exports the coordinator as the runtime assembly public API",
+      "exit_condition": "REF-032 replaces the runtime package re-export with the final public assembly entry"
+    },
+    {
+      "source": "app.agent_runtime.compatibility",
+      "target": "app.config",
+      "reason": "existing app.agent_runtime.compatibility compatibility implementation consumes the configuration facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.agent_runtime.compatibility",
+      "target": "app.intent_router",
+      "reason": "existing app.agent_runtime.compatibility compatibility implementation consumes the intent_runtime facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.audit",
+      "target": "app.config",
+      "reason": "existing app.audit compatibility implementation consumes the configuration facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.database",
+      "target": "app.config",
+      "reason": "existing app.database compatibility implementation consumes the configuration facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.decision_arbiter",
+      "target": "app.intent_router",
+      "reason": "existing app.decision_arbiter compatibility implementation consumes the intent_runtime facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.enterprise_data",
+      "target": "app.config",
+      "reason": "existing app.enterprise_data compatibility implementation consumes the configuration facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.enterprise_data",
+      "target": "app.identity",
+      "reason": "existing app.enterprise_data compatibility implementation consumes the identity facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.execution_store",
+      "target": "app.identity",
+      "reason": "existing app.execution_store compatibility implementation consumes the identity facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.identity",
+      "target": "app.audit",
+      "reason": "existing app.identity compatibility implementation consumes the telemetry facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.identity",
+      "target": "app.config",
+      "reason": "existing app.identity compatibility implementation consumes the configuration facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.model_registry",
+      "target": "app.config",
+      "reason": "existing app.model_registry compatibility implementation consumes the configuration facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.model_registry",
+      "target": "app.identity",
+      "reason": "existing app.model_registry compatibility implementation consumes the identity facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.observability",
+      "target": "app.config",
+      "reason": "existing app.observability compatibility implementation consumes the configuration facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.personal_knowledge",
+      "target": "app.audit",
+      "reason": "existing app.personal_knowledge compatibility implementation consumes the telemetry facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.personal_knowledge",
+      "target": "app.config",
+      "reason": "existing app.personal_knowledge compatibility implementation consumes the configuration facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.planning_runtime.queries",
+      "target": "app.intent_runtime.contracts",
+      "reason": "existing app.planning_runtime.queries compatibility implementation consumes the intent_runtime facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.planning_runtime.scope",
+      "target": "app.intent_runtime.contracts",
+      "reason": "existing app.planning_runtime.scope compatibility implementation consumes the intent_runtime facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.planning_runtime.service",
+      "target": "app.intent_runtime.contracts",
+      "reason": "existing app.planning_runtime.service compatibility implementation consumes the intent_runtime facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.planning_runtime.steps",
+      "target": "app.intent_runtime.contracts",
+      "reason": "existing app.planning_runtime.steps compatibility implementation consumes the intent_runtime facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.rag",
+      "target": "app.config",
+      "reason": "existing app.rag compatibility implementation consumes the configuration facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.rag",
+      "target": "app.identity",
+      "reason": "existing app.rag compatibility implementation consumes the identity facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.runtime_status",
+      "target": "app.identity",
+      "reason": "existing app.runtime_status compatibility implementation consumes the identity facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.seed",
+      "target": "app.config",
+      "reason": "existing app.seed compatibility implementation consumes the configuration facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    },
+    {
+      "source": "app.sessions",
+      "target": "app.identity",
+      "reason": "existing app.sessions compatibility implementation consumes the identity facade before its scheduled migration",
+      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+    }
+  ],
+  "root_modules": {
+    "agent": {
+      "target": "app.agent",
+      "consumers": {
+        "patches": [
+          "tests/system/test_model_governance.py",
+          "tests/test_agent_execution_boundaries.py",
+          "tests/test_agent_module_boundaries.py",
+          "tests/test_agent_preparation_boundaries.py",
+          "tests/test_agent_retrieval_boundaries.py",
+          "tests/test_agent_runtime_boundaries.py",
+          "tests/test_agent_synthesis_boundaries.py",
+          "tests/test_agent_tool_runtime_boundaries.py",
+          "tests/test_answer_synthesizer.py",
+          "tests/test_context_resolver.py",
+          "tests/test_domain_playbooks.py",
+          "tests/test_evidence_validator.py",
+          "tests/test_intent_router.py",
+          "tests/test_loop_guard.py",
+          "tests/test_planner.py",
+          "tests/test_ready_plan_execution.py"
+        ],
+        "production": [
+          "app/api/runtime_dependencies.py"
+        ],
+        "scripts": [
+          "scripts/evaluate_ready_execution.py",
+          "scripts/refactor_contracts.py"
+        ],
+        "tests": [
+          "tests/system/test_knowledge_uploads.py",
+          "tests/system/test_model_governance.py",
+          "tests/test_agent_execution_boundaries.py",
+          "tests/test_agent_module_boundaries.py",
+          "tests/test_agent_preparation_boundaries.py",
+          "tests/test_agent_retrieval_boundaries.py",
+          "tests/test_agent_runtime_boundaries.py",
+          "tests/test_agent_synthesis_boundaries.py",
+          "tests/test_agent_tool_runtime_boundaries.py",
+          "tests/test_answer_synthesizer.py",
+          "tests/test_context_resolver.py",
+          "tests/test_domain_playbooks.py",
+          "tests/test_evidence_validator.py",
+          "tests/test_intent_router.py",
+          "tests/test_loop_guard.py",
+          "tests/test_model_compatibility.py",
+          "tests/test_module_boundaries.py",
+          "tests/test_planner.py",
+          "tests/test_ready_plan_execution.py",
+          "tests/test_stream_diagnostics.py",
+          "tests/test_turn_decision.py"
+        ]
+      },
+      "compatibility": "long-lived public compatibility facade; runtime patch namespace",
+      "exit_condition": "long-lived facade retained while external and patch consumers require app.agent"
+    },
+    "agent_tools": {
+      "target": "app.agent_runtime.tools",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py"
+        ],
+        "scripts": [],
+        "tests": []
+      },
+      "compatibility": "compatibility catalog export until internal consumers migrate",
+      "exit_condition": "REF-032 migrates consumers and validates the compatibility contract"
+    },
+    "answer_synthesizer": {
+      "target": "evidence/answer_synthesizer.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py",
+          "app/agent_runtime/tools/catalog.py"
+        ],
+        "scripts": [
+          "scripts/evaluate_ready_execution.py",
+          "scripts/evaluate_trace_replay.py"
+        ],
+        "tests": [
+          "tests/test_agent_synthesis_boundaries.py",
+          "tests/test_answer_synthesizer.py",
+          "tests/test_context_resolver.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-033",
+      "exit_condition": "REF-033 migrates consumers and validates the compatibility contract"
+    },
+    "assistant_capabilities": {
+      "target": "agent_runtime/assistant_capabilities.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py"
+        ],
+        "scripts": [],
+        "tests": [
+          "tests/test_turn_decision.py"
+        ]
+      },
+      "compatibility": "internal capability contract pending REF-032",
+      "exit_condition": "REF-032 migrates consumers and validates the compatibility contract"
+    },
+    "audit": {
+      "target": "telemetry/audit.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py",
+          "app/agent_runtime/preparation/context.py",
+          "app/api/runtime_dependencies.py",
+          "app/identity.py",
+          "app/observability.py",
+          "app/personal_knowledge.py"
+        ],
+        "scripts": [],
+        "tests": [
+          "tests/system/test_http_contracts.py",
+          "tests/system/test_model_governance.py",
+          "tests/system/test_sessions_streaming.py",
+          "tests/test_audit_policy.py"
+        ]
+      },
+      "compatibility": "internal telemetry path pending REF-030",
+      "exit_condition": "REF-030 migrates consumers and validates the compatibility contract"
+    },
+    "config": {
+      "target": "app.config",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py",
+          "app/api/runtime_dependencies.py",
+          "app/audit.py",
+          "app/database.py",
+          "app/enterprise_data.py",
+          "app/identity.py",
+          "app/model_registry.py",
+          "app/observability.py",
+          "app/personal_knowledge.py",
+          "app/rag.py",
+          "app/seed.py"
+        ],
+        "scripts": [
+          "scripts/run_browser_test_server.py"
+        ],
+        "tests": [
+          "tests/system/test_http_contracts.py",
+          "tests/system/test_model_governance.py",
+          "tests/test_model_connection.py",
+          "tests/test_version_contract.py"
+        ]
+      },
+      "compatibility": "configuration and project-resource path anchor",
+      "exit_condition": "project configuration anchor remains public"
+    },
+    "context_resolver": {
+      "target": "conversation/context_resolver.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py",
+          "app/agent_runtime/preparation/context.py",
+          "app/decision_arbiter.py",
+          "app/model_compatibility.py"
+        ],
+        "scripts": [
+          "scripts/evaluate_trace_replay.py"
+        ],
+        "tests": [
+          "tests/test_agent_preparation_boundaries.py",
+          "tests/test_context_resolver.py",
+          "tests/test_turn_decision.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-032",
+      "exit_condition": "REF-032 migrates consumers and validates the compatibility contract"
+    },
+    "database": {
+      "target": "persistence/database.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/api/runtime_dependencies.py",
+          "app/execution_store.py",
+          "app/model_health.py",
+          "app/model_registry.py",
+          "app/personal_knowledge.py",
+          "app/rag.py",
+          "app/reports.py",
+          "app/runtime_status.py",
+          "app/seed.py",
+          "app/sessions.py"
+        ],
+        "scripts": [
+          "scripts/manage_databases.py",
+          "scripts/prepare_ci_data.py"
+        ],
+        "tests": [
+          "tests/system/test_data_reports.py",
+          "tests/system/test_knowledge_uploads.py",
+          "tests/system/test_model_governance.py",
+          "tests/system/test_sessions_streaming.py",
+          "tests/test_model_capabilities.py",
+          "tests/test_model_publication.py",
+          "tests/test_module_boundaries.py",
+          "tests/test_personal_knowledge.py",
+          "tests/test_simulation_profile.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-029",
+      "exit_condition": "REF-029 migrates consumers and validates the compatibility contract"
+    },
+    "decision_arbiter": {
+      "target": "conversation/decision_arbiter.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py"
+        ],
+        "scripts": [
+          "scripts/evaluate_trace_replay.py"
+        ],
+        "tests": [
+          "tests/test_turn_decision.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-032",
+      "exit_condition": "REF-032 migrates consumers and validates the compatibility contract"
+    },
+    "department_schemas": {
+      "target": "persistence/department_schemas.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/database.py"
+        ],
+        "scripts": [
+          "scripts/manage_databases.py"
+        ],
+        "tests": [
+          "tests/test_simulation_profile.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-029",
+      "exit_condition": "REF-029 migrates consumers and validates the compatibility contract"
+    },
+    "domain_playbooks": {
+      "target": "manufacturing/playbooks.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py",
+          "app/evidence_validator.py",
+          "app/planning_runtime/queries.py",
+          "app/planning_runtime/service.py",
+          "app/planning_runtime/steps.py"
+        ],
+        "scripts": [
+          "scripts/evaluate_playbooks.py",
+          "scripts/evaluate_ready_execution.py",
+          "scripts/evaluate_trace_replay.py"
+        ],
+        "tests": [
+          "tests/test_agent_execution_boundaries.py",
+          "tests/test_agent_synthesis_boundaries.py",
+          "tests/test_agent_tool_runtime_boundaries.py",
+          "tests/test_answer_synthesizer.py",
+          "tests/test_domain_playbooks.py",
+          "tests/test_evidence_validator.py",
+          "tests/test_loop_guard.py",
+          "tests/test_planner.py",
+          "tests/test_ready_plan_execution.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-028",
+      "exit_condition": "REF-028 migrates consumers and validates the compatibility contract"
+    },
+    "enterprise_data": {
+      "target": "manufacturing/enterprise_data.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/tools/registry.py",
+          "app/api/runtime_dependencies.py"
+        ],
+        "scripts": [],
+        "tests": []
+      },
+      "compatibility": "internal legacy path pending REF-028",
+      "exit_condition": "REF-028 migrates consumers and validates the compatibility contract"
+    },
+    "evidence_semantics": {
+      "target": "evidence/semantics.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/answer_synthesizer.py",
+          "app/evidence_validator.py"
+        ],
+        "scripts": [],
+        "tests": [
+          "tests/test_evidence_semantics.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-033",
+      "exit_condition": "REF-033 migrates consumers and validates the compatibility contract"
+    },
+    "evidence_validator": {
+      "target": "evidence/validator.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py",
+          "app/agent_runtime/execution/ready_plan.py",
+          "app/agent_runtime/retrieval/general_knowledge.py",
+          "app/answer_synthesizer.py"
+        ],
+        "scripts": [
+          "scripts/evaluate_ready_execution.py",
+          "scripts/evaluate_trace_replay.py"
+        ],
+        "tests": [
+          "tests/test_agent_retrieval_boundaries.py",
+          "tests/test_answer_synthesizer.py",
+          "tests/test_evidence_validator.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-033",
+      "exit_condition": "REF-033 migrates consumers and validates the compatibility contract"
+    },
+    "execution_store": {
+      "target": "persistence/execution_store.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/api/runtime_dependencies.py",
+          "app/sessions.py"
+        ],
+        "scripts": [],
+        "tests": [
+          "tests/system/test_sessions_streaming.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-029",
+      "exit_condition": "REF-029 migrates consumers and validates the compatibility contract"
+    },
+    "identity": {
+      "target": "app.identity",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/api/runtime_dependencies.py",
+          "app/enterprise_data.py",
+          "app/execution_store.py",
+          "app/model_registry.py",
+          "app/rag.py",
+          "app/runtime_status.py",
+          "app/sessions.py"
+        ],
+        "scripts": [],
+        "tests": [
+          "tests/test_api_runtime_boundaries.py"
+        ]
+      },
+      "compatibility": "cross-domain identity context and package anchor",
+      "exit_condition": "cross-domain identity anchor remains public"
+    },
+    "intent_router": {
+      "target": "app.intent_runtime",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py",
+          "app/decision_arbiter.py",
+          "app/domain_playbooks.py"
+        ],
+        "scripts": [
+          "scripts/evaluate_playbooks.py",
+          "scripts/evaluate_ready_execution.py",
+          "scripts/evaluate_trace_replay.py"
+        ],
+        "tests": [
+          "tests/test_agent_execution_boundaries.py",
+          "tests/test_agent_synthesis_boundaries.py",
+          "tests/test_agent_tool_runtime_boundaries.py",
+          "tests/test_answer_synthesizer.py",
+          "tests/test_context_resolver.py",
+          "tests/test_domain_playbooks.py",
+          "tests/test_evidence_validator.py",
+          "tests/test_intent_router.py",
+          "tests/test_intent_runtime_boundaries.py",
+          "tests/test_loop_guard.py",
+          "tests/test_planner.py",
+          "tests/test_ready_plan_execution.py",
+          "tests/test_turn_decision.py"
+        ]
+      },
+      "compatibility": "thin compatibility facade with existing patch/import consumers",
+      "exit_condition": "REF-032 migrates facade imports and patch consumers to intent_runtime"
+    },
+    "knowledge_decision": {
+      "target": "knowledge/decision.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py",
+          "app/agent_runtime/retrieval/general_knowledge.py"
+        ],
+        "scripts": [
+          "scripts/evaluate_trace_replay.py"
+        ],
+        "tests": [
+          "tests/test_knowledge_decision.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-033",
+      "exit_condition": "REF-033 migrates consumers and validates the compatibility contract"
+    },
+    "loop_guard": {
+      "target": "agent_runtime/execution/loop_guard.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py",
+          "app/agent_runtime/execution/ready_plan.py",
+          "app/agent_runtime/retrieval/general_knowledge.py"
+        ],
+        "scripts": [],
+        "tests": [
+          "tests/test_agent_execution_boundaries.py",
+          "tests/test_agent_tool_runtime_boundaries.py",
+          "tests/test_loop_guard.py",
+          "tests/test_ready_plan_execution.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-032",
+      "exit_condition": "REF-032 migrates consumers and validates the compatibility contract"
+    },
+    "main": {
+      "target": "app.main",
+      "consumers": {
+        "patches": [
+          "app/main.py",
+          "tests/system/test_http_contracts.py",
+          "tests/system/test_model_governance.py",
+          "tests/system/test_sessions_streaming.py",
+          "tests/test_api_runtime_boundaries.py",
+          "tests/test_module_boundaries.py",
+          "tests/test_personal_job_sse.py"
+        ],
+        "production": [],
+        "scripts": [
+          "scripts/check_module_boundaries.py",
+          "scripts/refactor_contracts.py",
+          "scripts/run_browser_test_server.py"
+        ],
+        "tests": [
+          "tests/system/test_http_contracts.py",
+          "tests/system/test_knowledge_uploads.py",
+          "tests/system/test_model_governance.py",
+          "tests/system/test_sessions_streaming.py",
+          "tests/test_api_chat_boundaries.py",
+          "tests/test_api_router_boundaries.py",
+          "tests/test_api_runtime_boundaries.py",
+          "tests/test_module_boundaries.py",
+          "tests/test_personal_job_sse.py",
+          "tests/test_stream_diagnostics.py",
+          "tests/test_version_contract.py"
+        ]
+      },
+      "compatibility": "long-lived application assembly and API patch namespace",
+      "exit_condition": "long-lived application assembly retained while uvicorn and patch consumers require app.main"
+    },
+    "model_compatibility": {
+      "target": "model_gateway/compatibility.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py",
+          "app/api/runtime_dependencies.py"
+        ],
+        "scripts": [],
+        "tests": [
+          "tests/system/test_model_governance.py",
+          "tests/test_model_compatibility.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-031",
+      "exit_condition": "REF-031 migrates consumers and validates the compatibility contract"
+    },
+    "model_health": {
+      "target": "model_gateway/health.py",
+      "consumers": {
+        "patches": [
+          "tests/test_model_health.py"
+        ],
+        "production": [
+          "app/agent_runtime/compatibility.py",
+          "app/model_registry.py"
+        ],
+        "scripts": [],
+        "tests": [
+          "tests/test_model_health.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-031",
+      "exit_condition": "REF-031 migrates consumers and validates the compatibility contract"
+    },
+    "model_registry": {
+      "target": "model_gateway/registry.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py",
+          "app/api/runtime_dependencies.py",
+          "app/database.py"
+        ],
+        "scripts": [
+          "scripts/prepare_ci_data.py",
+          "scripts/run_live_e2e.py"
+        ],
+        "tests": [
+          "tests/system/test_model_governance.py",
+          "tests/test_model_capabilities.py",
+          "tests/test_model_publication.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-031",
+      "exit_condition": "REF-031 migrates consumers and validates the compatibility contract"
+    },
+    "model_streaming": {
+      "target": "model_gateway/streaming.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py"
+        ],
+        "scripts": [],
+        "tests": [
+          "tests/test_live_e2e.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-031",
+      "exit_condition": "REF-031 migrates consumers and validates the compatibility contract"
+    },
+    "observability": {
+      "target": "telemetry/http.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/api/runtime_dependencies.py"
+        ],
+        "scripts": [],
+        "tests": [
+          "tests/test_api_runtime_boundaries.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-030",
+      "exit_condition": "REF-030 migrates consumers and validates the compatibility contract"
+    },
+    "ocr": {
+      "target": "knowledge/ocr.py",
+      "consumers": {
+        "patches": [
+          "tests/test_ocr.py"
+        ],
+        "production": [
+          "app/ocr_quality.py",
+          "app/personal_knowledge.py",
+          "app/personal_knowledge_runtime/extractors/image.py",
+          "app/personal_knowledge_runtime/extractors/pdf.py"
+        ],
+        "scripts": [
+          "scripts/evaluate_ocr.py"
+        ],
+        "tests": [
+          "tests/system/test_knowledge_uploads.py",
+          "tests/test_ocr.py",
+          "tests/test_ocr_quality.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-033; uses rapidocr resource path",
+      "exit_condition": "REF-033 migrates consumers and validates the compatibility contract"
+    },
+    "ocr_quality": {
+      "target": "knowledge/ocr_quality.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/personal_knowledge.py",
+          "app/personal_knowledge_runtime/contracts.py",
+          "app/personal_knowledge_runtime/extractors/image.py",
+          "app/personal_knowledge_runtime/extractors/pdf.py"
+        ],
+        "scripts": [
+          "scripts/evaluate_ocr.py"
+        ],
+        "tests": [
+          "tests/test_ocr_quality.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-033",
+      "exit_condition": "REF-033 migrates consumers and validates the compatibility contract"
+    },
+    "personal_knowledge": {
+      "target": "app.personal_knowledge",
+      "consumers": {
+        "patches": [
+          "tests/test_ocr.py",
+          "tests/test_personal_job_sse.py",
+          "tests/test_personal_knowledge.py",
+          "tests/test_personal_knowledge_module_boundaries.py"
+        ],
+        "production": [
+          "app/api/routers/knowledge.py",
+          "app/api/runtime_dependencies.py",
+          "app/api/services/personal_job_events.py",
+          "app/rag.py"
+        ],
+        "scripts": [
+          "scripts/evaluate_ocr.py"
+        ],
+        "tests": [
+          "tests/test_knowledge_decision.py",
+          "tests/test_ocr.py",
+          "tests/test_personal_job_sse.py",
+          "tests/test_personal_knowledge.py",
+          "tests/test_personal_knowledge_module_boundaries.py"
+        ]
+      },
+      "compatibility": "long-lived public compatibility facade and patch namespace",
+      "exit_condition": "long-lived facade retained while API and patch consumers require app.personal_knowledge"
+    },
+    "planner": {
+      "target": "app.planning_runtime",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py",
+          "app/agent_runtime/execution/ready_plan.py",
+          "app/evidence_validator.py",
+          "app/loop_guard.py"
+        ],
+        "scripts": [
+          "scripts/evaluate_playbooks.py",
+          "scripts/evaluate_ready_execution.py",
+          "scripts/evaluate_trace_replay.py"
+        ],
+        "tests": [
+          "tests/test_agent_execution_boundaries.py",
+          "tests/test_agent_synthesis_boundaries.py",
+          "tests/test_agent_tool_runtime_boundaries.py",
+          "tests/test_answer_synthesizer.py",
+          "tests/test_evidence_validator.py",
+          "tests/test_loop_guard.py",
+          "tests/test_planner.py",
+          "tests/test_planning_runtime_boundaries.py",
+          "tests/test_ready_plan_execution.py"
+        ]
+      },
+      "compatibility": "thin compatibility facade with private helper consumers",
+      "exit_condition": "REF-032 migrates facade imports and private helper consumers to planning_runtime"
+    },
+    "processes": {
+      "target": "manufacturing/processes.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py",
+          "app/agent_runtime/tools/catalog.py",
+          "app/api/routers/enterprise.py",
+          "app/api/routers/reports.py",
+          "app/api/runtime_dependencies.py",
+          "app/enterprise_data.py",
+          "app/intent_runtime/rules.py",
+          "app/intent_runtime/scope.py",
+          "app/knowledge_decision.py",
+          "app/personal_knowledge.py",
+          "app/personal_knowledge_runtime/contracts.py",
+          "app/personal_knowledge_runtime/metadata.py",
+          "app/planning_runtime/scope.py",
+          "app/rag.py",
+          "app/seed.py"
+        ],
+        "scripts": [],
+        "tests": [
+          "tests/system/test_data_reports.py",
+          "tests/test_evidence_semantics.py",
+          "tests/test_evidence_validator.py",
+          "tests/test_intent_router.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-028",
+      "exit_condition": "REF-028 migrates consumers and validates the compatibility contract"
+    },
+    "rag": {
+      "target": "knowledge/rag.py",
+      "consumers": {
+        "patches": [
+          "tests/system/test_knowledge_uploads.py"
+        ],
+        "production": [
+          "app/agent_runtime/tools/registry.py",
+          "app/api/runtime_dependencies.py"
+        ],
+        "scripts": [
+          "scripts/evaluate_rag.py"
+        ],
+        "tests": [
+          "tests/system/test_knowledge_uploads.py",
+          "tests/test_knowledge_decision.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-033",
+      "exit_condition": "REF-033 migrates consumers and validates the compatibility contract"
+    },
+    "reports": {
+      "target": "manufacturing/reports.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py",
+          "app/agent_runtime/tools/registry.py",
+          "app/api/runtime_dependencies.py"
+        ],
+        "scripts": [],
+        "tests": [
+          "tests/system/test_data_reports.py",
+          "tests/system/test_knowledge_uploads.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-028",
+      "exit_condition": "REF-028 migrates consumers and validates the compatibility contract"
+    },
+    "runtime_status": {
+      "target": "telemetry/runtime_status.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/api/runtime_dependencies.py"
+        ],
+        "scripts": [],
+        "tests": []
+      },
+      "compatibility": "internal legacy path pending REF-030",
+      "exit_condition": "REF-030 migrates consumers and validates the compatibility contract"
+    },
+    "seed": {
+      "target": "manufacturing/seed.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/api/runtime_dependencies.py"
+        ],
+        "scripts": [
+          "scripts/evaluate_rag.py",
+          "scripts/prepare_ci_data.py"
+        ],
+        "tests": [
+          "tests/system/test_data_reports.py",
+          "tests/system/test_http_contracts.py",
+          "tests/system/test_knowledge_uploads.py",
+          "tests/system/test_model_governance.py",
+          "tests/system/test_sessions_streaming.py",
+          "tests/test_simulation_profile.py"
+        ]
+      },
+      "compatibility": "CLI module entrypoint pending REF-028",
+      "exit_condition": "REF-028 preserves python -m app.seed CLI behavior through canonical module"
+    },
+    "sessions": {
+      "target": "conversation/sessions.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/api/runtime_dependencies.py"
+        ],
+        "scripts": [],
+        "tests": [
+          "tests/system/test_sessions_streaming.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-032",
+      "exit_condition": "REF-032 migrates consumers and validates the compatibility contract"
+    },
+    "turn_decision": {
+      "target": "conversation/turn_decision.py",
+      "consumers": {
+        "patches": [],
+        "production": [
+          "app/agent_runtime/compatibility.py",
+          "app/decision_arbiter.py"
+        ],
+        "scripts": [
+          "scripts/evaluate_trace_replay.py"
+        ],
+        "tests": [
+          "tests/test_turn_decision.py"
+        ]
+      },
+      "compatibility": "internal legacy path pending REF-032",
+      "exit_condition": "REF-032 migrates consumers and validates the compatibility contract"
+    }
+  }
+}

@@ -153,7 +153,7 @@ app/
 
 ### 普通任务与验收
 
-- [ ] `REF-027` 归属与兼容基线：核实上述全部根文件的实际消费者，包括生产导入、启动脚本、测试、动态 patch 和资源路径；形成允许依赖表、旧路径兼容清单及入口退出条件，补充模块边界测试。明确现有不理想依赖的过渡白名单，不借基线任务改写业务。验收为所有根文件都有归属、每个兼容入口都有消费者/保留原因、可执行检查可以阻止新增反向依赖，既有冻结契约通过。
+- [x] `REF-027` 归属与兼容基线：`evaluations/module_boundaries_v1.json` 已逐项登记 36 个根模块及 package anchor 的目标、消费者与保留/退出条件；[领域模块归属与兼容基线](../domain-module-boundaries.md) 审计生产、脚本、测试、patch 与资源路径。`scripts/check_module_boundaries.py` 已由仓库检查和质量门执行，覆盖相对/绝对/函数内及已知字面量动态导入，拒绝新增领域反向边和纯模块的 storage/entry 依赖；当前树的 26 条既有跨领域例外均以精确源/目标、理由和退出条件登记，并校验清单输入和过期例外。负向 fixture、冻结契约和仓库检查通过。2026-09-10 宿主完整离线质量门发现 536 个 Python 测试，468/468 非系统测试及五组系统测试 13/15/13/17/10 均通过，覆盖率 89%、Node 61/61、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 17/17，普通门未调用真实模型或外网；未移动业务模块或刷新行为基线。
 - [ ] `REF-028` 制造领域归档：按映射迁移 processes、playbooks、reports、enterprise_data、seed，更新消费者和必要门面。保持 SQL、工艺别名、Playbook 顺序/安全声明、虚拟数据过滤/Cursor、确定性种子及工具注册行为。验证报表、Playbook/Planner/Router、企业模拟、种子生成和工具对象身份；不新增 Oracle/MySQL Provider。
 - [ ] `REF-029` 存储基础归档：迁移 database、department_schemas、execution_store，保持 db_session、Schema、初始化、事务、连接关闭、Journal、ATTACH/TEMP VIEW、FTS、迁移幂等性和中断恢复行为。验证 Database Manager、系统隔离快照、执行记录及 RAG/Session/模型持久化；不迁移真实数据，不改变数据库文件位置，不激活 REF-026。
 - [ ] `REF-030` 遥测领域归档：迁移 audit、observability、runtime_status，保持请求 ID/ContextVar、脱敏、完整日志策略及到期回退、日志路径、事件/Trace 字段、取消/finally 与运行状态。验证审计策略、HTTP 系统测试、Trace 回放及监控响应，不改变日志结构。
