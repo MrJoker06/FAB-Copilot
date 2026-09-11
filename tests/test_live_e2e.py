@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import httpx
 
-from app.model_streaming import stream_completion
+from app.model_gateway.streaming import stream_completion
 from scripts.live_e2e import enforce_live_bounds, load_live_budgets, load_live_catalog_model, require_live_authorization, resolve_live_budget, sanitized_live_report, scan_isolated_artifacts, write_sanitized_report
 from scripts.local_openai_protocol_fixture import LocalOpenAIProtocolFixture, fixture_report
 from scripts.run_live_e2e import EXPECTED_LIVE_RUN_COUNT, LIVE_E2E_TARGET_ENV, PROVIDER_MATRIX_LIVE_RUN_COUNT, browser_environment, browser_timeout_seconds, collect_parent_owned_metadata, finalize_report, live_matrix_passes, remaining_duration_seconds, resolve_live_target, startup_timeout_seconds, validate_live_target_budget

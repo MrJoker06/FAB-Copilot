@@ -125,7 +125,7 @@ def finalize_report(
 
 def collect_parent_owned_metadata(root: Path, model_id: str, api_key: str, started: float) -> dict:
     """Collect fresh server artifacts after even a forced child termination."""
-    from app.model_registry import _decode_model  # local import avoids app config before child setup
+    from app.model_gateway.registry import _decode_model  # local import avoids app config before child setup
     import sqlite3
     database = root / "departments" / "ai_operations.db"
     with sqlite3.connect(database) as connection:

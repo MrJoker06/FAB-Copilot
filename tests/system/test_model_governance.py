@@ -22,8 +22,8 @@ from app import agent as agent_module
 from app.config import ModelConnection, get_settings
 from app.persistence.database import db_session
 from app.main import app
-from app.model_compatibility import ModelCompatibilityError
-from app.model_registry import MODEL_CAPABILITY_DEFAULTS
+from app.model_gateway.compatibility import ModelCompatibilityError
+from app.model_gateway.registry import MODEL_CAPABILITY_DEFAULTS
 from app.manufacturing.seed import seed_reference_data
 
 class ModelGovernanceSystemTests(unittest.TestCase):

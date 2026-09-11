@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import httpx
 
-from app.model_compatibility import ModelCompatibilityError, check_model_compatibility, compatibility_limits, provider_request_options
+from app.model_gateway.compatibility import ModelCompatibilityError, check_model_compatibility, compatibility_limits, provider_request_options
 from app.agent import _audit_assistant, _stream_completion
 
 

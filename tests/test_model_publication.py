@@ -4,7 +4,7 @@ from tests.system.support import isolated_system_environment
 isolated_system_environment()
 
 from app.persistence.database import db_session, ensure_department_databases
-from app.model_registry import publish_model, save_model_compatibility_report, set_model_status, update_model_capabilities
+from app.model_gateway.registry import publish_model, save_model_compatibility_report, set_model_status, update_model_capabilities
 
 
 class ModelPublicationTests(unittest.TestCase):

@@ -486,7 +486,7 @@ def _migrate_model_catalog_capabilities(connection: sqlite3.Connection) -> None:
     tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     if "model_catalog" not in tables:
         return
-    from ..model_registry import normalize_capabilities
+    from ..model_gateway.registry import normalize_capabilities
 
     rows = connection.execute("SELECT model_id, capabilities_json FROM model_catalog").fetchall()
     for row in rows:

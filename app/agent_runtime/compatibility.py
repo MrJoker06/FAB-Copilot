@@ -121,15 +121,15 @@ from ..knowledge_decision import (
     usable_result,
 )
 from ..loop_guard import ToolLoopGuard
-from ..model_compatibility import provider_request_options
-from ..model_health import (
+from ..model_gateway.compatibility import provider_request_options
+from ..model_gateway.health import (
     claim_model_call,
     get_model_health,
     record_model_failure,
     record_model_success,
 )
-from ..model_registry import effective_agent_settings, public_user_model_config
-from ..model_streaming import (
+from ..model_gateway.registry import effective_agent_settings, public_user_model_config
+from ..model_gateway.streaming import (
     audit_assistant,
     model_error_category,
     model_retry_delay,

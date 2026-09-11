@@ -63,7 +63,11 @@
     "app.persistence.execution_store": "persistence.execution_store",
     "app.telemetry.audit": "telemetry.audit",
     "app.telemetry.http": "telemetry.http",
-    "app.telemetry.runtime_status": "telemetry.runtime_status"
+    "app.telemetry.runtime_status": "telemetry.runtime_status",
+    "app.model_gateway.registry": "model_gateway.registry",
+    "app.model_gateway.compatibility": "model_gateway.compatibility",
+    "app.model_gateway.health": "model_gateway.health",
+    "app.model_gateway.streaming": "model_gateway.streaming"
   },
   "allowed_domain_dependencies": {
     "agent_runtime": [
@@ -246,16 +250,16 @@
       "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
     },
     {
-      "source": "app.model_registry",
+      "source": "app.model_gateway.registry",
       "target": "app.config",
-      "reason": "existing app.model_registry compatibility implementation consumes the configuration facade before its scheduled migration",
-      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+      "reason": "canonical model registry resolves the public configuration anchor",
+      "exit_condition": "REF-034 reviews retention or removal of the registry-to-configuration anchor"
     },
     {
-      "source": "app.model_registry",
+      "source": "app.model_gateway.registry",
       "target": "app.identity",
-      "reason": "existing app.model_registry compatibility implementation consumes the identity facade before its scheduled migration",
-      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+      "reason": "canonical model registry resolves the public identity anchor",
+      "exit_condition": "REF-034 reviews retention or removal of the registry-to-identity anchor"
     },
     {
       "source": "app.telemetry.http",
@@ -456,7 +460,7 @@
           "app/persistence/database.py",
           "app/manufacturing/enterprise_data.py",
           "app/identity.py",
-          "app/model_registry.py",
+          "app/model_gateway/registry.py",
           "app/telemetry/audit.py",
           "app/telemetry/http.py",
           "app/personal_knowledge.py",
@@ -484,7 +488,7 @@
           "app/agent_runtime/compatibility.py",
           "app/agent_runtime/preparation/context.py",
           "app/decision_arbiter.py",
-          "app/model_compatibility.py"
+          "app/model_gateway/compatibility.py"
         ],
         "scripts": [
           "scripts/evaluate_trace_replay.py"
@@ -627,7 +631,7 @@
         "production": [
           "app/api/runtime_dependencies.py",
           "app/manufacturing/enterprise_data.py",
-          "app/model_registry.py",
+          "app/model_gateway/registry.py",
           "app/persistence/execution_store.py",
           "app/rag.py",
           "app/telemetry/runtime_status.py",
@@ -750,18 +754,14 @@
       "target": "model_gateway/compatibility.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/agent_runtime/compatibility.py",
-          "app/api/runtime_dependencies.py"
-        ],
+        "production": [],
         "scripts": [],
         "tests": [
-          "tests/system/test_model_governance.py",
-          "tests/test_model_compatibility.py"
+          "tests/test_model_gateway_module_boundaries.py"
         ]
       },
-      "compatibility": "internal legacy path pending REF-031",
-      "exit_condition": "REF-031 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade",
+      "exit_condition": "REF-034 confirms external consumers have migrated"
     },
     "model_health": {
       "target": "model_gateway/health.py",
@@ -769,54 +769,41 @@
         "patches": [
           "tests/test_model_health.py"
         ],
-        "production": [
-          "app/agent_runtime/compatibility.py",
-          "app/model_registry.py"
-        ],
+        "production": [],
         "scripts": [],
         "tests": [
-          "tests/test_model_health.py"
+          "tests/test_model_health.py",
+          "tests/test_model_gateway_module_boundaries.py"
         ]
       },
-      "compatibility": "internal legacy path pending REF-031",
-      "exit_condition": "REF-031 migrates consumers and validates the compatibility contract"
+      "compatibility": "legacy db_session patch facade",
+      "exit_condition": "REF-034 confirms external consumers have migrated while retaining the patch contract"
     },
     "model_registry": {
       "target": "model_gateway/registry.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/agent_runtime/compatibility.py",
-          "app/api/runtime_dependencies.py",
-          "app/persistence/database.py"
-        ],
-        "scripts": [
-          "scripts/prepare_ci_data.py",
-          "scripts/run_live_e2e.py"
-        ],
+        "production": [],
+        "scripts": [],
         "tests": [
-          "tests/system/test_model_governance.py",
-          "tests/test_model_capabilities.py",
-          "tests/test_model_publication.py"
+          "tests/test_model_gateway_module_boundaries.py"
         ]
       },
-      "compatibility": "internal legacy path pending REF-031",
-      "exit_condition": "REF-031 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade",
+      "exit_condition": "REF-034 confirms external consumers have migrated"
     },
     "model_streaming": {
       "target": "model_gateway/streaming.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/agent_runtime/compatibility.py"
-        ],
+        "production": [],
         "scripts": [],
         "tests": [
-          "tests/test_live_e2e.py"
+          "tests/test_model_gateway_module_boundaries.py"
         ]
       },
-      "compatibility": "internal legacy path pending REF-031",
-      "exit_condition": "REF-031 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade",
+      "exit_condition": "REF-034 confirms external consumers have migrated"
     },
     "observability": {
       "target": "telemetry/http.py",

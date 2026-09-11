@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from app.persistence.database import MODEL_CAPABILITIES_SCHEMA_VERSION, MODEL_COMPATIBILITY_SCHEMA_VERSION, MODEL_HEALTH_SCHEMA_VERSION, _migrate_model_catalog_capabilities, _migrate_model_catalog_compatibility, _migrate_model_health
-from app.model_registry import MODEL_CAPABILITY_DEFAULTS, _decode_model, normalize_capabilities
+from app.model_gateway.registry import MODEL_CAPABILITY_DEFAULTS, _decode_model, normalize_capabilities
 
 
 class ModelCapabilitiesTests(unittest.TestCase):

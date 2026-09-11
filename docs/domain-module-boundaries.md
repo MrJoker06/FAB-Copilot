@@ -10,7 +10,7 @@
 | `config`, `identity`, `__init__` | 包级锚点 | 启动、配置、认证和跨领域服务；没有领域迁移退出条件 |
 | `agent_tools`, `assistant_capabilities`, `loop_guard` | `agent_runtime/` | 工具、Turn 与 Ready 测试；REF-032 更新内部消费者并确认导出契约后退役 |
 | `context_resolver`, `decision_arbiter`, `sessions`, `turn_decision` | `conversation/` | Agent facade、重放、API chat 与会话测试；REF-032 迁移和 patch 审计后退役 |
-| `model_registry`, `model_compatibility`, `model_health`, `model_streaming` | `model_gateway/` | CI 数据、模型治理、Agent 和协议测试；REF-031 更新消费者后退役 |
+| `model_registry`, `model_compatibility`, `model_health`, `model_streaming` | `model_gateway/` | 生产、脚本和非 health 测试已使用 canonical 路径；旧入口仅保留兼容边界测试及 `model_health.db_session` 必需 patch，REF-034 审计后退役 |
 | `evidence_semantics`, `evidence_validator`, `answer_synthesizer` | `evidence/` | Validator、Synthesis、Ready 和回放；REF-033 更新消费者后退役 |
 | `rag`, `knowledge_decision`, `ocr`, `ocr_quality` | `knowledge/` | 知识/上传、OCR、RAG 评测；REF-033 验证 OCR 外部模型资源定位后退役 |
 | `processes`, `domain_playbooks`, `reports`, `enterprise_data`, `seed` | `manufacturing/` | 实现迁入 `manufacturing/`；旧入口保留为兼容门面，`python -m app.seed` CLI 行为保持 |

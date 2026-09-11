@@ -55,6 +55,8 @@ SQLite 连接、部门 Schema 与执行记录的 canonical 实现在 `app/persis
 
 审计、HTTP 请求遥测和运行状态的 canonical 实现在 `app/telemetry/`；`app.audit`、`app.observability` 和 `app.runtime_status` 保留为兼容入口，日志结构、脱敏策略、请求关联和运行状态行为不变。
 
+模型注册、兼容性检查、健康熔断和流式协议的 canonical 实现在 `app/model_gateway/`；`app.model_registry`、`app.model_compatibility`、`app.model_health` 和 `app.model_streaming` 保留兼容入口，其中 `app.model_health.db_session` 继续支持既有实时 patch。
+
 默认 Route 包含 18 个重复模块节点，覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗和量测。`simulation_scenarios` 保存评测根因，但不在 SQL 白名单和 Agent 工具中。
 
 ## 快速启动
@@ -228,7 +230,7 @@ conda run -n fab-insight-agent python -m unittest discover -s tests -v
         部门数据库联邦 · 模型目录 · 联合 RAG
 ```
 
-Agent 不直接访问数据库连接，而是通过 `app/agent_tools.py` 中的工具目录工作；`app/agent.py` 负责运行编排并保留原有兼容导出，模型流协议封装在 `app/model_streaming.py`。任意 SQL 仅允许单条 `SELECT`，限制在四张制造数据表并最多返回 100 行；数据库写入、DDL、PRAGMA 和系统表访问均被拒绝。
+Agent 不直接访问数据库连接，而是通过 `app/agent_tools.py` 中的工具目录工作；`app/agent.py` 负责运行编排并保留原有兼容导出，模型流协议封装在 `app/model_gateway/streaming.py`（`app/model_streaming.py` 保留兼容入口）。任意 SQL 仅允许单条 `SELECT`，限制在四张制造数据表并最多返回 100 行；数据库写入、DDL、PRAGMA 和系统表访问均被拒绝。
 
 ## 部门数据库治理
 
@@ -409,9 +411,14 @@ app/
   agent.py      OpenAI Compatible 工具调用循环与系统约束
   intent_router.py  确定性问题分类、范围抽取与风险路由
   manufacturing/       制程定义、六类 Playbook、报表、模拟 Provider 与种子数据
+  model_gateway/       模型注册、兼容性、健康熔断与流式协议
   persistence/         SQLite 连接、部门 Schema、迁移与执行记录
   telemetry/           审计日志、HTTP 请求遥测与运行状态
   domain_playbooks.py  manufacturing/playbooks.py 的兼容入口
+  model_registry.py    model_gateway/registry.py 的兼容入口
+  model_compatibility.py model_gateway/compatibility.py 的兼容入口
+  model_health.py      model_gateway/health.py 的兼容入口
+  model_streaming.py   model_gateway/streaming.py 的兼容入口
   planner.py    结构化工具计划、参数绑定、依赖与运行时预算策略
   loop_guard.py 工具预算、重复调用检测、证据进展与可解释终止
   reports.py    manufacturing/reports.py 的兼容入口
