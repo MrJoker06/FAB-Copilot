@@ -51,6 +51,8 @@ DATA-016 的版本化市场校准档案为 `public-2026-market-anchors-v1`：
 
 生成数据会写入制造库的单例 `simulation_metadata`，分类固定为 `synthetic_non_production`。默认固定生成至 `2026-12-25`（可通过 `FAB_SIMULATION_END_DATE` 或 `python -m app.seed --end-date YYYY-MM-DD` 覆盖；canonical 入口为 `python -m app.manufacturing.seed`）；`2026-08-11` 至 `2026-12-25` 是已声明的预测合成段，不是实际 fab 记录。良率、周期时间、recipe、规格、传感器、异常根因和每日 76–86% productive utilization 的设备差异均是工程假设，不应被表述为公开市场数据或真实量产事实。
 
+SQLite 连接、部门 Schema 与执行记录的 canonical 实现在 `app/persistence/`；`app.database`、`app.department_schemas` 和 `app.execution_store` 保留为兼容入口，数据库文件位置、Journal、ATTACH/TEMP VIEW、FTS 与迁移行为不变。
+
 默认 Route 包含 18 个重复模块节点，覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗和量测。`simulation_scenarios` 保存评测根因，但不在 SQL 白名单和 Agent 工具中。
 
 ## 快速启动
@@ -405,6 +407,7 @@ app/
   agent.py      OpenAI Compatible 工具调用循环与系统约束
   intent_router.py  确定性问题分类、范围抽取与风险路由
   manufacturing/       制程定义、六类 Playbook、报表、模拟 Provider 与种子数据
+  persistence/         SQLite 连接、部门 Schema、迁移与执行记录
   domain_playbooks.py  manufacturing/playbooks.py 的兼容入口
   planner.py    结构化工具计划、参数绑定、依赖与运行时预算策略
   loop_guard.py 工具预算、重复调用检测、证据进展与可解释终止

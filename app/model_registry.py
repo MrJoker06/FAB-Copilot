@@ -6,7 +6,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 
 from .config import ALLOWED_MODELS, MODEL_API_NAMES, ModelConnection, Settings, get_settings
-from .database import db_session
+from .persistence.database import db_session
 from .identity import Principal, current_principal
 from .model_health import ensure_model_health
 

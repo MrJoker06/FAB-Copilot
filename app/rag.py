@@ -4,7 +4,7 @@ import re
 from datetime import date
 
 from .config import get_settings
-from .database import db_session, get_active_defect_aliases, rows_to_dicts
+from .persistence.database import db_session, get_active_defect_aliases, rows_to_dicts
 from .identity import current_principal
 from .personal_knowledge import search_personal_knowledge
 from .manufacturing.processes import (

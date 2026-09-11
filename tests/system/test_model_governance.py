@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 from app.audit import sanitize
 from app import agent as agent_module
 from app.config import ModelConnection, get_settings
-from app.database import db_session
+from app.persistence.database import db_session
 from app.main import app
 from app.model_compatibility import ModelCompatibilityError
 from app.model_registry import MODEL_CAPABILITY_DEFAULTS

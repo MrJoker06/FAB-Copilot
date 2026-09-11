@@ -5,7 +5,7 @@ import unittest
 from contextlib import contextmanager
 from unittest.mock import patch
 
-from app.database import _migrate_personal_knowledge_tags_source
+from app.persistence.database import _migrate_personal_knowledge_tags_source
 from app.personal_knowledge import ExtractedSection, _automatic_tags, _normalise_tags, list_personal_documents, search_personal_knowledge
 
 

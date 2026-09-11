@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from datetime import datetime, timedelta, timezone
 
-from .database import db_session
+from .persistence.database import db_session
 from .identity import Principal
 
 

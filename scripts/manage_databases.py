@@ -8,12 +8,12 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.database import (
+from app.persistence.database import (
     department_paths,
     migrate_legacy_database,
     validate_department_databases,
 )
-from app.department_schemas import SCHEMA_VERSION, TABLE_DEPARTMENTS
+from app.persistence.department_schemas import SCHEMA_VERSION, TABLE_DEPARTMENTS
 
 
 DEPARTMENT_NAMES = {"main": "manufacturing"}

@@ -4,7 +4,7 @@ import re
 from datetime import date, timedelta
 from typing import Any
 
-from ..database import db_session, rows_to_dicts
+from ..persistence.database import db_session, rows_to_dicts
 
 
 def default_range() -> tuple[str, str]:

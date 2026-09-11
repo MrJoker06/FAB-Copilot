@@ -9,7 +9,7 @@ PROJECT_DIR = Path(__file__).resolve().parent.parent
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
-from app.database import db_session, department_paths
+from app.persistence.database import db_session, department_paths
 from app.model_registry import ensure_model_catalog
 from app.manufacturing.seed import main as seed_main
 from scripts import manage_databases

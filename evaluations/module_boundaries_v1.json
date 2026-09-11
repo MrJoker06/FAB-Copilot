@@ -57,7 +57,10 @@
     "app.manufacturing.playbooks": "manufacturing.playbooks",
     "app.manufacturing.reports": "manufacturing.reports",
     "app.manufacturing.enterprise_data": "manufacturing.enterprise_data",
-    "app.manufacturing.seed": "manufacturing.seed"
+    "app.manufacturing.seed": "manufacturing.seed",
+    "app.persistence.database": "persistence.database",
+    "app.persistence.department_schemas": "persistence.department_schemas",
+    "app.persistence.execution_store": "persistence.execution_store"
   },
   "allowed_domain_dependencies": {
     "agent_runtime": [
@@ -140,6 +143,7 @@
     "pure_modules": [
       "app.assistant_capabilities",
       "app.department_schemas",
+      "app.persistence.department_schemas",
       "app.evidence_semantics",
       "app.intent_runtime.contracts",
       "app.intent_runtime.rules",
@@ -197,10 +201,10 @@
       "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
     },
     {
-      "source": "app.database",
+      "source": "app.persistence.database",
       "target": "app.config",
-      "reason": "existing app.database compatibility implementation consumes the configuration facade before its scheduled migration",
-      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+      "reason": "canonical persistence database resolves the project database configuration anchor",
+      "exit_condition": "project configuration anchor remains public"
     },
     {
       "source": "app.decision_arbiter",
@@ -221,10 +225,10 @@
       "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
     },
     {
-      "source": "app.execution_store",
+      "source": "app.persistence.execution_store",
       "target": "app.identity",
-      "reason": "existing app.execution_store compatibility implementation consumes the identity facade before its scheduled migration",
-      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+      "reason": "canonical execution persistence records the current identity context",
+      "exit_condition": "cross-domain identity anchor remains public"
     },
     {
       "source": "app.identity",
@@ -459,7 +463,7 @@
           "app/agent_runtime/compatibility.py",
           "app/api/runtime_dependencies.py",
           "app/audit.py",
-          "app/database.py",
+          "app/persistence/database.py",
           "app/manufacturing/enterprise_data.py",
           "app/identity.py",
           "app/model_registry.py",
@@ -507,36 +511,15 @@
       "target": "persistence/database.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/api/runtime_dependencies.py",
-          "app/execution_store.py",
-          "app/model_health.py",
-          "app/model_registry.py",
-          "app/personal_knowledge.py",
-          "app/rag.py",
-          "app/manufacturing/reports.py",
-          "app/runtime_status.py",
-          "app/manufacturing/seed.py",
-          "app/sessions.py"
-        ],
-        "scripts": [
-          "scripts/manage_databases.py",
-          "scripts/prepare_ci_data.py"
-        ],
+        "production": [],
+        "scripts": [],
         "tests": [
-          "tests/system/test_data_reports.py",
-          "tests/system/test_knowledge_uploads.py",
-          "tests/system/test_model_governance.py",
-          "tests/system/test_sessions_streaming.py",
-          "tests/test_model_capabilities.py",
-          "tests/test_model_publication.py",
           "tests/test_module_boundaries.py",
-          "tests/test_personal_knowledge.py",
-          "tests/test_simulation_profile.py"
+          "tests/test_persistence_module_boundaries.py"
         ]
       },
-      "compatibility": "internal legacy path pending REF-029",
-      "exit_condition": "REF-029 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade; public and private imports retained",
+      "exit_condition": "REF-034 audits whether documented permanent configuration and identity anchors remain required"
     },
     "decision_arbiter": {
       "target": "conversation/decision_arbiter.py",
@@ -559,18 +542,14 @@
       "target": "persistence/department_schemas.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/database.py"
-        ],
-        "scripts": [
-          "scripts/manage_databases.py"
-        ],
+        "production": [],
+        "scripts": [],
         "tests": [
-          "tests/test_simulation_profile.py"
+          "tests/test_persistence_module_boundaries.py"
         ]
       },
-      "compatibility": "internal legacy path pending REF-029",
-      "exit_condition": "REF-029 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade",
+      "exit_condition": "REF-034 confirms external consumers have migrated"
     },
     "domain_playbooks": {
       "target": "manufacturing/playbooks.py",
@@ -641,17 +620,14 @@
       "target": "persistence/execution_store.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/api/runtime_dependencies.py",
-          "app/sessions.py"
-        ],
+        "production": [],
         "scripts": [],
         "tests": [
-          "tests/system/test_sessions_streaming.py"
+          "tests/test_persistence_module_boundaries.py"
         ]
       },
-      "compatibility": "internal legacy path pending REF-029",
-      "exit_condition": "REF-029 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade",
+      "exit_condition": "REF-034 confirms external consumers have migrated"
     },
     "identity": {
       "target": "app.identity",
@@ -660,8 +636,8 @@
         "production": [
           "app/api/runtime_dependencies.py",
           "app/manufacturing/enterprise_data.py",
-          "app/execution_store.py",
           "app/model_registry.py",
+          "app/persistence/execution_store.py",
           "app/rag.py",
           "app/runtime_status.py",
           "app/sessions.py"
@@ -821,7 +797,7 @@
         "production": [
           "app/agent_runtime/compatibility.py",
           "app/api/runtime_dependencies.py",
-          "app/database.py"
+          "app/persistence/database.py"
         ],
         "scripts": [
           "scripts/prepare_ci_data.py",

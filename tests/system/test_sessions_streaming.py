@@ -15,8 +15,8 @@ isolated_system_environment()
 from fastapi.testclient import TestClient
 
 from app.audit import read_events
-from app.database import db_session
-from app.execution_store import persist_execution_plan, recover_interrupted_executions, start_run_record, start_tool_event
+from app.persistence.database import db_session
+from app.persistence.execution_store import persist_execution_plan, recover_interrupted_executions, start_run_record, start_tool_event
 from app.main import app
 from app.manufacturing.seed import seed_reference_data
 from app.sessions import append_message, record_agent_result

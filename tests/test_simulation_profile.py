@@ -10,8 +10,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app import seed
-from app.database import db_session, initialize, validate_department_databases
-from app.department_schemas import SCHEMA_VERSION
+from app.persistence.database import db_session, initialize, validate_department_databases
+from app.persistence.department_schemas import SCHEMA_VERSION
 
 
 class SimulationProfileTests(unittest.TestCase):
