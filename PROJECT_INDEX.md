@@ -2,8 +2,8 @@
 
 - 分类：agents
 - 简述：24个月多制程虚拟 FAB、传感器/设备状态/Wafer Map、历史会话、知识/案例双来源 RAG 与 DeepSeek 流式数据分析 Agent。
-- 主要入口：`app/main.py`, `app/agent.py`, `app/agent_tools.py`, `app/model_streaming.py`, `app/intent_router.py`, `app/manufacturing/playbooks.py`, `app/persistence/database.py`, `app/planner.py`, `app/loop_guard.py`, `run.sh`, `run.bat`；`app/domain_playbooks.py`、`app/database.py`、`app/department_schemas.py` 与 `app/execution_store.py` 保留兼容入口
-- 关键目录：`app/`, `app/manufacturing/`, `app/persistence/`, `app/static/`, `knowledge/`, `cases/`, `evaluations/`, `scripts/`, `data/`, `tests/`
+- 主要入口：`app/main.py`, `app/agent.py`, `app/agent_tools.py`, `app/model_streaming.py`, `app/intent_router.py`, `app/manufacturing/playbooks.py`, `app/persistence/database.py`, `app/telemetry/audit.py`, `app/planner.py`, `app/loop_guard.py`, `run.sh`, `run.bat`；`app/domain_playbooks.py`、`app/database.py`、`app/department_schemas.py`、`app/execution_store.py`、`app/audit.py`、`app/observability.py` 与 `app/runtime_status.py` 保留兼容入口
+- 关键目录：`app/`, `app/manufacturing/`, `app/persistence/`, `app/telemetry/`, `app/static/`, `knowledge/`, `cases/`, `evaluations/`, `scripts/`, `data/`, `tests/`
 - 环境变量：`DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL`, `FAB_DATABASE_PATH`, `FAB_DATABASE_DIR`, `API_TIMEOUT_MS`, `AGENT_LOG_PATH`, `AGENT_RUN_LOG_DIR`, `AGENT_LOG_MAX_BYTES`, `AGENT_LOG_BACKUP_COUNT`
 - 本地产物：`data/fab_history.db`, `data/departments/*.db`, `backups/databases/`, `logs/agent_events.jsonl*`, `logs/agent/YYYY-MM-DD/<run_id>.jsonl`, `__pycache__/`
 - 检索关键词：semiconductor, fab report, DeepSeek, agent, agent loop guard, tool budget, duplicate call detection, intent router, domain playbook, structured planner, RAG, SQLite, FTS5 trigram, knowledge base, historical cases, yield, Cpk, equipment health

@@ -60,7 +60,10 @@
     "app.manufacturing.seed": "manufacturing.seed",
     "app.persistence.database": "persistence.database",
     "app.persistence.department_schemas": "persistence.department_schemas",
-    "app.persistence.execution_store": "persistence.execution_store"
+    "app.persistence.execution_store": "persistence.execution_store",
+    "app.telemetry.audit": "telemetry.audit",
+    "app.telemetry.http": "telemetry.http",
+    "app.telemetry.runtime_status": "telemetry.runtime_status"
   },
   "allowed_domain_dependencies": {
     "agent_runtime": [
@@ -195,10 +198,10 @@
       "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
     },
     {
-      "source": "app.audit",
+      "source": "app.telemetry.audit",
       "target": "app.config",
-      "reason": "existing app.audit compatibility implementation consumes the configuration facade before its scheduled migration",
-      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+      "reason": "canonical audit telemetry resolves the project log configuration anchor",
+      "exit_condition": "REF-034 reviews retention or removal of the telemetry-to-configuration anchor"
     },
     {
       "source": "app.persistence.database",
@@ -232,9 +235,9 @@
     },
     {
       "source": "app.identity",
-      "target": "app.audit",
-      "reason": "existing app.identity compatibility implementation consumes the telemetry facade before its scheduled migration",
-      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+      "target": "app.telemetry.audit",
+      "reason": "identity resolves the canonical request correlation context",
+      "exit_condition": "REF-034 reviews retention or removal of the identity-to-telemetry request-context dependency"
     },
     {
       "source": "app.identity",
@@ -255,16 +258,16 @@
       "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
     },
     {
-      "source": "app.observability",
+      "source": "app.telemetry.http",
       "target": "app.config",
-      "reason": "existing app.observability compatibility implementation consumes the configuration facade before its scheduled migration",
-      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+      "reason": "canonical HTTP telemetry resolves the project settings anchor",
+      "exit_condition": "REF-034 reviews retention or removal of the HTTP telemetry-to-configuration anchor"
     },
     {
       "source": "app.personal_knowledge",
-      "target": "app.audit",
-      "reason": "existing app.personal_knowledge compatibility implementation consumes the telemetry facade before its scheduled migration",
-      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+      "target": "app.telemetry.audit",
+      "reason": "personal knowledge emits through the canonical telemetry boundary",
+      "exit_condition": "REF-034 reviews retention or removal of the personal-knowledge-to-telemetry audit dependency"
     },
     {
       "source": "app.personal_knowledge",
@@ -309,10 +312,10 @@
       "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
     },
     {
-      "source": "app.runtime_status",
+      "source": "app.telemetry.runtime_status",
       "target": "app.identity",
-      "reason": "existing app.runtime_status compatibility implementation consumes the identity facade before its scheduled migration",
-      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+      "reason": "canonical runtime telemetry reads the identity principal contract",
+      "exit_condition": "REF-034 reviews retention or removal of the runtime-telemetry-to-identity dependency"
     },
     {
       "source": "app.manufacturing.seed",
@@ -436,24 +439,12 @@
       "target": "telemetry/audit.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/agent_runtime/compatibility.py",
-          "app/agent_runtime/preparation/context.py",
-          "app/api/runtime_dependencies.py",
-          "app/identity.py",
-          "app/observability.py",
-          "app/personal_knowledge.py"
-        ],
+        "production": [],
         "scripts": [],
-        "tests": [
-          "tests/system/test_http_contracts.py",
-          "tests/system/test_model_governance.py",
-          "tests/system/test_sessions_streaming.py",
-          "tests/test_audit_policy.py"
-        ]
+        "tests": ["tests/test_telemetry_module_boundaries.py"]
       },
-      "compatibility": "internal telemetry path pending REF-030",
-      "exit_condition": "REF-030 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade",
+      "exit_condition": "REF-034 confirms external consumers have migrated"
     },
     "config": {
       "target": "app.config",
@@ -462,12 +453,12 @@
         "production": [
           "app/agent_runtime/compatibility.py",
           "app/api/runtime_dependencies.py",
-          "app/audit.py",
           "app/persistence/database.py",
           "app/manufacturing/enterprise_data.py",
           "app/identity.py",
           "app/model_registry.py",
-          "app/observability.py",
+          "app/telemetry/audit.py",
+          "app/telemetry/http.py",
           "app/personal_knowledge.py",
           "app/rag.py",
           "app/manufacturing/seed.py"
@@ -639,7 +630,7 @@
           "app/model_registry.py",
           "app/persistence/execution_store.py",
           "app/rag.py",
-          "app/runtime_status.py",
+          "app/telemetry/runtime_status.py",
           "app/sessions.py"
         ],
         "scripts": [],
@@ -831,16 +822,12 @@
       "target": "telemetry/http.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/api/runtime_dependencies.py"
-        ],
+        "production": [],
         "scripts": [],
-        "tests": [
-          "tests/test_api_runtime_boundaries.py"
-        ]
+        "tests": ["tests/test_telemetry_module_boundaries.py"]
       },
-      "compatibility": "internal legacy path pending REF-030",
-      "exit_condition": "REF-030 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade",
+      "exit_condition": "REF-034 confirms external consumers have migrated"
     },
     "ocr": {
       "target": "knowledge/ocr.py",
@@ -996,14 +983,12 @@
       "target": "telemetry/runtime_status.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/api/runtime_dependencies.py"
-        ],
+        "production": [],
         "scripts": [],
-        "tests": []
+        "tests": ["tests/test_telemetry_module_boundaries.py"]
       },
-      "compatibility": "internal legacy path pending REF-030",
-      "exit_condition": "REF-030 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade",
+      "exit_condition": "REF-034 confirms external consumers have migrated"
     },
     "seed": {
       "target": "manufacturing/seed.py",

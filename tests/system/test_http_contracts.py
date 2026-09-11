@@ -11,7 +11,7 @@ isolated_system_environment()
 
 from fastapi.testclient import TestClient
 
-from app.audit import sanitize
+from app.telemetry.audit import sanitize
 from app.config import APP_VERSION
 from app.main import app
 from app.manufacturing.seed import seed_reference_data

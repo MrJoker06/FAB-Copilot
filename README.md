@@ -53,6 +53,8 @@ DATA-016 的版本化市场校准档案为 `public-2026-market-anchors-v1`：
 
 SQLite 连接、部门 Schema 与执行记录的 canonical 实现在 `app/persistence/`；`app.database`、`app.department_schemas` 和 `app.execution_store` 保留为兼容入口，数据库文件位置、Journal、ATTACH/TEMP VIEW、FTS 与迁移行为不变。
 
+审计、HTTP 请求遥测和运行状态的 canonical 实现在 `app/telemetry/`；`app.audit`、`app.observability` 和 `app.runtime_status` 保留为兼容入口，日志结构、脱敏策略、请求关联和运行状态行为不变。
+
 默认 Route 包含 18 个重复模块节点，覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗和量测。`simulation_scenarios` 保存评测根因，但不在 SQL 白名单和 Agent 工具中。
 
 ## 快速启动
@@ -408,12 +410,15 @@ app/
   intent_router.py  确定性问题分类、范围抽取与风险路由
   manufacturing/       制程定义、六类 Playbook、报表、模拟 Provider 与种子数据
   persistence/         SQLite 连接、部门 Schema、迁移与执行记录
+  telemetry/           审计日志、HTTP 请求遥测与运行状态
   domain_playbooks.py  manufacturing/playbooks.py 的兼容入口
   planner.py    结构化工具计划、参数绑定、依赖与运行时预算策略
   loop_guard.py 工具预算、重复调用检测、证据进展与可解释终止
   reports.py    manufacturing/reports.py 的兼容入口
   rag.py        FTS5 trigram 知识与案例联合检索
-  audit.py      脱敏结构化日志、轮转和监控汇总
+  audit.py      telemetry/audit.py 的兼容入口
+  observability.py telemetry/http.py 的兼容入口
+  runtime_status.py telemetry/runtime_status.py 的兼容入口
   seed.py       manufacturing/seed.py 的兼容 CLI 入口
   static/       报表与 Agent 前端
 knowledge/      虚拟厂内 SOP / 控制计划

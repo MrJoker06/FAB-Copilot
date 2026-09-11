@@ -15,7 +15,7 @@ from ...context_resolver import (
     ContextPayloadValidationError,
     validate_contextualizer_payload,
 )
-from ...audit import content_fingerprint
+from ...telemetry.audit import content_fingerprint
 
 
 class ContextProtocolError(ValueError):

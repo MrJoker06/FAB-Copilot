@@ -2,13 +2,13 @@
 
 状态基线：`experiment/parallel-platform`，2026-09-11。
 
-当前统计：共 215 个独立任务，已完成 166 个，待做 49 个。
+当前统计：共 215 个独立任务，已完成 167 个，待做 48 个。
 
 另有 4 项 `OPTIONAL` 可选候选，不计入上述主统计。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
-当前结论：`REF-029` 已完成存储基础归档与兼容入口验收；下一项为 `REF-030`。剩余 49 项中，当前队列 5 项、用户暂缓 2 项（`QA-010` 远程 Live、`UX-029` 移动端）、企业级暂缓 42 项；另有 4 项 `OPTIONAL` 候选保持不排期，详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
+当前结论：`REF-030` 已完成遥测领域归档与兼容入口验收；下一项为 `REF-031`。剩余 48 项中，当前队列 4 项、用户暂缓 2 项（`QA-010` 远程 Live、`UX-029` 移动端）、企业级暂缓 42 项；另有 4 项 `OPTIONAL` 候选保持不排期，详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
 
 ## 标记规则
 
@@ -23,12 +23,12 @@
 
 | 类型 | 任务 | 当前结论 |
 |---|---|---|
-| 当前队列 | `REF-030` 至 `REF-034` | 按领域整理 app 目录；下一项为遥测领域归档 |
+| 当前队列 | `REF-031` 至 `REF-034` | 按领域整理 app 目录；下一项为模型访问归档 |
 | 用户暂缓 | `QA-010`、`UX-029` | 远程 Live 验收和移动端需求暂不进入当前队列 |
 | 企业级暂缓 | 42 项 | 等待身份提供方、真实数据接口、部署环境和运维边界明确 |
 | 可选候选 | `RAG-024`、`AGENT-039`、`REF-025`、`REF-026` `OPTIONAL` | 不计入主统计，只在用户明确激活后排期 |
 
-最近一次完整质量门为 2026-09-11 `REF-029` 宿主 full：545 个 Python 发现项、477/477 个非系统测试，系统数据、HTTP、知识、模型、会话均通过，墙钟 13.9949/16.0328/18.0166/20.5391/15.7600 秒（总计 84.3435 秒），全部预算通过；覆盖率 89%、Node 61/61、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、确定性 Playwright 17/17（41.0 秒）均通过，repository/boundary/refactor contract 检查通过，普通 full 的真实模型和外网调用均为 0。完整基线见 [测试策略](docs/testing-strategy.md)。
+最近一次完整质量门为 2026-09-11 `REF-030` 宿主 full：550 个 Python 发现项、482/482 个非系统测试，系统数据、HTTP、知识、模型、会话均通过，墙钟 22.5104/18.3244/21.1528/33.3641/78.3291 秒（总计 173.6810 秒）；会话组墙钟触发 50 秒 warning（测试体 10 项、2.983 秒），未猜测原因，其余预算及总计均通过。覆盖率 89%、Node 61/61、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、确定性 Playwright 17/17（58.4 秒）均通过，repository/boundary/refactor contract 检查通过，普通 full 的真实模型和外网调用均为 0。完整基线见 [测试策略](docs/testing-strategy.md)。
 
 ## 工作流清单
 
@@ -43,7 +43,7 @@
 | 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 桌面端关键工作流、无障碍治理和视觉回归已完成；移动端 `UX-029` 由用户暂缓 |
 | 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接、运行快照治理和受保护的远程 CI 质量门已完成；其余项均为企业级暂缓 |
 | 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 至 QA-009 已完成；QA-010 本地完整 Live 通过、远程验收暂缓 |
-| 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 至 REF-024、REF-027 至 REF-029 已完成；REF-030 至 REF-034 已批准待做；`REF-025`、`REF-026` 仍为 `OPTIONAL` |
+| 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 至 REF-024、REF-027 至 REF-030 已完成；REF-031 至 REF-034 已批准待做；`REF-025`、`REF-026` 仍为 `OPTIONAL` |
 
 ## 更新要求
 

@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
-from .audit import emit
+from .telemetry.audit import emit
 from .config import get_settings
 from .persistence.database import db_session
 from .ocr import extract_image_result

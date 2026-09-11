@@ -17,7 +17,7 @@ isolated_system_environment()
 
 from fastapi.testclient import TestClient
 
-from app.audit import sanitize
+from app.telemetry.audit import sanitize
 from app import agent as agent_module
 from app.config import ModelConnection, get_settings
 from app.persistence.database import db_session

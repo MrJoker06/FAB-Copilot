@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
-from app import audit
+from app.telemetry import audit
 
 
 NOW = datetime(2026, 8, 20, 8, 0, tzinfo=timezone.utc)

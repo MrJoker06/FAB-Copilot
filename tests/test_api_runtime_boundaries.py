@@ -19,7 +19,7 @@ from app.api.errors import ErrorDependencies, handlers
 from app.api import schemas
 from app.api.schemas import ChatRequest, StreamTelemetryRequest
 from app.identity import PrincipalContextMiddleware
-from app.observability import RequestAuditMiddleware
+from app.telemetry.http import RequestAuditMiddleware
 
 
 class ApiRuntimeBoundaryTests(unittest.TestCase):

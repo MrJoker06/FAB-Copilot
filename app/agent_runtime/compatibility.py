@@ -84,7 +84,7 @@ from ..answer_synthesizer import (
     synthesizer_system_message,
 )
 from ..assistant_capabilities import build_meta_response
-from ..audit import content_fingerprint, emit
+from ..telemetry.audit import content_fingerprint, emit
 from ..config import Settings, get_settings
 from ..context_resolver import (
     CONTEXTUALIZER_RESPONSE_FORMAT,

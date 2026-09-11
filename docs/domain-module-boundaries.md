@@ -15,7 +15,7 @@
 | `rag`, `knowledge_decision`, `ocr`, `ocr_quality` | `knowledge/` | 知识/上传、OCR、RAG 评测；REF-033 验证 OCR 外部模型资源定位后退役 |
 | `processes`, `domain_playbooks`, `reports`, `enterprise_data`, `seed` | `manufacturing/` | 实现迁入 `manufacturing/`；旧入口保留为兼容门面，`python -m app.seed` CLI 行为保持 |
 | `database`, `department_schemas`, `execution_store` | `persistence/` | SQLite 服务、管理脚本和系统 fixture；REF-029 已迁入，旧入口保留至 REF-034，数据库路径、事务和脚本不变 |
-| `audit`, `observability`, `runtime_status` | `telemetry/` | API、运行状态和审计测试；REF-030 保持日志/Trace 契约后退役 |
+| `audit`, `observability`, `runtime_status` | `telemetry/` | 实现迁入 `telemetry/`；旧入口保留为兼容门面，日志、Trace、请求关联与运行状态契约不变 |
 | `intent_router`, `planner` | 已有运行时 facade | 领域模块、评测和私有 helper 测试；现有 facade patch/import 契约迁出后才评估 |
 
 清单中逐项登记的消费者用于迁移决定；执行 `conda run -n fab-insight-agent python

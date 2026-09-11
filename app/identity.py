@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from starlette.responses import JSONResponse
 
-from .audit import current_request_id
+from .telemetry.audit import current_request_id
 from .config import get_settings
 
 

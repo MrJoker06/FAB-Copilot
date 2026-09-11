@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 
 from ..agent import run_agent
-from ..audit import (
+from ..telemetry.audit import (
     GIT_COMMIT,
     current_request_id,
     emit,
@@ -32,7 +32,7 @@ from ..model_registry import (
     set_model_status,
     update_model_capabilities,
 )
-from ..observability import RequestAuditMiddleware
+from ..telemetry.http import RequestAuditMiddleware
 from ..personal_knowledge import (
     PersonalDocumentPatch,
     PersonalKnowledgeError,
@@ -60,7 +60,7 @@ from ..rag import (
     search_knowledge,
 )
 from ..manufacturing.reports import process_capability, report_bundle
-from ..runtime_status import admin_runtime_overview, begin_agent_run, finish_agent_run
+from ..telemetry.runtime_status import admin_runtime_overview, begin_agent_run, finish_agent_run
 from ..manufacturing.seed import generate_database, seed_reference_data
 from ..sessions import (
     append_message,
