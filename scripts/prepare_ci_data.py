@@ -11,7 +11,7 @@ if str(PROJECT_DIR) not in sys.path:
 
 from app.database import db_session, department_paths
 from app.model_registry import ensure_model_catalog
-from app.seed import main as seed_main
+from app.manufacturing.seed import main as seed_main
 from scripts import manage_databases
 
 

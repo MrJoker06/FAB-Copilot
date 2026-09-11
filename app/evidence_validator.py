@@ -5,7 +5,7 @@ import re
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
-from .domain_playbooks import DomainPlaybook
+from .manufacturing.playbooks import DomainPlaybook
 from .planner import ExecutionPlan, PlanStep
 from .evidence_semantics import EvidenceScope, descriptor_for_tool
 

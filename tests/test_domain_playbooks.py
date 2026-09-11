@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from app import agent as agent_module
-from app.domain_playbooks import DOMAIN_PLAYBOOKS, playbook_system_message, select_playbook
+from app.manufacturing.playbooks import DOMAIN_PLAYBOOKS, playbook_system_message, select_playbook
 from app.intent_router import route_question
 
 

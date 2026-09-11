@@ -27,7 +27,7 @@ CASE_FIELDS = {
 
 sys.path.insert(0, str(PROJECT_DIR))
 
-from app.domain_playbooks import DOMAIN_PLAYBOOKS, select_playbook  # noqa: E402
+from app.manufacturing.playbooks import DOMAIN_PLAYBOOKS, select_playbook  # noqa: E402
 from app.intent_router import route_question  # noqa: E402
 from app.planner import create_execution_plan  # noqa: E402
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from ..processes import MANUFACTURING_STEPS, PROCESS_ALIASES
+from ..manufacturing.processes import MANUFACTURING_STEPS, PROCESS_ALIASES
 from .contracts import ManufacturingScopeResolution
 from .rules import _FAB_SCOPE_PATTERN, _contains
 

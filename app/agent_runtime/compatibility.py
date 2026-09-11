@@ -96,7 +96,7 @@ from ..context_resolver import (
     unresolved_context,
 )
 from ..decision_arbiter import arbitrate_decision, recover_active_flow
-from ..domain_playbooks import (
+from ..manufacturing.playbooks import (
     PlaybookSelection,
     playbook_system_message,
     select_playbook,
@@ -142,8 +142,8 @@ from ..planner import (
     create_execution_plan,
     planner_system_message,
 )
-from ..processes import MANUFACTURING_STEPS
-from ..reports import equipment_health, fab_overview
+from ..manufacturing.processes import MANUFACTURING_STEPS
+from ..manufacturing.reports import equipment_health, fab_overview
 from ..turn_decision import TurnDecision, build_turn_decision
 
 SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的职责是基于工具返回的真实数据回答问题。

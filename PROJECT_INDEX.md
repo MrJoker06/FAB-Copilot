@@ -2,7 +2,7 @@
 
 - 分类：agents
 - 简述：24个月多制程虚拟 FAB、传感器/设备状态/Wafer Map、历史会话、知识/案例双来源 RAG 与 DeepSeek 流式数据分析 Agent。
-- 主要入口：`app/main.py`, `app/agent.py`, `app/agent_tools.py`, `app/model_streaming.py`, `app/intent_router.py`, `app/domain_playbooks.py`, `app/planner.py`, `app/loop_guard.py`, `run.sh`, `run.bat`
+- 主要入口：`app/main.py`, `app/agent.py`, `app/agent_tools.py`, `app/model_streaming.py`, `app/intent_router.py`, `app/manufacturing/playbooks.py`, `app/planner.py`, `app/loop_guard.py`, `run.sh`, `run.bat`；`app/domain_playbooks.py` 保留兼容入口
 - 关键目录：`app/`, `app/static/`, `knowledge/`, `cases/`, `evaluations/`, `scripts/`, `data/`, `tests/`
 - 环境变量：`DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL`, `FAB_DATABASE_PATH`, `FAB_DATABASE_DIR`, `API_TIMEOUT_MS`, `AGENT_LOG_PATH`, `AGENT_RUN_LOG_DIR`, `AGENT_LOG_MAX_BYTES`, `AGENT_LOG_BACKUP_COUNT`
 - 本地产物：`data/fab_history.db`, `data/departments/*.db`, `backups/databases/`, `logs/agent_events.jsonl*`, `logs/agent/YYYY-MM-DD/<run_id>.jsonl`, `__pycache__/`

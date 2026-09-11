@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from ...enterprise_data import (
+from ...manufacturing.enterprise_data import (
     enterprise_data_manifest,
     enterprise_fab_summary,
     query_enterprise_data,
 )
 from ...rag import search_agent_knowledge
-from ...reports import (
+from ...manufacturing.reports import (
     defect_pareto,
     equipment_health,
     equipment_productivity,

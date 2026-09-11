@@ -35,7 +35,7 @@ from .personal_knowledge_runtime.metadata import (
     _normalise_tags,
     parse_metadata,
 )
-from .processes import process_query_terms
+from .manufacturing.processes import process_query_terms
 
 PARSER_VERSION = "personal-v2-ocr"
 SUPPORTED_SUFFIXES = _storage.SUPPORTED_SUFFIXES

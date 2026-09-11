@@ -4,7 +4,7 @@ import re
 from typing import Any
 
 from ..intent_runtime.contracts import IntentRoute
-from ..processes import PROCESS_ALIASES
+from ..manufacturing.processes import PROCESS_ALIASES
 from .contracts import AnalysisScopeContract, ScopeRole
 
 

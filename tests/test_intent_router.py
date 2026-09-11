@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, patch
 
 from app import agent as agent_module
 from app.intent_router import apply_semantic_intent_hint, route_question, routing_system_message
-from app.processes import PROCESS_ALIASES
+from app.manufacturing.processes import PROCESS_ALIASES
 
 
 class IntentRouterTests(unittest.TestCase):

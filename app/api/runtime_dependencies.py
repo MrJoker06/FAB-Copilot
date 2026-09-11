@@ -14,7 +14,7 @@ from ..audit import (
 )
 from ..config import APP_VERSION, PROJECT_DIR, ModelConnection, get_settings
 from ..database import db_session, department_paths, ensure_department_databases
-from ..enterprise_data import EnterpriseDataError, get_enterprise_provider
+from ..manufacturing.enterprise_data import EnterpriseDataError, get_enterprise_provider
 from ..execution_store import (
     RunExecutionRecorder,
     get_run_audit,
@@ -51,7 +51,7 @@ from ..personal_knowledge import (
     search_personal_knowledge,
     update_personal_document,
 )
-from ..processes import MANUFACTURING_STEPS, PROCESS_STEP_PATTERN
+from ..manufacturing.processes import MANUFACTURING_STEPS, PROCESS_STEP_PATTERN
 from ..rag import (
     get_historical_case,
     get_knowledge_document,
@@ -59,9 +59,9 @@ from ..rag import (
     list_knowledge_documents,
     search_knowledge,
 )
-from ..reports import process_capability, report_bundle
+from ..manufacturing.reports import process_capability, report_bundle
 from ..runtime_status import admin_runtime_overview, begin_agent_run, finish_agent_run
-from ..seed import generate_database, seed_reference_data
+from ..manufacturing.seed import generate_database, seed_reference_data
 from ..sessions import (
     append_message,
     archive_session,

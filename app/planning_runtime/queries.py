@@ -5,7 +5,7 @@ from dataclasses import asdict
 from datetime import date, timedelta
 from typing import Any
 
-from ..domain_playbooks import DomainPlaybook, EvidenceRequirement
+from ..manufacturing.playbooks import DomainPlaybook, EvidenceRequirement
 from ..intent_runtime.contracts import IntentRoute
 
 _LOT_ID_PATTERN = re.compile(

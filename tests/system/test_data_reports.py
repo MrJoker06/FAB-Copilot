@@ -14,9 +14,9 @@ from tests.system.support import isolated_system_environment
 isolated_system_environment()
 
 from app.database import db_session, department_paths, initialize, sqlite_journal_mode
-from app.processes import MANUFACTURING_STEPS
-from app.reports import defect_pareto, equipment_health, equipment_productivity, process_capability, process_pass_rate, recent_excursions, report_bundle, timestamp_bounds
-from app.seed import MARKET_PROFILE, MARKET_PROFILE_ID, seed_reference_data
+from app.manufacturing.processes import MANUFACTURING_STEPS
+from app.manufacturing.reports import defect_pareto, equipment_health, equipment_productivity, process_capability, process_pass_rate, recent_excursions, report_bundle, timestamp_bounds
+from app.manufacturing.seed import MARKET_PROFILE, MARKET_PROFILE_ID, seed_reference_data
 
 class DataReportsSystemTests(unittest.TestCase):
     @classmethod

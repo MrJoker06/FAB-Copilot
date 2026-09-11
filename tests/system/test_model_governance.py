@@ -24,7 +24,7 @@ from app.database import db_session
 from app.main import app
 from app.model_compatibility import ModelCompatibilityError
 from app.model_registry import MODEL_CAPABILITY_DEFAULTS
-from app.seed import seed_reference_data
+from app.manufacturing.seed import seed_reference_data
 
 class ModelGovernanceSystemTests(unittest.TestCase):
     @classmethod

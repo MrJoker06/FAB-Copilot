@@ -13,7 +13,7 @@
 | `model_registry`, `model_compatibility`, `model_health`, `model_streaming` | `model_gateway/` | CI 数据、模型治理、Agent 和协议测试；REF-031 更新消费者后退役 |
 | `evidence_semantics`, `evidence_validator`, `answer_synthesizer` | `evidence/` | Validator、Synthesis、Ready 和回放；REF-033 更新消费者后退役 |
 | `rag`, `knowledge_decision`, `ocr`, `ocr_quality` | `knowledge/` | 知识/上传、OCR、RAG 评测；REF-033 验证 OCR 外部模型资源定位后退役 |
-| `processes`, `domain_playbooks`, `reports`, `enterprise_data`, `seed` | `manufacturing/` | Router、Planner、报表、模拟数据和 `python -m app.seed`；REF-028 保留 CLI 行为后退役 |
+| `processes`, `domain_playbooks`, `reports`, `enterprise_data`, `seed` | `manufacturing/` | 实现迁入 `manufacturing/`；旧入口保留为兼容门面，`python -m app.seed` CLI 行为保持 |
 | `database`, `department_schemas`, `execution_store` | `persistence/` | SQLite 服务、管理脚本和系统 fixture；REF-029 保持数据库路径、事务和脚本后退役 |
 | `audit`, `observability`, `runtime_status` | `telemetry/` | API、运行状态和审计测试；REF-030 保持日志/Trace 契约后退役 |
 | `intent_router`, `planner` | 已有运行时 facade | 领域模块、评测和私有 helper 测试；现有 facade patch/import 契约迁出后才评估 |

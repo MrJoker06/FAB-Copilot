@@ -1,0 +1,1 @@
+"""Canonical manufacturing-domain implementations."""

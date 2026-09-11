@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ...answer_synthesizer import SUBMIT_ANALYSIS_TOOL
-from ...processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS
+from ...manufacturing.processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS
 
 
 def _schema(properties: dict, required: list[str] | None = None) -> dict:

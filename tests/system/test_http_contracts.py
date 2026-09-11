@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from app.audit import sanitize
 from app.config import APP_VERSION
 from app.main import app
-from app.seed import seed_reference_data
+from app.manufacturing.seed import seed_reference_data
 
 class HttpContractsSystemTests(unittest.TestCase):
     @classmethod

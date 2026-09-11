@@ -16,7 +16,7 @@ from app.answer_synthesizer import (
     synthesize_legacy_answer,
     synthesize_submission,
 )
-from app.domain_playbooks import select_playbook
+from app.manufacturing.playbooks import select_playbook
 from app.evidence_validator import EvidenceObservation, validate_evidence
 from app.intent_router import route_question
 from app.planner import create_execution_plan

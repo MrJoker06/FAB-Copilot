@@ -49,7 +49,7 @@ DATA-016 的版本化市场校准档案为 `public-2026-market-anchors-v1`：
 - [TSMC 2025 Annual Report](https://investor.tsmc.com/static/annualReports/2025/english/index.html) 的 2026 年 12 吋约当晶圆出货量 `16–17m`、产能 `17–18m`，仅作为高利用率边界参考。
 - [UMC 2025 Q2 results](https://www.umc.com/en/News/press_release/Content/investor/20250730) 的 `76%` 产能利用率与 `22/28nm` 营收占比 `40%`，用于成熟/特殊制程的量级参考；本样例的 28nm 批次目标约为 40%。
 
-生成数据会写入制造库的单例 `simulation_metadata`，分类固定为 `synthetic_non_production`。默认固定生成至 `2026-12-25`（可通过 `FAB_SIMULATION_END_DATE` 或 `python -m app.seed --end-date YYYY-MM-DD` 覆盖）；`2026-08-11` 至 `2026-12-25` 是已声明的预测合成段，不是实际 fab 记录。良率、周期时间、recipe、规格、传感器、异常根因和每日 76–86% productive utilization 的设备差异均是工程假设，不应被表述为公开市场数据或真实量产事实。
+生成数据会写入制造库的单例 `simulation_metadata`，分类固定为 `synthetic_non_production`。默认固定生成至 `2026-12-25`（可通过 `FAB_SIMULATION_END_DATE` 或 `python -m app.seed --end-date YYYY-MM-DD` 覆盖；canonical 入口为 `python -m app.manufacturing.seed`）；`2026-08-11` 至 `2026-12-25` 是已声明的预测合成段，不是实际 fab 记录。良率、周期时间、recipe、规格、传感器、异常根因和每日 76–86% productive utilization 的设备差异均是工程假设，不应被表述为公开市场数据或真实量产事实。
 
 默认 Route 包含 18 个重复模块节点，覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗和量测。`simulation_scenarios` 保存评测根因，但不在 SQL 白名单和 Agent 工具中。
 
@@ -404,13 +404,14 @@ app/
   main.py       FastAPI 接口与静态站点
   agent.py      OpenAI Compatible 工具调用循环与系统约束
   intent_router.py  确定性问题分类、范围抽取与风险路由
-  domain_playbooks.py  五类版本化领域证据与回答契约
+  manufacturing/       制程定义、六类 Playbook、报表、模拟 Provider 与种子数据
+  domain_playbooks.py  manufacturing/playbooks.py 的兼容入口
   planner.py    结构化工具计划、参数绑定、依赖与运行时预算策略
   loop_guard.py 工具预算、重复调用检测、证据进展与可解释终止
-  reports.py    制造报表及只读 SQL 保护
+  reports.py    manufacturing/reports.py 的兼容入口
   rag.py        FTS5 trigram 知识与案例联合检索
   audit.py      脱敏结构化日志、轮转和监控汇总
-  seed.py       可复现历史数据生成器
+  seed.py       manufacturing/seed.py 的兼容 CLI 入口
   static/       报表与 Agent 前端
 knowledge/      虚拟厂内 SOP / 控制计划
 cases/          固定格式历史案例 JSON
@@ -423,4 +424,4 @@ logs/           Agent JSONL 审计日志（不提交）
 
 ## 接入真实 C# 系统
 
-保留当前 Agent 和前端，只需把 `app/reports.py` 的查询函数替换为 ASP.NET Core API、MCP 工具或 CLI 调用。工具输入输出结构可以保持不变，因此模型侧提示词和前端不必重写。生产接入时还应增加身份认证、行级数据权限、审计日志、查询成本限制和危险操作人工确认。
+保留当前 Agent 和前端，只需把 `app/manufacturing/reports.py` 的查询函数替换为 ASP.NET Core API、MCP 工具或 CLI 调用。工具输入输出结构可以保持不变，因此模型侧提示词和前端不必重写。生产接入时还应增加身份认证、行级数据权限、审计日志、查询成本限制和危险操作人工确认。

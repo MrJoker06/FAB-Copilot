@@ -7,7 +7,7 @@ from datetime import date
 from pydantic import BaseModel, Field, field_validator
 
 from ..ocr_quality import OCRObservation
-from ..processes import MANUFACTURING_STEPS
+from ..manufacturing.processes import MANUFACTURING_STEPS
 
 
 class PersonalKnowledgeError(Exception):

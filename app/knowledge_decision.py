@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from .processes import process_query_terms
+from .manufacturing.processes import process_query_terms
 
 RetrievalState = Literal[
     "GROUND_PERSONAL",
