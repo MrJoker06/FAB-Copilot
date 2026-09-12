@@ -83,10 +83,10 @@ from ..answer_synthesizer import (
     synthesize_submission,
     synthesizer_system_message,
 )
-from ..assistant_capabilities import build_meta_response
+from .assistant_capabilities import build_meta_response
 from ..telemetry.audit import content_fingerprint, emit
 from ..config import Settings, get_settings
-from ..context_resolver import (
+from ..conversation.context_resolver import (
     CONTEXTUALIZER_RESPONSE_FORMAT,
     ContextResolution,
     build_contextualizer_messages,
@@ -95,7 +95,7 @@ from ..context_resolver import (
     semantic_context_resolution,
     unresolved_context,
 )
-from ..decision_arbiter import arbitrate_decision, recover_active_flow
+from ..conversation.decision_arbiter import arbitrate_decision, recover_active_flow
 from ..manufacturing.playbooks import (
     PlaybookSelection,
     playbook_system_message,
@@ -120,7 +120,7 @@ from ..knowledge_decision import (
     rewrite_query,
     usable_result,
 )
-from ..loop_guard import ToolLoopGuard
+from .execution.loop_guard import ToolLoopGuard
 from ..model_gateway.compatibility import provider_request_options
 from ..model_gateway.health import (
     claim_model_call,
@@ -144,7 +144,7 @@ from ..planner import (
 )
 from ..manufacturing.processes import MANUFACTURING_STEPS
 from ..manufacturing.reports import equipment_health, fab_overview
-from ..turn_decision import TurnDecision, build_turn_decision
+from ..conversation.turn_decision import TurnDecision, build_turn_decision
 
 SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的职责是基于工具返回的真实数据回答问题。
 

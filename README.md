@@ -420,7 +420,8 @@ app/
   model_health.py      model_gateway/health.py 的兼容入口
   model_streaming.py   model_gateway/streaming.py 的兼容入口
   planner.py    结构化工具计划、参数绑定、依赖与运行时预算策略
-  loop_guard.py 工具预算、重复调用检测、证据进展与可解释终止
+  conversation/ 上下文解析、会话生命周期与 Turn/仲裁决策
+  agent_runtime/execution/loop_guard.py 工具预算、重复调用检测、证据进展与可解释终止（`loop_guard.py` 为兼容入口）
   reports.py    manufacturing/reports.py 的兼容入口
   rag.py        FTS5 trigram 知识与案例联合检索
   audit.py      telemetry/audit.py 的兼容入口

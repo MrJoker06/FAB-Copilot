@@ -10,7 +10,7 @@ from typing import Any
 
 from ...evidence_validator import EvidenceObservation
 from ...knowledge_decision import RetrievalDecision
-from ...loop_guard import ToolLoopGuard
+from ..execution.loop_guard import ToolLoopGuard
 
 
 @dataclass(slots=True)

@@ -21,17 +21,17 @@ from app.answer_synthesizer import (  # noqa: E402
     synthesize_legacy_answer,
     synthesize_submission,
 )
-from app.context_resolver import (  # noqa: E402
+from app.conversation.context_resolver import (  # noqa: E402
     semantic_context_resolution,
     unresolved_context,
 )
-from app.decision_arbiter import arbitrate_decision, recover_active_flow  # noqa: E402
+from app.conversation.decision_arbiter import arbitrate_decision, recover_active_flow  # noqa: E402
 from app.manufacturing.playbooks import select_playbook  # noqa: E402
 from app.evidence_validator import EvidenceObservation, validate_evidence  # noqa: E402
 from app.intent_router import INTENT_LABELS, route_question  # noqa: E402
 from app.knowledge_decision import required_scopes  # noqa: E402
 from app.planner import create_execution_plan  # noqa: E402
-from app.turn_decision import build_turn_decision  # noqa: E402
+from app.conversation.turn_decision import build_turn_decision  # noqa: E402
 
 
 _REQUIRED_EXPECTED_FIELDS = {

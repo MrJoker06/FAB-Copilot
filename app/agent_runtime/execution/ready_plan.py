@@ -8,7 +8,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from ...evidence_validator import EvidenceObservation
-from ...loop_guard import ToolLoopGuard
+from .loop_guard import ToolLoopGuard
 from ...planner import ExecutionPlan, PlanStep
 
 

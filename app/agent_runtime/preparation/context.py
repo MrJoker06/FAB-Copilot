@@ -11,7 +11,7 @@ from typing import Any, Awaitable, Callable
 import httpx
 
 from ..contracts import ContextStageResult
-from ...context_resolver import (
+from ...conversation.context_resolver import (
     ContextPayloadValidationError,
     validate_contextualizer_payload,
 )

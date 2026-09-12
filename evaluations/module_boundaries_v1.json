@@ -33,7 +33,7 @@
     "app.evidence_validator": "evidence.validator",
     "app.execution_store": "persistence.execution_store",
     "app.knowledge_decision": "knowledge.decision",
-    "app.loop_guard": "agent_runtime.loop_guard",
+    "app.loop_guard": "agent_runtime.execution.loop_guard",
     "app.model_compatibility": "model_gateway.compatibility",
     "app.model_health": "model_gateway.health",
     "app.model_registry": "model_gateway.registry",
@@ -67,7 +67,13 @@
     "app.model_gateway.registry": "model_gateway.registry",
     "app.model_gateway.compatibility": "model_gateway.compatibility",
     "app.model_gateway.health": "model_gateway.health",
-    "app.model_gateway.streaming": "model_gateway.streaming"
+    "app.model_gateway.streaming": "model_gateway.streaming",
+    "app.conversation.context_resolver": "conversation.context_resolver",
+    "app.conversation.turn_decision": "conversation.turn_decision",
+    "app.conversation.decision_arbiter": "conversation.decision_arbiter",
+    "app.conversation.sessions": "conversation.sessions",
+    "app.agent_runtime.assistant_capabilities": "agent_runtime.assistant_capabilities",
+    "app.agent_runtime.execution.loop_guard": "agent_runtime.execution.loop_guard"
   },
   "allowed_domain_dependencies": {
     "agent_runtime": [
@@ -148,7 +154,7 @@
       "app.agent_runtime.compatibility"
     ],
     "pure_modules": [
-      "app.assistant_capabilities",
+      "app.agent_runtime.assistant_capabilities",
       "app.department_schemas",
       "app.persistence.department_schemas",
       "app.evidence_semantics",
@@ -157,7 +163,8 @@
       "app.planning_runtime.contracts",
       "app.processes",
       "app.manufacturing.processes",
-      "app.turn_decision"
+      "app.turn_decision",
+      "app.conversation.turn_decision"
     ],
     "pure_forbidden_targets": [
       "app.database",
@@ -214,10 +221,10 @@
       "exit_condition": "project configuration anchor remains public"
     },
     {
-      "source": "app.decision_arbiter",
-      "target": "app.intent_router",
-      "reason": "existing app.decision_arbiter compatibility implementation consumes the intent_runtime facade before its scheduled migration",
-      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+      "source": "app.conversation.decision_arbiter",
+      "target": "app.intent_runtime",
+      "reason": "conversation arbitration consumes the deterministic typed routing contract and rules",
+      "exit_condition": "REF-034 reviews the final cross-domain routing contract boundary"
     },
     {
       "source": "app.manufacturing.enterprise_data",
@@ -328,10 +335,10 @@
       "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
     },
     {
-      "source": "app.sessions",
+      "source": "app.conversation.sessions",
       "target": "app.identity",
-      "reason": "existing app.sessions compatibility implementation consumes the identity facade before its scheduled migration",
-      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+      "reason": "canonical session lifecycle reads the public identity principal context",
+      "exit_condition": "REF-034 reviews retention or removal of the session-to-identity anchor"
     }
   ],
   "root_modules": {
@@ -428,16 +435,12 @@
       "target": "agent_runtime/assistant_capabilities.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/agent_runtime/compatibility.py"
-        ],
+        "production": [],
         "scripts": [],
-        "tests": [
-          "tests/test_turn_decision.py"
-        ]
+        "tests": ["tests/test_conversation_runtime_module_boundaries.py"]
       },
-      "compatibility": "internal capability contract pending REF-032",
-      "exit_condition": "REF-032 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade; internal consumers use agent_runtime",
+      "exit_condition": "REF-034 audits external capability imports"
     },
     "audit": {
       "target": "telemetry/audit.py",
@@ -484,23 +487,12 @@
       "target": "conversation/context_resolver.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/agent_runtime/compatibility.py",
-          "app/agent_runtime/preparation/context.py",
-          "app/decision_arbiter.py",
-          "app/model_gateway/compatibility.py"
-        ],
-        "scripts": [
-          "scripts/evaluate_trace_replay.py"
-        ],
-        "tests": [
-          "tests/test_agent_preparation_boundaries.py",
-          "tests/test_context_resolver.py",
-          "tests/test_turn_decision.py"
-        ]
+        "production": [],
+        "scripts": [],
+        "tests": ["tests/test_conversation_runtime_module_boundaries.py"]
       },
-      "compatibility": "internal legacy path pending REF-032",
-      "exit_condition": "REF-032 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade; internal consumers use conversation",
+      "exit_condition": "REF-034 audits external context resolver imports"
     },
     "database": {
       "target": "persistence/database.py",
@@ -520,18 +512,12 @@
       "target": "conversation/decision_arbiter.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/agent_runtime/compatibility.py"
-        ],
-        "scripts": [
-          "scripts/evaluate_trace_replay.py"
-        ],
-        "tests": [
-          "tests/test_turn_decision.py"
-        ]
+        "production": [],
+        "scripts": [],
+        "tests": ["tests/test_conversation_runtime_module_boundaries.py"]
       },
-      "compatibility": "internal legacy path pending REF-032",
-      "exit_condition": "REF-032 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade; internal consumers use conversation",
+      "exit_condition": "REF-034 audits external decision arbiter imports"
     },
     "department_schemas": {
       "target": "persistence/department_schemas.py",
@@ -635,7 +621,7 @@
           "app/persistence/execution_store.py",
           "app/rag.py",
           "app/telemetry/runtime_status.py",
-          "app/sessions.py"
+          "app/conversation/sessions.py"
         ],
         "scripts": [],
         "tests": [
@@ -650,8 +636,7 @@
       "consumers": {
         "patches": [],
         "production": [
-          "app/agent_runtime/compatibility.py",
-          "app/decision_arbiter.py"
+          "app/agent_runtime/compatibility.py"
         ],
         "scripts": [
           "scripts/evaluate_playbooks.py",
@@ -699,21 +684,12 @@
       "target": "agent_runtime/execution/loop_guard.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/agent_runtime/compatibility.py",
-          "app/agent_runtime/execution/ready_plan.py",
-          "app/agent_runtime/retrieval/general_knowledge.py"
-        ],
+        "production": [],
         "scripts": [],
-        "tests": [
-          "tests/test_agent_execution_boundaries.py",
-          "tests/test_agent_tool_runtime_boundaries.py",
-          "tests/test_loop_guard.py",
-          "tests/test_ready_plan_execution.py"
-        ]
+        "tests": ["tests/test_conversation_runtime_module_boundaries.py"]
       },
-      "compatibility": "internal legacy path pending REF-032",
-      "exit_condition": "REF-032 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade; internal consumers use agent_runtime.execution",
+      "exit_condition": "REF-034 audits external loop guard imports"
     },
     "main": {
       "target": "app.main",
@@ -896,8 +872,7 @@
         "production": [
           "app/agent_runtime/compatibility.py",
           "app/agent_runtime/execution/ready_plan.py",
-          "app/evidence_validator.py",
-          "app/loop_guard.py"
+          "app/evidence_validator.py"
         ],
         "scripts": [
           "scripts/evaluate_playbooks.py",
@@ -1001,34 +976,23 @@
       "target": "conversation/sessions.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/api/runtime_dependencies.py"
-        ],
+        "production": [],
         "scripts": [],
-        "tests": [
-          "tests/system/test_sessions_streaming.py"
-        ]
+        "tests": ["tests/test_conversation_runtime_module_boundaries.py"]
       },
-      "compatibility": "internal legacy path pending REF-032",
-      "exit_condition": "REF-032 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade; internal consumers use conversation",
+      "exit_condition": "REF-034 audits external session imports"
     },
     "turn_decision": {
       "target": "conversation/turn_decision.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/agent_runtime/compatibility.py",
-          "app/decision_arbiter.py"
-        ],
-        "scripts": [
-          "scripts/evaluate_trace_replay.py"
-        ],
-        "tests": [
-          "tests/test_turn_decision.py"
-        ]
+        "production": [],
+        "scripts": [],
+        "tests": ["tests/test_conversation_runtime_module_boundaries.py"]
       },
-      "compatibility": "internal legacy path pending REF-032",
-      "exit_condition": "REF-032 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade; internal consumers use conversation",
+      "exit_condition": "REF-034 audits external turn-decision imports"
     }
   }
 }

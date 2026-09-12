@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 
-from ..context_resolver import (
+from ..conversation.context_resolver import (
     CONTEXTUALIZER_RESPONSE_FORMAT,
     ContextPayloadValidationError,
     build_contextualizer_messages,

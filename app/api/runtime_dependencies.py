@@ -62,7 +62,7 @@ from ..rag import (
 from ..manufacturing.reports import process_capability, report_bundle
 from ..telemetry.runtime_status import admin_runtime_overview, begin_agent_run, finish_agent_run
 from ..manufacturing.seed import generate_database, seed_reference_data
-from ..sessions import (
+from ..conversation.sessions import (
     append_message,
     archive_session,
     cached_agent_result,

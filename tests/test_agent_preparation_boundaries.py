@@ -12,7 +12,7 @@ from app.agent_runtime.preparation.context import (
     ResolverDependencies,
     resolve_conversation_turn,
 )
-from app.context_resolver import unresolved_context
+from app.conversation.context_resolver import unresolved_context
 
 
 class AgentPreparationBoundaryTests(unittest.TestCase):

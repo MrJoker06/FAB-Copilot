@@ -162,7 +162,7 @@ class ModuleBoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             copied_app = Path(temporary) / "app"
             shutil.copytree(Path(__file__).resolve().parents[1] / "app", copied_app)
-            target = copied_app / "assistant_capabilities.py"
+            target = copied_app / "agent_runtime" / "assistant_capabilities.py"
             target.write_text(target.read_text(encoding="utf-8") + "\nfrom socket import socket\n", encoding="utf-8")
             errors = boundary_errors(copied_app, load_manifest())
         self.assertTrue(any("pure module imports forbidden socket" in error for error in errors))

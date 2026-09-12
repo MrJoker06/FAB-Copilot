@@ -3,11 +3,11 @@ import unittest
 import importlib
 from app.agent import TOOL_HANDLERS
 
-from app.assistant_capabilities import CAPABILITIES, build_meta_response, user_capabilities
-from app.turn_decision import TurnDecisionValidationError, build_turn_decision, validate_turn_actions
+from app.agent_runtime.assistant_capabilities import CAPABILITIES, build_meta_response, user_capabilities
+from app.conversation.turn_decision import TurnDecisionValidationError, build_turn_decision, validate_turn_actions
 from app.intent_router import route_question
-from app.context_resolver import semantic_context_resolution
-from app.decision_arbiter import arbitrate_decision, recover_active_flow
+from app.conversation.context_resolver import semantic_context_resolution
+from app.conversation.decision_arbiter import arbitrate_decision, recover_active_flow
 
 
 class TurnDecisionTests(unittest.TestCase):

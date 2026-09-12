@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 from app import agent as agent_module
 from app.answer_synthesizer import MODEL_KNOWLEDGE_REF
-from app.context_resolver import (
+from app.conversation.context_resolver import (
     build_contextualizer_messages,
     resolve_question_context,
     semantic_context_resolution,
