@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from app import agent as agent_module
 from app.manufacturing.playbooks import select_playbook
-from app.evidence_validator import EvidenceObservation, validate_evidence, validator_system_message
+from app.evidence.validator import EvidenceObservation, validate_evidence, validator_system_message
 from app.intent_router import route_question
 from app.planner import create_execution_plan
 from app.manufacturing.processes import MANUFACTURING_STEPS

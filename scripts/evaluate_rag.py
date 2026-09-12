@@ -7,7 +7,7 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_DIR))
 
-from app.rag import search_knowledge  # noqa: E402
+from app.knowledge.rag import search_knowledge  # noqa: E402
 from app.manufacturing.seed import seed_reference_data  # noqa: E402
 
 

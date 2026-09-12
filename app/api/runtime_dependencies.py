@@ -52,7 +52,7 @@ from ..personal_knowledge import (
     update_personal_document,
 )
 from ..manufacturing.processes import MANUFACTURING_STEPS, PROCESS_STEP_PATTERN
-from ..rag import (
+from ..knowledge.rag import (
     get_historical_case,
     get_knowledge_document,
     list_historical_cases,

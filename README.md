@@ -423,7 +423,8 @@ app/
   conversation/ 上下文解析、会话生命周期与 Turn/仲裁决策
   agent_runtime/execution/loop_guard.py 工具预算、重复调用检测、证据进展与可解释终止（`loop_guard.py` 为兼容入口）
   reports.py    manufacturing/reports.py 的兼容入口
-  rag.py        FTS5 trigram 知识与案例联合检索
+  knowledge/    FTS5 trigram 知识与案例联合检索、OCR 与检索决策（`rag.py`、`ocr.py`、`ocr_quality.py`、`knowledge_decision.py` 为兼容入口）
+  evidence/     证据语义、验证与答案综合（根路径模块为兼容入口）
   audit.py      telemetry/audit.py 的兼容入口
   observability.py telemetry/http.py 的兼容入口
   runtime_status.py telemetry/runtime_status.py 的兼容入口

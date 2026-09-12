@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ...answer_synthesizer import SUBMIT_ANALYSIS_TOOL
+from ...evidence.answer_synthesizer import SUBMIT_ANALYSIS_TOOL
 from ...manufacturing.processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS
 
 

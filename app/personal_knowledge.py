@@ -8,8 +8,8 @@ from types import SimpleNamespace
 from .telemetry.audit import emit
 from .config import get_settings
 from .persistence.database import db_session
-from .ocr import extract_image_result
-from .ocr_quality import POLICY_VERSION, evaluate_observations
+from .knowledge.ocr import extract_image_result
+from .knowledge.ocr_quality import POLICY_VERSION, evaluate_observations
 from .personal_knowledge_runtime import documents as _documents
 from .personal_knowledge_runtime import ingestion as _ingestion
 from .personal_knowledge_runtime import jobs as _jobs

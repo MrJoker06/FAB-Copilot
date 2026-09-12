@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from app.ocr import OCRResult
-from app.ocr_quality import OCRObservation, evaluate_observations
+from app.knowledge.ocr import OCRResult
+from app.knowledge.ocr_quality import OCRObservation, evaluate_observations
 
 
 def result(

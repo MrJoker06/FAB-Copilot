@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 from app import agent
-from app.evidence_validator import EvidenceObservation
+from app.evidence.validator import EvidenceObservation
 
 
 class _AllowingGuard:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.knowledge_decision import (
+from app.knowledge.decision import (
     assess_retrieval,
     knowledge_anchor_terms,
     required_scopes,
@@ -10,7 +10,7 @@ from app.knowledge_decision import (
     usable_result,
 )
 from app.personal_knowledge import _fts_query as personal_fts_query
-from app.rag import _tokenize_query
+from app.knowledge.rag import _tokenize_query
 
 
 def _source(reference_id: str, source_type: str, confidence: str = "medium") -> dict:

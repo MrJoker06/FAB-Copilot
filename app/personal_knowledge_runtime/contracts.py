@@ -6,7 +6,7 @@ from datetime import date
 
 from pydantic import BaseModel, Field, field_validator
 
-from ..ocr_quality import OCRObservation
+from ..knowledge.ocr_quality import OCRObservation
 from ..manufacturing.processes import MANUFACTURING_STEPS
 
 

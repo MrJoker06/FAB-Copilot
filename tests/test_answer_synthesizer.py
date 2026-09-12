@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from app import agent as agent_module
-from app.answer_synthesizer import (
+from app.evidence.answer_synthesizer import (
     MODEL_KNOWLEDGE_DISCLOSURE,
     MODEL_KNOWLEDGE_REF,
     REQUIRED_SECTIONS,
@@ -17,7 +17,7 @@ from app.answer_synthesizer import (
     synthesize_submission,
 )
 from app.manufacturing.playbooks import select_playbook
-from app.evidence_validator import EvidenceObservation, validate_evidence
+from app.evidence.validator import EvidenceObservation, validate_evidence
 from app.intent_router import route_question
 from app.planner import create_execution_plan
 

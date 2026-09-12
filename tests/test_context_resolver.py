@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from app import agent as agent_module
-from app.answer_synthesizer import MODEL_KNOWLEDGE_REF
+from app.evidence.answer_synthesizer import MODEL_KNOWLEDGE_REF
 from app.conversation.context_resolver import (
     build_contextualizer_messages,
     resolve_question_context,

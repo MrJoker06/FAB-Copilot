@@ -9,7 +9,7 @@ from ...manufacturing.enterprise_data import (
     enterprise_fab_summary,
     query_enterprise_data,
 )
-from ...rag import search_agent_knowledge
+from ...knowledge.rag import search_agent_knowledge
 from ...manufacturing.reports import (
     defect_pareto,
     equipment_health,

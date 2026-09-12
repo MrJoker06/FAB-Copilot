@@ -11,8 +11,8 @@
 | `agent_tools`, `assistant_capabilities`, `loop_guard` | `agent_runtime/` | 工具、Turn 与 Ready 测试；capabilities/guard 已在 REF-032 迁入 canonical，旧入口保留至 REF-034 审计 |
 | `context_resolver`, `decision_arbiter`, `sessions`, `turn_decision` | `conversation/` | Agent facade、重放、API chat 与会话测试；已在 REF-032 迁入 canonical，旧入口保留至 REF-034 审计 |
 | `model_registry`, `model_compatibility`, `model_health`, `model_streaming` | `model_gateway/` | 生产、脚本和非 health 测试已使用 canonical 路径；旧入口仅保留兼容边界测试及 `model_health.db_session` 必需 patch，REF-034 审计后退役 |
-| `evidence_semantics`, `evidence_validator`, `answer_synthesizer` | `evidence/` | Validator、Synthesis、Ready 和回放；REF-033 更新消费者后退役 |
-| `rag`, `knowledge_decision`, `ocr`, `ocr_quality` | `knowledge/` | 知识/上传、OCR、RAG 评测；REF-033 验证 OCR 外部模型资源定位后退役 |
+| `evidence_semantics`, `evidence_validator`, `answer_synthesizer` | `evidence/` | Validator、Synthesis、Ready 和回放已使用 canonical；旧入口保留至 REF-034 审计 |
+| `rag`, `knowledge_decision`, `ocr`, `ocr_quality` | `knowledge/` | 知识/上传、OCR、RAG 评测已使用 canonical；OCR 继续从 `rapidocr.__file__` 定位本地模型，旧入口保留至 REF-034 审计 |
 | `processes`, `domain_playbooks`, `reports`, `enterprise_data`, `seed` | `manufacturing/` | 实现迁入 `manufacturing/`；旧入口保留为兼容门面，`python -m app.seed` CLI 行为保持 |
 | `database`, `department_schemas`, `execution_store` | `persistence/` | SQLite 服务、管理脚本和系统 fixture；REF-029 已迁入，旧入口保留至 REF-034，数据库路径、事务和脚本不变 |
 | `audit`, `observability`, `runtime_status` | `telemetry/` | 实现迁入 `telemetry/`；旧入口保留为兼容门面，日志、Trace、请求关联与运行状态契约不变 |

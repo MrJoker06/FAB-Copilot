@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from app import agent as agent_module
 from app.persistence.database import db_session, get_active_defect_aliases, initialize, replace_defect_type_aliases
 from app.main import app
-from app.rag import _infer_filters, search_knowledge
+from app.knowledge.rag import _infer_filters, search_knowledge
 from app.manufacturing.reports import safe_select
 from app.manufacturing.seed import seed_reference_data
 
@@ -46,7 +46,7 @@ class KnowledgeUploadsSystemTests(unittest.TestCase):
             initialize(database_path)
             replace_defect_type_aliases("Pattern Collapse", ("pattern collapse", "图形倒塌"), database_path)
             aliases = get_active_defect_aliases(database_path)
-        with patch("app.rag.get_active_defect_aliases", return_value=aliases):
+        with patch("app.knowledge.rag.get_active_defect_aliases", return_value=aliases):
             filters = _infer_filters("光刻后出现图形倒塌", None, None, None)
         self.assertEqual(filters["defect_type"], "Pattern Collapse")
 
@@ -361,7 +361,7 @@ class KnowledgeUploadsSystemTests(unittest.TestCase):
 
     def test_personal_knowledge_low_quality_image_is_not_indexed(self):
         from PIL import Image
-        from app.ocr import OCRResult
+        from app.knowledge.ocr import OCRResult
 
         buffer = io.BytesIO()
         Image.new("RGB", (80, 40), "white").save(buffer, "PNG")

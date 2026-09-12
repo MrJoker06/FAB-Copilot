@@ -8,8 +8,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
-from ...evidence_validator import EvidenceObservation
-from ...knowledge_decision import RetrievalDecision
+from ...evidence.validator import EvidenceObservation
+from ...knowledge.decision import RetrievalDecision
 from ..execution.loop_guard import ToolLoopGuard
 
 

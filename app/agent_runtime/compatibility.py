@@ -73,7 +73,7 @@ from .tools.executor import (
     execute_registered_tool as _execute_registered_tool_runtime,
     parse_tool_arguments as _parse_tool_arguments_runtime,
 )
-from ..answer_synthesizer import (
+from ..evidence.answer_synthesizer import (
     MODEL_KNOWLEDGE_DISCLOSURE,
     MODEL_KNOWLEDGE_REF,
     SUBMIT_ANALYSIS_TOOL,
@@ -101,7 +101,7 @@ from ..manufacturing.playbooks import (
     playbook_system_message,
     select_playbook,
 )
-from ..evidence_validator import (
+from ..evidence.validator import (
     EvidenceObservation,
     validate_evidence,
     validator_system_message,
@@ -112,7 +112,7 @@ from ..intent_router import (
     route_question,
     routing_system_message,
 )
-from ..knowledge_decision import (
+from ..knowledge.decision import (
     RetrievalDecision,
     assess_retrieval,
     required_scopes,

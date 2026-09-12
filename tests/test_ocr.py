@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from PIL import Image, ImageDraw
-from app.ocr import (
+from app.knowledge.ocr import (
     OCRFailedError,
     OCRUnavailableError,
     extract_image_result,
@@ -54,7 +54,7 @@ class OfflineOCRTests(unittest.TestCase):
     def test_adapter_maps_engine_failures(self):
         with self.assertRaises(OCRFailedError):
             extract_image_text(object(), engine=lambda _: (_ for _ in ()).throw(ValueError("bad")))
-        with patch("app.ocr.get_ocr_engine", side_effect=OCRUnavailableError("missing")):
+        with patch("app.knowledge.ocr.get_ocr_engine", side_effect=OCRUnavailableError("missing")):
             with self.assertRaises(OCRUnavailableError):
                 extract_image_text(object())
 
@@ -74,7 +74,7 @@ class OfflineOCRTests(unittest.TestCase):
                 active -= 1
             return output
 
-        with patch("app.ocr._engine", engine):
+        with patch("app.knowledge.ocr._engine", engine):
             threads = [threading.Thread(target=extract_image_text, args=(object(),)) for _ in range(4)]
             for thread in threads:
                 thread.start()

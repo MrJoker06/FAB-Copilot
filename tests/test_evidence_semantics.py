@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.evidence_semantics import (
+from app.evidence.semantics import (
     EvidenceDescriptor, EvidenceScope, ScopeRelation, descriptor_for_tool,
     scope_relation, supports_claim,
 )

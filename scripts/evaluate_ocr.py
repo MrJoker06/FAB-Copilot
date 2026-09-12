@@ -11,8 +11,8 @@ from typing import Any
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_DIR))
 
-from app.ocr import extract_image_result
-from app.ocr_quality import POLICY_VERSION
+from app.knowledge.ocr import extract_image_result
+from app.knowledge.ocr_quality import POLICY_VERSION
 from app.personal_knowledge import _extract_sections
 
 ROOT = PROJECT_DIR / "evaluations" / "ocr_samples"

@@ -159,7 +159,7 @@ app/
 - [x] `REF-030` 遥测领域归档：`audit`、`observability`、`runtime_status` 已机械迁入 `app/telemetry/{audit,http,runtime_status}.py`，旧入口为薄兼容门面并共享 ContextVar、logger/handler、锁和运行状态；请求 ID、脱敏、完整日志策略及到期回退、日志路径、事件/Trace 字段、取消/finally 与运行状态不变。审计策略、HTTP 生命周期、Trace 回放、监控响应和 import 顺序均经验证，未改变日志结构。
 - [x] `REF-031` 模型访问归档：registry、compatibility、health、streaming 的唯一实现已迁入 `app/model_gateway/`，生产、脚本和非 health 测试使用 canonical 导入；旧入口保留兼容门面。管理员显式配置与主动探针、Thinking 策略、解析、重试、熔断和恢复租约不变；类型、异常和非 health 函数对象身份保持，health 的旧/新公共 wrapper 为刻意独立函数但签名一致，`app.model_health.db_session` 的必需 live patch 继续按调用生效。导入顺序不探测 Provider；不自动联网判断能力，不更改 Provider 协议。
 - [x] `REF-032` 会话与运行时归档：`context_resolver`、`turn_decision`、`decision_arbiter`、`sessions` 的唯一实现已机械迁入 `app/conversation/`；`assistant_capabilities` 迁入 `app/agent_runtime/`，`loop_guard` 迁入 `app/agent_runtime/execution/`，旧入口保留兼容门面。原问题与补全问题的来源、意图决策、消息 ID、幂等、历史回忆、归档/恢复/删除、预算和停止条件不变；旧/新入口的公开及私有导出身份保持，`MODULE:app.context_resolver` 冻结字面量保持。六个实现体忽略 import 后 AST 等价，15 个消费者仅更新导入；Context/Arbiter/Guard、Agent 准备、Session 流式系统测试和桌面会话旅程均已验证。
-- [ ] `REF-033` 知识与证据归档：迁移 RAG/OCR/知识决策与证据语义/验证/答案综合。保持 FTS 查询、ACL、Tag/排序/limit、OCR 质量门及模型资源定位、引用、声明守卫、降级和最终渲染。验证 RAG/OCR 黄金集、个人知识、证据/综合、Ready/Trace 回放和知识桌面旅程；不激活 REF-025、不重复个人知识运行时。
+- [x] `REF-033` 知识与证据归档：RAG/OCR/知识决策迁入 `app/knowledge/`，证据语义/验证/答案综合迁入 `app/evidence/`，旧入口保留薄兼容门面。FTS 查询、ACL、Tag/排序/limit、引用、声明守卫、降级和最终渲染不变；OCR 继续通过 `rapidocr.__file__` 定位本地 wheel 模型，单例/锁与个人知识 facade patch 保持。语义模块仍为纯边界，未激活 REF-025 或重复个人知识运行时；RAG/OCR 黄金集、证据/综合、Ready/Trace 回放和完整知识桌面旅程均通过。
 - [ ] `REF-034` 兼容入口退役与收口：依据 REF-027 清单删除满足条件的旧路径，清理内部旧导入、更新启动/架构文档和测试路径；验证完整依赖图、导入顺序、测试发现、服务启动与全量回归。必须保留的入口继续受契约测试保护，无法证明外部消费者已迁移的路径保留并说明退出条件。完成标准是可按领域找到唯一实现、边界有测试保护、剩余门面均有理由，不以根文件数或行数为硬指标。
 
 ### 兼容与依赖规则

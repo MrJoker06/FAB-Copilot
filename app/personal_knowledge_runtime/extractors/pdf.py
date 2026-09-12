@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-from ...ocr import OCRFailedError, OCRUnavailableError
-from ...ocr_quality import OCRObservation
+from ...knowledge.ocr import OCRFailedError, OCRUnavailableError
+from ...knowledge.ocr_quality import OCRObservation
 from ..contracts import ExtractedSection, PersonalKnowledgeError
 
 

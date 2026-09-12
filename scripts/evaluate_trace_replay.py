@@ -16,7 +16,7 @@ DEFAULT_DATASET = PROJECT_DIR / "evaluations" / "trace_replay_matrix.json"
 DEFAULT_REPORT = PROJECT_DIR / "runtime" / "quality" / "trace_replay_report.json"
 sys.path.insert(0, str(PROJECT_DIR))
 
-from app.answer_synthesizer import (  # noqa: E402
+from app.evidence.answer_synthesizer import (  # noqa: E402
     create_answer_contract,
     synthesize_legacy_answer,
     synthesize_submission,
@@ -27,9 +27,9 @@ from app.conversation.context_resolver import (  # noqa: E402
 )
 from app.conversation.decision_arbiter import arbitrate_decision, recover_active_flow  # noqa: E402
 from app.manufacturing.playbooks import select_playbook  # noqa: E402
-from app.evidence_validator import EvidenceObservation, validate_evidence  # noqa: E402
+from app.evidence.validator import EvidenceObservation, validate_evidence  # noqa: E402
 from app.intent_router import INTENT_LABELS, route_question  # noqa: E402
-from app.knowledge_decision import required_scopes  # noqa: E402
+from app.knowledge.decision import required_scopes  # noqa: E402
 from app.planner import create_execution_plan  # noqa: E402
 from app.conversation.turn_decision import build_turn_decision  # noqa: E402
 

@@ -73,7 +73,14 @@
     "app.conversation.decision_arbiter": "conversation.decision_arbiter",
     "app.conversation.sessions": "conversation.sessions",
     "app.agent_runtime.assistant_capabilities": "agent_runtime.assistant_capabilities",
-    "app.agent_runtime.execution.loop_guard": "agent_runtime.execution.loop_guard"
+    "app.agent_runtime.execution.loop_guard": "agent_runtime.execution.loop_guard",
+    "app.knowledge.rag": "knowledge.rag",
+    "app.knowledge.decision": "knowledge.decision",
+    "app.knowledge.ocr": "knowledge.ocr",
+    "app.knowledge.ocr_quality": "knowledge.ocr_quality",
+    "app.evidence.semantics": "evidence.semantics",
+    "app.evidence.validator": "evidence.validator",
+    "app.evidence.answer_synthesizer": "evidence.answer_synthesizer"
   },
   "allowed_domain_dependencies": {
     "agent_runtime": [
@@ -158,6 +165,7 @@
       "app.department_schemas",
       "app.persistence.department_schemas",
       "app.evidence_semantics",
+      "app.evidence.semantics",
       "app.intent_runtime.contracts",
       "app.intent_runtime.rules",
       "app.planning_runtime.contracts",
@@ -311,16 +319,16 @@
       "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
     },
     {
-      "source": "app.rag",
+      "source": "app.knowledge.rag",
       "target": "app.config",
-      "reason": "existing app.rag compatibility implementation consumes the configuration facade before its scheduled migration",
-      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+      "reason": "canonical knowledge RAG resolves the public configuration anchor",
+      "exit_condition": "REF-034 reviews retention of the knowledge-to-configuration anchor"
     },
     {
-      "source": "app.rag",
+      "source": "app.knowledge.rag",
       "target": "app.identity",
-      "reason": "existing app.rag compatibility implementation consumes the identity facade before its scheduled migration",
-      "exit_condition": "REF-028 through REF-033 migrate this concrete legacy import to its canonical domain boundary"
+      "reason": "canonical knowledge RAG resolves the public identity context",
+      "exit_condition": "REF-034 reviews retention of the knowledge-to-identity anchor"
     },
     {
       "source": "app.telemetry.runtime_status",
@@ -414,22 +422,12 @@
       "target": "evidence/answer_synthesizer.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/agent_runtime/compatibility.py",
-          "app/agent_runtime/tools/catalog.py"
-        ],
-        "scripts": [
-          "scripts/evaluate_ready_execution.py",
-          "scripts/evaluate_trace_replay.py"
-        ],
-        "tests": [
-          "tests/test_agent_synthesis_boundaries.py",
-          "tests/test_answer_synthesizer.py",
-          "tests/test_context_resolver.py"
-        ]
+        "production": [],
+        "scripts": [],
+        "tests": ["tests/test_knowledge_evidence_module_boundaries.py"]
       },
-      "compatibility": "internal legacy path pending REF-033",
-      "exit_condition": "REF-033 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade",
+      "exit_condition": "REF-034 audits external consumers"
     },
     "assistant_capabilities": {
       "target": "agent_runtime/assistant_capabilities.py",
@@ -467,7 +465,7 @@
           "app/telemetry/audit.py",
           "app/telemetry/http.py",
           "app/personal_knowledge.py",
-          "app/rag.py",
+          "app/knowledge/rag.py",
           "app/manufacturing/seed.py"
         ],
         "scripts": [
@@ -562,40 +560,23 @@
       "target": "evidence/semantics.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/answer_synthesizer.py",
-          "app/evidence_validator.py"
-        ],
+        "production": [],
         "scripts": [],
-        "tests": [
-          "tests/test_evidence_semantics.py"
-        ]
+        "tests": ["tests/test_knowledge_evidence_module_boundaries.py"]
       },
-      "compatibility": "internal legacy path pending REF-033",
-      "exit_condition": "REF-033 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade",
+      "exit_condition": "REF-034 audits external consumers"
     },
     "evidence_validator": {
       "target": "evidence/validator.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/agent_runtime/compatibility.py",
-          "app/agent_runtime/execution/ready_plan.py",
-          "app/agent_runtime/retrieval/general_knowledge.py",
-          "app/answer_synthesizer.py"
-        ],
-        "scripts": [
-          "scripts/evaluate_ready_execution.py",
-          "scripts/evaluate_trace_replay.py"
-        ],
-        "tests": [
-          "tests/test_agent_retrieval_boundaries.py",
-          "tests/test_answer_synthesizer.py",
-          "tests/test_evidence_validator.py"
-        ]
+        "production": [],
+        "scripts": [],
+        "tests": ["tests/test_knowledge_evidence_module_boundaries.py"]
       },
-      "compatibility": "internal legacy path pending REF-033",
-      "exit_condition": "REF-033 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade",
+      "exit_condition": "REF-034 audits external consumers"
     },
     "execution_store": {
       "target": "persistence/execution_store.py",
@@ -619,7 +600,7 @@
           "app/manufacturing/enterprise_data.py",
           "app/model_gateway/registry.py",
           "app/persistence/execution_store.py",
-          "app/rag.py",
+          "app/knowledge/rag.py",
           "app/telemetry/runtime_status.py",
           "app/conversation/sessions.py"
         ],
@@ -666,19 +647,12 @@
       "target": "knowledge/decision.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/agent_runtime/compatibility.py",
-          "app/agent_runtime/retrieval/general_knowledge.py"
-        ],
-        "scripts": [
-          "scripts/evaluate_trace_replay.py"
-        ],
-        "tests": [
-          "tests/test_knowledge_decision.py"
-        ]
+        "production": [],
+        "scripts": [],
+        "tests": ["tests/test_knowledge_evidence_module_boundaries.py"]
       },
-      "compatibility": "internal legacy path pending REF-033",
-      "exit_condition": "REF-033 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade",
+      "exit_condition": "REF-034 audits external consumers"
     },
     "loop_guard": {
       "target": "agent_runtime/execution/loop_guard.py",
@@ -795,46 +769,24 @@
     "ocr": {
       "target": "knowledge/ocr.py",
       "consumers": {
-        "patches": [
-          "tests/test_ocr.py"
-        ],
-        "production": [
-          "app/ocr_quality.py",
-          "app/personal_knowledge.py",
-          "app/personal_knowledge_runtime/extractors/image.py",
-          "app/personal_knowledge_runtime/extractors/pdf.py"
-        ],
-        "scripts": [
-          "scripts/evaluate_ocr.py"
-        ],
-        "tests": [
-          "tests/system/test_knowledge_uploads.py",
-          "tests/test_ocr.py",
-          "tests/test_ocr_quality.py"
-        ]
+        "patches": [],
+        "production": [],
+        "scripts": [],
+        "tests": ["tests/test_knowledge_evidence_module_boundaries.py"]
       },
-      "compatibility": "internal legacy path pending REF-033; uses rapidocr resource path",
-      "exit_condition": "REF-033 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade; canonical implementation resolves rapidocr wheel resources",
+      "exit_condition": "REF-034 audits external consumers"
     },
     "ocr_quality": {
       "target": "knowledge/ocr_quality.py",
       "consumers": {
         "patches": [],
-        "production": [
-          "app/personal_knowledge.py",
-          "app/personal_knowledge_runtime/contracts.py",
-          "app/personal_knowledge_runtime/extractors/image.py",
-          "app/personal_knowledge_runtime/extractors/pdf.py"
-        ],
-        "scripts": [
-          "scripts/evaluate_ocr.py"
-        ],
-        "tests": [
-          "tests/test_ocr_quality.py"
-        ]
+        "production": [],
+        "scripts": [],
+        "tests": ["tests/test_knowledge_evidence_module_boundaries.py"]
       },
-      "compatibility": "internal legacy path pending REF-033",
-      "exit_condition": "REF-033 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade",
+      "exit_condition": "REF-034 audits external consumers"
     },
     "personal_knowledge": {
       "target": "app.personal_knowledge",
@@ -849,7 +801,7 @@
           "app/api/routers/knowledge.py",
           "app/api/runtime_dependencies.py",
           "app/api/services/personal_job_events.py",
-          "app/rag.py"
+          "app/knowledge/rag.py"
         ],
         "scripts": [
           "scripts/evaluate_ocr.py"
@@ -871,8 +823,7 @@
         "patches": [],
         "production": [
           "app/agent_runtime/compatibility.py",
-          "app/agent_runtime/execution/ready_plan.py",
-          "app/evidence_validator.py"
+          "app/agent_runtime/execution/ready_plan.py"
         ],
         "scripts": [
           "scripts/evaluate_playbooks.py",
@@ -910,23 +861,13 @@
     "rag": {
       "target": "knowledge/rag.py",
       "consumers": {
-        "patches": [
-          "tests/system/test_knowledge_uploads.py"
-        ],
-        "production": [
-          "app/agent_runtime/tools/registry.py",
-          "app/api/runtime_dependencies.py"
-        ],
-        "scripts": [
-          "scripts/evaluate_rag.py"
-        ],
-        "tests": [
-          "tests/system/test_knowledge_uploads.py",
-          "tests/test_knowledge_decision.py"
-        ]
+        "patches": [],
+        "production": [],
+        "scripts": [],
+        "tests": ["tests/test_knowledge_evidence_module_boundaries.py"]
       },
-      "compatibility": "internal legacy path pending REF-033",
-      "exit_condition": "REF-033 migrates consumers and validates the compatibility contract"
+      "compatibility": "thin compatibility facade",
+      "exit_condition": "REF-034 audits external consumers"
     },
     "reports": {
       "target": "manufacturing/reports.py",
