@@ -28,8 +28,8 @@ CASE_FIELDS = {
 sys.path.insert(0, str(PROJECT_DIR))
 
 from app.manufacturing.playbooks import DOMAIN_PLAYBOOKS, select_playbook  # noqa: E402
-from app.intent_router import route_question  # noqa: E402
-from app.planner import create_execution_plan  # noqa: E402
+from app.intent_runtime.routing import route_question  # noqa: E402
+from app.planning_runtime.service import create_execution_plan  # noqa: E402
 
 
 def load_dataset(path: Path = DEFAULT_DATASET) -> dict[str, Any]:

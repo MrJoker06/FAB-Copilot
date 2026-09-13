@@ -24,8 +24,8 @@ from app.agent import (  # noqa: E402
 from app.evidence.answer_synthesizer import create_answer_contract, synthesizer_system_message  # noqa: E402
 from app.manufacturing.playbooks import playbook_system_message, select_playbook  # noqa: E402
 from app.evidence.validator import EvidenceObservation, validate_evidence, validator_system_message  # noqa: E402
-from app.intent_router import route_question, routing_system_message  # noqa: E402
-from app.planner import create_execution_plan, planner_system_message  # noqa: E402
+from app.intent_runtime.routing import route_question, routing_system_message  # noqa: E402
+from app.planning_runtime.service import create_execution_plan, planner_system_message  # noqa: E402
 
 
 def load_dataset(path: Path = DEFAULT_DATASET) -> dict[str, Any]:

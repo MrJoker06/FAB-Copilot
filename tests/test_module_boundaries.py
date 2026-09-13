@@ -9,6 +9,7 @@ from pathlib import Path
 from scripts.check_module_boundaries import (
     boundary_errors,
     consumer_inventory,
+    facade_inventory_errors,
     imported_modules,
     load_manifest,
 )
@@ -157,6 +158,97 @@ class ModuleBoundaryTests(unittest.TestCase):
         self.assertEqual(inventory["agent"]["tests"], ["tests/test_example.py"])
         self.assertEqual(inventory["agent"]["production"], ["app/worker.py"])
         self.assertEqual(inventory["main"]["patches"], ["tests/test_example.py"])
+
+    def test_internal_facade_policy_rejects_each_import_form_and_ignores_fixture_strings(self):
+        cases = (
+            ("production", "app/worker.py", "from . import legacy\n"),
+            ("scripts", "scripts/audit.py", "from app import legacy, missing\n"),
+            ("scripts", "scripts/dynamic.py", "from importlib import import_module as load\nload('.legacy', 'app')\n"),
+            ("scripts", "scripts/keyword.py", "import importlib as loader\nloader.import_module('.legacy', package='app')\n"),
+            ("production", "app/worker.py", "def load():\n    from importlib import import_module as loader\n    return loader('.legacy', 'app')\n"),
+            ("scripts", "scripts/function_dynamic.py", "def load():\n    from importlib import import_module as loader\n    return loader('.legacy', package='app')\n"),
+            ("tests", "tests/test_dynamic.py", "from importlib import import_module\nimport_module('app.legacy')\n"),
+        )
+        for bucket, relative, content in cases:
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                self.write_app(root, {"__init__.py": "", "legacy.py": "", "worker.py": ""})
+                target = root / relative
+                target.parent.mkdir(exist_ok=True)
+                target.write_text(content, encoding="utf-8")
+                manifest = self.manifest(root, ["legacy", "worker"])
+                manifest["policy"]["internal_facades"] = ["legacy"]
+                manifest["root_modules"]["legacy"]["consumers"] = {"production": [], "scripts": [], "tests": [], "patches": []}
+                inventory = consumer_inventory(root)
+                errors = facade_inventory_errors(root, manifest)
+                self.assertEqual(inventory["legacy"][bucket], [relative])
+                if bucket in {"production", "scripts"}:
+                    self.assertEqual(errors, ["internal facade has production or script consumers: legacy", "internal facade consumer inventory stale: legacy"])
+                else:
+                    self.assertEqual(errors, ["internal facade consumer inventory stale: legacy"])
+
+                if relative == "app/worker.py" and "import_module" in content:
+                    manifest["root_modules"]["legacy"]["consumers"]["production"] = [relative]
+                    self.assertEqual(
+                        facade_inventory_errors(root, manifest),
+                        ["internal facade has production or script consumers: legacy"],
+                    )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_app(root, {"__init__.py": "", "legacy.py": ""})
+            tests = root / "tests"
+            tests.mkdir()
+            (tests / "test_fixture.py").write_text('FIXTURE = "from app import legacy"\n', encoding="utf-8")
+            manifest = self.manifest(root, ["legacy"])
+            manifest["policy"]["internal_facades"] = ["legacy"]
+            manifest["root_modules"]["legacy"]["consumers"] = {"production": [], "scripts": [], "tests": [], "patches": []}
+            self.assertEqual(consumer_inventory(root)["legacy"]["tests"], [])
+            self.assertEqual(facade_inventory_errors(root, manifest), [])
+
+    def test_internal_facade_policy_rejects_malformed_and_missing_roots(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_app(root, {"__init__.py": "", "legacy.py": ""})
+            manifest = self.manifest(root, ["legacy"])
+            manifest["policy"]["internal_facades"] = "legacy"
+            malformed = facade_inventory_errors(root, manifest)
+            manifest["policy"]["internal_facades"] = ["missing"]
+            missing = facade_inventory_errors(root, manifest)
+        self.assertEqual(malformed, ["internal facade policy must be a list of non-empty root names"])
+        self.assertEqual(missing, ["internal facade policy missing root ownership: missing"])
+
+    def test_synthetic_policy_rejects_prior_facade_reintroduction(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_app(root, {"__init__.py": "", "rag.py": "", "compat.py": ""})
+            manifest = self.manifest(root, ["rag", "compat"])
+            manifest["policy"]["internal_facades"] = ["rag"]
+            manifest["root_modules"]["rag"]["consumers"] = {"production": [], "scripts": [], "tests": [], "patches": []}
+            self.assertEqual(facade_inventory_errors(root, manifest), [])
+            target = root / "app" / "compat.py"
+            target.write_text("from app import rag\n", encoding="utf-8")
+            self.assertEqual(consumer_inventory(root)["rag"]["production"], ["app/compat.py"])
+            self.assertEqual(
+                facade_inventory_errors(root, manifest),
+                ["internal facade has production or script consumers: rag", "internal facade consumer inventory stale: rag"],
+            )
+
+    def test_same_stem_nested_canonical_module_is_a_facade_consumer(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_app(root, {
+                "__init__.py": "", "rag.py": "", "knowledge/__init__.py": "",
+                "knowledge/rag.py": "from app import rag\n",
+            })
+            manifest = self.manifest(root, ["rag"])
+            manifest["policy"]["internal_facades"] = ["rag"]
+            manifest["root_modules"]["rag"]["consumers"] = {"production": [], "scripts": [], "tests": [], "patches": []}
+            self.assertEqual(consumer_inventory(root)["rag"]["production"], ["app/knowledge/rag.py"])
+            self.assertEqual(
+                facade_inventory_errors(root, manifest),
+                ["internal facade has production or script consumers: rag", "internal facade consumer inventory stale: rag"],
+            )
 
     def test_real_manifest_rejects_nested_pure_network_import(self):
         with tempfile.TemporaryDirectory() as temporary:

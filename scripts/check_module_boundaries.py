@@ -55,9 +55,16 @@ def imported_modules(path: Path, app_dir: Path) -> list[ImportEdge]:
     import_module_aliases: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
+            importlib_aliases.update(
+                alias.asname or alias.name for alias in node.names if alias.name == "importlib"
+            )
+        elif isinstance(node, ast.ImportFrom) and node.module == "importlib":
+            import_module_aliases.update(
+                alias.asname or alias.name for alias in node.names if alias.name == "import_module"
+            )
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.name == "importlib":
-                    importlib_aliases.add(alias.asname or alias.name)
                 add(alias.name, node.lineno)
         elif isinstance(node, ast.ImportFrom):
             target = resolve_relative(node.module, node.level) if node.level else node.module
@@ -70,10 +77,6 @@ def imported_modules(path: Path, app_dir: Path) -> list[ImportEdge]:
                     child_target = f"{target}.{alias.name}"
                     if is_app_module(child_target):
                         add(child_target, node.lineno)
-            if node.module == "importlib":
-                import_module_aliases.update(
-                    alias.asname or alias.name for alias in node.names if alias.name == "import_module"
-                )
         elif isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
             function = node.func
             is_import_module = (
@@ -229,24 +232,105 @@ def consumer_inventory(project_dir: Path = PROJECT_DIR) -> dict[str, dict[str, l
     roots = sorted(path.stem for path in (project_dir / "app").glob("*.py") if path.stem != "__init__")
     inventory = {name: {"production": [], "scripts": [], "tests": [], "patches": []} for name in roots}
     app_dir = project_dir / "app"
+    def literal_app_targets(path: Path) -> list[str]:
+        """Find absolute app imports in scripts/tests, including literal dynamics."""
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        targets: list[str] = []
+        importlib_aliases = {"importlib"}
+        import_module_aliases: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                importlib_aliases.update(
+                    alias.asname or alias.name for alias in node.names if alias.name == "importlib"
+                )
+            elif isinstance(node, ast.ImportFrom) and node.module == "importlib":
+                import_module_aliases.update(
+                    alias.asname or alias.name for alias in node.names if alias.name == "import_module"
+                )
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.startswith("app."):
+                        targets.append(alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    if node.module.startswith("app."):
+                        targets.append(node.module)
+                    elif node.module == "app":
+                        targets.extend(f"app.{alias.name}" for alias in node.names)
+            elif isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+                function = node.func
+                is_import_module = (
+                    isinstance(function, ast.Name) and function.id in import_module_aliases
+                ) or (
+                    isinstance(function, ast.Attribute)
+                    and function.attr == "import_module"
+                    and isinstance(function.value, ast.Name)
+                    and function.value.id in importlib_aliases
+                ) or (isinstance(function, ast.Name) and function.id == "__import__")
+                if is_import_module:
+                    target = node.args[0].value
+                    if target.startswith("."):
+                        package = next(
+                            (keyword.value.value for keyword in node.keywords if keyword.arg == "package" and isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str)),
+                            None,
+                        )
+                        if package is None and len(node.args) > 1 and isinstance(node.args[1], ast.Constant) and isinstance(node.args[1].value, str):
+                            package = node.args[1].value
+                        if package:
+                            levels = len(target) - len(target.lstrip("."))
+                            base = package.split(".")[: len(package.split(".")) - levels + 1]
+                            target = ".".join([*base, target.lstrip(".")])
+                    if target.startswith("app."):
+                        targets.append(target)
+        return targets
+
     for directory, bucket in ((app_dir, "production"), (project_dir / "scripts", "scripts"), (project_dir / "tests", "tests")):
         for path in sorted(directory.rglob("*.py")):
             text = path.read_text(encoding="utf-8")
             relative = str(path.relative_to(project_dir))
             if bucket == "production":
-                for edge in imported_modules(path, app_dir):
-                    parts = edge.target.split(".")
-                    if len(parts) > 1 and parts[0] == "app" and parts[1] in inventory and path.stem != parts[1]:
-                        inventory[parts[1]][bucket].append(relative)
+                targets = [edge.target for edge in imported_modules(path, app_dir)]
+            else:
+                targets = literal_app_targets(path)
+            for target in targets:
+                parts = target.split(".")
+                if len(parts) > 1 and parts[0] == "app" and parts[1] in inventory:
+                    inventory[parts[1]][bucket].append(relative)
             for name in roots:
-                if re.search(rf"(?:from|import)\s+app(?:\.{re.escape(name)}\b|\s+import\s+{re.escape(name)}\b)", text) and relative not in inventory[name][bucket]:
-                    inventory[name][bucket].append(relative)
                 if re.search(rf"(?:patch|patch\.object)\([^\n]*[\"']app\.{re.escape(name)}(?:\.|[\"'])", text) and relative not in inventory[name]["patches"]:
                     inventory[name]["patches"].append(relative)
     for consumers in inventory.values():
         for bucket, paths in consumers.items():
             consumers[bucket] = sorted(set(paths))
     return inventory
+
+
+def facade_inventory_errors(project_dir: Path, manifest: dict[str, object]) -> list[str]:
+    """Reject internal re-introduction of audited transitional root facades."""
+    policy = manifest.get("policy", {})
+    if not isinstance(policy, dict) or "internal_facades" not in policy:
+        return []
+    facades = policy["internal_facades"]
+    if not isinstance(facades, list) or not all(isinstance(name, str) and name for name in facades):
+        return ["internal facade policy must be a list of non-empty root names"]
+    roots = manifest.get("root_modules", {})
+    if not isinstance(roots, dict):
+        return ["internal facade policy requires root modules"]
+    inventory = consumer_inventory(project_dir)
+    errors: list[str] = []
+    for name in facades:
+        entry = roots.get(name)
+        if not isinstance(entry, dict) or not isinstance(entry.get("consumers"), dict):
+            errors.append(f"internal facade policy missing root ownership: {name}")
+            continue
+        expected = entry["consumers"]
+        actual = inventory.get(name)
+        if actual and (actual["production"] or actual["scripts"]):
+            errors.append(f"internal facade has production or script consumers: {name}")
+        if actual != expected:
+            errors.append(f"internal facade consumer inventory stale: {name}")
+    return errors
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -258,7 +342,9 @@ def main(argv: list[str] | None = None) -> int:
     if arguments.print_inventory:
         print(json.dumps(consumer_inventory(arguments.app_dir.parent), ensure_ascii=False, indent=2, sort_keys=True))
         return 0
-    errors = boundary_errors(arguments.app_dir, load_manifest(arguments.manifest))
+    manifest = load_manifest(arguments.manifest)
+    errors = boundary_errors(arguments.app_dir, manifest)
+    errors.extend(facade_inventory_errors(arguments.app_dir.parent, manifest))
     if errors:
         print("module boundary check failed:\n" + "\n".join(errors))
         return 1

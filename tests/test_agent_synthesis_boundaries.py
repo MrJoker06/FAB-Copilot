@@ -9,8 +9,8 @@ from unittest.mock import patch
 from app import agent
 from app.evidence.answer_synthesizer import SUBMIT_ANALYSIS_TOOL
 from app.manufacturing.playbooks import select_playbook
-from app.intent_router import route_question
-from app.planner import create_execution_plan
+from app.intent_runtime.routing import route_question
+from app.planning_runtime.service import create_execution_plan
 from app.agent_runtime.synthesis.ready import ready_synthesis_max_tokens, synthesize_ready_assistant
 from app.agent_runtime.synthesis.result import (
     build_ready_model_unavailable_result,

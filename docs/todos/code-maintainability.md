@@ -129,9 +129,9 @@ app/
 - 验收要求：`app.agent.run_agent()` 签名、`coordinate_agent_run()` 唯一入口、依赖快照/对象身份、Ready 的零模型工具选择、离线降级、Agent Loop 停止/取消、事件顺序和响应字段全部不变；定向运行 Agent runtime/execution/module/preparation/tool-runtime、Ready Plan、冻结契约与仓库检查，再运行一次完整离线 `python scripts/run_quality_gate.py full`。`QA-010` 完整 7-run Live 不属于该任务验收。
 - 风险与回退：最高风险为实时 patch 失效、阶段事件重排、Ready/Loop 状态分叉和兼容导入破坏；阶段目录、依赖分组和状态视图已在同一任务提交中通过定向与完整质量门验证，出现行为差异时整体回退该提交。
 
-## 领域目录重构（已批准待做）
+## 领域目录重构（已完成）
 
-2026-09-08 用户确认方案并要求写入 TODO、提交。本节登记 8 项普通任务，不表示实现已经开始或完成。只调整文件归属、导入和必要兼容装配，不改变业务设计；`REF-025`、`REF-026` 继续 OPTIONAL，不激活内部拆分。未来激活这两项时，应基于届时规范路径重新评审目录，不能恢复重复实现。
+2026-09-08 用户确认方案并要求写入 TODO、提交；`REF-027` 至 `REF-034` 已完成文件归属、内部 canonical 导入与必要兼容装配，未改变业务设计。`REF-025`、`REF-026` 继续 OPTIONAL，未激活内部拆分；未来激活时应基于届时规范路径重新评审目录，不能恢复重复实现。
 
 ### 目标归属与迁移映射
 
@@ -160,7 +160,7 @@ app/
 - [x] `REF-031` 模型访问归档：registry、compatibility、health、streaming 的唯一实现已迁入 `app/model_gateway/`，生产、脚本和非 health 测试使用 canonical 导入；旧入口保留兼容门面。管理员显式配置与主动探针、Thinking 策略、解析、重试、熔断和恢复租约不变；类型、异常和非 health 函数对象身份保持，health 的旧/新公共 wrapper 为刻意独立函数但签名一致，`app.model_health.db_session` 的必需 live patch 继续按调用生效。导入顺序不探测 Provider；不自动联网判断能力，不更改 Provider 协议。
 - [x] `REF-032` 会话与运行时归档：`context_resolver`、`turn_decision`、`decision_arbiter`、`sessions` 的唯一实现已机械迁入 `app/conversation/`；`assistant_capabilities` 迁入 `app/agent_runtime/`，`loop_guard` 迁入 `app/agent_runtime/execution/`，旧入口保留兼容门面。原问题与补全问题的来源、意图决策、消息 ID、幂等、历史回忆、归档/恢复/删除、预算和停止条件不变；旧/新入口的公开及私有导出身份保持，`MODULE:app.context_resolver` 冻结字面量保持。六个实现体忽略 import 后 AST 等价，15 个消费者仅更新导入；Context/Arbiter/Guard、Agent 准备、Session 流式系统测试和桌面会话旅程均已验证。
 - [x] `REF-033` 知识与证据归档：RAG/OCR/知识决策迁入 `app/knowledge/`，证据语义/验证/答案综合迁入 `app/evidence/`，旧入口保留薄兼容门面。FTS 查询、ACL、Tag/排序/limit、引用、声明守卫、降级和最终渲染不变；OCR 继续通过 `rapidocr.__file__` 定位本地 wheel 模型，单例/锁与个人知识 facade patch 保持。语义模块仍为纯边界，未激活 REF-025 或重复个人知识运行时；RAG/OCR 黄金集、证据/综合、Ready/Trace 回放和完整知识桌面旅程均通过。
-- [ ] `REF-034` 兼容入口退役与收口：依据 REF-027 清单删除满足条件的旧路径，清理内部旧导入、更新启动/架构文档和测试路径；验证完整依赖图、导入顺序、测试发现、服务启动与全量回归。必须保留的入口继续受契约测试保护，无法证明外部消费者已迁移的路径保留并说明退出条件。完成标准是可按领域找到唯一实现、边界有测试保护、剩余门面均有理由，不以根文件数或行数为硬指标。
+- [x] `REF-034` 兼容入口退役与收口：17 个消费者仅更新为 canonical 导入，29 个无内部 Python 生产/脚本消费者的过渡 facade 由 AST 清单守卫禁止回流；36 个根入口继续保留，其中 `main`、`agent`、`personal_knowledge`、`config`、`identity` 为长期锚点，`seed` CLI 与 `model_health.db_session` patch 为明确兼容合同。没有外部迁移证据，故没有删除公开 facade。`allowed_domain_dependencies` 未扩大；原 `app.agent_runtime.compatibility -> app.intent_router` 例外改为 `contracts`、`routing`、`rules` 三条精确 canonical 边，例外总数为 28。主代理定向 47/47（11.320 秒）、冻结契约、仓库、边界与 diff 检查通过；2026-09-13 宿主完整离线质量门发现 569 个 Python 测试，501/501 非系统测试及五组系统测试 13/15/13/17/10 全通过，墙钟 15.599845838/16.172799632/17.754458358/15.565569326/16.426263403 秒、总计 81.519137426 秒且全部预算通过，coverage 89%、Node 61/61、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 17/17（45.7 秒）均通过；普通门未调用真实模型或外部服务。`REF-027` 至 `REF-034` 系列收口，不自动激活暂缓或 `OPTIONAL` 任务。
 
 ### 兼容与依赖规则
 

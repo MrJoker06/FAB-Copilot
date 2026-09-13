@@ -18,8 +18,8 @@ from app.evidence.answer_synthesizer import (
 )
 from app.manufacturing.playbooks import select_playbook
 from app.evidence.validator import EvidenceObservation, validate_evidence
-from app.intent_router import route_question
-from app.planner import create_execution_plan
+from app.intent_runtime.routing import route_question
+from app.planning_runtime.service import create_execution_plan
 
 
 def _context(question: str):

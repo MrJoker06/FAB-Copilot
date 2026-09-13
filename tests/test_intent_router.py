@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from app import agent as agent_module
-from app.intent_router import apply_semantic_intent_hint, route_question, routing_system_message
+from app.intent_runtime.routing import apply_semantic_intent_hint, route_question, routing_system_message
 from app.manufacturing.processes import PROCESS_ALIASES
 
 

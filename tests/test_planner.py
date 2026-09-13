@@ -9,8 +9,8 @@ from unittest.mock import patch
 
 from app import agent as agent_module
 from app.manufacturing.playbooks import select_playbook
-from app.intent_router import route_question
-from app.planner import create_execution_plan
+from app.intent_runtime.routing import route_question
+from app.planning_runtime.service import create_execution_plan
 
 
 def _plan(question: str, current_date: date = date(2026, 7, 18)):

@@ -15,7 +15,7 @@ from app.conversation.context_resolver import (
     resolve_question_context,
     semantic_context_resolution,
 )
-from app.intent_router import route_question
+from app.intent_runtime.routing import route_question
 
 
 INITIAL_QUESTION = "GaN器件和纯Si器件的差异"

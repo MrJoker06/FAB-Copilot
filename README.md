@@ -230,7 +230,7 @@ conda run -n fab-insight-agent python -m unittest discover -s tests -v
         部门数据库联邦 · 模型目录 · 联合 RAG
 ```
 
-Agent 不直接访问数据库连接，而是通过 `app/agent_tools.py` 中的工具目录工作；`app/agent.py` 负责运行编排并保留原有兼容导出，模型流协议封装在 `app/model_gateway/streaming.py`（`app/model_streaming.py` 保留兼容入口）。任意 SQL 仅允许单条 `SELECT`，限制在四张制造数据表并最多返回 100 行；数据库写入、DDL、PRAGMA 和系统表访问均被拒绝。
+Agent 不直接访问数据库连接，而是通过 `app/agent_runtime/tools/` 中的 canonical 工具目录工作；`app.agent_tools` 保留为公开对象身份兼容入口。`app/agent.py` 负责运行编排并保留原有兼容导出，模型流协议封装在 `app/model_gateway/streaming.py`（`app/model_streaming.py` 保留兼容入口）。运行时、脚本和普通回归应从 `app.intent_runtime/`、`app.planning_runtime/` 导入 Router/Planner；`app.intent_router`、`app.planner` 仅保留公开兼容与 identity 测试，未经外部迁移证据不得删除。任意 SQL 仅允许单条 `SELECT`，限制在四张制造数据表并最多返回 100 行；数据库写入、DDL、PRAGMA 和系统表访问均被拒绝。
 
 ## 部门数据库治理
 

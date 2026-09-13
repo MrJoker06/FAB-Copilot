@@ -12,7 +12,8 @@ from typing import Any
 
 import httpx
 
-from ..agent_tools import TOOL_HANDLERS, TOOLS, search_agent_knowledge
+from .tools.catalog import TOOLS
+from .tools.registry import TOOL_HANDLERS, search_agent_knowledge
 from .contracts import ProgressCallback
 from .dependencies import (
     AvailabilityDependencies as CoordinatorAvailabilityDependencies,
@@ -106,12 +107,9 @@ from ..evidence.validator import (
     validate_evidence,
     validator_system_message,
 )
-from ..intent_router import (
-    INTENT_LABELS,
-    IntentRoute,
-    route_question,
-    routing_system_message,
-)
+from ..intent_runtime.contracts import IntentRoute
+from ..intent_runtime.routing import route_question, routing_system_message
+from ..intent_runtime.rules import INTENT_LABELS
 from ..knowledge.decision import (
     RetrievalDecision,
     assess_retrieval,
@@ -136,12 +134,8 @@ from ..model_gateway.streaming import (
     retryable_model_error,
     stream_completion,
 )
-from ..planner import (
-    ExecutionPlan,
-    PlanStep,
-    create_execution_plan,
-    planner_system_message,
-)
+from ..planning_runtime.contracts import ExecutionPlan, PlanStep
+from ..planning_runtime.service import create_execution_plan, planner_system_message
 from ..manufacturing.processes import MANUFACTURING_STEPS
 from ..manufacturing.reports import equipment_health, fab_overview
 from ..conversation.turn_decision import TurnDecision, build_turn_decision

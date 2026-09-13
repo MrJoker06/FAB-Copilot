@@ -10,9 +10,9 @@ from unittest.mock import patch
 
 from app import agent as agent_module
 from app.manufacturing.playbooks import select_playbook
-from app.intent_router import route_question
+from app.intent_runtime.routing import route_question
 from app.agent_runtime.execution.loop_guard import ToolLoopGuard
-from app.planner import create_execution_plan
+from app.planning_runtime.service import create_execution_plan
 
 
 def _plan(question: str):

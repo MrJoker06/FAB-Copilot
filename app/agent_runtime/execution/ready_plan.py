@@ -9,7 +9,7 @@ from typing import Any
 
 from ...evidence.validator import EvidenceObservation
 from .loop_guard import ToolLoopGuard
-from ...planner import ExecutionPlan, PlanStep
+from ...planning_runtime.contracts import ExecutionPlan, PlanStep
 
 
 def ready_step_order(plan: ExecutionPlan) -> tuple[PlanStep, ...]:
