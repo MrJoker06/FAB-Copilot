@@ -8,8 +8,8 @@ import math
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Protocol
 
-from ..config import get_settings
-from ..identity import Principal, current_principal
+from ..core.settings import get_settings
+from ..core.identity import Principal, current_principal
 from .processes import MANUFACTURING_STEPS
 
 

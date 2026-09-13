@@ -18,7 +18,7 @@ from app.api.application import (
 from app.api.errors import ErrorDependencies, handlers
 from app.api import schemas
 from app.api.schemas import ChatRequest, StreamTelemetryRequest
-from app.identity import PrincipalContextMiddleware
+from app.core.identity import PrincipalContextMiddleware
 from app.telemetry.http import RequestAuditMiddleware
 
 

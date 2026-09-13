@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from app import agent
+from app.agent_runtime import service as agent
 from app.agent_runtime.preparation import ContextProtocolError
 from app.agent_runtime.preparation.context import (
     ResolverDependencies,
@@ -41,8 +41,8 @@ class AgentPreparationBoundaryTests(unittest.TestCase):
             return plan
 
         with (
-            patch("app.agent._resolve_conversation_turn", new=resolve_turn),
-            patch("app.agent.create_execution_plan", new=capture_plan),
+            patch("app.agent_runtime.service._resolve_conversation_turn", new=resolve_turn),
+            patch("app.agent_runtime.service.create_execution_plan", new=capture_plan),
         ):
             result = asyncio.run(
                 agent._run_agent_impl("介绍一下你自己", [], "prep-live-facade")
@@ -68,8 +68,8 @@ class AgentPreparationBoundaryTests(unittest.TestCase):
                 events.append(f"progress:{event['stage']}")
 
         with (
-            patch("app.agent.emit", new=capture_emit),
-            patch("app.agent._notify", new=capture_progress),
+            patch("app.agent_runtime.service.emit", new=capture_emit),
+            patch("app.agent_runtime.service._notify", new=capture_progress),
         ):
             asyncio.run(agent._run_agent_impl("介绍一下你自己", [], "prep-order"))
 
@@ -94,8 +94,8 @@ class AgentPreparationBoundaryTests(unittest.TestCase):
                 context_durations.append(fields["duration_ms"])
 
         with (
-            patch("app.agent.time.perf_counter", side_effect=lambda: next(ticks)),
-            patch("app.agent.emit", new=capture_emit),
+            patch("app.agent_runtime.service.time.perf_counter", side_effect=lambda: next(ticks)),
+            patch("app.agent_runtime.service.emit", new=capture_emit),
         ):
             asyncio.run(agent._run_agent_impl("介绍一下你自己", [], "prep-timing"))
 

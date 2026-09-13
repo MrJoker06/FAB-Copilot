@@ -5,7 +5,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
-from app import agent
+from app.agent_runtime import service as agent
 from app.evidence.validator import EvidenceObservation
 
 
@@ -35,7 +35,7 @@ class AgentRetrievalBoundaryTests(unittest.TestCase):
         guard = _AllowingGuard()
         source = {"reference_id": "KB-1", "source_type": "knowledge", "retrieval": {"confidence": "high"}}
         with patch.dict(agent.TOOL_HANDLERS, {"search_knowledge": lambda **kwargs: calls.append(kwargs) or [source]}), \
-             patch("app.agent.emit", emitted), patch("app.agent._notify", notify):
+             patch("app.agent_runtime.service.emit", emitted), patch("app.agent_runtime.service._notify", notify):
             decision = asyncio.run(agent._prefetch_general_knowledge(
                 "GaN 基础", "retrieval-boundary", guard, [], [], {}, None,
             ))
@@ -64,7 +64,7 @@ class AgentRetrievalBoundaryTests(unittest.TestCase):
             ]
 
         sources: dict[str, dict] = {}
-        with patch.dict(agent.TOOL_HANDLERS, {"search_knowledge": search_knowledge}), patch("app.agent.emit"):
+        with patch.dict(agent.TOOL_HANDLERS, {"search_knowledge": search_knowledge}), patch("app.agent_runtime.service.emit"):
             decision = asyncio.run(agent._prefetch_general_knowledge(
                 "S 器件故障", "retrieval-order", guard, [], [], sources, None,
             ))
@@ -78,7 +78,7 @@ class AgentRetrievalBoundaryTests(unittest.TestCase):
 
     def test_empty_or_error_retrieval_preserves_model_fallback_decision(self):
         guard = _AllowingGuard()
-        with patch.dict(agent.TOOL_HANDLERS, {"search_knowledge": lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("offline"))}), patch("app.agent.emit"):
+        with patch.dict(agent.TOOL_HANDLERS, {"search_knowledge": lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("offline"))}), patch("app.agent_runtime.service.emit"):
             decision = asyncio.run(agent._prefetch_general_knowledge(
                 "GaN 原理", "retrieval-error", guard, [], [], {}, None,
             ))

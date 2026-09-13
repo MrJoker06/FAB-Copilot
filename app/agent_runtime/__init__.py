@@ -1,4 +1,4 @@
-"""Stable runtime boundaries used by the legacy :mod:`app.agent` facade."""
+"""Stable runtime boundaries used by the legacy :mod:`app.agent_runtime.service` facade."""
 
 from .contracts import AgentRunLifecycle, AgentRunRequest, AgentRunResult, ProgressCallback
 from .coordinator import coordinate_agent_run

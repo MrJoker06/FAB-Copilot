@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .database import db_session
-from ..identity import current_principal
+from ..core.identity import current_principal
 
 
 _SCOPE_PARAMETERS = (

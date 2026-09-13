@@ -4,7 +4,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 
 from ..persistence.database import db_session
-from ..identity import Principal
+from ..core.identity import Principal
 
 
 _lock = threading.Lock()

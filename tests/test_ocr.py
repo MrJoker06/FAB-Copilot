@@ -17,7 +17,7 @@ from app.knowledge.ocr import (
     extract_image_text,
     reading_order_text,
 )
-from app.personal_knowledge import PersonalKnowledgeError, _extract_sections, _validate_file
+from app.personal_knowledge_runtime.service import PersonalKnowledgeError, _extract_sections, _validate_file
 
 
 class OfflineOCRTests(unittest.TestCase):
@@ -92,7 +92,7 @@ class OfflineOCRTests(unittest.TestCase):
             path = Path(directory) / "equipment.png"
             path.write_bytes(payload.getvalue())
             fake = SimpleNamespace(txts=("设备 EQ-01",), boxes=(((1, 1), (40, 1), (40, 20), (1, 20)),))
-            with patch("app.personal_knowledge.extract_image_result", return_value=SimpleNamespace(text=reading_order_text(fake), scores=(0.99,), mean_confidence=0.99, low_confidence_ratio=0.0, has_visible_content=True)):
+            with patch("app.personal_knowledge_runtime.service.extract_image_result", return_value=SimpleNamespace(text=reading_order_text(fake), scores=(0.99,), mean_confidence=0.99, low_confidence_ratio=0.0, has_visible_content=True)):
                 sections = _extract_sections(path, ".png", "设备截图")
         self.assertEqual([(section.page_number, section.content) for section in sections], [(1, "设备 EQ-01")])
 
@@ -100,7 +100,7 @@ class OfflineOCRTests(unittest.TestCase):
         image = Image.new("RGB", (11, 10), "white")
         payload = io.BytesIO()
         image.save(payload, "PNG")
-        with patch("app.personal_knowledge.MAX_OCR_IMAGE_PIXELS", 100):
+        with patch("app.personal_knowledge_runtime.service.MAX_OCR_IMAGE_PIXELS", 100):
             with self.assertRaisesRegex(PersonalKnowledgeError, "文件内容"):
                 _validate_file("large.png", payload.getvalue())
         first = Image.new("RGB", (8, 8), "white")
@@ -110,10 +110,10 @@ class OfflineOCRTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "multi.tiff"
             path.write_bytes(payload.getvalue())
-            with patch("app.personal_knowledge.extract_image_result", side_effect=[SimpleNamespace(text="第一页", scores=(0.99,), mean_confidence=0.99, low_confidence_ratio=0.0, has_visible_content=True), SimpleNamespace(text="第二页", scores=(0.99,), mean_confidence=0.99, low_confidence_ratio=0.0, has_visible_content=True)]):
+            with patch("app.personal_knowledge_runtime.service.extract_image_result", side_effect=[SimpleNamespace(text="第一页", scores=(0.99,), mean_confidence=0.99, low_confidence_ratio=0.0, has_visible_content=True), SimpleNamespace(text="第二页", scores=(0.99,), mean_confidence=0.99, low_confidence_ratio=0.0, has_visible_content=True)]):
                 sections = _extract_sections(path, ".tiff", "多页")
         self.assertEqual([section.page_number for section in sections], [1, 2])
-        with patch("app.personal_knowledge.MAX_OCR_RENDERED_PIXELS", 100):
+        with patch("app.personal_knowledge_runtime.service.MAX_OCR_RENDERED_PIXELS", 100):
             with self.assertRaisesRegex(PersonalKnowledgeError, "文件内容"):
                 _validate_file("multi.tiff", payload.getvalue())
 
@@ -127,7 +127,7 @@ class OfflineOCRTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "two-pages.pdf"
             path.write_bytes(output.getvalue())
-            with patch("app.personal_knowledge.MAX_OCR_PDF_PAGES", 1):
+            with patch("app.personal_knowledge_runtime.service.MAX_OCR_PDF_PAGES", 1):
                 with self.assertRaisesRegex(PersonalKnowledgeError, "页数"):
                     _extract_sections(path, ".pdf", "页数")
             broken = Path(directory) / "broken.pdf"
@@ -144,7 +144,7 @@ class OfflineOCRTests(unittest.TestCase):
             path = Path(directory) / "equipment.png"
             path.write_bytes(payload.getvalue())
             for failure, code in ((OCRUnavailableError("missing"), "OCR_UNAVAILABLE"), (OCRFailedError("failed"), "OCR_FAILED")):
-                with self.subTest(code=code), patch("app.personal_knowledge.extract_image_result", side_effect=failure):
+                with self.subTest(code=code), patch("app.personal_knowledge_runtime.service.extract_image_result", side_effect=failure):
                     with self.assertRaises(PersonalKnowledgeError) as caught:
                         _extract_sections(path, ".png", "设备")
                 self.assertEqual(caught.exception.error_code, code)
@@ -170,7 +170,7 @@ class OfflineOCRTests(unittest.TestCase):
                 has_visible_content=True,
             )
             with patch(
-                "app.personal_knowledge.extract_image_result",
+                "app.personal_knowledge_runtime.service.extract_image_result",
                 return_value=replacement,
             ) as ocr:
                 sections = _extract_sections(path, ".pdf", "混合")

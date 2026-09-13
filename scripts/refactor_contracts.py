@@ -19,7 +19,7 @@ sys.path.insert(0, str(PROJECT_DIR))
 
 from fastapi.routing import APIRoute  # noqa: E402
 
-from app.agent import TOOLS  # noqa: E402
+from app.agent_runtime.service import TOOLS  # noqa: E402
 from app.main import app  # noqa: E402
 from scripts.evaluate_trace_replay import load_dataset, replay_case  # noqa: E402
 

@@ -1,13 +1,14 @@
 from __future__ import annotations
 import unittest
 import importlib
-from app.agent import TOOL_HANDLERS
+from app.agent_runtime.service import TOOL_HANDLERS
 
 from app.agent_runtime.assistant_capabilities import CAPABILITIES, build_meta_response, user_capabilities
 from app.conversation.turn_decision import TurnDecisionValidationError, build_turn_decision, validate_turn_actions
 from app.intent_runtime.routing import route_question
 from app.conversation.context_resolver import semantic_context_resolution
 from app.conversation.decision_arbiter import arbitrate_decision, recover_active_flow
+from scripts.check_module_boundaries import load_manifest
 
 
 class TurnDecisionTests(unittest.TestCase):
@@ -38,11 +39,21 @@ class TurnDecisionTests(unittest.TestCase):
 
     def test_catalog_hides_admin_and_backing_references_are_real(self):
         self.assertNotIn("model_governance", [item.capability_id for item in user_capabilities()])
+        manifest = load_manifest()
+        retired = manifest["retired_modules"]
         for item in CAPABILITIES:
             for reference in item.backing_references:
                 kind, value = reference.split(":", 1)
-                if kind == "TOOL_HANDLERS": self.assertIn(value, TOOL_HANDLERS)
-                else: self.assertIsNotNone(importlib.util.find_spec(value))
+                if kind == "TOOL_HANDLERS":
+                    self.assertIn(value, TOOL_HANDLERS)
+                elif kind == "MODULE":
+                    entry = retired.get(value)
+                    target = entry["target"] if isinstance(entry, dict) else value
+                    self.assertIsNotNone(importlib.util.find_spec(target), target)
+                    if entry is not None:
+                        self.assertIn(value, retired)
+                else:
+                    self.fail(f"unknown backing reference kind: {kind}")
 
     def test_unknown_and_ambiguous_are_valid_clarifications(self):
         for route in ("unknown", "ambiguous"):

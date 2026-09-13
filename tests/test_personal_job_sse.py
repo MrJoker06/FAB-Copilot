@@ -18,7 +18,7 @@ from app.main import (
     personal_knowledge_job_events,
     read_personal_job_snapshots,
 )
-from app.personal_knowledge import list_personal_job_snapshots
+from app.personal_knowledge_runtime.service import list_personal_job_snapshots
 
 
 def job(status="indexing", updated_at="2026-08-13T12:00:00+00:00"):
@@ -68,7 +68,7 @@ class PersonalJobSseTests(unittest.TestCase):
             def session():
                 yield connection
 
-            with patch('app.personal_knowledge.db_session', session):
+            with patch('app.personal_knowledge_runtime.service.db_session', session):
                 snapshots = list_personal_job_snapshots('owner-a')
             connection.close()
 

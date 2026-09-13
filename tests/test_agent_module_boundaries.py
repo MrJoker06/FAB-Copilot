@@ -3,7 +3,8 @@ from __future__ import annotations
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from app import agent, agent_tools
+from app.agent_runtime import service as agent
+from app.agent_runtime import tools as agent_tools
 
 
 class AgentModuleBoundaryTests(unittest.IsolatedAsyncioTestCase):
@@ -26,7 +27,7 @@ class AgentModuleBoundaryTests(unittest.IsolatedAsyncioTestCase):
         delegate = AsyncMock(return_value=expected)
         progress = object()
         stream_state = {"answer_emitted": False}
-        with patch("app.agent.stream_completion", new=delegate):
+        with patch("app.agent_runtime.service.stream_completion", new=delegate):
             result = await agent._stream_completion(
                 object(),
                 "https://model.test/v1/chat/completions",

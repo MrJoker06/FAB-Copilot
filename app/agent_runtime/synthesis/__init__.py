@@ -1,4 +1,4 @@
-"""Answer synthesis stages with compatibility dependencies supplied by ``app.agent``."""
+"""Answer synthesis stages with compatibility dependencies supplied by ``app.agent_runtime.service``."""
 
 from .fallback import OfflineAnswerDependencies, offline_answer
 from .ready import (

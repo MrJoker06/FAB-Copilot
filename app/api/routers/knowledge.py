@@ -15,7 +15,7 @@ from fastapi import (
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
-from ...personal_knowledge import PersonalDocumentPatch
+from ...personal_knowledge_runtime.service import PersonalDocumentPatch
 from ..schemas import PersonalSearchPreviewRequest
 from .runtime import NamespaceProvider, RouterBundle
 

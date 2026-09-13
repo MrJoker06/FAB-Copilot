@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 from starlette.responses import JSONResponse
 
-from .telemetry.audit import current_request_id
-from .config import get_settings
+from ..telemetry.audit import current_request_id
+from .settings import get_settings
 
 
 IDENTITY_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$")

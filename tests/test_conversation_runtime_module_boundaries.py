@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import os
 import subprocess
 import sys
@@ -8,13 +7,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app import assistant_capabilities, context_resolver, decision_arbiter, loop_guard, sessions, turn_decision
-from app.agent_runtime import assistant_capabilities as canonical_capabilities
-from app.agent_runtime.execution import loop_guard as canonical_guard
-from app.conversation import context_resolver as canonical_context
-from app.conversation import decision_arbiter as canonical_arbiter
-from app.conversation import sessions as canonical_sessions
-from app.conversation import turn_decision as canonical_decision
+from app.agent_runtime import assistant_capabilities
+from app.agent_runtime.execution import loop_guard
+from app.conversation import context_resolver, decision_arbiter, sessions, turn_decision
 from app.planning_runtime.contracts import (
     AnalysisScopeContract,
     ExecutionPlan,
@@ -34,51 +29,44 @@ def _plan() -> ExecutionPlan:
 
 
 class ConversationRuntimeModuleBoundaryTests(unittest.TestCase):
-    def test_legacy_capability_facade_is_import_only_and_has_no_side_effect_body(self):
-        source = Path(assistant_capabilities.__file__).read_text(encoding="utf-8")
-        module = ast.parse(source)
-        self.assertEqual(ast.get_docstring(module), "Compatibility facade for :mod:`app.agent_runtime.assistant_capabilities`.")
-        expected = ast.parse(
-            "from __future__ import annotations\n"
-            "from .agent_runtime import assistant_capabilities as _canonical\n"
-            "from .agent_runtime.assistant_capabilities import *\n"
-            "def __getattr__(name: str):\n"
-            "    return getattr(_canonical, name)\n"
-        )
-        actual = ast.Module(body=module.body[1:], type_ignores=[])
-        self.assertEqual(ast.dump(actual), ast.dump(expected))
+    def test_removed_conversation_facades_have_one_canonical_owner(self):
+        root = Path(__file__).resolve().parents[1] / "app"
+        for name in ("assistant_capabilities", "context_resolver", "decision_arbiter", "loop_guard", "sessions", "turn_decision"):
+            with self.subTest(name=name):
+                self.assertFalse((root / f"{name}.py").exists())
+        self.assertEqual(assistant_capabilities.__name__, "app.agent_runtime.assistant_capabilities")
+        self.assertEqual(context_resolver.__name__, "app.conversation.context_resolver")
 
-    def test_legacy_facades_share_canonical_public_types_functions_and_helpers(self):
-        pairs = (
-            (context_resolver.ContextResolution, canonical_context.ContextResolution),
-            (context_resolver.semantic_context_resolution, canonical_context.semantic_context_resolution),
-            (turn_decision.TurnDecision, canonical_decision.TurnDecision),
-            (turn_decision.TurnDecisionValidationError, canonical_decision.TurnDecisionValidationError),
-            (decision_arbiter.ArbitrationResult, canonical_arbiter.ArbitrationResult),
-            (decision_arbiter.recover_active_flow, canonical_arbiter.recover_active_flow),
-            (sessions.create_session, canonical_sessions.create_session),
-            (sessions._scope, canonical_sessions._scope),
-            (assistant_capabilities.CAPABILITIES, canonical_capabilities.CAPABILITIES),
-            (assistant_capabilities.build_meta_response, canonical_capabilities.build_meta_response),
-            (loop_guard.ToolLoopGuard, canonical_guard.ToolLoopGuard),
-            (loop_guard.ToolCallDecision, canonical_guard.ToolCallDecision),
+    def test_canonical_exports_have_domain_owners(self):
+        owners = (
+            (context_resolver.ContextResolution, "app.conversation.context_resolver"),
+            (context_resolver.semantic_context_resolution, "app.conversation.context_resolver"),
+            (turn_decision.TurnDecision, "app.conversation.turn_decision"),
+            (turn_decision.TurnDecisionValidationError, "app.conversation.turn_decision"),
+            (decision_arbiter.ArbitrationResult, "app.conversation.decision_arbiter"),
+            (decision_arbiter.recover_active_flow, "app.conversation.decision_arbiter"),
+            (sessions.create_session, "app.conversation.sessions"),
+            (sessions._scope, "app.conversation.sessions"),
+            (assistant_capabilities.build_meta_response, "app.agent_runtime.assistant_capabilities"),
+            (loop_guard.ToolLoopGuard, "app.agent_runtime.execution.loop_guard"),
+            (loop_guard.ToolCallDecision, "app.agent_runtime.execution.loop_guard"),
         )
-        for legacy, canonical in pairs:
-            with self.subTest(name=getattr(canonical, "__name__", type(canonical).__name__)):
-                self.assertIs(legacy, canonical)
+        for value, owner in owners:
+            with self.subTest(name=getattr(value, "__name__", type(value).__name__)):
+                self.assertEqual(value.__module__, owner)
 
     def test_guard_state_and_budget_behavior_are_shared_across_paths(self):
         guard = loop_guard.ToolLoopGuard(_plan())
-        self.assertIsInstance(guard, canonical_guard.ToolLoopGuard)
+        self.assertIsInstance(guard, loop_guard.ToolLoopGuard)
         self.assertTrue(guard.check_call("get_fab_overview", {}).allowed)
-        self.assertFalse(canonical_guard.ToolLoopGuard.check_call(guard, "get_fab_overview", {"scope": "fab"}).allowed)
+        self.assertFalse(loop_guard.ToolLoopGuard.check_call(guard, "get_fab_overview", {"scope": "fab"}).allowed)
         self.assertEqual(guard.total_calls, 1)
         self.assertEqual(guard.stop_reason, "total_tool_budget_exhausted")
 
     def test_import_orders_do_not_open_network_connections(self):
         orders = {
-            "legacy_first": "import app.context_resolver, app.turn_decision, app.decision_arbiter, app.sessions, app.assistant_capabilities, app.loop_guard; import app.conversation.context_resolver, app.conversation.turn_decision, app.conversation.decision_arbiter, app.conversation.sessions, app.agent_runtime.assistant_capabilities, app.agent_runtime.execution.loop_guard",
-            "canonical_first": "import app.conversation.context_resolver, app.conversation.turn_decision, app.conversation.decision_arbiter, app.conversation.sessions, app.agent_runtime.assistant_capabilities, app.agent_runtime.execution.loop_guard; import app.context_resolver, app.turn_decision, app.decision_arbiter, app.sessions, app.assistant_capabilities, app.loop_guard",
+            "runtime_first": "import app.agent_runtime.assistant_capabilities, app.agent_runtime.execution.loop_guard; import app.conversation.context_resolver, app.conversation.turn_decision, app.conversation.decision_arbiter, app.conversation.sessions",
+            "conversation_first": "import app.conversation.context_resolver, app.conversation.turn_decision, app.conversation.decision_arbiter, app.conversation.sessions; import app.agent_runtime.assistant_capabilities, app.agent_runtime.execution.loop_guard",
         }
         guard = "import socket; socket.socket.connect=lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError('network during import')); "
         for name, imports in orders.items():

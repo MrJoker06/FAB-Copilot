@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from ..persistence.database import db_session
 from ..persistence.execution_store import executions_for_session
-from ..identity import current_principal
+from ..core.identity import current_principal
 
 
 def _now() -> str:

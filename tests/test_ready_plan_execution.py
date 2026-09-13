@@ -7,7 +7,7 @@ from datetime import date
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from app import agent as agent_module
+from app.agent_runtime import service as agent_module
 from app.manufacturing.playbooks import select_playbook
 from app.intent_runtime.routing import route_question
 from app.agent_runtime.execution.loop_guard import ToolLoopGuard
@@ -51,7 +51,7 @@ class ReadyPlanExecutionTests(unittest.TestCase):
         def capture(event_type: str, _run_id: str, **fields) -> None:
             emitted.append((event_type, fields))
 
-        with patch("app.agent._run_agent_impl", new=fake_impl), patch("app.agent.emit", new=capture):
+        with patch("app.agent_runtime.service._run_agent_impl", new=fake_impl), patch("app.agent_runtime.service.emit", new=capture):
             result = asyncio.run(agent_module.run_agent("分析 CMP"))
 
         finished = next(fields for event, fields in emitted if event == "agent_run_finished")
@@ -86,7 +86,7 @@ class ReadyPlanExecutionTests(unittest.TestCase):
             "get_sensor_summary": handler("get_sensor_summary", []),
             "search_knowledge": handler("search_knowledge", []),
         }
-        with patch.dict(agent_module.TOOL_HANDLERS, handlers), patch("app.agent.emit"):
+        with patch.dict(agent_module.TOOL_HANDLERS, handlers), patch("app.agent_runtime.service.emit"):
             trace, observations, sources = asyncio.run(agent_module._execute_ready_plan(
                 plan,
                 ToolLoopGuard(plan),
@@ -119,7 +119,7 @@ class ReadyPlanExecutionTests(unittest.TestCase):
             "get_sensor_summary": forbidden,
             "search_knowledge": forbidden,
         }
-        with patch.dict(agent_module.TOOL_HANDLERS, handlers), patch("app.agent.emit"):
+        with patch.dict(agent_module.TOOL_HANDLERS, handlers), patch("app.agent_runtime.service.emit"):
             trace, observations, _ = asyncio.run(agent_module._execute_ready_plan(
                 plan,
                 ToolLoopGuard(plan),
@@ -169,10 +169,10 @@ class ReadyPlanExecutionTests(unittest.TestCase):
             )
         }
         with (
-            patch("app.agent.get_settings", return_value=settings),
-            patch("app.agent._stream_completion", side_effect=AssertionError("model must not be called")),
+            patch("app.agent_runtime.service.get_settings", return_value=settings),
+            patch("app.agent_runtime.service._stream_completion", side_effect=AssertionError("model must not be called")),
             patch.dict(agent_module.TOOL_HANDLERS, handlers),
-            patch("app.agent.emit"),
+            patch("app.agent_runtime.service.emit"),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
                 "分析 CMP-03 最近7天 Cpk 不合格",

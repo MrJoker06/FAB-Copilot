@@ -6,8 +6,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from .agent_runtime import AgentRunLifecycle, AgentRunRequest, ProgressCallback, coordinate_agent_run
-from .agent_runtime.compatibility import (
+from . import AgentRunLifecycle, AgentRunRequest, ProgressCallback, coordinate_agent_run
+from .compatibility import (
     AgentCompatibilityFacade,
     _notify,
     _trace_reference_counts,

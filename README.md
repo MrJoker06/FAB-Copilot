@@ -49,13 +49,13 @@ DATA-016 的版本化市场校准档案为 `public-2026-market-anchors-v1`：
 - [TSMC 2025 Annual Report](https://investor.tsmc.com/static/annualReports/2025/english/index.html) 的 2026 年 12 吋约当晶圆出货量 `16–17m`、产能 `17–18m`，仅作为高利用率边界参考。
 - [UMC 2025 Q2 results](https://www.umc.com/en/News/press_release/Content/investor/20250730) 的 `76%` 产能利用率与 `22/28nm` 营收占比 `40%`，用于成熟/特殊制程的量级参考；本样例的 28nm 批次目标约为 40%。
 
-生成数据会写入制造库的单例 `simulation_metadata`，分类固定为 `synthetic_non_production`。默认固定生成至 `2026-12-25`（可通过 `FAB_SIMULATION_END_DATE` 或 `python -m app.seed --end-date YYYY-MM-DD` 覆盖；canonical 入口为 `python -m app.manufacturing.seed`）；`2026-08-11` 至 `2026-12-25` 是已声明的预测合成段，不是实际 fab 记录。良率、周期时间、recipe、规格、传感器、异常根因和每日 76–86% productive utilization 的设备差异均是工程假设，不应被表述为公开市场数据或真实量产事实。
+生成数据会写入制造库的单例 `simulation_metadata`，分类固定为 `synthetic_non_production`。默认固定生成至 `2026-12-25`（可通过 `FAB_SIMULATION_END_DATE` 或 `python -m app.manufacturing.seed --end-date YYYY-MM-DD` 覆盖）；`2026-08-11` 至 `2026-12-25` 是已声明的预测合成段，不是实际 fab 记录。良率、周期时间、recipe、规格、传感器、异常根因和每日 76–86% productive utilization 的设备差异均是工程假设，不应被表述为公开市场数据或真实量产事实。
 
-SQLite 连接、部门 Schema 与执行记录的 canonical 实现在 `app/persistence/`；`app.database`、`app.department_schemas` 和 `app.execution_store` 保留为兼容入口，数据库文件位置、Journal、ATTACH/TEMP VIEW、FTS 与迁移行为不变。
+SQLite 连接、部门 Schema 与执行记录位于 `app/persistence/`；数据库文件位置、Journal、ATTACH/TEMP VIEW、FTS 与迁移行为不变。旧的根目录 Python 导入已退役。
 
-审计、HTTP 请求遥测和运行状态的 canonical 实现在 `app/telemetry/`；`app.audit`、`app.observability` 和 `app.runtime_status` 保留为兼容入口，日志结构、脱敏策略、请求关联和运行状态行为不变。
+审计、HTTP 请求遥测和运行状态位于 `app/telemetry/`；日志结构、脱敏策略、请求关联和运行状态行为不变。
 
-模型注册、兼容性检查、健康熔断和流式协议的 canonical 实现在 `app/model_gateway/`；`app.model_registry`、`app.model_compatibility`、`app.model_health` 和 `app.model_streaming` 保留兼容入口，其中 `app.model_health.db_session` 继续支持既有实时 patch。
+模型注册、兼容性检查、健康熔断和流式协议位于 `app/model_gateway/`；测试和调用方使用 `app.model_gateway.health.db_session` 进行实时 patch。
 
 默认 Route 包含 18 个重复模块节点，覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗和量测。`simulation_scenarios` 保存评测根因，但不在 SQL 白名单和 Agent 工具中。
 
@@ -179,7 +179,7 @@ conda run -n fab-insight-agent python -m pip install -r requirements.txt
 重新生成相同分布的历史数据：
 
 ```bash
-conda run -n fab-insight-agent python -m app.seed --force --end-date 2026-12-25
+conda run -n fab-insight-agent python -m app.manufacturing.seed --force --end-date 2026-12-25
 ```
 
 安装测试依赖并运行快速质量门（非 `tests.system.*` Python、Node、静态 JS、RAG/OCR/Playbook 黄金集、Ready 性能基准与脱敏 Trace 回放）：
@@ -230,7 +230,7 @@ conda run -n fab-insight-agent python -m unittest discover -s tests -v
         部门数据库联邦 · 模型目录 · 联合 RAG
 ```
 
-Agent 不直接访问数据库连接，而是通过 `app/agent_runtime/tools/` 中的 canonical 工具目录工作；`app.agent_tools` 保留为公开对象身份兼容入口。`app/agent.py` 负责运行编排并保留原有兼容导出，模型流协议封装在 `app/model_gateway/streaming.py`（`app/model_streaming.py` 保留兼容入口）。运行时、脚本和普通回归应从 `app.intent_runtime/`、`app.planning_runtime/` 导入 Router/Planner；`app.intent_router`、`app.planner` 仅保留公开兼容与 identity 测试，未经外部迁移证据不得删除。任意 SQL 仅允许单条 `SELECT`，限制在四张制造数据表并最多返回 100 行；数据库写入、DDL、PRAGMA 和系统表访问均被拒绝。
+Agent 不直接访问数据库连接，而是通过 `app/agent_runtime/tools/` 中的工具目录工作；运行编排位于 `app/agent_runtime/service.py`，模型流协议位于 `app/model_gateway/streaming.py`。运行时、脚本和普通回归从 `app.intent_runtime/`、`app.planning_runtime/` 导入 Router/Planner。旧根目录 Python 导入路径已退役。任意 SQL 仅允许单条 `SELECT`，限制在四张制造数据表并最多返回 100 行；数据库写入、DDL、PRAGMA 和系统表访问均被拒绝。
 
 ## 部门数据库治理
 
@@ -407,28 +407,22 @@ AGENT_LOG_FULL_EXPIRES_AT=<replace-with-timezone-aware-ISO-8601-UTC-timestamp>
 
 ```text
 app/
-  main.py       FastAPI 接口与静态站点
-  agent.py      OpenAI Compatible 工具调用循环与系统约束
-  intent_router.py  确定性问题分类、范围抽取与风险路由
+  __init__.py   包锚点
+  main.py       FastAPI HTTP 入口与静态站点（`app.main:app`）
+  core/         配置与身份上下文
+  api/          FastAPI 路由、依赖与服务
+  agent_runtime/service.py OpenAI Compatible 工具调用循环与系统约束
+  intent_runtime/ 确定性问题分类、范围抽取与风险路由
   manufacturing/       制程定义、六类 Playbook、报表、模拟 Provider 与种子数据
   model_gateway/       模型注册、兼容性、健康熔断与流式协议
   persistence/         SQLite 连接、部门 Schema、迁移与执行记录
   telemetry/           审计日志、HTTP 请求遥测与运行状态
-  domain_playbooks.py  manufacturing/playbooks.py 的兼容入口
-  model_registry.py    model_gateway/registry.py 的兼容入口
-  model_compatibility.py model_gateway/compatibility.py 的兼容入口
-  model_health.py      model_gateway/health.py 的兼容入口
-  model_streaming.py   model_gateway/streaming.py 的兼容入口
-  planner.py    结构化工具计划、参数绑定、依赖与运行时预算策略
+  planning_runtime/ 结构化工具计划、参数绑定、依赖与运行时预算策略
   conversation/ 上下文解析、会话生命周期与 Turn/仲裁决策
-  agent_runtime/execution/loop_guard.py 工具预算、重复调用检测、证据进展与可解释终止（`loop_guard.py` 为兼容入口）
-  reports.py    manufacturing/reports.py 的兼容入口
-  knowledge/    FTS5 trigram 知识与案例联合检索、OCR 与检索决策（`rag.py`、`ocr.py`、`ocr_quality.py`、`knowledge_decision.py` 为兼容入口）
-  evidence/     证据语义、验证与答案综合（根路径模块为兼容入口）
-  audit.py      telemetry/audit.py 的兼容入口
-  observability.py telemetry/http.py 的兼容入口
-  runtime_status.py telemetry/runtime_status.py 的兼容入口
-  seed.py       manufacturing/seed.py 的兼容 CLI 入口
+  agent_runtime/execution/loop_guard.py 工具预算、重复调用检测、证据进展与可解释终止
+  knowledge/    FTS5 trigram 知识与案例联合检索、OCR 与检索决策
+  evidence/     证据语义、验证与答案综合
+  personal_knowledge_runtime/service.py 个人知识 API 服务与实时 patch 命名空间
   static/       报表与 Agent 前端
 knowledge/      虚拟厂内 SOP / 控制计划
 cases/          固定格式历史案例 JSON

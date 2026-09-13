@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
-PROJECT_DIR = Path(__file__).resolve().parent.parent
+PROJECT_DIR = Path(__file__).resolve().parents[2]
 WORKSPACE_DIR = PROJECT_DIR.parent.parent
 APP_VERSION = "20260820-2"
 

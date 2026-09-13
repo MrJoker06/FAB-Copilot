@@ -333,6 +333,93 @@ def facade_inventory_errors(project_dir: Path, manifest: dict[str, object]) -> l
     return errors
 
 
+def retired_module_errors(project_dir: Path, manifest: dict[str, object]) -> list[str]:
+    """Reject imports and physical resurrection of deliberately removed roots."""
+    retired = manifest.get("retired_modules", {})
+    if not isinstance(retired, dict):
+        return ["retired modules must be an object"]
+    app_dir = project_dir / "app"
+    errors: list[str] = []
+    valid_retired: set[str] = set()
+    for legacy, entry in retired.items():
+        if not isinstance(legacy, str) or not re.fullmatch(r"app\.[A-Za-z_][A-Za-z0-9_]*", legacy) or not isinstance(entry, dict):
+            errors.append("retired module mapping must use app module keys and objects")
+            continue
+        if set(entry) != {"target", "reason"} or not all(isinstance(entry[field], str) and entry[field] for field in entry):
+            errors.append(f"retired module mapping incomplete: {legacy}")
+            continue
+        target = entry["target"]
+        if not re.fullmatch(r"app(?:\.[A-Za-z_][A-Za-z0-9_]*)+", target):
+            errors.append(f"retired module target invalid: {legacy} -> {target}")
+            continue
+        target_path = project_dir / Path(*target.split("."))
+        if not target_path.with_suffix(".py").is_file() and not (target_path / "__init__.py").is_file():
+            errors.append(f"retired module target missing: {legacy} -> {target}")
+        relative = legacy.removeprefix("app.")
+        if (app_dir / f"{relative}.py").is_file() or (app_dir / relative / "__init__.py").is_file():
+            errors.append(f"retired root module reintroduced: {legacy}")
+        valid_retired.add(legacy)
+
+    legacy_names = {name.removeprefix("app.") for name in valid_retired}
+    for directory in (app_dir, project_dir / "scripts", project_dir / "tests"):
+        for path in directory.rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            relative = path.relative_to(project_dir)
+            source = module_name(path, app_dir) if path.is_relative_to(app_dir) else ""
+            package = source if path.name == "__init__.py" else source.rsplit(".", 1)[0]
+            importlib_aliases = {"importlib"}
+            import_module_aliases: set[str] = set()
+            for candidate in ast.walk(tree):
+                if isinstance(candidate, ast.Import):
+                    importlib_aliases.update(alias.asname or alias.name for alias in candidate.names if alias.name == "importlib")
+                elif isinstance(candidate, ast.ImportFrom) and candidate.module == "importlib":
+                    import_module_aliases.update(alias.asname or alias.name for alias in candidate.names if alias.name == "import_module")
+
+            def resolve_relative(module: str | None, level: int) -> str:
+                base = package.split(".")[: len(package.split(".")) - level + 1]
+                return ".".join([*base, *(module or "").split(".")]).rstrip(".")
+
+            for node in ast.walk(tree):
+                targets: list[str] = []
+                if isinstance(node, ast.Import):
+                    targets.extend(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module == "app":
+                        targets.extend(f"app.{alias.name}" for alias in node.names if alias.name in legacy_names)
+                    else:
+                        base = resolve_relative(node.module, node.level) if node.level else node.module
+                        if base:
+                            targets.append(base)
+                            if base == "app":
+                                targets.extend(f"app.{alias.name}" for alias in node.names if alias.name in legacy_names)
+                elif isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+                    function = node.func
+                    is_import_module = (
+                        isinstance(function, ast.Name) and function.id in import_module_aliases
+                    ) or (
+                        isinstance(function, ast.Attribute) and function.attr == "import_module"
+                        and isinstance(function.value, ast.Name) and function.value.id in importlib_aliases
+                    ) or (isinstance(function, ast.Name) and function.id == "__import__")
+                    if is_import_module:
+                        target = node.args[0].value
+                        if target.startswith("."):
+                            supplied_package = next(
+                                (keyword.value.value for keyword in node.keywords if keyword.arg == "package" and isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str)),
+                                None,
+                            )
+                            if supplied_package is None and len(node.args) > 1 and isinstance(node.args[1], ast.Constant) and isinstance(node.args[1].value, str):
+                                supplied_package = node.args[1].value
+                            if supplied_package:
+                                levels = len(target) - len(target.lstrip("."))
+                                base = supplied_package.split(".")[: len(supplied_package.split(".")) - levels + 1]
+                                target = ".".join([*base, target.lstrip(".")])
+                        targets.append(target)
+                for target in targets:
+                    if target in valid_retired or any(target.startswith(f"{legacy}.") for legacy in valid_retired):
+                        errors.append(f"{relative}:{node.lineno}: imports retired module {target}")
+    return errors
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
@@ -345,6 +432,7 @@ def main(argv: list[str] | None = None) -> int:
     manifest = load_manifest(arguments.manifest)
     errors = boundary_errors(arguments.app_dir, manifest)
     errors.extend(facade_inventory_errors(arguments.app_dir.parent, manifest))
+    errors.extend(retired_module_errors(arguments.app_dir.parent, manifest))
     if errors:
         print("module boundary check failed:\n" + "\n".join(errors))
         return 1

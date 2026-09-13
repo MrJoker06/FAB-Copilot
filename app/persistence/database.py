@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Iterator
 
-from ..config import get_settings
+from ..core.settings import get_settings
 from .department_schemas import (
     DEPARTMENT_SCHEMAS,
     MIGRATION_ORDER,

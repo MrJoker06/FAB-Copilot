@@ -4,7 +4,7 @@ import unittest
 
 from pydantic import ValidationError
 
-from app.agent import _stream_completion
+from app.agent_runtime.service import _stream_completion
 from app.main import StreamTelemetryRequest
 
 

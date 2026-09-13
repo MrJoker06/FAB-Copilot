@@ -9,7 +9,7 @@ from app.knowledge.decision import (
     rewrite_query,
     usable_result,
 )
-from app.personal_knowledge import _fts_query as personal_fts_query
+from app.personal_knowledge_runtime.service import _fts_query as personal_fts_query
 from app.knowledge.rag import _tokenize_query
 
 

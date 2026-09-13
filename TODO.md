@@ -2,13 +2,13 @@
 
 状态基线：`experiment/parallel-platform`，2026-09-13。
 
-当前统计：共 215 个独立任务，已完成 171 个，待做 44 个。
+当前统计：共 216 个独立任务，已完成 172 个，待做 44 个。
 
 另有 4 项 `OPTIONAL` 可选候选，不计入上述主统计。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
-当前结论：`REF-027` 至 `REF-034` 领域归属与兼容入口收口已完成；当前没有可自动继续的非暂缓任务。剩余 44 项中，当前队列 0 项、用户暂缓 2 项（`QA-010` 远程 Live、`UX-029` 移动端）、企业级暂缓 42 项；另有 4 项 `OPTIONAL` 候选保持不排期，详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
+当前结论：`REF-035` 根目录精简与旧入口退役已完成；`app/` 根目录仅保留 `__init__.py` 与 `main.py`。剩余 44 项中，当前队列 0 项、用户暂缓 2 项（`QA-010` 远程 Live、`UX-029` 移动端）、企业级暂缓 42 项；另有 4 项 `OPTIONAL` 候选保持不排期，详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
 
 ## 标记规则
 
@@ -23,12 +23,12 @@
 
 | 类型 | 任务 | 当前结论 |
 |---|---|---|
-| 当前队列 | 无 | `REF-027` 至 `REF-034` 已完成；不自动激活暂缓或 `OPTIONAL` 任务 |
+| 当前队列 | 无 | REF-035 已完成；不自动激活暂缓或 `OPTIONAL` 任务 |
 | 用户暂缓 | `QA-010`、`UX-029` | 远程 Live 验收和移动端需求暂不进入当前队列 |
 | 企业级暂缓 | 42 项 | 等待身份提供方、真实数据接口、部署环境和运维边界明确 |
 | 可选候选 | `RAG-024`、`AGENT-039`、`REF-025`、`REF-026` `OPTIONAL` | 不计入主统计，只在用户明确激活后排期 |
 
-最近一次完整质量门为 2026-09-13 `REF-034` 宿主 full：569 个 Python 发现项、501/501 个非系统测试，系统数据、HTTP、知识、模型、会话均通过，墙钟 15.5998/16.1728/17.7545/15.5656/16.4263 秒（总计 81.5191 秒），全部预算通过。覆盖率 89%、Node 61/61、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、确定性 Playwright 17/17（45.7 秒）均通过，repository/boundary/refactor contract 检查通过，普通 full 的真实模型和外网调用均为 0。完整基线见 [测试策略](docs/testing-strategy.md)。
+最近一次完整质量门为 2026-09-13 `REF-035` 宿主完整离线质量门重跑 exit 0：发现 576 个 Python 测试，508/508 非系统测试（67.545 秒），系统数据/HTTP/知识/模型/会话 13/15/13/17/10 全通过，墙钟 20.381070265/17.895252597/21.359629731/17.605863887/24.480409194 秒、总计 101.722489564 秒，全部预算通过；coverage 89%，Node 61/61、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 17/17（43.4 秒）均通过。结果保存于被 Git 忽略的 `runtime/quality/ref035-full-parent-rerun.log`；普通门未调用真实模型或外部服务。 完整基线见 [测试策略](docs/testing-strategy.md)。
 
 ## 工作流清单
 
@@ -43,7 +43,7 @@
 | 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 桌面端关键工作流、无障碍治理和视觉回归已完成；移动端 `UX-029` 由用户暂缓 |
 | 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接、运行快照治理和受保护的远程 CI 质量门已完成；其余项均为企业级暂缓 |
 | 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 至 QA-009 已完成；QA-010 本地完整 Live 通过、远程验收暂缓 |
-| 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 至 REF-024、REF-027 至 REF-034 已完成；`REF-025`、`REF-026` 仍为 `OPTIONAL` |
+| 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 至 REF-024、REF-027 至 REF-034 已完成；REF-035 已完成；`REF-025`、`REF-026` 仍为 `OPTIONAL` |
 
 ## 更新要求
 

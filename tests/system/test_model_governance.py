@@ -18,8 +18,8 @@ isolated_system_environment()
 from fastapi.testclient import TestClient
 
 from app.telemetry.audit import sanitize
-from app import agent as agent_module
-from app.config import ModelConnection, get_settings
+from app.agent_runtime import service as agent_module
+from app.core.settings import ModelConnection, get_settings
 from app.persistence.database import db_session
 from app.main import app
 from app.model_gateway.compatibility import ModelCompatibilityError
@@ -150,7 +150,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                     captured.update({"endpoint": endpoint, "headers": headers, "payload": request_payload})
                     return ({"role": "assistant", "content": "模型作用域验证完成"}, {"total_tokens": 3}, "response-model-scope")
 
-                with patch("app.agent._stream_completion", new=fake_model_stream):
+                with patch("app.agent_runtime.service._stream_completion", new=fake_model_stream):
                     chat_response = client.post("/api/chat", headers=user_a, json={"message": "查看工厂总览", "thinking": True})
                 self.assertEqual(chat_response.status_code, 200, chat_response.text)
                 self.assertEqual(captured["payload"]["model"], "enterprise-test-v1")
@@ -345,9 +345,9 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             model_retry_base_seconds=0.05,
         )
         with (
-            patch("app.agent.get_settings", return_value=settings),
-            patch("app.agent._stream_completion", new=fake_stream),
-            patch("app.agent.asyncio.sleep", new=AsyncMock()),
+            patch("app.agent_runtime.service.get_settings", return_value=settings),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.asyncio.sleep", new=AsyncMock()),
         ):
             result = asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-retry-test", progress))
         self.assertEqual(result["answer"], "OK")
@@ -376,9 +376,9 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             model_retry_base_seconds=0.05,
         )
         with (
-            patch("app.agent.get_settings", return_value=settings),
-            patch("app.agent._stream_completion", new=failing_stream),
-            patch("app.agent.asyncio.sleep", new=AsyncMock()),
+            patch("app.agent_runtime.service.get_settings", return_value=settings),
+            patch("app.agent_runtime.service._stream_completion", new=failing_stream),
+            patch("app.agent_runtime.service.asyncio.sleep", new=AsyncMock()),
         ):
             with self.assertRaises(httpx.HTTPStatusError):
                 asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-no-retry-test"))
@@ -395,10 +395,10 @@ class ModelGovernanceSystemTests(unittest.TestCase):
     @contextmanager
     def _health_patches(self, settings, claim):
         with ExitStack() as stack:
-            stack.enter_context(patch("app.agent.get_settings", return_value=settings))
-            stack.enter_context(patch("app.agent.public_user_model_config", return_value={"model": "test-model"}))
-            stack.enter_context(patch("app.agent.get_model_health", return_value={"status": "unknown"}))
-            stack.enter_context(patch("app.agent.claim_model_call", side_effect=claim))
+            stack.enter_context(patch("app.agent_runtime.service.get_settings", return_value=settings))
+            stack.enter_context(patch("app.agent_runtime.service.public_user_model_config", return_value={"model": "test-model"}))
+            stack.enter_context(patch("app.agent_runtime.service.get_model_health", return_value={"status": "unknown"}))
+            stack.enter_context(patch("app.agent_runtime.service.claim_model_call", side_effect=claim))
             yield
 
     def test_open_circuit_skips_model_call_and_uses_local_rules(self):
@@ -410,7 +410,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             calls += 1
             raise AssertionError("open circuit must not call upstream")
 
-        with self._health_patches(settings, [(False, {"status": "open"}, None)]), patch("app.agent._stream_completion", new=stream):
+        with self._health_patches(settings, [(False, {"status": "open"}, None)]), patch("app.agent_runtime.service._stream_completion", new=stream):
             result = asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-open-circuit"))
         self.assertEqual(calls, 0)
         self.assertEqual(result["model"], "local-rules")
@@ -424,7 +424,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
         async def stream(*args):
             raise error
 
-        with self._health_patches(settings, [(True, {"status": "healthy"}, None)]), patch("app.agent._stream_completion", new=stream), patch("app.agent.record_model_failure", return_value=({"status": "degraded"}, None)) as failure, patch("app.agent.asyncio.sleep", new=AsyncMock()):
+        with self._health_patches(settings, [(True, {"status": "healthy"}, None)]), patch("app.agent_runtime.service._stream_completion", new=stream), patch("app.agent_runtime.service.record_model_failure", return_value=({"status": "degraded"}, None)) as failure, patch("app.agent_runtime.service.asyncio.sleep", new=AsyncMock()):
             result = asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-final-failure"))
         self.assertEqual(failure.call_count, 1)
         self.assertEqual(result["model"], "local-rules")
@@ -444,7 +444,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
         def capture(event_type: str, run_id: str, **fields) -> None:
             events.append((event_type, fields))
 
-        with self._health_patches(settings, [(True, {"status": "healthy"}, None)]), patch("app.agent._stream_completion", new=stream), patch("app.agent.record_model_failure", return_value=({"status": "degraded"}, None)) as failure, patch("app.agent._offline_answer") as offline, patch("app.agent.emit", new=capture):
+        with self._health_patches(settings, [(True, {"status": "healthy"}, None)]), patch("app.agent_runtime.service._stream_completion", new=stream), patch("app.agent_runtime.service.record_model_failure", return_value=({"status": "degraded"}, None)) as failure, patch("app.agent_runtime.service._offline_answer") as offline, patch("app.agent_runtime.service.emit", new=capture):
             with self.assertRaises(httpx.HTTPStatusError):
                 asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-partial-failure"))
         self.assertEqual(failure.call_count, 1)
@@ -460,7 +460,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
         async def stream(*args):
             raise error
 
-        with self._health_patches(settings, [(True, {"status": "healthy"}, None)]), patch("app.agent._stream_completion", new=stream), patch("app.agent.record_model_failure") as failure, patch("app.agent._offline_answer") as offline:
+        with self._health_patches(settings, [(True, {"status": "healthy"}, None)]), patch("app.agent_runtime.service._stream_completion", new=stream), patch("app.agent_runtime.service.record_model_failure") as failure, patch("app.agent_runtime.service._offline_answer") as offline:
             with self.assertRaises(httpx.HTTPStatusError):
                 asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-4xx"))
         failure.assert_not_called()
@@ -472,7 +472,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
         async def stream(*args):
             return {"role": "assistant", "content": "OK"}, {"total_tokens": 1}, "response"
 
-        with self._health_patches(settings, [(True, {"status": "healthy"}, None)]), patch("app.agent._stream_completion", new=stream), patch("app.agent.record_model_success", return_value=({"status": "healthy"}, None)) as success:
+        with self._health_patches(settings, [(True, {"status": "healthy"}, None)]), patch("app.agent_runtime.service._stream_completion", new=stream), patch("app.agent_runtime.service.record_model_success", return_value=({"status": "healthy"}, None)) as success:
             result = asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-health-success"))
         self.assertEqual(result["answer"], "OK")
         self.assertEqual(success.call_count, 1)
@@ -488,7 +488,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             attempts += 1
             raise error
 
-        with self._health_patches(settings, [(True, {"status": "half_open"}, "recovery_started")]), patch("app.agent._stream_completion", new=stream), patch("app.agent.record_model_failure", return_value=({"status": "open"}, "opened")):
+        with self._health_patches(settings, [(True, {"status": "half_open"}, "recovery_started")]), patch("app.agent_runtime.service._stream_completion", new=stream), patch("app.agent_runtime.service.record_model_failure", return_value=({"status": "open"}, "opened")):
             result = asyncio.run(agent_module._run_agent_impl("查看工厂总览", [], "run-half-open-once"))
         self.assertEqual(attempts, 1)
         self.assertEqual(result["model"], "local-rules")
@@ -509,7 +509,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             (True, {"status": "healthy"}, None),
             (False, {"status": "open"}, None),
         ]
-        with self._health_patches(settings, claims), patch("app.agent._stream_completion", new=stream), patch("app.agent.record_model_failure", return_value=({"status": "open"}, "opened")) as failure:
+        with self._health_patches(settings, claims), patch("app.agent_runtime.service._stream_completion", new=stream), patch("app.agent_runtime.service.record_model_failure", return_value=({"status": "open"}, "opened")) as failure:
             result = asyncio.run(agent_module._run_agent_impl("查看 CMP-03 当前健康", history, "run-context-opens-circuit"))
         self.assertEqual(calls, 1)
         self.assertEqual(failure.call_count, 1)

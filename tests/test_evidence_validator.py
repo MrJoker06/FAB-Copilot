@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from app import agent as agent_module
+from app.agent_runtime import service as agent_module
 from app.manufacturing.playbooks import select_playbook
 from app.evidence.validator import EvidenceObservation, validate_evidence, validator_system_message
 from app.intent_runtime.routing import route_question
@@ -205,8 +205,8 @@ class EvidenceValidatorTests(unittest.TestCase):
             "spec_lsl": 95.0, "spec_usl": 105.0,
         }]
         with (
-            patch("app.agent.get_settings", return_value=settings),
-            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=settings),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
             patch.dict(agent_module.TOOL_HANDLERS, {
                 "get_process_capability": lambda **_: capability_rows,
                 "get_recent_excursions": lambda **_: [],

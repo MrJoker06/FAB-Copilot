@@ -7,7 +7,7 @@ from datetime import date
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from app import agent as agent_module
+from app.agent_runtime import service as agent_module
 from app.manufacturing.playbooks import select_playbook
 from app.intent_runtime.routing import route_question
 from app.planning_runtime.service import create_execution_plan
@@ -300,8 +300,8 @@ class StructuredPlannerTests(unittest.TestCase):
             model_retry_base_seconds=0.05,
         )
         with (
-            patch("app.agent.get_settings", return_value=settings),
-            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=settings),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
         ):
             result = asyncio.run(
                 agent_module._run_agent_impl(

@@ -9,7 +9,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
-from app import seed
+from app.manufacturing import seed
 from app.persistence.database import db_session, initialize, validate_department_databases
 from app.persistence.department_schemas import SCHEMA_VERSION
 

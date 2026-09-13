@@ -10,7 +10,6 @@ import unittest
 from contextlib import contextmanager
 from unittest.mock import patch
 
-from app import model_compatibility, model_health, model_registry, model_streaming
 from app.model_gateway import compatibility, health, registry, streaming
 
 
@@ -40,13 +39,21 @@ def _factory(connection, calls):
 
 
 class ModelGatewayModuleBoundaryTests(unittest.TestCase):
-    def test_facades_retain_non_health_public_object_identity(self):
-        self.assertIs(model_registry.publish_model, registry.publish_model)
-        self.assertIs(model_registry.MODEL_CAPABILITY_DEFAULTS, registry.MODEL_CAPABILITY_DEFAULTS)
-        self.assertIs(model_compatibility.ModelCompatibilityError, compatibility.ModelCompatibilityError)
-        self.assertIs(model_compatibility.provider_request_options, compatibility.provider_request_options)
-        self.assertIs(model_streaming.stream_completion, streaming.stream_completion)
-        self.assertIs(model_streaming.retryable_model_error, streaming.retryable_model_error)
+    def test_canonical_exports_have_gateway_owners_and_removed_roots(self):
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1] / "app"
+        for name in ("model_registry", "model_compatibility", "model_health", "model_streaming"):
+            self.assertFalse((root / f"{name}.py").exists())
+        owners = (
+            (registry.publish_model, "app.model_gateway.registry"),
+            (compatibility.ModelCompatibilityError, "app.model_gateway.compatibility"),
+            (compatibility.provider_request_options, "app.model_gateway.compatibility"),
+            (streaming.stream_completion, "app.model_gateway.streaming"),
+            (streaming.retryable_model_error, "app.model_gateway.streaming"),
+        )
+        for value, owner in owners:
+            self.assertEqual(value.__module__, owner)
 
     def test_health_wrapper_signatures_preserve_the_original_public_contract(self):
         expected = {
@@ -58,53 +65,37 @@ class ModelGatewayModuleBoundaryTests(unittest.TestCase):
         }
         for name, signature in expected.items():
             with self.subTest(name=name):
-                self.assertEqual(str(inspect.signature(getattr(model_health, name))), signature)
                 self.assertEqual(str(inspect.signature(getattr(health, name))), signature)
 
-    def test_old_and_canonical_health_patch_points_are_independent_and_live(self):
-        legacy_connection, canonical_connection = _connection(), _connection()
-        legacy_calls, canonical_calls = [], []
-        legacy_factory = _factory(legacy_connection, legacy_calls)
-        canonical_factory = _factory(canonical_connection, canonical_calls)
-        original_legacy_factory, original_canonical_factory = model_health.db_session, health.db_session
+    def test_canonical_health_resolves_live_session_per_call_and_bypasses_for_explicit_connection(self):
+        first_connection, second_connection = _connection(), _connection()
+        first_calls, second_calls = [], []
+        first_factory = _factory(first_connection, first_calls)
+        second_factory = _factory(second_connection, second_calls)
+        original_factory = health.db_session
         try:
-            with patch.object(model_health, "db_session", legacy_factory), patch.object(health, "db_session", canonical_factory):
-                model_health.ensure_model_health("legacy-own")
-                health.ensure_model_health("canonical-own")
-                legacy_before, canonical_before = len(legacy_calls), len(canonical_calls)
-                model_health.ensure_model_health("legacy-supplied", legacy_connection)
-                health.ensure_model_health("canonical-supplied", canonical_connection)
-                self.assertEqual((len(legacy_calls), len(canonical_calls)), (legacy_before, canonical_before))
-                self.assertIs(model_health.db_session, legacy_factory)
-                self.assertIs(health.db_session, canonical_factory)
-                self.assertIs(model_health._canonical.db_session, canonical_factory)
-
-                model_health.get_model_health("legacy-get")
-                model_health.claim_model_call("legacy-claim", cooldown_seconds=60, lease_seconds=30)
-                model_health.record_model_success("legacy-success")
-                model_health.record_model_failure("legacy-failure", "network", threshold=1, cooldown_seconds=60)
-                health.get_model_health("canonical-get")
-                health.claim_model_call("canonical-claim", cooldown_seconds=60, lease_seconds=30)
-                health.record_model_success("canonical-success")
-                health.record_model_failure("canonical-failure", "network", threshold=1, cooldown_seconds=60)
-                self.assertIs(model_health.db_session, legacy_factory)
-                self.assertIs(health.db_session, canonical_factory)
-                self.assertIsNot(model_health.db_session, health.db_session)
-            self.assertIs(model_health.db_session, original_legacy_factory)
-            self.assertIs(health.db_session, original_canonical_factory)
-            self.assertEqual(len(legacy_calls), 5)
-            self.assertEqual(len(canonical_calls), 5)
+            with patch.object(health, "db_session", first_factory):
+                health.ensure_model_health("first")
+            with patch.object(health, "db_session", second_factory):
+                health.ensure_model_health("second")
+                before = len(second_calls)
+                health.ensure_model_health("explicit", second_connection)
+                self.assertEqual(len(second_calls), before)
+                health.get_model_health("get")
+                health.claim_model_call("claim", cooldown_seconds=60, lease_seconds=30)
+                health.record_model_success("success")
+                health.record_model_failure("failure", "network", threshold=1, cooldown_seconds=60)
+            self.assertEqual(first_calls, ["opened"])
+            self.assertEqual(second_calls, ["opened"] * 5)
+            self.assertIs(health.db_session, original_factory)
+            self.assertEqual({row[0] for row in first_connection.execute("SELECT model_id FROM agent.model_health")}, {"first"})
             self.assertEqual(
-                {row[0] for row in legacy_connection.execute("SELECT model_id FROM agent.model_health")},
-                {"legacy-own", "legacy-supplied", "legacy-get", "legacy-claim", "legacy-success", "legacy-failure"},
-            )
-            self.assertEqual(
-                {row[0] for row in canonical_connection.execute("SELECT model_id FROM agent.model_health")},
-                {"canonical-own", "canonical-supplied", "canonical-get", "canonical-claim", "canonical-success", "canonical-failure"},
+                {row[0] for row in second_connection.execute("SELECT model_id FROM agent.model_health")},
+                {"second", "explicit", "get", "claim", "success", "failure"},
             )
         finally:
-            legacy_connection.close()
-            canonical_connection.close()
+            first_connection.close()
+            second_connection.close()
 
     def test_canonical_health_circuit_recovery_contract(self):
         connection = _connection()
@@ -122,8 +113,8 @@ class ModelGatewayModuleBoundaryTests(unittest.TestCase):
 
     def test_import_orders_do_not_probe_providers(self):
         orders = {
-            "canonical_first": "import app.persistence.database; import app.model_gateway.registry; import app.model_gateway.compatibility; import app.model_gateway.health; import app.model_gateway.streaming; import app.model_registry; import app.model_compatibility; import app.model_health; import app.model_streaming",
-            "legacy_first": "import app.persistence.database; import app.model_registry; import app.model_compatibility; import app.model_health; import app.model_streaming; import app.model_gateway.registry; import app.model_gateway.compatibility; import app.model_gateway.health; import app.model_gateway.streaming",
+            "gateway_first": "import app.model_gateway.registry; import app.model_gateway.compatibility; import app.model_gateway.health; import app.model_gateway.streaming; import app.persistence.database",
+            "persistence_first": "import app.persistence.database; import app.model_gateway.streaming; import app.model_gateway.health; import app.model_gateway.compatibility; import app.model_gateway.registry",
         }
         guard = "import httpx, socket; blocked=lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError('provider networking during import')); socket.socket.connect=blocked; httpx.Client.send=blocked; httpx.AsyncClient.send=blocked; "
         for name, imports in orders.items():

@@ -8,7 +8,7 @@ import random
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
-from ..config import PROJECT_DIR
+from ..core.settings import PROJECT_DIR
 from ..persistence.database import db_session, department_paths, ensure_department_databases, initialize, writable_table
 from .processes import MANUFACTURING_STEPS
 

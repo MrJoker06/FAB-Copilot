@@ -74,7 +74,7 @@ class AgentLoopContext:
 
 
 async def run_agent_loop(context: AgentLoopContext) -> dict:
-    """Run the non-ready model/tool loop with live dependencies injected by app.agent."""
+    """Run the non-ready model/tool loop with live dependencies injected by app.agent_runtime.service."""
     settings = context.settings
     connection = context.connection
     intent_route = context.intent_route

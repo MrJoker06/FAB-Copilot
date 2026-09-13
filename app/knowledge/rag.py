@@ -3,10 +3,10 @@ from __future__ import annotations
 import re
 from datetime import date
 
-from ..config import get_settings
+from ..core.settings import get_settings
 from ..persistence.database import db_session, get_active_defect_aliases, rows_to_dicts
-from ..identity import current_principal
-from ..personal_knowledge import search_personal_knowledge
+from ..core.identity import current_principal
+from ..personal_knowledge_runtime.service import search_personal_knowledge
 from ..manufacturing.processes import (
     ANALYSIS_SCOPES,
     MANUFACTURING_STEPS,

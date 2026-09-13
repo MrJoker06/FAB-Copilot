@@ -5,9 +5,9 @@ import re
 from dataclasses import replace
 from datetime import datetime, timezone
 
-from ..config import ALLOWED_MODELS, MODEL_API_NAMES, ModelConnection, Settings, get_settings
+from ..core.settings import ALLOWED_MODELS, MODEL_API_NAMES, ModelConnection, Settings, get_settings
 from ..persistence.database import db_session
-from ..identity import Principal, current_principal
+from ..core.identity import Principal, current_principal
 from .health import ensure_model_health
 
 

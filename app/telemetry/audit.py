@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from ..config import PROJECT_DIR
+from ..core.settings import PROJECT_DIR
 
 
 LOG_PATH = Path(os.getenv("AGENT_LOG_PATH", PROJECT_DIR / "logs" / "agent_events.jsonl"))

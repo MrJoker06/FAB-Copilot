@@ -5,7 +5,7 @@ import unittest
 from datetime import date
 from unittest.mock import patch
 
-from app import agent
+from app.agent_runtime import service as agent
 from app.agent_runtime.execution.failure import decide_model_failure
 from app.manufacturing.playbooks import select_playbook
 from app.intent_runtime.routing import route_question
@@ -25,7 +25,7 @@ class AgentExecutionBoundaryTests(unittest.TestCase):
             step.tool: (lambda tool: lambda **_kwargs: calls.append(tool) or [])(step.tool)
             for step in plan.steps
         }
-        with patch.dict(agent.TOOL_HANDLERS, handlers), patch("app.agent.emit"):
+        with patch.dict(agent.TOOL_HANDLERS, handlers), patch("app.agent_runtime.service.emit"):
             asyncio.run(agent._execute_ready_plan(plan, ToolLoopGuard(plan), "boundary", None))
         self.assertEqual(calls, [step.tool for step in plan.steps])
 

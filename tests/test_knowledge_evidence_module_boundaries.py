@@ -8,44 +8,38 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from app import answer_synthesizer, evidence_semantics, evidence_validator, knowledge_decision, ocr, ocr_quality, rag
+from app.evidence import answer_synthesizer, semantics as evidence_semantics, validator as evidence_validator
+from app.knowledge import decision as knowledge_decision, ocr, ocr_quality, rag
 from app.agent_runtime.tools import catalog, registry
-from app.evidence import answer_synthesizer as canonical_answer
-from app.evidence import semantics, validator
-from app.knowledge import decision, ocr as canonical_ocr, ocr_quality as canonical_quality, rag as canonical_rag
 from scripts.check_module_boundaries import boundary_errors, load_manifest
 
 
 class KnowledgeEvidenceModuleBoundaryTests(unittest.TestCase):
-    def test_legacy_facades_retain_canonical_public_and_private_identity(self):
-        self.assertIs(rag.search_knowledge, canonical_rag.search_knowledge)
-        self.assertIs(rag.PROCESS_STEPS, canonical_rag.PROCESS_STEPS)
-        self.assertIs(knowledge_decision.RetrievalDecision, decision.RetrievalDecision)
-        self.assertIs(knowledge_decision.required_scopes, decision.required_scopes)
-        self.assertIs(ocr.OCRResult, canonical_ocr.OCRResult)
-        self.assertIs(ocr.OCRUnavailableError, canonical_ocr.OCRUnavailableError)
-        self.assertIs(ocr._engine_lock, canonical_ocr._engine_lock)
-        self.assertIs(ocr._inference_lock, canonical_ocr._inference_lock)
-        self.assertIs(ocr._engine, canonical_ocr._engine)
-        self.assertIs(ocr_quality.OCRObservation, canonical_quality.OCRObservation)
-        self.assertIs(evidence_semantics.EvidenceScope, semantics.EvidenceScope)
-        self.assertIs(evidence_validator.EvidenceObservation, validator.EvidenceObservation)
-        self.assertIs(answer_synthesizer.AnswerContract, canonical_answer.AnswerContract)
-        self.assertIs(answer_synthesizer.SUBMIT_ANALYSIS_TOOL, canonical_answer.SUBMIT_ANALYSIS_TOOL)
+    def test_canonical_exports_have_domain_owners_and_removed_roots(self):
+        root = Path(__file__).resolve().parents[1] / "app"
+        for name in ("rag", "knowledge_decision", "ocr", "ocr_quality", "evidence_semantics", "evidence_validator", "answer_synthesizer"):
+            self.assertFalse((root / f"{name}.py").exists())
+        owners = (
+            (rag.search_knowledge, "app.knowledge.rag"), (knowledge_decision.RetrievalDecision, "app.knowledge.decision"),
+            (knowledge_decision.required_scopes, "app.knowledge.decision"), (ocr.OCRResult, "app.knowledge.ocr"),
+            (ocr.OCRUnavailableError, "app.knowledge.ocr"), (ocr_quality.OCRObservation, "app.knowledge.ocr_quality"),
+            (evidence_semantics.EvidenceScope, "app.evidence.semantics"), (evidence_validator.EvidenceObservation, "app.evidence.validator"),
+            (answer_synthesizer.AnswerContract, "app.evidence.answer_synthesizer"),
+        )
+        for value, owner in owners:
+            self.assertEqual(value.__module__, owner)
 
     def test_catalog_and_registered_handlers_use_canonical_objects(self):
-        self.assertIs(registry.TOOL_HANDLERS["search_knowledge"], canonical_rag.search_agent_knowledge)
-        self.assertIs(catalog.SUBMIT_ANALYSIS_TOOL, canonical_answer.SUBMIT_ANALYSIS_TOOL)
-        self.assertIn(canonical_answer.SUBMIT_ANALYSIS_TOOL, catalog.TOOLS)
+        self.assertIs(registry.TOOL_HANDLERS["search_knowledge"], rag.search_agent_knowledge)
+        self.assertIs(catalog.SUBMIT_ANALYSIS_TOOL, answer_synthesizer.SUBMIT_ANALYSIS_TOOL)
+        self.assertIn(answer_synthesizer.SUBMIT_ANALYSIS_TOOL, catalog.TOOLS)
 
     def test_ocr_cache_and_locks_are_shared_without_engine_construction(self):
-        original_engine = canonical_ocr._engine
+        original_engine = ocr._engine
         sentinel = object()
-        with patch.object(canonical_ocr, "_engine", sentinel):
+        with patch.object(ocr, "_engine", sentinel):
             self.assertIs(ocr.get_ocr_engine(), sentinel)
-            self.assertIs(canonical_ocr.get_ocr_engine(), sentinel)
             self.assertIs(ocr._engine, sentinel)
-        self.assertIs(canonical_ocr._engine, original_engine)
         self.assertIs(ocr._engine, original_engine)
 
     def test_import_orders_do_not_eagerly_construct_ocr_engine_or_cycle(self):
@@ -55,8 +49,8 @@ class KnowledgeEvidenceModuleBoundaryTests(unittest.TestCase):
             "httpx.AsyncClient.send = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError('network')); "
         )
         orders = (
-            guard + "import app.rag; import app.knowledge_decision; import app.ocr; import app.ocr_quality; import app.evidence_semantics; import app.evidence_validator; import app.answer_synthesizer; import app.personal_knowledge; import app.knowledge.ocr as value; print(value._engine is None)",
-            guard + "import app.knowledge.rag; import app.knowledge.decision; import app.knowledge.ocr as value; import app.knowledge.ocr_quality; import app.evidence.semantics; import app.evidence.validator; import app.evidence.answer_synthesizer; import app.personal_knowledge; import app.ocr; import app.ocr_quality; import app.rag; import app.knowledge_decision; import app.evidence_semantics; import app.evidence_validator; import app.answer_synthesizer; print(value._engine is None)",
+            guard + "import app.knowledge.rag; import app.knowledge.decision; import app.knowledge.ocr; import app.knowledge.ocr_quality; import app.evidence.semantics; import app.evidence.validator; import app.evidence.answer_synthesizer; import app.personal_knowledge_runtime.service; import app.knowledge.ocr as value; print(value._engine is None)",
+            guard + "import app.personal_knowledge_runtime.service; import app.evidence.answer_synthesizer; import app.evidence.validator; import app.evidence.semantics; import app.knowledge.ocr as value; import app.knowledge.ocr_quality; import app.knowledge.decision; import app.knowledge.rag; print(value._engine is None)",
         )
         for source in orders:
             with self.subTest(source=source), tempfile.TemporaryDirectory() as directory:

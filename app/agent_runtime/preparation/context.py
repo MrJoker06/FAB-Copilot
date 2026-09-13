@@ -1,4 +1,4 @@
-"""Conversation-context preparation with dependencies injected by ``app.agent``."""
+"""Conversation-context preparation with dependencies injected by ``app.agent_runtime.service``."""
 
 from __future__ import annotations
 

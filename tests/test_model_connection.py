@@ -5,7 +5,7 @@ import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import patch
 
-from app.config import ModelConnection, get_settings
+from app.core.settings import ModelConnection, get_settings
 
 
 MODEL_ENVIRONMENT = {

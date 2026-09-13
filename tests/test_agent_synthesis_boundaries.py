@@ -6,7 +6,7 @@ from datetime import date
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from app import agent
+from app.agent_runtime import service as agent
 from app.evidence.answer_synthesizer import SUBMIT_ANALYSIS_TOOL
 from app.manufacturing.playbooks import select_playbook
 from app.intent_runtime.routing import route_question
@@ -31,7 +31,7 @@ class AgentSynthesisBoundaryTests(unittest.TestCase):
         class Settings: model_retry_base_seconds = 0
         for provider, thinking in (("deepseek", True), ("deepseek", False), ("openai-compatible", True)):
             connection = SimpleNamespace(model="m", provider=provider)
-            with patch("app.agent._stream_completion", completion), patch("app.agent.emit"):
+            with patch("app.agent_runtime.service._stream_completion", completion), patch("app.agent_runtime.service.emit"):
                 asyncio.run(agent._request_ready_synthesis(None, "e", {}, connection, Settings(), [], "run", thinking, 0))
         self.assertEqual([payload["max_tokens"] for payload in captured], [32768, 8192, 8192])
 
@@ -40,7 +40,7 @@ class AgentSynthesisBoundaryTests(unittest.TestCase):
         plan = create_execution_plan("分析 CMP-03 最近7天 Cpk 不合格", route, select_playbook(route))
         validation = agent.validate_evidence(plan, select_playbook(route).selected_playbook, [])
         contract = agent.create_answer_contract(validation)
-        with patch("app.agent.synthesizer_system_message", return_value="live-contract"):
+        with patch("app.agent_runtime.service.synthesizer_system_message", return_value="live-contract"):
             messages = agent._ready_synthesis_messages("问题", plan, validation, contract, [])
         self.assertEqual(messages[1]["content"], "live-contract")
 
@@ -53,14 +53,14 @@ class AgentSynthesisBoundaryTests(unittest.TestCase):
             return {"tool_calls": []}, {}, "r"
         class Connection: model = "m"; provider = "other"
         class Settings: model_retry_base_seconds = 0
-        with patch("app.agent._stream_completion", completion), patch("app.agent.emit", side_effect=lambda *args, **kwargs: events.append(args[0])):
+        with patch("app.agent_runtime.service._stream_completion", completion), patch("app.agent_runtime.service.emit", side_effect=lambda *args, **kwargs: events.append(args[0])):
             asyncio.run(agent._request_ready_synthesis(None, "e", {}, Connection(), Settings(), [], "run", False, 0))
         self.assertEqual(events, ["model_call_started", "model_call_finished"])
 
     def test_offline_fallback_uses_live_local_handlers(self):
         route = route_question("分析最近良率", current_date=date(2026, 8, 23))
         plan = create_execution_plan("分析最近良率", route, select_playbook(route))
-        with patch("app.agent.fab_overview", return_value={"lots": 1, "yield_pct": 99, "avg_cycle_hours": 2}), patch("app.agent.equipment_health", return_value=[]):
+        with patch("app.agent_runtime.service.fab_overview", return_value={"lots": 1, "yield_pct": 99, "avg_cycle_hours": 2}), patch("app.agent_runtime.service.equipment_health", return_value=[]):
             result = agent._offline_answer("分析最近良率", route, select_playbook(route), plan, agent.ToolLoopGuard(plan))
         self.assertEqual(result["tool_trace"][0], {"tool": "get_fab_overview", "status": "local"})
         self.assertEqual(result["tool_trace"][1]["tool"], "get_equipment_health")
@@ -93,7 +93,7 @@ class AgentSynthesisBoundaryTests(unittest.TestCase):
     def test_ready_assistant_preserves_nonempty_content_whitespace(self):
         report = SimpleNamespace(answer="answer", report=SimpleNamespace(status="legacy"))
         raw_content = "  保留前后空白\n"
-        with patch("app.agent.synthesize_legacy_answer", return_value=report) as synthesize:
+        with patch("app.agent_runtime.service.synthesize_legacy_answer", return_value=report) as synthesize:
             result = agent._synthesize_ready_assistant(
                 {"tool_calls": [], "content": raw_content},
                 object(),
@@ -110,7 +110,7 @@ class AgentSynthesisBoundaryTests(unittest.TestCase):
         contract = object()
         validation = SimpleNamespace()
         observations = []
-        with patch("app.agent._ready_synthesis_fallback", return_value=fallback) as facade:
+        with patch("app.agent_runtime.service._ready_synthesis_fallback", return_value=fallback) as facade:
             result = agent._synthesize_ready_assistant(
                 {"tool_calls": [], "content": ""},
                 contract,
@@ -131,7 +131,7 @@ class AgentSynthesisBoundaryTests(unittest.TestCase):
         route = route_question("你好", current_date=date(2026, 8, 23))
         plan = create_execution_plan("你好", route, select_playbook(route))
         clarification = SimpleNamespace(strategy="context_clarification", candidate_messages=[], recalled_messages=[])
-        with patch("app.agent.fab_overview", side_effect=AssertionError), patch("app.agent.equipment_health", side_effect=AssertionError):
+        with patch("app.agent_runtime.service.fab_overview", side_effect=AssertionError), patch("app.agent_runtime.service.equipment_health", side_effect=AssertionError):
             result = agent._offline_answer("你好", route, select_playbook(route), plan, agent.ToolLoopGuard(plan), clarification)
         self.assertEqual(result["tool_trace"], [])
 

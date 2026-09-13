@@ -3,19 +3,17 @@ from __future__ import annotations
 import inspect
 import unittest
 
-import app.planner as facade
 from app.planning_runtime import service
 from app.planning_runtime import contracts, queries, scope, steps
 
 
 class PlanningRuntimeBoundaryTests(unittest.TestCase):
-    def test_facade_keeps_contract_identity_and_private_helpers(self):
-        self.assertIs(facade.ExecutionPlan, contracts.ExecutionPlan)
-        self.assertIs(facade.PlanStep, contracts.PlanStep)
-        self.assertIs(facade.create_execution_plan, service.create_execution_plan)
-        self.assertIs(facade._ready_steps, steps._ready_steps)
-        self.assertIs(facade._manufacturing_queries, queries._manufacturing_queries)
-        self.assertIs(facade._analysis_scope_contract, scope._analysis_scope_contract)
+    def test_service_uses_contract_and_helper_owners(self):
+        source = inspect.getsource(service)
+        self.assertIn("from .contracts import ExecutionPlan, PlanBudget", source)
+        self.assertIn("from .queries import _resolved_inputs", source)
+        self.assertIn("from .scope import _analysis_scope_contract", source)
+        self.assertIn("from .steps import _empty_budget, _generic_budget, _ready_steps", source)
 
     def test_implementation_ownership_has_no_service_backedges(self):
         self.assertEqual(contracts.AnalysisScopeContract.__module__, "app.planning_runtime.contracts")
@@ -34,8 +32,7 @@ class PlanningRuntimeBoundaryTests(unittest.TestCase):
         for name in ("_manufacturing_queries", "_analysis_scope_contract", "_ready_steps"):
             self.assertNotIn(f"def {name}", source)
 
-    def test_facade_is_thin_and_runtime_uses_intent_contracts(self):
-        self.assertNotIn("def create_execution_plan", inspect.getsource(facade))
+    def test_service_uses_intent_contracts_without_retired_planner(self):
         self.assertIn("intent_runtime.contracts", inspect.getsource(service))
         for module in (contracts, queries, scope, steps, service):
             self.assertNotIn("planner import", inspect.getsource(module))

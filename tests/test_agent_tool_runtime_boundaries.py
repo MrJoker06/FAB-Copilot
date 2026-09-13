@@ -5,7 +5,8 @@ import unittest
 from datetime import date
 from unittest.mock import patch
 
-from app import agent, agent_tools
+from app.agent_runtime import service as agent
+from app.agent_runtime import tools as agent_tools
 from app.agent_runtime.tools import catalog, registry
 from app.agent_runtime.tools.executor import (
     execute_registered_tool,
@@ -83,7 +84,7 @@ class AgentToolRuntimeBoundaryTests(unittest.TestCase):
         sentinel = {"direct": True}
         handlers = {step.tool: handler(step.tool) for step in plan.steps}
         handlers["runtime-direct"] = lambda **kwargs: sentinel
-        with patch.dict(agent.TOOL_HANDLERS, handlers), patch("app.agent.emit"):
+        with patch.dict(agent.TOOL_HANDLERS, handlers), patch("app.agent_runtime.service.emit"):
             self.assertIs(
                 agent._execute_registered_tool("runtime-direct", {"value": 1}),
                 sentinel,

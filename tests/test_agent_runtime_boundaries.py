@@ -6,7 +6,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app import agent
+from app.agent_runtime import service as agent
 from app.agent_runtime.contracts import AgentRunLifecycle, AgentRunRequest
 from app.agent_runtime.coordinator import CoordinatorDependencies, coordinate_agent_run
 from app.agent_runtime.coordinator_availability import handle_model_availability as legacy_availability
@@ -41,9 +41,9 @@ class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
         for name in async_names:
             self.assertTrue(inspect.iscoroutinefunction(getattr(agent, name)), name)
 
-        with patch("app.agent._notify") as async_mock:
+        with patch("app.agent_runtime.service._notify") as async_mock:
             self.assertIsInstance(async_mock, AsyncMock)
-        with patch("app.agent._emit_answer_synthesis") as sync_mock:
+        with patch("app.agent_runtime.service._emit_answer_synthesis") as sync_mock:
             self.assertIsInstance(sync_mock, MagicMock)
             self.assertNotIsInstance(sync_mock, AsyncMock)
         self.assertFalse(inspect.iscoroutinefunction(agent._emit_answer_synthesis))
@@ -114,7 +114,7 @@ class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
         result = {"answer": "完成"}
         coordinator = AsyncMock(return_value=result)
 
-        with patch("app.agent.coordinate_agent_run", new=coordinator):
+        with patch("app.agent_runtime.service.coordinate_agent_run", new=coordinator):
             actual = await agent._run_agent_impl("问题", history, "run-1", thinking=True)
 
         self.assertIs(actual, result)
@@ -130,7 +130,7 @@ class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
         request = AgentRunRequest("问题", None, "run-1")
         preparation = AsyncMock(side_effect=RuntimeError("dependency failure"))
 
-        with patch("app.agent.prepare_agent_run", new=preparation):
+        with patch("app.agent_runtime.service.prepare_agent_run", new=preparation):
             deps = agent._coordinator_dependencies()
             with self.assertRaisesRegex(RuntimeError, "dependency failure"):
                 await coordinate_agent_run(request, None, deps=deps)
@@ -170,7 +170,7 @@ class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
         sleep = AsyncMock()
         answer = "x" * 121
-        with patch("app.agent._notify", new=capture_notify), patch("app.agent.asyncio.sleep", new=sleep):
+        with patch("app.agent_runtime.service._notify", new=capture_notify), patch("app.agent_runtime.service.asyncio.sleep", new=sleep):
             await agent._stream_answer(object(), answer)
 
         self.assertEqual([event["delta"] for event in events], ["x" * 120, "x"])
@@ -192,7 +192,7 @@ class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
         def capture(event_type: str, run_id: str, **fields) -> None:
             emitted.append((event_type, run_id, fields))
 
-        with patch("app.agent.emit", new=capture):
+        with patch("app.agent_runtime.service.emit", new=capture):
             agent._emit_answer_synthesis("run-1", report)
 
         self.assertEqual(emitted, [("answer_synthesis_completed", "run-1", {
@@ -209,7 +209,7 @@ class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
     async def test_run_agent_uses_live_legacy_implementation(self):
         result = {"answer": "完成", "tool_trace": [], "sources": []}
         implementation = AsyncMock(return_value=result)
-        with patch("app.agent._run_agent_impl", new=implementation), patch("app.agent.emit"):
+        with patch("app.agent_runtime.service._run_agent_impl", new=implementation), patch("app.agent_runtime.service.emit"):
             actual = await agent.run_agent("问题", history=[])
 
         self.assertIs(actual, result)

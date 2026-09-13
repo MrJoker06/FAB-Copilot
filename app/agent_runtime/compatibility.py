@@ -86,7 +86,7 @@ from ..evidence.answer_synthesizer import (
 )
 from .assistant_capabilities import build_meta_response
 from ..telemetry.audit import content_fingerprint, emit
-from ..config import Settings, get_settings
+from ..core.settings import Settings, get_settings
 from ..conversation.context_resolver import (
     CONTEXTUALIZER_RESPONSE_FORMAT,
     ContextResolution,
@@ -656,7 +656,7 @@ _EXPORT_NAMES = [
 ]
 
 class AgentCompatibilityFacade:
-    """Run compatibility templates against a fresh app.agent namespace snapshot."""
+    """Run compatibility templates against a fresh app.agent_runtime.service namespace snapshot."""
 
     def __init__(self, namespace_provider: Callable[[], dict[str, Any]]):
         self._namespace_provider = namespace_provider
@@ -670,7 +670,7 @@ class AgentCompatibilityFacade:
 
 
 def install_agent_compatibility_exports(target: dict[str, Any], facade: AgentCompatibilityFacade) -> None:
-    """Install stable names and per-call forwarding wrappers into app.agent."""
+    """Install stable names and per-call forwarding wrappers into app.agent_runtime.service."""
     for name in _EXPORT_NAMES:
         target.setdefault(name, globals()[name])
     for name in _FACADE_NAMES:

@@ -5,7 +5,7 @@ import unittest
 from contextlib import contextmanager
 from unittest.mock import patch
 
-from app.model_health import claim_model_call, get_model_health, record_model_failure, record_model_success
+from app.model_gateway.health import claim_model_call, get_model_health, record_model_failure, record_model_success
 
 
 class ModelHealthTests(unittest.TestCase):
@@ -22,7 +22,7 @@ class ModelHealthTests(unittest.TestCase):
         def session():
             yield self.connection
         self.session = session
-        self.patcher = patch("app.model_health.db_session", self.session)
+        self.patcher = patch("app.model_gateway.health.db_session", self.session)
         self.patcher.start()
 
     def tearDown(self):

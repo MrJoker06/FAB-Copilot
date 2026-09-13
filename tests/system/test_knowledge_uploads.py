@@ -14,7 +14,7 @@ isolated_system_environment()
 
 from fastapi.testclient import TestClient
 
-from app import agent as agent_module
+from app.agent_runtime import service as agent_module
 from app.persistence.database import db_session, get_active_defect_aliases, initialize, replace_defect_type_aliases
 from app.main import app
 from app.knowledge.rag import _infer_filters, search_knowledge
@@ -367,7 +367,7 @@ class KnowledgeUploadsSystemTests(unittest.TestCase):
         Image.new("RGB", (80, 40), "white").save(buffer, "PNG")
         low = OCRResult("barely", (0.1,), 1, 0.1, 1.0, True)
         with patch(
-            "app.personal_knowledge.extract_image_result",
+            "app.personal_knowledge_runtime.service.extract_image_result",
             return_value=low,
         ), TestClient(app) as client:
             uploaded = client.post(

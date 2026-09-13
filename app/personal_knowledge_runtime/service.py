@@ -5,37 +5,37 @@ from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
-from .telemetry.audit import emit
-from .config import get_settings
-from .persistence.database import db_session
-from .knowledge.ocr import extract_image_result
-from .knowledge.ocr_quality import POLICY_VERSION, evaluate_observations
-from .personal_knowledge_runtime import documents as _documents
-from .personal_knowledge_runtime import ingestion as _ingestion
-from .personal_knowledge_runtime import jobs as _jobs
-from .personal_knowledge_runtime import metadata as _metadata
-from .personal_knowledge_runtime import search as _search
-from .personal_knowledge_runtime import storage as _storage
-from .personal_knowledge_runtime.contracts import (
+from ..telemetry.audit import emit
+from ..core.settings import get_settings
+from ..persistence.database import db_session
+from ..knowledge.ocr import extract_image_result
+from ..knowledge.ocr_quality import POLICY_VERSION, evaluate_observations
+from . import documents as _documents
+from . import ingestion as _ingestion
+from . import jobs as _jobs
+from . import metadata as _metadata
+from . import search as _search
+from . import storage as _storage
+from .contracts import (
     ExtractedSection,
     PersonalDocumentMetadata,  # noqa: F401 - public facade compatibility
     PersonalDocumentPatch,
     PersonalKnowledgeError,  # noqa: F401 - public facade compatibility
 )
-from .personal_knowledge_runtime.extractors import (
+from .extractors import (
     extract_sections as _runtime_extract_sections,
 )
-from .personal_knowledge_runtime.extractors.text import (
+from .extractors.text import (
     text_sections as _extractor_text_sections,
 )
-from .personal_knowledge_runtime.metadata import (
+from .metadata import (
     _automatic_tags,
     _document_dict,
     _json_list,
     _normalise_tags,
     parse_metadata,
 )
-from .manufacturing.processes import process_query_terms
+from ..manufacturing.processes import process_query_terms
 
 PARSER_VERSION = "personal-v2-ocr"
 SUPPORTED_SUFFIXES = _storage.SUPPORTED_SUFFIXES

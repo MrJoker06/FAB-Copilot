@@ -12,6 +12,7 @@ from scripts.check_module_boundaries import (
     facade_inventory_errors,
     imported_modules,
     load_manifest,
+    retired_module_errors,
 )
 
 
@@ -29,9 +30,9 @@ class ModuleBoundaryTests(unittest.TestCase):
         value: dict[str, object] = {
             "schema_version": 1,
             "policy": {
-                "forbidden_targets": ["app.main", "app.agent", "app.agent_runtime.coordinator"],
+                "forbidden_targets": ["app.main", "app.agent_runtime.service", "app.agent_runtime.coordinator"],
                 "pure_modules": pure or [],
-                "pure_forbidden_targets": ["app.database", "app.main", "app.agent"],
+                "pure_forbidden_targets": ["app.persistence.database", "app.main", "app.agent_runtime.service"],
             },
             "existing_edge_exceptions": [],
             "package_ownership": {"target": "app", "compatibility": "retain", "exit_condition": "never", "consumers": {"production": [], "scripts": [], "tests": ["test"], "patches": []}},
@@ -57,10 +58,13 @@ class ModuleBoundaryTests(unittest.TestCase):
     def test_rejects_pure_database_import(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            app = self.write_app(root, {"__init__.py": "", "database.py": "", "rules.py": "from app import database\n"})
-            manifest = self.manifest(root, ["database", "rules"], pure=["app.rules"])
+            app = self.write_app(root, {"__init__.py": "", "persistence/database.py": "", "rules.py": "from app.persistence import database\n"})
+            manifest = self.manifest(root, ["rules"], pure=["app.rules"])
+            manifest["canonical_modules"]["app.persistence.database"] = "persistence.database"
+            manifest["allowed_domain_dependencies"]["persistence"] = ["persistence"]
+            manifest["allowed_domain_dependencies"]["rules"].append("persistence")
             errors = boundary_errors(app, manifest)
-        self.assertEqual(errors, ["app.rules:1: pure module imports forbidden app.database"])
+        self.assertEqual(errors, ["app.rules:1: pure module imports forbidden app.persistence.database"])
 
     def test_rejects_malformed_and_stale_exceptions_without_crashing(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -69,12 +73,12 @@ class ModuleBoundaryTests(unittest.TestCase):
             manifest = self.manifest(root, ["database", "rules"])
             manifest["existing_edge_exceptions"] = [
                 "not an exception",
-                {"source": "app.rules", "target": "app.database", "reason": "test", "exit_condition": "REF-999"},
+                {"source": "app.rules", "target": "app.persistence.database", "reason": "test", "exit_condition": "REF-999"},
             ]
             errors = boundary_errors(app, manifest)
         self.assertEqual(errors, [
             "edge exception must contain exact source, target, reason and exit_condition fields",
-            "stale edge exception: app.rules -> app.database",
+            "stale edge exception: app.rules -> app.persistence.database",
         ])
 
     def test_accepts_only_the_exact_existing_exception(self):
@@ -82,14 +86,14 @@ class ModuleBoundaryTests(unittest.TestCase):
             root = Path(temporary)
             app = self.write_app(root, {
                 "__init__.py": "", "main.py": "", "agent.py": "",
-                "domain.py": "import app.main\nimport app.agent\n",
+                "domain.py": "import app.main\nimport app.agent_runtime.service\n",
             })
             manifest = self.manifest(root, ["main", "agent", "domain"])
             manifest["existing_edge_exceptions"] = [{
                 "source": "app.domain", "target": "app.main", "reason": "compatibility", "exit_condition": "REF-999",
             }]
             errors = boundary_errors(app, manifest)
-        self.assertEqual(errors, ["app.domain:2: domain module imports forbidden app.agent"])
+        self.assertEqual(errors, ["app.domain:2: domain module imports forbidden app.agent_runtime.service"])
 
     def test_rejects_cross_domain_dependency_and_malformed_dependency_mappings(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -123,28 +127,30 @@ class ModuleBoundaryTests(unittest.TestCase):
             root = Path(temporary)
             app = self.write_app(root, {
                 "__init__.py": "", "agent.py": "", "database.py": "", "pure.py": "import socket\n",
-                "agent_runtime/__init__.py": "", "agent_runtime/coordinator.py": "", "agent_runtime/tools.py": "from .. import agent\n",
+                "agent_runtime/__init__.py": "", "agent_runtime/service.py": "", "agent_runtime/coordinator.py": "", "agent_runtime/tools.py": "from . import service\n",
             })
             manifest = self.manifest(root, ["agent", "database", "pure"], pure=["app.pure"])
+            manifest["canonical_modules"]["app.agent_runtime.service"] = "agent_runtime.service"
+            manifest["allowed_domain_dependencies"]["agent_runtime"] = ["agent_runtime"]
             manifest["policy"]["pure_forbidden_prefixes"] = ["socket"]
             manifest["policy"]["assembly_modules"] = []
             errors = boundary_errors(app, manifest)
         self.assertIn("app.pure:1: pure module imports forbidden socket", errors)
-        self.assertIn("app.agent_runtime.tools:1: domain module imports forbidden app.agent", errors)
+        self.assertIn("app.agent_runtime.tools:1: domain module imports forbidden app.agent_runtime.service", errors)
 
     def test_finds_relative_package_and_literal_dynamic_import_forms(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             app = self.write_app(root, {
                 "__init__.py": "", "main.py": "", "agent.py": "", "domain.py": (
-                    "from . import main\nfrom app import agent\nimport importlib as loader\n"
-                    "from importlib import import_module as load\nloader.import_module('app.main')\nload('app.agent')\n"
+                    "from . import main\nfrom app.agent_runtime import service as agent\nimport importlib as loader\n"
+                    "from importlib import import_module as load\nloader.import_module('app.main')\nload('app.agent_runtime.service')\n"
                 ),
             })
             edges = imported_modules(app / "domain.py", app)
         self.assertEqual(
             {(edge.target, edge.line) for edge in edges},
-            {("app", 1), ("app.main", 1), ("app", 2), ("app.agent", 2), ("importlib", 3), ("importlib", 4), ("app.main", 5), ("app.agent", 6)},
+            {("app", 1), ("app.main", 1), ("app.agent_runtime", 2), ("importlib", 3), ("importlib", 4), ("app.main", 5), ("app.agent_runtime.service", 6)},
         )
 
     def test_inventory_reports_real_import_and_patch_consumers(self):
@@ -158,6 +164,83 @@ class ModuleBoundaryTests(unittest.TestCase):
         self.assertEqual(inventory["agent"]["tests"], ["tests/test_example.py"])
         self.assertEqual(inventory["agent"]["production"], ["app/worker.py"])
         self.assertEqual(inventory["main"]["patches"], ["tests/test_example.py"])
+
+    def test_retirement_policy_rejects_old_imports_and_root_reintroduction(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            app = self.write_app(root, {"__init__.py": "", "main.py": "", "knowledge/rag.py": ""})
+            scripts = root / "scripts"
+            scripts.mkdir()
+            (scripts / "consumer.py").write_text("from app import rag\n", encoding="utf-8")
+            manifest = self.manifest(root, ["main"])
+            manifest["retired_modules"] = {"app.rag": {"target": "app.knowledge.rag", "reason": "REF-035"}}
+            self.assertEqual(retired_module_errors(root, manifest), ["scripts/consumer.py:1: imports retired module app.rag"])
+            (app / "rag.py").write_text("", encoding="utf-8")
+            self.assertIn("retired root module reintroduced: app.rag", retired_module_errors(root, manifest))
+
+    def test_retirement_policy_detects_relative_nested_and_dynamic_imports_without_old_file(self):
+        cases = {
+            "app/worker.py": "from . import rag\n",
+            "app/nested/worker.py": "from .. import rag\n",
+            "scripts/direct.py": "import app.rag\n",
+            "scripts/dynamic.py": "import importlib as loader\nloader.import_module('app.rag')\n",
+            "tests/test_dynamic.py": "from importlib import import_module\nimport_module('.rag', package='app')\n",
+        }
+        for relative, content in cases.items():
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                self.write_app(root, {"__init__.py": "", "main.py": "", "knowledge/rag.py": ""})
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content, encoding="utf-8")
+                manifest = self.manifest(root, ["main"])
+                manifest["retired_modules"] = {"app.rag": {"target": "app.knowledge.rag", "reason": "REF-035"}}
+                self.assertEqual(retired_module_errors(root, manifest), [f"{relative}:2: imports retired module app.rag"] if "dynamic" in relative else [f"{relative}:1: imports retired module app.rag"])
+
+    def test_retirement_policy_accepts_canonical_import_and_frozen_display_fixture(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_app(root, {"__init__.py": "", "main.py": "", "knowledge/rag.py": ""})
+            scripts = root / "scripts"
+            scripts.mkdir()
+            (scripts / "canonical.py").write_text("import app.knowledge.rag\nLABEL = 'MODULE:app.rag'\n", encoding="utf-8")
+            manifest = self.manifest(root, ["main"])
+            manifest["retired_modules"] = {"app.rag": {"target": "app.knowledge.rag", "reason": "REF-035"}}
+            self.assertEqual(retired_module_errors(root, manifest), [])
+
+    def test_retirement_policy_rejects_invalid_schema_and_missing_target(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_app(root, {"__init__.py": "", "main.py": "", "knowledge/rag.py": ""})
+            manifest = self.manifest(root, ["main"])
+            manifest["retired_modules"] = {
+                "app.rag.child": {"target": "app.knowledge.rag", "reason": "REF-035"},
+                "app.bad": {"target": "app.missing", "reason": "REF-035"},
+                "app.schema": {"target": "app.knowledge.rag"},
+                3: {},
+            }
+            errors = retired_module_errors(root, manifest)
+            self.assertIn("retired module mapping must use app module keys and objects", errors)
+            self.assertIn("retired module target missing: app.bad -> app.missing", errors)
+            self.assertIn("retired module mapping incomplete: app.schema", errors)
+
+    def test_retirement_policy_rejects_old_prefix_and_positional_dynamic_aliases(self):
+        cases = {
+            "scripts/prefix.py": "import app.rag.child\n",
+            "scripts/alias.py": "from importlib import import_module as load\nload('.rag', 'app')\n",
+            "scripts/helper.py": "def load_old():\n    from importlib import import_module as load\n    return load('.rag', 'app')\n",
+        }
+        for relative, content in cases.items():
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                self.write_app(root, {"__init__.py": "", "main.py": "", "knowledge/rag.py": ""})
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content, encoding="utf-8")
+                manifest = self.manifest(root, ["main"])
+                manifest["retired_modules"] = {"app.rag": {"target": "app.knowledge.rag", "reason": "REF-035"}}
+                expected_line = 1 if relative.endswith("prefix.py") else (2 if relative.endswith("alias.py") else 3)
+                self.assertEqual(retired_module_errors(root, manifest), [f"{relative}:{expected_line}: imports retired module app.rag" if not relative.endswith("prefix.py") else f"{relative}:1: imports retired module app.rag.child"])
 
     def test_internal_facade_policy_rejects_each_import_form_and_ignores_fixture_strings(self):
         cases = (
@@ -267,6 +350,15 @@ class ModuleBoundaryTests(unittest.TestCase):
             target.write_text(target.read_text(encoding="utf-8") + "\nfrom app.agent_runtime import coordinator\n", encoding="utf-8")
             errors = boundary_errors(copied_app, load_manifest())
         self.assertTrue(any("domain module imports forbidden app.agent_runtime.coordinator" in error for error in errors))
+
+    def test_real_manifest_rejects_pure_manufacturing_processes_database_import(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            copied_app = Path(temporary) / "app"
+            shutil.copytree(Path(__file__).resolve().parents[1] / "app", copied_app)
+            target = copied_app / "manufacturing" / "processes.py"
+            target.write_text(target.read_text(encoding="utf-8") + "\nfrom app.persistence import database\n", encoding="utf-8")
+            errors = boundary_errors(copied_app, load_manifest())
+        self.assertTrue(any("app.manufacturing.processes" in error and "pure module imports forbidden app.persistence.database" in error for error in errors))
 
 
 if __name__ == "__main__":

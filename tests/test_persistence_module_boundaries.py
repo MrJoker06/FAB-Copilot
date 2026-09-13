@@ -6,34 +6,29 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app import database
-from app import department_schemas
-from app import execution_store
-from app.persistence import database as canonical_database
-from app.persistence import department_schemas as canonical_department_schemas
-from app.persistence import execution_store as canonical_execution_store
+from app.persistence import database, department_schemas, execution_store
 from scripts.check_module_boundaries import boundary_errors, load_manifest
 
 
 class PersistenceModuleBoundaryTests(unittest.TestCase):
-    def test_legacy_facades_retain_canonical_public_and_private_object_identity(self):
-        self.assertIs(database.db_session, canonical_database.db_session)
-        self.assertIs(database.initialize, canonical_database.initialize)
-        self.assertIs(database.SCHEMA, canonical_database.SCHEMA)
-        self.assertIs(
-            database._migrate_model_health,
-            canonical_database._migrate_model_health,
+    def test_canonical_exports_have_persistence_owners_and_removed_roots(self):
+        root = Path(__file__).resolve().parents[1] / "app"
+        for name in ("database", "department_schemas", "execution_store"):
+            self.assertFalse((root / f"{name}.py").exists())
+        owners = (
+            (database.db_session, "app.persistence.database"), (database.initialize, "app.persistence.database"),
+            (database._migrate_model_health, "app.persistence.database"),
+            (execution_store.start_run_record, "app.persistence.execution_store"),
+            (execution_store.RunExecutionRecorder, "app.persistence.execution_store"),
         )
-        self.assertIs(department_schemas.SCHEMA_VERSION, canonical_department_schemas.SCHEMA_VERSION)
-        self.assertIs(department_schemas.DEPARTMENT_SCHEMAS, canonical_department_schemas.DEPARTMENT_SCHEMAS)
-        self.assertIs(execution_store.start_run_record, canonical_execution_store.start_run_record)
-        self.assertIs(execution_store.RunExecutionRecorder, canonical_execution_store.RunExecutionRecorder)
+        for value, owner in owners:
+            self.assertEqual(value.__module__, owner)
 
     def test_canonical_db_session_closes_connections_and_requires_explicit_commit(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "persistence.db"
             connection = None
-            with canonical_database.db_session(path) as connection:
+            with database.db_session(path) as connection:
                 connection.execute("CREATE TABLE records (value TEXT)")
                 connection.execute("INSERT INTO records VALUES ('saved')")
                 connection.commit()
@@ -43,7 +38,7 @@ class PersistenceModuleBoundaryTests(unittest.TestCase):
                 self.assertEqual(verification.execute("SELECT value FROM records").fetchone()[0], "saved")
 
             uncommitted_connection = None
-            with canonical_database.db_session(path) as uncommitted_connection:
+            with database.db_session(path) as uncommitted_connection:
                 uncommitted_connection.execute("INSERT INTO records VALUES ('normal exit rollback')")
             with self.assertRaises(sqlite3.ProgrammingError):
                 uncommitted_connection.execute("SELECT 1")
@@ -52,7 +47,7 @@ class PersistenceModuleBoundaryTests(unittest.TestCase):
 
             failed_connection = None
             with self.assertRaisesRegex(RuntimeError, "expected"):
-                with canonical_database.db_session(path) as failed_connection:
+                with database.db_session(path) as failed_connection:
                     failed_connection.execute("INSERT INTO records VALUES ('exception rollback')")
                     raise RuntimeError("expected")
             with self.assertRaises(sqlite3.ProgrammingError):
@@ -63,10 +58,10 @@ class PersistenceModuleBoundaryTests(unittest.TestCase):
     def test_canonical_schema_initialization_is_idempotent(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "legacy.db"
-            canonical_database.initialize(path)
+            database.initialize(path)
             with sqlite3.connect(path) as connection:
                 first_migrations = connection.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0]
-            canonical_database.initialize(path)
+            database.initialize(path)
             with sqlite3.connect(path) as connection:
                 migrations = connection.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0]
                 tables = connection.execute(

@@ -8,7 +8,7 @@ from datetime import date
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from app import agent as agent_module
+from app.agent_runtime import service as agent_module
 from app.manufacturing.playbooks import select_playbook
 from app.intent_runtime.routing import route_question
 from app.agent_runtime.execution.loop_guard import ToolLoopGuard
@@ -94,8 +94,8 @@ class ToolLoopGuardTests(unittest.TestCase):
         self.assertEqual(guard.summary()["total_calls"], 0)
 
         with (
-            patch("app.agent.fab_overview", side_effect=AssertionError("clarification must not query data")),
-            patch("app.agent.equipment_health", side_effect=AssertionError("clarification must not query data")),
+            patch("app.agent_runtime.service.fab_overview", side_effect=AssertionError("clarification must not query data")),
+            patch("app.agent_runtime.service.equipment_health", side_effect=AssertionError("clarification must not query data")),
         ):
             result = agent_module._offline_answer(
                 "分析 Cpk 不合格",
@@ -155,8 +155,8 @@ class ToolLoopGuardTests(unittest.TestCase):
             model_retry_base_seconds=0.05,
         )
         with (
-            patch("app.agent.get_settings", return_value=settings),
-            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=settings),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
             patch.dict(agent_module.TOOL_HANDLERS, {"get_process_capability": fake_handler}),
         ):
             result = asyncio.run(

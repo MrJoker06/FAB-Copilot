@@ -8,7 +8,7 @@ import httpx
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from app import agent as agent_module
+from app.agent_runtime import service as agent_module
 from app.evidence.answer_synthesizer import MODEL_KNOWLEDGE_REF
 from app.conversation.context_resolver import (
     build_contextualizer_messages,
@@ -70,7 +70,7 @@ class ContextResolverTests(unittest.TestCase):
         def capture(event_type: str, _run_id: str, **fields) -> None:
             events.append((event_type, fields))
 
-        with patch("app.agent.get_settings", return_value=_settings()), patch("app.agent.emit", new=capture):
+        with patch("app.agent_runtime.service.get_settings", return_value=_settings()), patch("app.agent_runtime.service.emit", new=capture):
             asyncio.run(agent_module._run_agent_impl("你有什么功能", [], "trace-arbitration"))
 
         decision = next(fields for event, fields in events if event == "turn_decision_created")
@@ -96,7 +96,7 @@ class ContextResolverTests(unittest.TestCase):
                 turn_actions=[{"type": "answer_meta", "subject": "capabilities", "detail": "detailed"}],
             )
         history: list[dict] = []
-        with patch("app.agent.get_settings", return_value=_settings()), patch("app.agent._stream_completion", new=contextualizer):
+        with patch("app.agent_runtime.service.get_settings", return_value=_settings()), patch("app.agent_runtime.service._stream_completion", new=contextualizer):
             identity = asyncio.run(agent_module._run_agent_impl("介绍一下你自己", history, "arbiter-identity"))
             history += [{"role": "user", "content": "介绍一下你自己"}, {"role": "assistant", "content": identity["answer"], "metadata": identity}]
             capabilities = asyncio.run(agent_module._run_agent_impl("你有什么功能", history, "arbiter-capabilities"))
@@ -137,9 +137,9 @@ class ContextResolverTests(unittest.TestCase):
         settings = _settings()
         settings.model_connection.api_key = ""
         with (
-            patch("app.agent.get_settings", return_value=settings),
-            patch("app.agent._resolve_conversation_turn", new=resolved_context),
-            patch("app.agent.create_execution_plan", new=capture_plan),
+            patch("app.agent_runtime.service.get_settings", return_value=settings),
+            patch("app.agent_runtime.service._resolve_conversation_turn", new=resolved_context),
+            patch("app.agent_runtime.service.create_execution_plan", new=capture_plan),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
                 "分析昨天良率，但优先参考知识库",
@@ -158,7 +158,7 @@ class ContextResolverTests(unittest.TestCase):
             return _context_response("correction" if calls == 2 else "followup", "Fab Copilot 具体有哪些功能", "助手能力", .95, "conversation", turn_actions=[{"type":"answer_meta","subject":"capabilities","detail":"detailed"}])
         settings = _settings()
         history = []
-        with patch("app.agent.get_settings", return_value=settings), patch("app.agent._stream_completion", new=contextualizer) as model:
+        with patch("app.agent_runtime.service.get_settings", return_value=settings), patch("app.agent_runtime.service._stream_completion", new=contextualizer) as model:
             one = asyncio.run(agent_module._run_agent_impl("你是谁", history, "four-1")); history += [{"role":"user","content":"你是谁"}, {"role":"assistant","content":one["answer"],"metadata":one}]
             two = asyncio.run(agent_module._run_agent_impl("你有什么功能", history, "four-2")); history += [{"role":"user","content":"你有什么功能"}, {"role":"assistant","content":two["answer"],"metadata":two}]
             three = asyncio.run(agent_module._run_agent_impl("具体的功能有哪些", history, "four-3")); history += [{"role":"user","content":"具体的功能有哪些"}, {"role":"assistant","content":three["answer"],"metadata":three}]
@@ -269,8 +269,8 @@ class ContextResolverTests(unittest.TestCase):
             {"message_id": 12, "role": "assistant", "content": "已给出基础回答。"},
         ]
         with (
-            patch("app.agent.get_settings", return_value=_settings()),
-            patch("app.agent._stream_completion", model_call),
+            patch("app.agent_runtime.service.get_settings", return_value=_settings()),
+            patch("app.agent_runtime.service._stream_completion", model_call),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
                 "你知道我之前问的问题是啥吗",
@@ -314,8 +314,8 @@ class ContextResolverTests(unittest.TestCase):
         ))
 
         with (
-            patch("app.agent.get_settings", return_value=_settings()),
-            patch("app.agent._stream_completion", model_call),
+            patch("app.agent_runtime.service.get_settings", return_value=_settings()),
+            patch("app.agent_runtime.service._stream_completion", model_call),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
                 "你在上一个问题中理解的 PH 是什么",
@@ -356,8 +356,8 @@ class ContextResolverTests(unittest.TestCase):
         ))
 
         with (
-            patch("app.agent.get_settings", return_value=_settings()),
-            patch("app.agent._stream_completion", model_call),
+            patch("app.agent_runtime.service.get_settings", return_value=_settings()),
+            patch("app.agent_runtime.service._stream_completion", model_call),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
                 "是更前面的一个",
@@ -440,8 +440,8 @@ class ContextResolverTests(unittest.TestCase):
             return ({"role": "assistant", "content": "继续比较 GaN 与 SiC。"}, {"total_tokens": 4}, "answer")
 
         with (
-            patch("app.agent.get_settings", return_value=_settings()),
-            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=_settings()),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
             patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": lambda **_: []}),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
@@ -477,8 +477,8 @@ class ContextResolverTests(unittest.TestCase):
             return ({"role": "assistant", "content": "良率分析完成"}, {"total_tokens": 3}, "explicit-route")
 
         with (
-            patch("app.agent.get_settings", return_value=_settings()),
-            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=_settings()),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
         ):
             result = asyncio.run(
                 agent_module._run_agent_impl(
@@ -521,8 +521,8 @@ class ContextResolverTests(unittest.TestCase):
             )
 
         with (
-            patch("app.agent.get_settings", return_value=_settings()),
-            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=_settings()),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
             patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": lambda **_: []}),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
@@ -545,7 +545,7 @@ class ContextResolverTests(unittest.TestCase):
             calls += 1
             return ({"role": "assistant", "content": "无法判断"}, {}, "invalid-context")
 
-        with patch("app.agent._stream_completion", new=invalid_stream):
+        with patch("app.agent_runtime.service._stream_completion", new=invalid_stream):
             resolution, usage = asyncio.run(agent_module._resolve_conversation_turn(
                 "是更前面的一个",
                 [
@@ -585,7 +585,7 @@ class ContextResolverTests(unittest.TestCase):
         def capture(event_type: str, run_id: str, **fields) -> None:
             events.append((event_type, fields))
 
-        with patch("app.agent._run_agent_impl", new=degraded_impl), patch("app.agent.emit", new=capture):
+        with patch("app.agent_runtime.service._run_agent_impl", new=degraded_impl), patch("app.agent_runtime.service.emit", new=capture):
             result = asyncio.run(agent_module.run_agent(
                 "你有什么功能", [{"role": "user", "content": "你是谁"}],
                 session_id="session-a", user_message_id=42,
@@ -615,12 +615,12 @@ class ContextResolverTests(unittest.TestCase):
         settings = _settings()
         settings.model_connection = SimpleNamespace(provider="deepseek", api_key="test-key", base_url="https://example.test", model="test-model")
         history = [{"role": "user", "content": "分析 CMP-02 报警"}, {"role": "assistant", "content": "已给出初步结论。"}]
-        with patch("app.agent._stream_completion", new=invalid_stream), patch("app.agent.emit", new=capture):
+        with patch("app.agent_runtime.service._stream_completion", new=invalid_stream), patch("app.agent_runtime.service.emit", new=capture):
             asyncio.run(agent_module._resolve_conversation_turn("是更前面的一个", history, settings, "run-context-deepseek-false", None))
         self.assertTrue(all(item["thinking"] == {"type": "disabled"} for item in captured))
         captured.clear()
         events.clear()
-        with patch("app.agent._stream_completion", new=invalid_stream), patch("app.agent.emit", new=capture):
+        with patch("app.agent_runtime.service._stream_completion", new=invalid_stream), patch("app.agent_runtime.service.emit", new=capture):
             asyncio.run(agent_module._resolve_conversation_turn("是更前面的一个", history, settings, "run-context-deepseek-true", None, thinking=True))
         self.assertTrue(all(item["thinking"] == {"type": "disabled"} for item in captured))
         calls = [fields for event, fields in events if event == "model_call_started"]
@@ -686,7 +686,7 @@ class ContextResolverTests(unittest.TestCase):
                 intent_hint="general_knowledge",
             )
 
-        with patch("app.agent._stream_completion", new=flaky_stream):
+        with patch("app.agent_runtime.service._stream_completion", new=flaky_stream):
             resolution, usage = asyncio.run(agent_module._resolve_conversation_turn(
                 "不涉及厂内数据",
                 [
@@ -728,8 +728,8 @@ class ContextResolverTests(unittest.TestCase):
             )
 
         with (
-            patch("app.agent._stream_completion", new=empty_then_valid),
-            patch("app.agent.emit", new=capture),
+            patch("app.agent_runtime.service._stream_completion", new=empty_then_valid),
+            patch("app.agent_runtime.service.emit", new=capture),
         ):
             resolution, usage = asyncio.run(agent_module._resolve_conversation_turn(
                 "你在上一个问题中理解的主题是什么",
@@ -764,7 +764,7 @@ class ContextResolverTests(unittest.TestCase):
 
         direct_route = route_question(question)
         self.assertEqual(direct_route.intent, "general_knowledge")
-        with patch("app.agent._stream_completion", new=empty_stream):
+        with patch("app.agent_runtime.service._stream_completion", new=empty_stream):
             resolution, _ = asyncio.run(agent_module._resolve_conversation_turn(
                 question,
                 [
@@ -792,7 +792,7 @@ class ContextResolverTests(unittest.TestCase):
         def capture(event_type: str, run_id: str, **fields) -> None:
             events.append((event_type, fields))
 
-        with patch("app.agent._stream_completion", new=empty_stream), patch("app.agent.emit", new=capture):
+        with patch("app.agent_runtime.service._stream_completion", new=empty_stream), patch("app.agent_runtime.service.emit", new=capture):
             resolution, _ = asyncio.run(agent_module._resolve_conversation_turn(
                 "你在上一个问题中理解的主题是什么",
                 [{"message_id": 91, "role": "user", "content": "介绍光刻基本原理"}],
@@ -824,12 +824,12 @@ class ContextResolverTests(unittest.TestCase):
 
         ticks = iter((0.0, 0.001, 0.002, 0.003, 0.004, 0.005, 0.06))
         with (
-            patch("app.agent._stream_completion", new=timeout_stream),
-            patch("app.agent._model_retry_delay", return_value=0.01),
-            patch("app.agent.asyncio.sleep", new=AsyncMock()),
-            patch("app.agent.time.perf_counter", side_effect=lambda: next(ticks)),
-            patch("app.agent.emit", new=capture),
-            patch("app.agent.record_model_failure", return_value=({"status": "degraded"}, None)) as record_failure,
+            patch("app.agent_runtime.service._stream_completion", new=timeout_stream),
+            patch("app.agent_runtime.service._model_retry_delay", return_value=0.01),
+            patch("app.agent_runtime.service.asyncio.sleep", new=AsyncMock()),
+            patch("app.agent_runtime.service.time.perf_counter", side_effect=lambda: next(ticks)),
+            patch("app.agent_runtime.service.emit", new=capture),
+            patch("app.agent_runtime.service.record_model_failure", return_value=({"status": "degraded"}, None)) as record_failure,
         ):
             resolution, usage = asyncio.run(agent_module._resolve_conversation_turn(
                 "是更前面的一个",
@@ -861,9 +861,9 @@ class ContextResolverTests(unittest.TestCase):
 
         sleep = AsyncMock()
         with (
-            patch("app.agent._stream_completion", new=timeout_stream),
-            patch("app.agent.asyncio.sleep", new=sleep),
-            patch("app.agent.time.perf_counter", return_value=0.0),
+            patch("app.agent_runtime.service._stream_completion", new=timeout_stream),
+            patch("app.agent_runtime.service.asyncio.sleep", new=sleep),
+            patch("app.agent_runtime.service.time.perf_counter", return_value=0.0),
         ):
             resolution, _ = asyncio.run(agent_module._resolve_conversation_turn(
                 "是更前面的一个",
@@ -894,8 +894,8 @@ class ContextResolverTests(unittest.TestCase):
                 raise
 
         with (
-            patch("app.agent._stream_completion", new=slow_stream),
-            patch("app.agent.time.perf_counter", return_value=0.0),
+            patch("app.agent_runtime.service._stream_completion", new=slow_stream),
+            patch("app.agent_runtime.service.time.perf_counter", return_value=0.0),
         ):
             resolution, _ = asyncio.run(agent_module._resolve_conversation_turn(
                 "是更前面的一个",
@@ -918,7 +918,7 @@ class ContextResolverTests(unittest.TestCase):
         def capture(event_type: str, run_id: str, **fields) -> None:
             events.append((event_type, fields))
 
-        with patch("app.agent._stream_completion", new=invalid_stream), patch("app.agent.emit", new=capture):
+        with patch("app.agent_runtime.service._stream_completion", new=invalid_stream), patch("app.agent_runtime.service.emit", new=capture):
             asyncio.run(agent_module._resolve_conversation_turn(
                 "是更前面的一个",
                 [{"message_id": 91, "role": "user", "content": "介绍光刻基本原理"}],
@@ -932,7 +932,7 @@ class ContextResolverTests(unittest.TestCase):
         async def successful_stream(*args):
             return ({"role": "assistant", "content": "模型回答"}, {"total_tokens": 1}, "answer")
 
-        with patch("app.agent.get_settings", return_value=_settings()), patch("app.agent._stream_completion", new=successful_stream):
+        with patch("app.agent_runtime.service.get_settings", return_value=_settings()), patch("app.agent_runtime.service._stream_completion", new=successful_stream):
             result = asyncio.run(agent_module._run_agent_impl(
                 "介绍半导体制程", [], "run-thinking-answer-success", thinking=True,
             ))
@@ -942,7 +942,7 @@ class ContextResolverTests(unittest.TestCase):
         async def context_only_stream(*args):
             return _context_response("standalone", "帮我看看这个情况", confidence=0.9, intent_hint="unclear")
 
-        with patch("app.agent.get_settings", return_value=_settings()), patch("app.agent._stream_completion", new=context_only_stream):
+        with patch("app.agent_runtime.service.get_settings", return_value=_settings()), patch("app.agent_runtime.service._stream_completion", new=context_only_stream):
             clarification = asyncio.run(agent_module.run_agent(
                 "帮我看看这个情况", [], thinking=True,
             ))
@@ -959,7 +959,7 @@ class ContextResolverTests(unittest.TestCase):
             calls += 1
             return ({"role": "assistant", "content": "仍然不是 JSON"}, {}, "invalid-context")
 
-        with patch("app.agent._stream_completion", new=invalid_stream):
+        with patch("app.agent_runtime.service._stream_completion", new=invalid_stream):
             resolution, _ = asyncio.run(agent_module._resolve_conversation_turn(
                 "是更前面的一个",
                 [
@@ -985,8 +985,8 @@ class ContextResolverTests(unittest.TestCase):
             events.append((event_type, fields))
 
         with (
-            patch("app.agent._stream_completion", new=invalid_stream),
-            patch("app.agent.emit", new=capture),
+            patch("app.agent_runtime.service._stream_completion", new=invalid_stream),
+            patch("app.agent_runtime.service.emit", new=capture),
         ):
             asyncio.run(agent_module._resolve_conversation_turn(
                 "是更前面的一个",
@@ -1010,7 +1010,7 @@ class ContextResolverTests(unittest.TestCase):
             return ({"role": "assistant", "content": "格式错误"}, {}, "invalid-context")
 
         direct_route = route_question(question)
-        with patch("app.agent._stream_completion", new=invalid_stream):
+        with patch("app.agent_runtime.service._stream_completion", new=invalid_stream):
             resolution, _ = asyncio.run(agent_module._resolve_conversation_turn(
                 question,
                 [
@@ -1039,8 +1039,8 @@ class ContextResolverTests(unittest.TestCase):
             {"message_id": 54, "role": "assistant", "content": "已完成 SiC 比较。"},
         ]
         with (
-            patch("app.agent.get_settings", return_value=_settings()),
-            patch("app.agent._stream_completion", new=invalid_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=_settings()),
+            patch("app.agent_runtime.service._stream_completion", new=invalid_stream),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
                 "是更前面的一个",
@@ -1072,7 +1072,7 @@ class ContextResolverTests(unittest.TestCase):
         ))
 
         with (
-            patch("app.agent._stream_completion", model_call),
+            patch("app.agent_runtime.service._stream_completion", model_call),
             patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": lambda **_: []}),
         ):
             resolution, _ = asyncio.run(agent_module._resolve_conversation_turn(
@@ -1161,8 +1161,8 @@ class ContextResolverTests(unittest.TestCase):
             )
 
         with (
-            patch("app.agent.get_settings", return_value=_settings()),
-            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=_settings()),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
             patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": lambda **_: [source]}),
         ):
             result = asyncio.run(
@@ -1190,8 +1190,8 @@ class ContextResolverTests(unittest.TestCase):
             progress_events.append(event)
 
         with (
-            patch("app.agent.get_settings", return_value=_settings()),
-            patch("app.agent._stream_completion", model_call),
+            patch("app.agent_runtime.service.get_settings", return_value=_settings()),
+            patch("app.agent_runtime.service._stream_completion", model_call),
         ):
             result = asyncio.run(
                 agent_module._run_agent_impl("帮我看看这个情况", [], "run-context-clarification-test", progress)
@@ -1235,8 +1235,8 @@ class ContextResolverTests(unittest.TestCase):
             )
 
         with (
-            patch("app.agent.get_settings", return_value=_settings()),
-            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=_settings()),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
             patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": lambda **_: []}),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
@@ -1254,7 +1254,7 @@ class ContextResolverTests(unittest.TestCase):
         model_call = AsyncMock(return_value=_context_response(
             "standalone", "你有什么功能", confidence=0.94, intent_hint="conversation",
         ))
-        with patch("app.agent.get_settings", return_value=_settings()), patch("app.agent._stream_completion", model_call):
+        with patch("app.agent_runtime.service.get_settings", return_value=_settings()), patch("app.agent_runtime.service._stream_completion", model_call):
             result = asyncio.run(agent_module._run_agent_impl("你有什么功能", [], "run-capability-conversation"))
 
         self.assertEqual(result["intent_route"]["intent"], "conversation")
@@ -1270,7 +1270,7 @@ class ContextResolverTests(unittest.TestCase):
             {"message_id": 1, "role": "user", "content": "你是谁"},
             {"message_id": 2, "role": "assistant", "content": "我是 Fab Copilot。"},
         ]
-        with patch("app.agent.get_settings", return_value=_settings()), patch("app.agent._stream_completion", model_call):
+        with patch("app.agent_runtime.service.get_settings", return_value=_settings()), patch("app.agent_runtime.service._stream_completion", model_call):
             result = asyncio.run(agent_module._run_agent_impl(
                 "我询问你的功能而不是需要指向某条历史消息", history, "run-capability-correction",
             ))
@@ -1288,7 +1288,7 @@ class ContextResolverTests(unittest.TestCase):
             {"message_id": 1, "role": "user", "content": "你是谁"},
             {"message_id": 2, "role": "assistant", "content": "我是 Fab Copilot。"},
         ]
-        with patch("app.agent.get_settings", return_value=_settings()), patch("app.agent._stream_completion", new=timeout_stream):
+        with patch("app.agent_runtime.service.get_settings", return_value=_settings()), patch("app.agent_runtime.service._stream_completion", new=timeout_stream):
             result = asyncio.run(agent_module._run_agent_impl(
                 "我询问你的功能而不是需要指向某条历史消息", history, "run-capability-timeout",
             ))
@@ -1337,8 +1337,8 @@ class ContextResolverTests(unittest.TestCase):
             )
 
         with (
-            patch("app.agent.get_settings", return_value=_settings()),
-            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=_settings()),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
             patch.dict(agent_module.TOOL_HANDLERS, {
                 "search_knowledge": lambda **arguments: (
                     [irrelevant_result] if arguments.get("source_types") == ["personal", "knowledge"] else []

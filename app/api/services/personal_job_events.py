@@ -4,7 +4,7 @@ import asyncio
 import inspect
 import json
 
-from ...personal_knowledge import list_personal_job_snapshots
+from ...personal_knowledge_runtime.service import list_personal_job_snapshots
 
 
 PERSONAL_JOB_ACTIVE_STATUSES = frozenset(

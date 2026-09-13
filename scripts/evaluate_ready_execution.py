@@ -15,7 +15,7 @@ DEFAULT_DATASET = PROJECT_DIR / "evaluations" / "ready_execution_benchmark.json"
 DEFAULT_REPORT = PROJECT_DIR / "runtime" / "quality" / "ready_execution_report.json"
 sys.path.insert(0, str(PROJECT_DIR))
 
-from app.agent import (  # noqa: E402
+from app.agent_runtime.service import (  # noqa: E402
     SUBMIT_ANALYSIS_TOOL,
     SYSTEM_PROMPT,
     TOOLS,

@@ -294,7 +294,7 @@ def scan_browser_test_artifacts(root: Path) -> None:
 def install_browser_test_compatibility_key() -> None:
     """Inject the dummy key only into the disposable server's probe connection."""
     import app.main as main
-    from app.config import ModelConnection
+    from app.core.settings import ModelConnection
     original = main.check_model_compatibility
 
     async def probe(connection, capabilities, **kwargs):

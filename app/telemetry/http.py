@@ -9,7 +9,7 @@ from typing import Any
 from urllib.parse import unquote
 
 from .audit import emit, log_content_policy, reset_request_id, set_request_id
-from ..config import get_settings
+from ..core.settings import get_settings
 
 
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{8,64}$")

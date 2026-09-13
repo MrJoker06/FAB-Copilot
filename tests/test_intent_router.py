@@ -7,7 +7,7 @@ from datetime import date
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from app import agent as agent_module
+from app.agent_runtime import service as agent_module
 from app.intent_runtime.routing import apply_semantic_intent_hint, route_question, routing_system_message
 from app.manufacturing.processes import PROCESS_ALIASES
 
@@ -271,13 +271,13 @@ class IntentRouterTests(unittest.TestCase):
                 ))
 
                 with (
-                    patch("app.agent.get_settings", return_value=SimpleNamespace(
+                    patch("app.agent_runtime.service.get_settings", return_value=SimpleNamespace(
                         model_connection=SimpleNamespace(provider="test", api_key="test-key", base_url="https://example.test", model="test-model"),
                         api_timeout_seconds=5,
                         model_max_retries=0,
                         model_retry_base_seconds=0.05,
                     )),
-                    patch("app.agent._stream_completion", model_call),
+                    patch("app.agent_runtime.service._stream_completion", model_call),
                 ):
                     result = asyncio.run(agent_module._run_agent_impl(
                         question, history, f"run-semantic-conversation-{case_name}",
@@ -350,13 +350,13 @@ class IntentRouterTests(unittest.TestCase):
 
         model_call = AsyncMock(side_effect=AssertionError("conversation must not call model"))
         with (
-            patch("app.agent.get_settings", return_value=SimpleNamespace(
+            patch("app.agent_runtime.service.get_settings", return_value=SimpleNamespace(
                 model_connection=SimpleNamespace(provider="test", api_key="test-key", base_url="https://example.test", model="test-model"),
                 api_timeout_seconds=5,
                 model_max_retries=0,
                 model_retry_base_seconds=0.05,
             )),
-            patch("app.agent._stream_completion", model_call),
+            patch("app.agent_runtime.service._stream_completion", model_call),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
                 "介绍一下你自己", [], "run-conversation-test",
@@ -402,8 +402,8 @@ class IntentRouterTests(unittest.TestCase):
             model_retry_base_seconds=0.05,
         )
         with (
-            patch("app.agent.get_settings", return_value=settings),
-            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=settings),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
             patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": fake_search}),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
@@ -445,8 +445,8 @@ class IntentRouterTests(unittest.TestCase):
             model_retry_base_seconds=0.05,
         )
         with (
-            patch("app.agent.get_settings", return_value=settings),
-            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=settings),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
             patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": empty_search}),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
@@ -481,8 +481,8 @@ class IntentRouterTests(unittest.TestCase):
             model_retry_base_seconds=0.05,
         )
         with (
-            patch("app.agent.get_settings", return_value=settings),
-            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=settings),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
             patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": lambda **_: []}),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
@@ -525,8 +525,8 @@ class IntentRouterTests(unittest.TestCase):
             model_retry_base_seconds=0.05,
         )
         with (
-            patch("app.agent.get_settings", return_value=settings),
-            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=settings),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
             patch.dict(agent_module.TOOL_HANDLERS, {"search_knowledge": lambda **_: []}),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
@@ -559,8 +559,8 @@ class IntentRouterTests(unittest.TestCase):
             model_retry_base_seconds=0.05,
         )
         with (
-            patch("app.agent.get_settings", return_value=settings),
-            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=settings),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
         ):
             result = asyncio.run(
                 agent_module._run_agent_impl(

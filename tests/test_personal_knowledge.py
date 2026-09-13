@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from unittest.mock import patch
 
 from app.persistence.database import _migrate_personal_knowledge_tags_source
-from app.personal_knowledge import ExtractedSection, _automatic_tags, _normalise_tags, list_personal_documents, search_personal_knowledge
+from app.personal_knowledge_runtime.service import ExtractedSection, _automatic_tags, _normalise_tags, list_personal_documents, search_personal_knowledge
 
 
 class PersonalKnowledgeTagTests(unittest.TestCase):
@@ -93,7 +93,7 @@ class PersonalKnowledgeTagTests(unittest.TestCase):
         def fake_session():
             yield connection
 
-        with patch("app.personal_knowledge.db_session", fake_session):
+        with patch("app.personal_knowledge_runtime.service.db_session", fake_session):
             results = search_personal_knowledge("owner", "needle", limit=3)
             self.assertEqual([item["document_id"] for item in results], ["d2", "d1"])
             self.assertEqual(results[0]["tags_source"], "auto")
@@ -120,7 +120,7 @@ class PersonalKnowledgeTagTests(unittest.TestCase):
         @contextmanager
         def fake_session():
             yield connection
-        with patch("app.personal_knowledge.db_session", fake_session):
+        with patch("app.personal_knowledge_runtime.service.db_session", fake_session):
             self.assertEqual([item["document_id"] for item in list_personal_documents("owner", "标题命中")["items"]], ["title"])
             self.assertEqual([item["document_id"] for item in list_personal_documents("owner", "关键标签")["items"]], ["tag"])
             self.assertEqual([item["document_id"] for item in list_personal_documents("owner", "ETCH")["items"]], ["step", "equipment"])

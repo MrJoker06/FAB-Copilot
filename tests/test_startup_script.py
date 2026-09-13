@@ -78,7 +78,7 @@ class StartupScriptTests(unittest.TestCase):
         self.assertTrue(self.log.is_file(), "fake CONDA_EXE was not invoked")
         calls = self.log.read_text(encoding="utf-8").splitlines()
         self.assertEqual(len(calls), 2)
-        self.assertIn("-m app.seed", calls[0])
+        self.assertIn("-m app.manufacturing.seed", calls[0])
         self.assertIn("-m uvicorn app.main:app --host 127.0.0.1 --port 8888", calls[1])
         self.assertTrue(all("offline-instance" in call for call in calls))
 

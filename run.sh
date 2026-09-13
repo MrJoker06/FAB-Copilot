@@ -89,5 +89,5 @@ fi
 
 export PYTHONDONTWRITEBYTECODE=1
 cd "$SOURCE_ROOT"
-"${PYTHON[@]}" -m app.seed
+"${PYTHON[@]}" -m app.manufacturing.seed
 exec "${PYTHON[@]}" -m uvicorn app.main:app --host 127.0.0.1 --port "$PORT"

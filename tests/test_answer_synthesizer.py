@@ -7,7 +7,7 @@ from datetime import date
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from app import agent as agent_module
+from app.agent_runtime import service as agent_module
 from app.evidence.answer_synthesizer import (
     MODEL_KNOWLEDGE_DISCLOSURE,
     MODEL_KNOWLEDGE_REF,
@@ -306,8 +306,8 @@ class AnswerSynthesizerTests(unittest.TestCase):
             "spec_lsl": 95.0, "spec_usl": 105.0,
         }]
         with (
-            patch("app.agent.get_settings", return_value=settings),
-            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=settings),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
             patch.dict(agent_module.TOOL_HANDLERS, {
                 "get_process_capability": lambda **_: rows,
                 "get_recent_excursions": lambda **_: [],
@@ -357,8 +357,8 @@ class AnswerSynthesizerTests(unittest.TestCase):
             model_retry_base_seconds=0.05,
         )
         with (
-            patch("app.agent.get_settings", return_value=settings),
-            patch("app.agent._stream_completion", new=fake_stream),
+            patch("app.agent_runtime.service.get_settings", return_value=settings),
+            patch("app.agent_runtime.service._stream_completion", new=fake_stream),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
                 "分析 CMP-03 最近7天 Cpk 不合格", [], "run-submit-retry-test", progress,

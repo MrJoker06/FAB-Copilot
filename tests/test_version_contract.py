@@ -4,11 +4,15 @@ import re
 import unittest
 from pathlib import Path
 
-from app.config import APP_VERSION
+from app.core.settings import APP_VERSION, PROJECT_DIR
 from app.main import render_versioned_page
 
 
 class VersionContractTests(unittest.TestCase):
+    def test_core_settings_preserves_project_resource_anchor(self):
+        self.assertEqual(PROJECT_DIR, Path(__file__).resolve().parents[1])
+        self.assertTrue((PROJECT_DIR / "data").is_dir())
+
     def test_current_build_version_is_bumped_for_deploy012(self):
         self.assertEqual(APP_VERSION, "20260820-2")
 

@@ -2,8 +2,8 @@
   "schema_version": 1,
   "package_ownership": {
     "target": "app",
-    "compatibility": "retain",
-    "exit_condition": "package anchor remains public",
+    "compatibility": "package anchor only; root business modules retired",
+    "exit_condition": "app package anchor and app.main HTTP entry remain public",
     "consumers": {
       "production": [
         "app/main.py"
@@ -18,41 +18,6 @@
     }
   },
   "canonical_modules": {
-    "app.agent": "agent_runtime.coordinator",
-    "app.agent_tools": "agent_runtime.tools",
-    "app.answer_synthesizer": "evidence.answer_synthesizer",
-    "app.assistant_capabilities": "agent_runtime.assistant_capabilities",
-    "app.audit": "telemetry.audit",
-    "app.context_resolver": "conversation.context_resolver",
-    "app.database": "persistence.database",
-    "app.decision_arbiter": "conversation.decision_arbiter",
-    "app.department_schemas": "persistence.department_schemas",
-    "app.domain_playbooks": "manufacturing.playbooks",
-    "app.enterprise_data": "manufacturing.enterprise_data",
-    "app.evidence_semantics": "evidence.semantics",
-    "app.evidence_validator": "evidence.validator",
-    "app.execution_store": "persistence.execution_store",
-    "app.knowledge_decision": "knowledge.decision",
-    "app.loop_guard": "agent_runtime.execution.loop_guard",
-    "app.model_compatibility": "model_gateway.compatibility",
-    "app.model_health": "model_gateway.health",
-    "app.model_registry": "model_gateway.registry",
-    "app.model_streaming": "model_gateway.streaming",
-    "app.observability": "telemetry.http",
-    "app.ocr": "knowledge.ocr",
-    "app.ocr_quality": "knowledge.ocr_quality",
-    "app.personal_knowledge": "personal_knowledge_runtime.facade",
-    "app.planner": "planning_runtime.service",
-    "app.processes": "manufacturing.processes",
-    "app.rag": "knowledge.rag",
-    "app.reports": "manufacturing.reports",
-    "app.runtime_status": "telemetry.runtime_status",
-    "app.seed": "manufacturing.seed",
-    "app.sessions": "conversation.sessions",
-    "app.turn_decision": "conversation.turn_decision",
-    "app.config": "configuration.facade",
-    "app.identity": "identity.facade",
-    "app.intent_router": "intent_runtime.facade",
     "app.manufacturing.processes": "manufacturing.processes",
     "app.manufacturing.playbooks": "manufacturing.playbooks",
     "app.manufacturing.reports": "manufacturing.reports",
@@ -80,7 +45,11 @@
     "app.knowledge.ocr_quality": "knowledge.ocr_quality",
     "app.evidence.semantics": "evidence.semantics",
     "app.evidence.validator": "evidence.validator",
-    "app.evidence.answer_synthesizer": "evidence.answer_synthesizer"
+    "app.evidence.answer_synthesizer": "evidence.answer_synthesizer",
+    "app.core.settings": "configuration.settings",
+    "app.core.identity": "identity.context",
+    "app.agent_runtime.service": "agent_runtime.service",
+    "app.personal_knowledge_runtime.service": "personal_knowledge_runtime.service"
   },
   "allowed_domain_dependencies": {
     "agent_runtime": [
@@ -151,8 +120,8 @@
   "policy": {
     "forbidden_targets": [
       "app.main",
-      "app.agent",
-      "app.agent_runtime.coordinator"
+      "app.agent_runtime.coordinator",
+      "app.agent_runtime.service"
     ],
     "assembly_modules": [
       "app.main",
@@ -160,56 +129,22 @@
       "app.api.runtime_dependencies",
       "app.agent_runtime.compatibility"
     ],
-    "internal_facades": [
-      "agent_tools",
-      "answer_synthesizer",
-      "assistant_capabilities",
-      "audit",
-      "context_resolver",
-      "database",
-      "decision_arbiter",
-      "department_schemas",
-      "domain_playbooks",
-      "enterprise_data",
-      "evidence_semantics",
-      "evidence_validator",
-      "execution_store",
-      "intent_router",
-      "knowledge_decision",
-      "loop_guard",
-      "model_compatibility",
-      "model_registry",
-      "model_streaming",
-      "observability",
-      "ocr",
-      "ocr_quality",
-      "planner",
-      "processes",
-      "rag",
-      "reports",
-      "runtime_status",
-      "sessions",
-      "turn_decision"
-    ],
+    "internal_facades": [],
     "pure_modules": [
       "app.agent_runtime.assistant_capabilities",
-      "app.department_schemas",
       "app.persistence.department_schemas",
-      "app.evidence_semantics",
       "app.evidence.semantics",
       "app.intent_runtime.contracts",
       "app.intent_runtime.rules",
       "app.planning_runtime.contracts",
-      "app.processes",
       "app.manufacturing.processes",
-      "app.turn_decision",
       "app.conversation.turn_decision"
     ],
     "pure_forbidden_targets": [
-      "app.database",
+      "app.persistence.database",
       "app.main",
-      "app.agent",
-      "app.agent_runtime.coordinator"
+      "app.agent_runtime.coordinator",
+      "app.agent_runtime.service"
     ],
     "pure_forbidden_prefixes": [
       "sqlite3",
@@ -217,9 +152,9 @@
       "httpx",
       "requests",
       "urllib",
-      "app.database",
       "app.main",
-      "app.agent"
+      "app.agent_runtime.coordinator",
+      "app.agent_runtime.service"
     ]
   },
   "existing_edge_exceptions": [
@@ -237,7 +172,7 @@
     },
     {
       "source": "app.agent_runtime.compatibility",
-      "target": "app.config",
+      "target": "app.core.settings",
       "reason": "existing app.agent_runtime.compatibility compatibility implementation consumes the configuration facade before its scheduled migration",
       "exit_condition": "replace only if the compatibility facade receives an equivalent configuration dependency injection contract"
     },
@@ -261,13 +196,13 @@
     },
     {
       "source": "app.telemetry.audit",
-      "target": "app.config",
+      "target": "app.core.settings",
       "reason": "canonical audit telemetry resolves the project log configuration anchor",
       "exit_condition": "replace only if telemetry receives equivalent log configuration without the public settings anchor"
     },
     {
       "source": "app.persistence.database",
-      "target": "app.config",
+      "target": "app.core.settings",
       "reason": "canonical persistence database resolves the project database configuration anchor",
       "exit_condition": "project configuration anchor remains public"
     },
@@ -279,61 +214,61 @@
     },
     {
       "source": "app.manufacturing.enterprise_data",
-      "target": "app.config",
+      "target": "app.core.settings",
       "reason": "existing app.enterprise_data compatibility implementation consumes the configuration facade before its scheduled migration",
       "exit_condition": "replace only if enterprise data receives an equivalent configuration dependency injection contract"
     },
     {
       "source": "app.manufacturing.enterprise_data",
-      "target": "app.identity",
+      "target": "app.core.identity",
       "reason": "existing app.enterprise_data compatibility implementation consumes the identity facade before its scheduled migration",
       "exit_condition": "replace only if enterprise data receives an equivalent identity context contract"
     },
     {
       "source": "app.persistence.execution_store",
-      "target": "app.identity",
+      "target": "app.core.identity",
       "reason": "canonical execution persistence records the current identity context",
       "exit_condition": "cross-domain identity anchor remains public"
     },
     {
-      "source": "app.identity",
+      "source": "app.core.identity",
       "target": "app.telemetry.audit",
       "reason": "identity resolves the canonical request correlation context",
       "exit_condition": "replace only if identity owns an equivalent request-correlation contract"
     },
     {
-      "source": "app.identity",
-      "target": "app.config",
+      "source": "app.core.identity",
+      "target": "app.core.settings",
       "reason": "existing app.identity compatibility implementation consumes the configuration facade before its scheduled migration",
       "exit_condition": "replace only if identity receives an equivalent settings dependency injection contract"
     },
     {
       "source": "app.model_gateway.registry",
-      "target": "app.config",
+      "target": "app.core.settings",
       "reason": "canonical model registry resolves the public configuration anchor",
       "exit_condition": "replace only if model registry receives equivalent model settings without the public anchor"
     },
     {
       "source": "app.model_gateway.registry",
-      "target": "app.identity",
+      "target": "app.core.identity",
       "reason": "canonical model registry resolves the public identity anchor",
       "exit_condition": "replace only if model registry receives an equivalent identity context contract"
     },
     {
       "source": "app.telemetry.http",
-      "target": "app.config",
+      "target": "app.core.settings",
       "reason": "canonical HTTP telemetry resolves the project settings anchor",
       "exit_condition": "replace only if HTTP telemetry receives equivalent settings without the public anchor"
     },
     {
-      "source": "app.personal_knowledge",
+      "source": "app.personal_knowledge_runtime.service",
       "target": "app.telemetry.audit",
       "reason": "personal knowledge emits through the canonical telemetry boundary",
       "exit_condition": "replace only if personal knowledge receives an equivalent audit emitter contract"
     },
     {
-      "source": "app.personal_knowledge",
-      "target": "app.config",
+      "source": "app.personal_knowledge_runtime.service",
+      "target": "app.core.settings",
       "reason": "existing app.personal_knowledge compatibility implementation consumes the configuration facade before its scheduled migration",
       "exit_condition": "replace only if personal knowledge receives an equivalent settings dependency injection contract"
     },
@@ -363,333 +298,36 @@
     },
     {
       "source": "app.knowledge.rag",
-      "target": "app.config",
+      "target": "app.core.settings",
       "reason": "canonical knowledge RAG resolves the public configuration anchor",
       "exit_condition": "replace only if RAG receives equivalent knowledge settings without the public anchor"
     },
     {
       "source": "app.knowledge.rag",
-      "target": "app.identity",
+      "target": "app.core.identity",
       "reason": "canonical knowledge RAG resolves the public identity context",
       "exit_condition": "replace only if RAG receives an equivalent identity context contract"
     },
     {
       "source": "app.telemetry.runtime_status",
-      "target": "app.identity",
+      "target": "app.core.identity",
       "reason": "canonical runtime telemetry reads the identity principal contract",
       "exit_condition": "replace only if runtime telemetry receives an equivalent identity context contract"
     },
     {
       "source": "app.manufacturing.seed",
-      "target": "app.config",
+      "target": "app.core.settings",
       "reason": "existing app.seed compatibility implementation consumes the configuration facade before its scheduled migration",
       "exit_condition": "retain while the seed CLI resolves the public configuration anchor"
     },
     {
       "source": "app.conversation.sessions",
-      "target": "app.identity",
+      "target": "app.core.identity",
       "reason": "canonical session lifecycle reads the public identity principal context",
       "exit_condition": "replace only if sessions receive an equivalent identity context contract"
     }
   ],
   "root_modules": {
-    "agent": {
-      "target": "app.agent",
-      "consumers": {
-        "patches": [
-          "tests/system/test_model_governance.py",
-          "tests/test_agent_execution_boundaries.py",
-          "tests/test_agent_module_boundaries.py",
-          "tests/test_agent_preparation_boundaries.py",
-          "tests/test_agent_retrieval_boundaries.py",
-          "tests/test_agent_runtime_boundaries.py",
-          "tests/test_agent_synthesis_boundaries.py",
-          "tests/test_agent_tool_runtime_boundaries.py",
-          "tests/test_answer_synthesizer.py",
-          "tests/test_context_resolver.py",
-          "tests/test_domain_playbooks.py",
-          "tests/test_evidence_validator.py",
-          "tests/test_intent_router.py",
-          "tests/test_loop_guard.py",
-          "tests/test_planner.py",
-          "tests/test_ready_plan_execution.py"
-        ],
-        "production": [
-          "app/api/runtime_dependencies.py"
-        ],
-        "scripts": [
-          "scripts/evaluate_ready_execution.py",
-          "scripts/refactor_contracts.py"
-        ],
-        "tests": [
-          "tests/system/test_knowledge_uploads.py",
-          "tests/system/test_model_governance.py",
-          "tests/test_agent_execution_boundaries.py",
-          "tests/test_agent_module_boundaries.py",
-          "tests/test_agent_preparation_boundaries.py",
-          "tests/test_agent_retrieval_boundaries.py",
-          "tests/test_agent_runtime_boundaries.py",
-          "tests/test_agent_synthesis_boundaries.py",
-          "tests/test_agent_tool_runtime_boundaries.py",
-          "tests/test_answer_synthesizer.py",
-          "tests/test_context_resolver.py",
-          "tests/test_domain_playbooks.py",
-          "tests/test_evidence_validator.py",
-          "tests/test_intent_router.py",
-          "tests/test_loop_guard.py",
-          "tests/test_model_compatibility.py",
-          "tests/test_planner.py",
-          "tests/test_ready_plan_execution.py",
-          "tests/test_stream_diagnostics.py",
-          "tests/test_turn_decision.py"
-        ]
-      },
-      "compatibility": "long-lived public compatibility facade; runtime patch namespace",
-      "exit_condition": "long-lived facade retained while external and patch consumers require app.agent"
-    },
-    "agent_tools": {
-      "target": "app.agent_runtime.tools",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": [
-          "tests/test_agent_module_boundaries.py",
-          "tests/test_agent_tool_runtime_boundaries.py"
-        ]
-      },
-      "compatibility": "thin public catalog and registry identity facade; only explicit compatibility boundary tests import it internally",
-      "exit_condition": "retain until external consumers provide migration evidence; remove only after public catalog and registry identity contracts are retired"
-    },
-    "answer_synthesizer": {
-      "target": "evidence/answer_synthesizer.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": ["tests/test_knowledge_evidence_module_boundaries.py"]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external answer synthesis imports have documented migration evidence"
-    },
-    "assistant_capabilities": {
-      "target": "agent_runtime/assistant_capabilities.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": ["tests/test_conversation_runtime_module_boundaries.py"]
-      },
-      "compatibility": "thin compatibility facade; internal consumers use agent_runtime",
-      "exit_condition": "remove only after external capability imports have documented migration evidence"
-    },
-    "audit": {
-      "target": "telemetry/audit.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": ["tests/test_telemetry_module_boundaries.py"]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external audit imports have documented migration evidence"
-    },
-    "config": {
-      "target": "app.config",
-      "consumers": {
-        "patches": [],
-        "production": [
-          "app/agent_runtime/compatibility.py",
-          "app/api/runtime_dependencies.py",
-          "app/identity.py",
-          "app/knowledge/rag.py",
-          "app/manufacturing/enterprise_data.py",
-          "app/manufacturing/seed.py",
-          "app/model_gateway/registry.py",
-          "app/persistence/database.py",
-          "app/personal_knowledge.py",
-          "app/telemetry/audit.py",
-          "app/telemetry/http.py"
-        ],
-        "scripts": [
-          "scripts/run_browser_test_server.py"
-        ],
-        "tests": [
-          "tests/system/test_http_contracts.py",
-          "tests/system/test_model_governance.py",
-          "tests/test_model_connection.py",
-          "tests/test_version_contract.py"
-        ]
-      },
-      "compatibility": "configuration and project-resource path anchor",
-      "exit_condition": "project configuration anchor remains public"
-    },
-    "context_resolver": {
-      "target": "conversation/context_resolver.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": ["tests/test_conversation_runtime_module_boundaries.py"]
-      },
-      "compatibility": "thin compatibility facade; internal consumers use conversation",
-      "exit_condition": "remove only after external context resolver imports and patch contracts have documented migration evidence"
-    },
-    "database": {
-      "target": "persistence/database.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": [
-          "tests/test_persistence_module_boundaries.py"
-        ]
-      },
-      "compatibility": "thin compatibility facade; public and private imports retained",
-      "exit_condition": "remove only after external persistence imports have documented migration evidence; retain configuration and identity anchors"
-    },
-    "decision_arbiter": {
-      "target": "conversation/decision_arbiter.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": ["tests/test_conversation_runtime_module_boundaries.py"]
-      },
-      "compatibility": "thin compatibility facade; internal consumers use conversation",
-      "exit_condition": "remove only after external decision arbiter imports and patch contracts have documented migration evidence"
-    },
-    "department_schemas": {
-      "target": "persistence/department_schemas.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": [
-          "tests/test_persistence_module_boundaries.py"
-        ]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external schema imports have documented migration evidence"
-    },
-    "domain_playbooks": {
-      "target": "manufacturing/playbooks.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": [
-          "tests/test_manufacturing_module_boundaries.py"
-        ]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external playbook imports have documented migration evidence"
-    },
-    "enterprise_data": {
-      "target": "manufacturing/enterprise_data.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": [
-          "tests/test_manufacturing_module_boundaries.py"
-        ]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external enterprise-data imports have documented migration evidence"
-    },
-    "evidence_semantics": {
-      "target": "evidence/semantics.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": ["tests/test_knowledge_evidence_module_boundaries.py"]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external evidence-semantics imports have documented migration evidence"
-    },
-    "evidence_validator": {
-      "target": "evidence/validator.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": ["tests/test_knowledge_evidence_module_boundaries.py"]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external evidence-validator imports have documented migration evidence"
-    },
-    "execution_store": {
-      "target": "persistence/execution_store.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": [
-          "tests/test_persistence_module_boundaries.py"
-        ]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external execution-store imports have documented migration evidence"
-    },
-    "identity": {
-      "target": "app.identity",
-      "consumers": {
-        "patches": [],
-        "production": [
-          "app/api/runtime_dependencies.py",
-          "app/conversation/sessions.py",
-          "app/knowledge/rag.py",
-          "app/manufacturing/enterprise_data.py",
-          "app/model_gateway/registry.py",
-          "app/persistence/execution_store.py",
-          "app/telemetry/runtime_status.py"
-        ],
-        "scripts": [],
-        "tests": [
-          "tests/test_api_runtime_boundaries.py",
-          "tests/test_telemetry_module_boundaries.py"
-        ]
-      },
-      "compatibility": "cross-domain identity context and package anchor",
-      "exit_condition": "cross-domain identity anchor remains public"
-    },
-    "intent_router": {
-      "target": "app.intent_runtime",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": [
-          "tests/test_intent_runtime_boundaries.py"
-        ]
-      },
-      "compatibility": "thin public routing facade; only the explicit identity boundary test imports it internally",
-      "exit_condition": "retain until external routing imports and private-helper patch contracts have documented migration evidence"
-    },
-    "knowledge_decision": {
-      "target": "knowledge/decision.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": ["tests/test_knowledge_evidence_module_boundaries.py"]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external knowledge-decision imports have documented migration evidence"
-    },
-    "loop_guard": {
-      "target": "agent_runtime/execution/loop_guard.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": ["tests/test_conversation_runtime_module_boundaries.py"]
-      },
-      "compatibility": "thin compatibility facade; internal consumers use agent_runtime.execution",
-      "exit_condition": "remove only after external loop-guard imports have documented migration evidence"
-    },
     "main": {
       "target": "app.main",
       "consumers": {
@@ -722,225 +360,148 @@
       },
       "compatibility": "long-lived application assembly and API patch namespace",
       "exit_condition": "long-lived application assembly retained while uvicorn and patch consumers require app.main"
+    }
+  },
+  "retired_modules": {
+    "app.agent": {
+      "target": "app.agent_runtime.service",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
-    "model_compatibility": {
-      "target": "model_gateway/compatibility.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": [
-          "tests/test_model_gateway_module_boundaries.py"
-        ]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external model-compatibility imports have documented migration evidence"
+    "app.agent_tools": {
+      "target": "app.agent_runtime.tools",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
-    "model_health": {
-      "target": "model_gateway/health.py",
-      "consumers": {
-        "patches": [
-          "tests/test_model_health.py"
-        ],
-        "production": [],
-        "scripts": [],
-        "tests": [
-          "tests/test_model_gateway_module_boundaries.py",
-          "tests/test_model_health.py"
-        ]
-      },
-      "compatibility": "legacy db_session patch facade",
-      "exit_condition": "retain while db_session patch is public; remove only after its replacement and external migration are documented"
+    "app.answer_synthesizer": {
+      "target": "app.evidence.answer_synthesizer",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
-    "model_registry": {
-      "target": "model_gateway/registry.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": [
-          "tests/test_model_gateway_module_boundaries.py"
-        ]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external model-registry imports have documented migration evidence"
+    "app.assistant_capabilities": {
+      "target": "app.agent_runtime.assistant_capabilities",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
-    "model_streaming": {
-      "target": "model_gateway/streaming.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": [
-          "tests/test_model_gateway_module_boundaries.py"
-        ]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external model-streaming imports have documented migration evidence"
+    "app.audit": {
+      "target": "app.telemetry.audit",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
-    "observability": {
-      "target": "telemetry/http.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": ["tests/test_telemetry_module_boundaries.py"]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external observability imports have documented migration evidence"
+    "app.config": {
+      "target": "app.core.settings",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
-    "ocr": {
-      "target": "knowledge/ocr.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": ["tests/test_knowledge_evidence_module_boundaries.py"]
-      },
-      "compatibility": "thin compatibility facade; canonical implementation resolves rapidocr wheel resources",
-      "exit_condition": "remove only after external OCR imports have documented migration evidence and resource lookup remains verified"
+    "app.context_resolver": {
+      "target": "app.conversation.context_resolver",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
-    "ocr_quality": {
-      "target": "knowledge/ocr_quality.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": ["tests/test_knowledge_evidence_module_boundaries.py"]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external OCR-quality imports have documented migration evidence"
+    "app.database": {
+      "target": "app.persistence.database",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
-    "personal_knowledge": {
-      "target": "app.personal_knowledge",
-      "consumers": {
-        "patches": [
-          "tests/test_ocr.py",
-          "tests/test_personal_job_sse.py",
-          "tests/test_personal_knowledge.py",
-          "tests/test_personal_knowledge_module_boundaries.py"
-        ],
-        "production": [
-          "app/api/routers/knowledge.py",
-          "app/api/runtime_dependencies.py",
-          "app/api/services/personal_job_events.py",
-          "app/knowledge/rag.py"
-        ],
-        "scripts": [
-          "scripts/evaluate_ocr.py"
-        ],
-        "tests": [
-          "tests/test_knowledge_decision.py",
-          "tests/test_ocr.py",
-          "tests/test_personal_job_sse.py",
-          "tests/test_personal_knowledge.py",
-          "tests/test_personal_knowledge_module_boundaries.py"
-        ]
-      },
-      "compatibility": "long-lived public compatibility facade and patch namespace",
-      "exit_condition": "long-lived facade retained while API and patch consumers require app.personal_knowledge"
+    "app.decision_arbiter": {
+      "target": "app.conversation.decision_arbiter",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
-    "planner": {
-      "target": "app.planning_runtime",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": [
-          "tests/test_planning_runtime_boundaries.py"
-        ]
-      },
-      "compatibility": "thin public planning facade; only the explicit identity boundary test imports it internally",
-      "exit_condition": "retain until external planning imports and private-helper patch contracts have documented migration evidence"
+    "app.department_schemas": {
+      "target": "app.persistence.department_schemas",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
-    "processes": {
-      "target": "manufacturing/processes.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": [
-          "tests/test_manufacturing_module_boundaries.py"
-        ]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external process imports have documented migration evidence"
+    "app.domain_playbooks": {
+      "target": "app.manufacturing.playbooks",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
-    "rag": {
-      "target": "knowledge/rag.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": ["tests/test_knowledge_evidence_module_boundaries.py"]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external RAG imports and personal-knowledge patch contracts have documented migration evidence"
+    "app.enterprise_data": {
+      "target": "app.manufacturing.enterprise_data",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
-    "reports": {
-      "target": "manufacturing/reports.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": [
-          "tests/test_manufacturing_module_boundaries.py"
-        ]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external report imports have documented migration evidence"
+    "app.evidence_semantics": {
+      "target": "app.evidence.semantics",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
-    "runtime_status": {
-      "target": "telemetry/runtime_status.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": ["tests/test_telemetry_module_boundaries.py"]
-      },
-      "compatibility": "thin compatibility facade",
-      "exit_condition": "remove only after external runtime-status imports have documented migration evidence"
+    "app.evidence_validator": {
+      "target": "app.evidence.validator",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
-    "seed": {
-      "target": "manufacturing/seed.py",
-      "consumers": {
-        "patches": [
-          "tests/test_manufacturing_module_boundaries.py",
-          "tests/test_simulation_profile.py"
-        ],
-        "production": [],
-        "scripts": [
-          "run.sh"
-        ],
-        "tests": [
-          "tests/test_manufacturing_module_boundaries.py",
-          "tests/test_simulation_profile.py"
-        ]
-      },
-      "compatibility": "thin CLI and live-patch compatibility facade",
-      "exit_condition": "retain while python -m app.seed and run.sh remain supported CLI contracts"
+    "app.execution_store": {
+      "target": "app.persistence.execution_store",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
-    "sessions": {
-      "target": "conversation/sessions.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": ["tests/test_conversation_runtime_module_boundaries.py"]
-      },
-      "compatibility": "thin compatibility facade; internal consumers use conversation",
-      "exit_condition": "remove only after external session imports and patch contracts have documented migration evidence"
+    "app.identity": {
+      "target": "app.core.identity",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
-    "turn_decision": {
-      "target": "conversation/turn_decision.py",
-      "consumers": {
-        "patches": [],
-        "production": [],
-        "scripts": [],
-        "tests": ["tests/test_conversation_runtime_module_boundaries.py"]
-      },
-      "compatibility": "thin compatibility facade; internal consumers use conversation",
-      "exit_condition": "remove only after external turn-decision imports and patch contracts have documented migration evidence"
+    "app.intent_router": {
+      "target": "app.intent_runtime",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.knowledge_decision": {
+      "target": "app.knowledge.decision",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.loop_guard": {
+      "target": "app.agent_runtime.execution.loop_guard",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.model_compatibility": {
+      "target": "app.model_gateway.compatibility",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.model_health": {
+      "target": "app.model_gateway.health",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.model_registry": {
+      "target": "app.model_gateway.registry",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.model_streaming": {
+      "target": "app.model_gateway.streaming",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.observability": {
+      "target": "app.telemetry.http",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.ocr": {
+      "target": "app.knowledge.ocr",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.ocr_quality": {
+      "target": "app.knowledge.ocr_quality",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.personal_knowledge": {
+      "target": "app.personal_knowledge_runtime.service",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.planner": {
+      "target": "app.planning_runtime.service",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.processes": {
+      "target": "app.manufacturing.processes",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.rag": {
+      "target": "app.knowledge.rag",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.reports": {
+      "target": "app.manufacturing.reports",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.runtime_status": {
+      "target": "app.telemetry.runtime_status",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.seed": {
+      "target": "app.manufacturing.seed",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.sessions": {
+      "target": "app.conversation.sessions",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
+    },
+    "app.turn_decision": {
+      "target": "app.conversation.turn_decision",
+      "reason": "REF-035 retired the root compatibility facade after internal migration"
     }
   }
 }

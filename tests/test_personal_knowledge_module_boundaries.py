@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 from PIL import Image
 
-import app.personal_knowledge as facade
+import app.personal_knowledge_runtime.service as facade
 from app.personal_knowledge_runtime import (
     contracts,
     documents,
@@ -41,7 +41,7 @@ class PersonalKnowledgeModuleBoundaryTests(unittest.TestCase):
         )
 
     def test_facade_file_limit_patch_is_forwarded_to_storage(self):
-        with patch("app.personal_knowledge.MAX_OCR_IMAGE_PIXELS", 100):
+        with patch("app.personal_knowledge_runtime.service.MAX_OCR_IMAGE_PIXELS", 100):
             with self.assertRaises(facade.PersonalKnowledgeError) as caught:
                 facade._validate_file("large.png", self._png())
         self.assertEqual(caught.exception.error_code, "INVALID_FILE_CONTENT")
@@ -50,7 +50,7 @@ class PersonalKnowledgeModuleBoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             settings = SimpleNamespace(personal_knowledge_storage_path=root)
-            with patch("app.personal_knowledge.get_settings", return_value=settings):
+            with patch("app.personal_knowledge_runtime.service.get_settings", return_value=settings):
                 self.assertEqual(facade._storage_path("owner/source.txt"), root / "owner/source.txt")
                 with self.assertRaises(facade.PersonalKnowledgeError) as caught:
                     facade._storage_path("../outside.txt")
@@ -93,7 +93,7 @@ class PersonalKnowledgeModuleBoundaryTests(unittest.TestCase):
             path = Path(directory) / "image.png"
             path.write_bytes(self._png())
             result = SimpleNamespace(text="patched")
-            with patch("app.personal_knowledge.extract_image_result", return_value=result):
+            with patch("app.personal_knowledge_runtime.service.extract_image_result", return_value=result):
                 sections = facade._extract_sections(path, ".png", "image")
         self.assertEqual(sections[0].content, "patched")
 
@@ -127,10 +127,10 @@ class PersonalKnowledgeModuleBoundaryTests(unittest.TestCase):
 
     def test_query_wrappers_resolve_patched_facade_globals_at_call_time(self):
         patched_session = object()
-        with patch("app.personal_knowledge.db_session", patched_session), patch(
-            "app.personal_knowledge._encode_cursor", return_value="encoded"
+        with patch("app.personal_knowledge_runtime.service.db_session", patched_session), patch(
+            "app.personal_knowledge_runtime.service._encode_cursor", return_value="encoded"
         ) as encode_cursor, patch(
-            "app.personal_knowledge._decode_cursor", return_value=("time", "document")
+            "app.personal_knowledge_runtime.service._decode_cursor", return_value=("time", "document")
         ) as decode_cursor, patch.object(
             facade._documents, "list_documents", return_value={"items": [], "next_cursor": None}
         ) as list_documents:
@@ -142,7 +142,7 @@ class PersonalKnowledgeModuleBoundaryTests(unittest.TestCase):
         encode_cursor.assert_called_once_with("time", "document")
         decode_cursor.assert_called_once_with("cursor")
 
-        with patch("app.personal_knowledge.get_personal_document", return_value={"document_id": "patched"}), patch.object(
+        with patch("app.personal_knowledge_runtime.service.get_personal_document", return_value={"document_id": "patched"}), patch.object(
             facade._documents, "update_document", return_value={"document_id": "patched"}
         ) as update_document:
             self.assertEqual(
@@ -154,8 +154,8 @@ class PersonalKnowledgeModuleBoundaryTests(unittest.TestCase):
             {"document_id": "patched"},
         )
 
-        with patch("app.personal_knowledge._fts_query", return_value='"patched"'), patch(
-            "app.personal_knowledge._json_list", return_value=["patched-json"]
+        with patch("app.personal_knowledge_runtime.service._fts_query", return_value='"patched"'), patch(
+            "app.personal_knowledge_runtime.service._json_list", return_value=["patched-json"]
         ), patch.object(
             facade._search, "search_knowledge", return_value=[]
         ) as search_knowledge:
@@ -164,7 +164,7 @@ class PersonalKnowledgeModuleBoundaryTests(unittest.TestCase):
         self.assertEqual(search_deps.fts_query("anything"), '"patched"')
         self.assertEqual(search_deps.json_list("[]"), ["patched-json"])
 
-        with patch("app.personal_knowledge.process_query_terms", return_value=["patched-term"]):
+        with patch("app.personal_knowledge_runtime.service.process_query_terms", return_value=["patched-term"]):
             self.assertIn('"patched-term"', facade._fts_query("ignored"))
 
     def test_facade_now_patch_reaches_job_update_without_a_database(self):
@@ -184,8 +184,8 @@ class PersonalKnowledgeModuleBoundaryTests(unittest.TestCase):
             def __exit__(self, *unused):
                 return False
 
-        with patch("app.personal_knowledge.db_session", return_value=Session()), patch(
-            "app.personal_knowledge._now", return_value="PATCHED-NOW"
+        with patch("app.personal_knowledge_runtime.service.db_session", return_value=Session()), patch(
+            "app.personal_knowledge_runtime.service._now", return_value="PATCHED-NOW"
         ):
             facade._update_progress("document", "owner", "job", "parsing", "extracting_text", 10)
         self.assertEqual(len(executed), 2)

@@ -13,7 +13,7 @@ sys.path.insert(0, str(PROJECT_DIR))
 
 from app.knowledge.ocr import extract_image_result
 from app.knowledge.ocr_quality import POLICY_VERSION
-from app.personal_knowledge import _extract_sections
+from app.personal_knowledge_runtime.service import _extract_sections
 
 ROOT = PROJECT_DIR / "evaluations" / "ocr_samples"
 DATASET = PROJECT_DIR / "evaluations" / "ocr_gold.json"

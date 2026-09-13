@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-from ..agent import run_agent
+from ..agent_runtime.service import run_agent
 from ..telemetry.audit import (
     GIT_COMMIT,
     current_request_id,
@@ -12,7 +12,7 @@ from ..telemetry.audit import (
     monitoring_summary,
     read_events,
 )
-from ..config import APP_VERSION, PROJECT_DIR, ModelConnection, get_settings
+from ..core.settings import APP_VERSION, PROJECT_DIR, ModelConnection, get_settings
 from ..persistence.database import db_session, department_paths, ensure_department_databases
 from ..manufacturing.enterprise_data import EnterpriseDataError, get_enterprise_provider
 from ..persistence.execution_store import (
@@ -20,7 +20,7 @@ from ..persistence.execution_store import (
     get_run_audit,
     recover_interrupted_executions,
 )
-from ..identity import PrincipalContextMiddleware, current_principal
+from ..core.identity import PrincipalContextMiddleware, current_principal
 from ..model_gateway.compatibility import ModelCompatibilityError, check_model_compatibility
 from ..model_gateway.registry import (
     ensure_model_catalog,
@@ -33,7 +33,7 @@ from ..model_gateway.registry import (
     update_model_capabilities,
 )
 from ..telemetry.http import RequestAuditMiddleware
-from ..personal_knowledge import (
+from ..personal_knowledge_runtime.service import (
     PersonalDocumentPatch,
     PersonalKnowledgeError,
     begin_delete_personal_document,
