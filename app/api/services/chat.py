@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import httpx
 
+from ...memory_system.ports import HistoryReader
+
 
 class ChatService:
-    def __init__(self, deps):
+    def __init__(self, deps, history_reader: HistoryReader):
         self._deps = deps
+        self._history_reader = history_reader
 
     def prepare_chat(self, request):
         runtime = self._deps()
@@ -30,7 +33,7 @@ class ChatService:
         cached = runtime["cached_agent_result"](session_id, request.client_message_id)
         if cached:
             return session_id, [], cached, None
-        history = runtime["session_history"](session_id)
+        history = self._history_reader.read(session_id)
         message = runtime["append_message"](
             session_id,
             "user",

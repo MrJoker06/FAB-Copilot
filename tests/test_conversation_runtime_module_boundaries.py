@@ -39,8 +39,8 @@ class ConversationRuntimeModuleBoundaryTests(unittest.TestCase):
 
     def test_canonical_exports_have_domain_owners(self):
         owners = (
-            (context_resolver.ContextResolution, "app.conversation.context_resolver"),
-            (context_resolver.semantic_context_resolution, "app.conversation.context_resolver"),
+            (context_resolver.ContextResolution, "app.memory_system.contracts"),
+            (context_resolver.semantic_context_resolution, "app.memory_system.context.resolver"),
             (turn_decision.TurnDecision, "app.conversation.turn_decision"),
             (turn_decision.TurnDecisionValidationError, "app.conversation.turn_decision"),
             (decision_arbiter.ArbitrationResult, "app.conversation.decision_arbiter"),

@@ -16,7 +16,7 @@ class CapabilityDefinition:
 CAPABILITIES = (
     CapabilityDefinition("manufacturing_analysis", "制造数据分析", "分析良率、设备健康、Cpk、缺陷和异常。", ("分析昨天 CMP 良率",), ("结果来自演示系统的可复现模拟数据，不是生产观测。",), ("TOOL_HANDLERS:get_yield_trend", "TOOL_HANDLERS:get_process_capability", "TOOL_HANDLERS:get_equipment_health", "TOOL_HANDLERS:get_defect_pareto", "TOOL_HANDLERS:get_recent_excursions")),
     CapabilityDefinition("knowledge_retrieval", "知识与案例检索", "检索当前用户可访问的个人知识、工厂知识和历史案例。", ("查找 CMP 划伤处置 SOP",), ("案例只能形成待验证假设，不能证明当前根因。",), ("TOOL_HANDLERS:search_knowledge",)),
-    CapabilityDefinition("session_context", "会话理解", "支持追问、纠正和基于真实消息记录的回忆。", ("具体展开刚才的第二点",), ("无法可靠绑定历史时会请求澄清，不会猜测。",), ("MODULE:app.context_resolver",)),
+    CapabilityDefinition("session_context", "会话理解", "支持追问、纠正和基于真实消息记录的回忆。", ("具体展开刚才的第二点",), ("无法可靠绑定历史时会请求澄清，不会猜测。",), ("MODULE:app.memory_system",)),
     CapabilityDefinition("evidence_governance", "证据约束", "把事实、推断、建议和证据限制分开呈现。", ("给出良率下降的证据和限制",), ("缺少数据时不会把推断表述为已证实结论。",), ("MODULE:app.evidence_validator", "MODULE:app.answer_synthesizer")),
     CapabilityDefinition("personal_knowledge", "个人文档管理", "支持个人知识上传、检索与引用。", ("上传并检索我的工艺笔记",), ("仅当前用户可访问的文档会参与检索。",), ("MODULE:app.personal_knowledge",)),
     CapabilityDefinition("model_governance", "模型治理", "管理员可以配置模型能力和兼容性测试。", ("管理员检查模型 Thinking 兼容性",), ("普通用户不能查看或修改管理员配置。",), ("MODULE:app.model_registry",), "admin"),

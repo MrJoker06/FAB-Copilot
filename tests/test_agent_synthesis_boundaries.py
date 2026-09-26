@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import unittest
 from datetime import date
 from types import SimpleNamespace
@@ -43,6 +44,36 @@ class AgentSynthesisBoundaryTests(unittest.TestCase):
         with patch("app.agent_runtime.service.synthesizer_system_message", return_value="live-contract"):
             messages = agent._ready_synthesis_messages("问题", plan, validation, contract, [])
         self.assertEqual(messages[1]["content"], "live-contract")
+
+    def test_ready_messages_remain_three_and_preserve_evidence_json(self):
+        route = route_question("分析 CMP-03 最近7天 Cpk 不合格", current_date=date(2026, 8, 23))
+        plan = create_execution_plan("分析 CMP-03 最近7天 Cpk 不合格", route, select_playbook(route))
+        validation = agent.validate_evidence(plan, select_playbook(route).selected_playbook, [])
+        contract = agent.create_answer_contract(validation)
+        messages = agent._ready_synthesis_messages("问题", plan, validation, contract, [])
+        self.assertEqual(len(messages), 3)
+        payload = json.loads(messages[2]["content"])
+        self.assertEqual(payload["question"], "问题")
+        self.assertEqual(payload["evidence"], [])
+
+    def test_ready_messages_preserve_compact_ordered_evidence_json(self):
+        route = route_question("分析 CMP-03 最近7天 Cpk 不合格", current_date=date(2026, 8, 23))
+        plan = create_execution_plan("分析 CMP-03 最近7天 Cpk 不合格", route, select_playbook(route))
+        validation = agent.validate_evidence(plan, select_playbook(route).selected_playbook, [])
+        contract = agent.create_answer_contract(validation)
+        observations = [
+            SimpleNamespace(source_ref="OK-1", tool="tool_one", status="success", result={"value": "成功"}, error=None),
+            SimpleNamespace(source_ref="FAIL-2", tool="tool_two", status="failed", result={"ignored": True}, error="错误"),
+        ]
+        messages = agent._ready_synthesis_messages("问题", plan, validation, contract, observations)
+        expected_evidence = [
+            {"source_ref": "OK-1", "tool": "tool_one", "status": "success", "result": {"value": "成功"}, "error": None},
+            {"source_ref": "FAIL-2", "tool": "tool_two", "status": "failed", "result": None, "error": "错误"},
+        ]
+        expected_suffix = '"evidence":' + json.dumps(
+            expected_evidence, ensure_ascii=False, separators=(",", ":"), default=str,
+        ) + "}"
+        self.assertTrue(messages[2]["content"].endswith(expected_suffix))
 
     def test_ready_request_exposes_only_submit_tool(self):
         events = []

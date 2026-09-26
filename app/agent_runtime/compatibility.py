@@ -87,11 +87,14 @@ from ..evidence.answer_synthesizer import (
 from .assistant_capabilities import build_meta_response
 from ..telemetry.audit import content_fingerprint, emit
 from ..core.settings import Settings, get_settings
-from ..conversation.context_resolver import (
-    CONTEXTUALIZER_RESPONSE_FORMAT,
-    ContextResolution,
-    build_contextualizer_messages,
+from ..memory_system.contracts import ContextResolution
+from ..memory_system.context.builder import (
     context_system_message,
+    build_stage_memory_messages,
+)
+from ..memory_system.context.history import build_contextualizer_messages
+from ..memory_system.context.protocol import CONTEXTUALIZER_RESPONSE_FORMAT
+from ..memory_system.context.resolver import (
     resolve_question_context,
     semantic_context_resolution,
     unresolved_context,
@@ -351,6 +354,7 @@ def _ready_synthesis_dependencies() -> ReadySynthesisDependencies:
         model_retry_delay=_model_retry_delay,
         audit_assistant=_audit_assistant,
         emit=emit,
+        stage_memory_messages=build_stage_memory_messages,
         sleep=asyncio.sleep,
         perf_counter=time.perf_counter,
     )
@@ -620,6 +624,7 @@ def _coordinator_dependencies() -> CoordinatorDependencies:
             validator_system_message=validator_system_message, synthesizer_system_message=synthesizer_system_message,
             prefetch_general_knowledge=_prefetch_general_knowledge,
             retrieval_system_message=retrieval_system_message, knowledge_fallback_state=_knowledge_fallback_state,
+            stage_memory_messages=build_stage_memory_messages,
         ),
         ready=CoordinatorReadyDependencies(
             async_client=httpx.AsyncClient, ready_synthesis_messages=_ready_synthesis_messages,

@@ -27,11 +27,7 @@ async def prepare_model_stage(
         {"role": "system", "content": deps.validator_system_message(state.evidence_validation)},
         {"role": "system", "content": deps.synthesizer_system_message(state.answer_contract)},
     ])
-    for item in (state.history or [])[-8:]:
-        role = item.get("role")
-        content = str(item.get("content", ""))[:4000]
-        if role in {"user", "assistant"} and content:
-            state.messages.append({"role": role, "content": content})
+    state.messages.extend(deps.stage_memory_messages("agent_loop", state.history))
     state.messages.append({"role": "user", "content": state.question})
     state.endpoint = f"{state.connection.base_url}/chat/completions"
     state.total_usage = {

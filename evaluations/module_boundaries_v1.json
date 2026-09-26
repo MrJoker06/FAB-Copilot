@@ -33,7 +33,16 @@
     "app.model_gateway.compatibility": "model_gateway.compatibility",
     "app.model_gateway.health": "model_gateway.health",
     "app.model_gateway.streaming": "model_gateway.streaming",
-    "app.conversation.context_resolver": "conversation.context_resolver",
+    "app.conversation.context_resolver": "memory_system.compatibility",
+    "app.memory_system": "memory_system",
+    "app.memory_system.context": "memory_system.context",
+    "app.memory_system.contracts": "memory_system.contracts",
+    "app.memory_system.ports": "memory_system.ports",
+    "app.memory_system.service": "memory_system.service",
+    "app.memory_system.context.protocol": "memory_system.context.protocol",
+    "app.memory_system.context.history": "memory_system.context.history",
+    "app.memory_system.context.resolver": "memory_system.context.resolver",
+    "app.memory_system.context.builder": "memory_system.context.builder",
     "app.conversation.turn_decision": "conversation.turn_decision",
     "app.conversation.decision_arbiter": "conversation.decision_arbiter",
     "app.conversation.sessions": "conversation.sessions",
@@ -59,6 +68,7 @@
       "knowledge",
       "manufacturing",
       "model_gateway",
+      "memory_system",
       "planning_runtime",
       "telemetry"
     ],
@@ -66,7 +76,8 @@
       "conversation",
       "manufacturing",
       "planning_runtime",
-      "persistence"
+      "persistence",
+      "memory_system"
     ],
     "evidence": [
       "evidence",
@@ -86,7 +97,8 @@
     "model_gateway": [
       "model_gateway",
       "persistence",
-      "conversation"
+      "conversation",
+      "memory_system"
     ],
     "persistence": [
       "persistence",
@@ -115,6 +127,9 @@
       "knowledge",
       "manufacturing",
       "persistence"
+    ],
+    "memory_system": [
+      "memory_system"
     ]
   },
   "policy": {
@@ -138,7 +153,16 @@
       "app.intent_runtime.rules",
       "app.planning_runtime.contracts",
       "app.manufacturing.processes",
-      "app.conversation.turn_decision"
+      "app.conversation.turn_decision",
+      "app.memory_system",
+      "app.memory_system.context",
+      "app.memory_system.contracts",
+      "app.memory_system.ports",
+      "app.memory_system.service",
+      "app.memory_system.context.protocol",
+      "app.memory_system.context.history",
+      "app.memory_system.context.resolver",
+      "app.memory_system.context.builder"
     ],
     "pure_forbidden_targets": [
       "app.persistence.database",
@@ -155,6 +179,24 @@
       "app.main",
       "app.agent_runtime.coordinator",
       "app.agent_runtime.service"
+    ],
+    "domain_forbidden_imports": {
+      "memory_system": [
+        "app.api",
+        "app.agent_runtime",
+        "app.conversation",
+        "app.model_gateway",
+        "app.persistence",
+        "app.telemetry",
+        "httpx",
+        "requests",
+        "socket",
+        "sqlite3",
+        "urllib"
+      ]
+    },
+    "production_forbidden_imports": [
+      "app.conversation.context_resolver"
     ]
   },
   "existing_edge_exceptions": [
@@ -388,7 +430,7 @@
       "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
     "app.context_resolver": {
-      "target": "app.conversation.context_resolver",
+      "target": "app.memory_system",
       "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
     "app.database": {

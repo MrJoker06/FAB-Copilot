@@ -360,6 +360,62 @@ class ModuleBoundaryTests(unittest.TestCase):
             errors = boundary_errors(copied_app, load_manifest())
         self.assertTrue(any("app.manufacturing.processes" in error and "pure module imports forbidden app.persistence.database" in error for error in errors))
 
+    def test_memory_domain_policy_rejects_absolute_relative_dynamic_and_runtime_imports(self):
+        cases = {
+            "absolute.py": "from app.api import services\n",
+            "relative.py": "from ..api import services\n",
+            "dynamic.py": "import importlib\nimportlib.import_module('app.persistence.database')\n",
+            "runtime.py": "import socket\n",
+        }
+        for name, content in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                app = self.write_app(root, {
+                    "__init__.py": "", "main.py": "", "memory_system/__init__.py": "",
+                    f"memory_system/{name}": content, "api/__init__.py": "", "api/services.py": "",
+                    "persistence/__init__.py": "", "persistence/database.py": "",
+                })
+                manifest = self.manifest(root, ["main"])
+                manifest["canonical_modules"].update({
+                    "app.memory_system": "memory_system",
+                    "app.api": "api",
+                    "app.persistence": "persistence",
+                })
+                manifest["allowed_domain_dependencies"].update({
+                    "memory_system": ["memory_system"], "api": ["api"], "persistence": ["persistence"],
+                })
+                manifest["policy"]["domain_forbidden_imports"] = {
+                    "memory_system": ["app.api", "app.persistence", "socket"],
+                }
+                errors = boundary_errors(app, manifest)
+            self.assertTrue(errors)
+            self.assertTrue(all("memory_system module imports forbidden" in error for error in errors), errors)
+
+    def test_production_policy_rejects_conversation_facade_but_not_canonical_or_labels(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            app = self.write_app(root, {
+                "__init__.py": "", "main.py": "", "consumer.py": "from app.conversation import context_resolver\n",
+                "canonical.py": "from app.memory_system import contracts\nLABEL = 'MODULE:app.conversation.context_resolver'\n",
+                "conversation/__init__.py": "", "conversation/context_resolver.py": "",
+                "memory_system/__init__.py": "", "memory_system/contracts.py": "",
+            })
+            manifest = self.manifest(root, ["main", "consumer", "canonical"])
+            manifest["canonical_modules"].update({
+                "app.conversation": "conversation", "app.memory_system": "memory_system",
+            })
+            manifest["allowed_domain_dependencies"].update({
+                "conversation": ["conversation"], "memory_system": ["memory_system"],
+            })
+            manifest["allowed_domain_dependencies"]["canonical"].append("memory_system")
+            manifest["allowed_domain_dependencies"]["consumer"].append("conversation")
+            manifest["policy"]["production_forbidden_imports"] = ["app.conversation.context_resolver"]
+            errors = boundary_errors(app, manifest)
+        self.assertEqual(
+            errors,
+            ["app.consumer:1: production module imports forbidden compatibility facade app.conversation.context_resolver"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

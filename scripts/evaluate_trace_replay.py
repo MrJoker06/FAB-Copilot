@@ -21,7 +21,7 @@ from app.evidence.answer_synthesizer import (  # noqa: E402
     synthesize_legacy_answer,
     synthesize_submission,
 )
-from app.conversation.context_resolver import (  # noqa: E402
+from app.memory_system.context.resolver import (  # noqa: E402
     semantic_context_resolution,
     unresolved_context,
 )

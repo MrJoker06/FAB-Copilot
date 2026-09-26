@@ -147,7 +147,27 @@ def boundary_errors(app_dir: Path, manifest: dict[str, object]) -> list[str]:
     pure_modules = set(policy.get("pure_modules", []))
     pure_forbidden = set(policy.get("pure_forbidden_targets", []))
     pure_forbidden_prefixes = tuple(policy.get("pure_forbidden_prefixes", []))
+    domain_forbidden_value = policy.get("domain_forbidden_imports", {})
+    production_forbidden_value = policy.get("production_forbidden_imports", [])
     assembly_modules = set(policy.get("assembly_modules", []))
+    domain_forbidden: dict[str, list[str]] = {}
+    production_forbidden: list[str] = []
+    if not isinstance(domain_forbidden_value, dict) or not all(
+        isinstance(domain, str)
+        and domain
+        and isinstance(targets, list)
+        and all(isinstance(target, str) and target for target in targets)
+        for domain, targets in domain_forbidden_value.items()
+    ):
+        errors.append("domain forbidden imports must map non-empty domains to string lists")
+    else:
+        domain_forbidden = domain_forbidden_value
+    if not isinstance(production_forbidden_value, list) or not all(
+        isinstance(target, str) and target for target in production_forbidden_value
+    ):
+        errors.append("production forbidden imports must be a list of non-empty strings")
+    else:
+        production_forbidden = production_forbidden_value
     canonical_value = manifest.get("canonical_modules", {})
     allowed_dependencies_value = manifest.get("allowed_domain_dependencies", {})
     canonical: dict[str, object] = {}
@@ -201,12 +221,23 @@ def boundary_errors(app_dir: Path, manifest: dict[str, object]) -> list[str]:
     for edge in edges:
         if is_allowed_exception(edge, exceptions):
             continue
-        if edge.source in pure_modules and (edge.target in pure_forbidden or edge.target.startswith(pure_forbidden_prefixes)):
+        source_domain = canonical_domain(edge.source, canonical)
+        if any(
+            edge.source != target
+            and (edge.target == target or edge.target.startswith(f"{target}."))
+            for target in production_forbidden
+        ):
+            errors.append(f"{edge.source}:{edge.line}: production module imports forbidden compatibility facade {edge.target}")
+        elif source_domain and any(
+            edge.target == target or edge.target.startswith(f"{target}.")
+            for target in domain_forbidden.get(source_domain, [])
+        ):
+            errors.append(f"{edge.source}:{edge.line}: {source_domain} module imports forbidden {edge.target}")
+        elif edge.source in pure_modules and (edge.target in pure_forbidden or edge.target.startswith(pure_forbidden_prefixes)):
             errors.append(f"{edge.source}:{edge.line}: pure module imports forbidden {edge.target}")
         elif any(edge.target == target or edge.target.startswith(f"{target}.") for target in forbidden_targets) and edge.source not in assembly_modules:
             errors.append(f"{edge.source}:{edge.line}: domain module imports forbidden {edge.target}")
         else:
-            source_domain = canonical_domain(edge.source, canonical)
             target_domain = canonical_domain(edge.target, canonical)
             allowed = allowed_dependencies.get(source_domain)
             if source_domain and target_domain and isinstance(allowed, list) and target_domain not in allowed:

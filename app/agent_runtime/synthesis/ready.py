@@ -33,6 +33,7 @@ class ReadySynthesisDependencies:
     model_retry_delay: Callable[[float, int, Exception], float]
     audit_assistant: Callable[[dict | None], dict]
     emit: Callable[..., None]
+    stage_memory_messages: Callable[[str, list[dict] | None], list[dict[str, str]]]
     sleep: Callable[[float], Awaitable[Any]] = asyncio.sleep
     perf_counter: Callable[[], float] = time.perf_counter
 
@@ -74,7 +75,7 @@ def ready_synthesis_messages(
         },
         "evidence": evidence,
     }
-    return [
+    return deps.stage_memory_messages("ready_synthesis", None) + [
         {
             "role": "system",
             "content": "你是 Fab Copilot 的最终综合器。业务工具已由服务端确定性执行；你只能依据下面的已验证证据调用 submit_analysis 一次，不能选择、请求或虚构业务工具。",

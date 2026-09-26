@@ -11,10 +11,10 @@ from typing import Any
 
 import httpx
 
-from ..conversation.context_resolver import (
+from ..memory_system.context.history import build_contextualizer_messages
+from ..memory_system.context.protocol import (
     CONTEXTUALIZER_RESPONSE_FORMAT,
     ContextPayloadValidationError,
-    build_contextualizer_messages,
     validate_contextualizer_payload,
 )
 

@@ -95,6 +95,115 @@ class ApiChatBoundaryTests(unittest.TestCase):
         begin.assert_not_called()
         run.assert_not_awaited()
 
+    def test_prepare_chat_reads_before_append_once_through_live_main_patch(self):
+        request = main.ChatRequest(message="消息内容")
+        events = []
+
+        def session_history(session_id):
+            events.append(("read", session_id))
+            return [{"role": "assistant", "content": "已有回答"}]
+
+        def append_message(*args, **kwargs):
+            events.append(("append", args[1], args[2]))
+            return {"message_id": "u-1"}
+
+        with (
+            patch.object(main, "create_session", return_value={"session_id": "s-1"}),
+            patch.object(main, "client_message_content", return_value=None),
+            patch.object(main, "cached_agent_result", return_value=None),
+            patch.object(main, "session_history", new=session_history),
+            patch.object(main, "append_message", new=append_message),
+        ):
+            session_id, history, cached, message = main._prepare_chat(request)
+        self.assertEqual((session_id, history, cached, message), (
+            "s-1", [{"role": "assistant", "content": "已有回答"}], None, {"message_id": "u-1"},
+        ))
+        self.assertEqual(events, [("read", "s-1"), ("append", "user", "消息内容")])
+
+    def test_prepare_chat_cached_result_performs_no_history_read(self):
+        request = main.ChatRequest(message="消息内容", client_message_id="message-1")
+        cached = {"answer": "cached"}
+        with (
+            patch.object(main, "create_session", return_value={"session_id": "s-1"}),
+            patch.object(main, "client_message_content", return_value=None),
+            patch.object(main, "cached_agent_result", return_value=cached),
+            patch.object(main, "session_history", side_effect=AssertionError) as history,
+            patch.object(main, "append_message", side_effect=AssertionError),
+        ):
+            self.assertEqual(main._prepare_chat(request), ("s-1", [], cached, None))
+        history.assert_not_called()
+
+    def test_prepare_chat_removes_duplicate_persisted_user_message(self):
+        request = main.ChatRequest(message="消息内容")
+        with (
+            patch.object(main, "create_session", return_value={"session_id": "s-1"}),
+            patch.object(main, "client_message_content", return_value=None),
+            patch.object(main, "cached_agent_result", return_value=None),
+            patch.object(
+                main, "session_history",
+                return_value=[
+                    {"role": "assistant", "content": "回答"},
+                    {"role": "user", "content": "消息内容"},
+                ],
+            ),
+            patch.object(main, "append_message", return_value={"message_id": "u-1", "duplicate": True}),
+        ):
+            _, history, _, _ = main._prepare_chat(request)
+        self.assertEqual(history, [{"role": "assistant", "content": "回答"}])
+
+    def test_chat_uses_persisted_history_before_explicit_request_history(self):
+        request = main.ChatRequest(
+            message="消息内容",
+            history=[main.ChatMessage(role="user", content="显式历史")],
+        )
+        captured = []
+
+        async def fake_agent(*args, **_kwargs):
+            captured.append(args[1])
+            return {"answer": "ok", "run_id": "run-1"}
+
+        with (
+            patch.object(main, "_validate_chat_model_capabilities", return_value=("p", "m")),
+            patch.object(
+                main, "_prepare_chat",
+                return_value=("s", [{"role": "assistant", "content": "持久历史"}], None, {"message_id": "u"}),
+            ),
+            patch.object(main, "RunExecutionRecorder", return_value=Mock()),
+            patch.object(main, "begin_agent_run"),
+            patch.object(main, "run_agent", new=fake_agent),
+            patch.object(main, "append_message", return_value={"message_id": "a"}),
+            patch.object(main, "record_agent_result"),
+            patch.object(main, "emit"),
+            patch.object(main, "finish_agent_run"),
+        ):
+            asyncio.run(main._chat_service.chat(request))
+        self.assertEqual(captured, [[{"role": "assistant", "content": "持久历史"}]])
+
+    def test_chat_falls_back_to_explicit_history_when_persisted_history_is_empty(self):
+        request = main.ChatRequest(
+            message="消息内容",
+            history=[main.ChatMessage(role="user", content="显式历史")],
+        )
+        captured = []
+
+        async def fake_agent(*args, **_kwargs):
+            captured.append(args[1])
+            return {"answer": "ok", "run_id": "run-1"}
+
+        with (
+            patch.object(main, "_validate_chat_model_capabilities", return_value=("p", "m")),
+            patch.object(main, "_prepare_chat", return_value=("s", [], None, {"message_id": "u"})),
+            patch.object(main, "RunExecutionRecorder", return_value=Mock()),
+            patch.object(main, "begin_agent_run"),
+            patch.object(main, "run_agent", new=fake_agent),
+            patch.object(main, "append_message", return_value={"message_id": "a"}),
+            patch.object(main, "record_agent_result"),
+            patch.object(main, "emit"),
+            patch.object(main, "finish_agent_run"),
+        ):
+            asyncio.run(main._chat_service.chat(request))
+        self.assertEqual(captured, [[{"role": "user", "content": "显式历史"}]])
+
     def test_cached_stream_returns_session_then_result_without_running_agent(self):
         request = main.ChatRequest(message="缓存请求", client_message_id="message-001")
         cached = {"answer": "cached", "cached": True}

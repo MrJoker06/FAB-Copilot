@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Iterable
 
-from .context_resolver import ContextResolution
+from ..memory_system.contracts import ContextResolution
 from ..intent_runtime import INTENT_LABELS, IntentRoute, apply_semantic_intent_hint, route_question
 from .turn_decision import TurnAction, TurnDecisionValidationError, validate_turn_actions
 

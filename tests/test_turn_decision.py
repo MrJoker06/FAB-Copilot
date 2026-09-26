@@ -6,7 +6,7 @@ from app.agent_runtime.service import TOOL_HANDLERS
 from app.agent_runtime.assistant_capabilities import CAPABILITIES, build_meta_response, user_capabilities
 from app.conversation.turn_decision import TurnDecisionValidationError, build_turn_decision, validate_turn_actions
 from app.intent_runtime.routing import route_question
-from app.conversation.context_resolver import semantic_context_resolution
+from app.memory_system.context.resolver import semantic_context_resolution
 from app.conversation.decision_arbiter import arbitrate_decision, recover_active_flow
 from scripts.check_module_boundaries import load_manifest
 

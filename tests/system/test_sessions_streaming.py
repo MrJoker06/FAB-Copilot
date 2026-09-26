@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from app.telemetry.audit import read_events
 from app.persistence.database import db_session
 from app.persistence.execution_store import persist_execution_plan, recover_interrupted_executions, start_run_record, start_tool_event
+import app.main as main
 from app.main import app
 from app.manufacturing.seed import seed_reference_data
 from app.conversation.sessions import append_message, record_agent_result
@@ -54,6 +55,97 @@ class SessionsStreamingSystemTests(unittest.TestCase):
             self.assertEqual([item["role"] for item in restored.json()["messages"]], ["user", "assistant"])
             self.assertEqual(restored.json()["messages"][1]["metadata"]["tool_trace"][0]["rows"], 3)
             client.delete(f"/api/sessions/{session_id}")
+
+    def test_legacy_session_history_survives_restart_and_is_read_once_for_new_chat(self):
+        legacy_user_metadata = {
+            "legacy_version": "0.9",
+            "source": {"channel": "old-client"},
+        }
+        legacy_assistant_metadata = {
+            "legacy_version": "0.9",
+            "tool_trace": [{"tool": "legacy_lookup", "rows": 2}],
+        }
+        with TestClient(app) as client:
+            session_id = client.post("/api/sessions").json()["session_id"]
+            legacy_user = append_message(
+                session_id,
+                "user",
+                "旧版提问",
+                legacy_user_metadata,
+            )
+            legacy_assistant = append_message(
+                session_id,
+                "assistant",
+                "旧版回答",
+                legacy_assistant_metadata,
+            )
+
+        captured_histories: list[list[dict]] = []
+        history_reads: list[tuple[str, int]] = []
+        original_history = main.session_history
+
+        def observe_history(read_session_id: str, limit: int = 20) -> list[dict]:
+            history_reads.append((read_session_id, limit))
+            return original_history(read_session_id, limit=limit)
+
+        async def fake_agent(
+            _question,
+            history,
+            _progress=None,
+            *,
+            thinking=False,
+            session_id=None,
+            user_message_id=None,
+        ):
+            captured_histories.append(history)
+            return {
+                "answer": "新回答",
+                "run_id": "run-legacy-session-history",
+                "model": "test-model",
+                "mode": "test",
+            }
+
+        with (
+            TestClient(app) as client,
+            patch("app.main.session_history", new=observe_history),
+            patch("app.main.run_agent", new=fake_agent),
+        ):
+            restored = client.get(f"/api/sessions/{session_id}").json()["messages"]
+            self.assertEqual(
+                [item["message_id"] for item in restored],
+                [legacy_user["message_id"], legacy_assistant["message_id"]],
+            )
+            self.assertEqual(restored[0]["metadata"], legacy_user_metadata)
+            self.assertEqual(restored[1]["metadata"], legacy_assistant_metadata)
+
+            response = client.post(
+                "/api/chat",
+                json={
+                    "message": "继续分析",
+                    "session_id": session_id,
+                    "history": [{"role": "user", "content": "显式历史不能被合并"}],
+                },
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(history_reads, [(session_id, 20)])
+            self.assertEqual(
+                captured_histories,
+                [[
+                    {
+                        "message_id": legacy_user["message_id"],
+                        "role": "user",
+                        "content": "旧版提问",
+                        "metadata": legacy_user_metadata,
+                    },
+                    {
+                        "message_id": legacy_assistant["message_id"],
+                        "role": "assistant",
+                        "content": "旧版回答",
+                        "metadata": legacy_assistant_metadata,
+                    },
+                ]],
+            )
+            client.delete(f"/api/sessions/{session_id}/permanent")
 
     def test_session_history_can_list_rename_and_archive(self):
         with TestClient(app) as client:

@@ -46,6 +46,7 @@ class ModelDependencies:
     prefetch_general_knowledge: Any
     retrieval_system_message: Any
     knowledge_fallback_state: Any
+    stage_memory_messages: Any
 
 
 @dataclass(frozen=True)

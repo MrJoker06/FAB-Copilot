@@ -1,14 +1,14 @@
 # Fab Insight Agent TODO
 
-状态基线：`experiment/parallel-platform`，2026-09-13。
+状态基线：`experiment/parallel-platform`，2026-09-26。
 
-当前统计：共 216 个独立任务，已完成 172 个，待做 44 个。
+当前统计：共 225 个独立任务，已完成 176 个，待做 49 个。
 
 另有 4 项 `OPTIONAL` 可选候选，不计入上述主统计。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
-当前结论：`REF-035` 根目录精简与旧入口退役已完成；`app/` 根目录仅保留 `__init__.py` 与 `main.py`。剩余 44 项中，当前队列 0 项、用户暂缓 2 项（`QA-010` 远程 Live、`UX-029` 移动端）、企业级暂缓 42 项；另有 4 项 `OPTIONAL` 候选保持不排期，详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
+当前结论：`REF-035` 根目录精简与旧入口退役已完成；`app/` 根目录仅保留 `__init__.py` 与 `main.py`。Memory 的 MEM-001 至 MEM-004 已通过结构抽离与完整离线验收，按用户后续要求作为单个汇总提交交付。剩余 49 项中，当前队列 5 项、用户暂缓 2 项（`QA-010` 远程 Live、`UX-029` 移动端）、企业级暂缓 42 项；另有 4 项 `OPTIONAL` 候选保持不排期，详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
 
 ## 标记规则
 
@@ -23,17 +23,18 @@
 
 | 类型 | 任务 | 当前结论 |
 |---|---|---|
-| 当前队列 | 无 | REF-035 已完成；不自动激活暂缓或 `OPTIONAL` 任务 |
+| 当前队列 | `AGENT-040` 至 `AGENT-044` | Memory 结构抽离已验收；不自动激活暂缓或 `OPTIONAL` 任务 |
 | 用户暂缓 | `QA-010`、`UX-029` | 远程 Live 验收和移动端需求暂不进入当前队列 |
 | 企业级暂缓 | 42 项 | 等待身份提供方、真实数据接口、部署环境和运维边界明确 |
 | 可选候选 | `RAG-024`、`AGENT-039`、`REF-025`、`REF-026` `OPTIONAL` | 不计入主统计，只在用户明确激活后排期 |
 
-最近一次完整质量门为 2026-09-13 `REF-035` 宿主完整离线质量门重跑 exit 0：发现 576 个 Python 测试，508/508 非系统测试（67.545 秒），系统数据/HTTP/知识/模型/会话 13/15/13/17/10 全通过，墙钟 20.381070265/17.895252597/21.359629731/17.605863887/24.480409194 秒、总计 101.722489564 秒，全部预算通过；coverage 89%，Node 61/61、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 17/17（43.4 秒）均通过。结果保存于被 Git 忽略的 `runtime/quality/ref035-full-parent-rerun.log`；普通门未调用真实模型或外部服务。 完整基线见 [测试策略](docs/testing-strategy.md)。
+最近一次完整质量门为 2026-09-26 `MEM-004` 宿主完整离线质量门重跑 exit 0：发现 605 个 Python 测试，536/536 非系统测试，系统数据/HTTP/知识/模型/会话 13/15/13/17/11 全通过、总墙钟 102.588 秒且预算通过；coverage 89%，Node 61/61、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 17/17（45.4 秒）均通过，冻结兼容契约与仓库检查通过。首次浏览器尝试因 Chromium `ERR_NETWORK_CHANGED` 失败，单项及完整门复跑均通过；普通门未调用真实模型。完整基线见 [测试策略](docs/testing-strategy.md)。
 
 ## 工作流清单
 
 | 工作流 | 清单 | 当前结论 |
 |---|---|---|
+| Memory System | [Memory TODO](docs/todos/memory-system.md) | MEM-001 至 MEM-004 已通过完整离线验收；长期记忆 OPTIONAL |
 | Agent 执行架构 | [Agent TODO](docs/todos/agent-architecture.md) | Tool Agent Loop、四态上下文安全降级、基于真实消息 ID 的上下文回忆、制造范围门禁、通用制造运营概览、Router、六类 Playbook、Planner、运行时守卫、Validator、Synthesizer、计划审计持久化、Playbook 黄金集、统一会话仲裁、范围安全证据与 ready 计划确定性执行均已完成；Trace 语义由 `OBS-017` 收口 |
 | 身份与权限 | [身份安全 TODO](docs/todos/identity-security.md) | 本地隔离和管理令牌已完成；企业 SSO/RBAC 属于企业级暂缓 |
 | 模型治理 | [模型治理 TODO](docs/todos/model-governance.md) | 统一 Provider 连接、能力目录、用户选择与 Thinking 服务端门禁已完成；企业凭据与审批属于企业级暂缓 |

@@ -10,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from .api.application import ApplicationDependencies, create_application, lifespan_for
+from .api.services.history import LiveHistoryReader
 from .api.dependencies import (
     AuthenticationDependencies,
     current_admin as _current_admin,
@@ -206,7 +207,7 @@ _register_bundles(
 )
 
 
-_chat_service = ChatService(_router_namespace)
+_chat_service = ChatService(_router_namespace, LiveHistoryReader(_router_namespace))
 _chat_stream_service = ChatStreamService(_router_namespace)
 _chat_routes = chat_router.create_router(_router_namespace)
 _include_domain_router(_chat_routes.router)
