@@ -185,6 +185,28 @@ class ContextResolverTests(unittest.TestCase):
         self.assertIn("基本工艺路线差异", resolution.selected_context)
         self.assertEqual(route_question(resolution.resolved_question).intent, "sop_lookup")
 
+    def test_ordinal_selection_binds_most_recent_clarification(self):
+        # 已知语义歧义：当会话中存在多次带列表的澄清时，确定性解析
+        # 无条件绑定最近一次，且 confidence=1.0。用户可能指的是更早的
+        # 一次澄清，但纯规则无法区分。此测试锁定现状，便于后续讨论修复。
+        resolution = resolve_question_context(
+            "选第2点",
+            [
+                {"role": "user", "content": "分析最近良率"},
+                {"role": "assistant", "content": "第一次澄清，请选择：\n- 比较 Cpk\n- 指定设备\n- 指定时间范围"},
+                {"role": "user", "content": "先帮我看看设备告警"},
+                {"role": "assistant", "content": "第二次澄清，请选择：\n- 看异常批次\n- 看设备健康"},
+            ],
+        )
+
+        self.assertTrue(resolution.applied)
+        self.assertEqual(resolution.strategy, "ordinal_selection")
+        self.assertEqual(resolution.selected_context, "看设备健康")
+        self.assertEqual(resolution.confidence, 1.0)
+        self.assertEqual(resolution.source, "deterministic")
+        self.assertEqual(resolution.relation, "followup")
+        self.assertIn("先帮我看看设备告警", resolution.resolved_question)
+
     def test_context_dependent_phrase_without_history_is_not_guessed(self):
         resolution = resolve_question_context("最后一点", [])
 
