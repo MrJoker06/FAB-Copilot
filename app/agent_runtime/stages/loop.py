@@ -40,6 +40,7 @@ async def execute_agent_loop(
         loop_guard=state.loop_guard, run_id=state.run_id, progress=state.progress,
         thinking=state.thinking, main_recovery_trial=state.main_recovery_trial,
         health_enabled=state.health_enabled, selected_model_id=state.selected_model_id,
+        question=state.question,
         analysis_question=state.analysis_question, playbook_selection=state.playbook_selection,
         context_resolution=state.context_resolution, messages=state.messages, trace=state.trace,
         sources=state.sources, evidence_observations=state.evidence_observations,

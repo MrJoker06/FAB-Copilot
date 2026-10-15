@@ -58,6 +58,8 @@ async def prepare_model_stage(
         state.answer_contract = deps.create_answer_contract(
             state.evidence_validation, list(state.sources.values()),
             allow_model_knowledge_fallback=decision.model_knowledge_allowed,
+            question=state.question,
+            resolved_question=state.analysis_question,
         )
         state.messages.extend([
             {"role": "system", "content": deps.retrieval_system_message(decision, list(state.sources.values()))},

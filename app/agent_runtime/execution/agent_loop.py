@@ -26,6 +26,7 @@ class AgentLoopContext:
     main_recovery_trial: bool
     health_enabled: bool
     selected_model_id: str
+    question: str
     analysis_question: str
     playbook_selection: Any
     context_resolution: Any
@@ -87,6 +88,7 @@ async def run_agent_loop(context: AgentLoopContext) -> dict:
     main_recovery_trial = context.main_recovery_trial
     health_enabled = context.health_enabled
     selected_model_id = context.selected_model_id
+    question = context.question
     analysis_question = context.analysis_question
     playbook_selection = context.playbook_selection
     context_resolution = context.context_resolution
@@ -558,6 +560,8 @@ async def run_agent_loop(context: AgentLoopContext) -> dict:
                 evidence_validation,
                 list(sources.values()),
                 allow_model_knowledge_fallback=knowledge_fallback["used"],
+                question=question,
+                resolved_question=analysis_question,
             )
             messages.append({"role": "system", "content": validator_system_message(evidence_validation)})
             messages.append({"role": "system", "content": synthesizer_system_message(answer_contract)})

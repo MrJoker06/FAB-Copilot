@@ -2,12 +2,12 @@
   "agent": {
     "cases": {
       "chain-cmp-capability": {
-        "event_sequence": ["run_started", "stage:routing", "stage:plan", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "stage:synthesis", "answer_delta", "answer_delta"],
+        "event_sequence": ["run_started", "stage:routing", "stage:plan", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "stage:synthesis", "answer_delta"],
         "result_keys": ["answer", "answer_contract", "answer_synthesis", "context_resolution", "domain_playbook", "evidence_validation", "execution_plan", "intent_route", "mode", "model", "run_id", "sources", "tool_trace", "trace_semantics", "turn_decision"],
         "trace_item_keys": ["arguments", "execution_mode", "plan_step_id", "rows", "status", "tool"]
       },
       "chain-fab-diagnostic": {
-        "event_sequence": ["run_started", "stage:routing", "stage:plan", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "stage:synthesis", "answer_delta", "answer_delta"],
+        "event_sequence": ["run_started", "stage:routing", "stage:plan", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "tool_started", "tool_finished", "stage:synthesis", "answer_delta"],
         "result_keys": ["answer", "answer_contract", "answer_synthesis", "context_resolution", "domain_playbook", "evidence_validation", "execution_plan", "intent_route", "mode", "model", "run_id", "sources", "tool_trace", "trace_semantics", "turn_decision"],
         "trace_item_keys": ["arguments", "execution_mode", "plan_step_id", "rows", "status", "tool"]
       },

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import unittest
+from dataclasses import replace
 from datetime import date
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -12,6 +13,7 @@ from app.evidence.answer_synthesizer import (
     MODEL_KNOWLEDGE_DISCLOSURE,
     MODEL_KNOWLEDGE_REF,
     REQUIRED_SECTIONS,
+    _select_presentation,
     create_answer_contract,
     synthesize_legacy_answer,
     synthesize_submission,
@@ -66,6 +68,85 @@ def _supported_yield_contract():
 
 
 class AnswerSynthesizerTests(unittest.TestCase):
+    def test_presentation_selection_obeys_current_request(self):
+        contract, _ = _supported_yield_contract()
+        self.assertEqual(replace(contract, presentation="brief").presentation, "brief")
+        self.assertEqual(_select_presentation("与前天比较，用表格"), "table")
+        self.assertEqual(_select_presentation("一句话总结良率"), "brief")
+        self.assertEqual(_select_presentation("输出完整诊断报告"), "report")
+        self.assertEqual(_select_presentation("一句话总结", "请用表格比较"), "brief")
+        self.assertEqual(_select_presentation("继续分析", "请用表格比较"), "table")
+
+    def test_brief_and_table_keep_evidence_limits(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "conclusion": "当前证据支持方向性判断。",
+            "conclusion_evidence_refs": ["TOOL:get_fab_overview"],
+            "facts": [
+                {"statement": "第一条证据。", "evidence_refs": ["TOOL:get_fab_overview"]},
+                {"statement": "第二条证据。", "evidence_refs": ["TOOL:get_yield_trend"]},
+            ],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": ["比较范围需要进一步复核。"], "source_refs": ["KB-1"],
+        }
+        brief = synthesize_submission(payload, replace(contract, presentation="brief"), sources)
+        table = synthesize_submission(payload, replace(contract, presentation="table"), sources)
+        self.assertIn("证据限制：", brief.answer)
+        self.assertIn("比较范围需要进一步复核", brief.answer)
+        self.assertIn("第一条证据", brief.answer)
+        self.assertIn("第二条证据", brief.answer)
+        self.assertIn("| 类型 | 内容 |", table.answer)
+        self.assertEqual(brief.report.source_refs, table.report.source_refs)
+
+    def test_compact_has_no_empty_placeholders_or_report_headings(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "conclusion": "当前证据支持方向性判断。", "conclusion_evidence_refs": [],
+            "facts": [], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        self.assertNotIn("## ", result.answer)
+        self.assertNotIn("未识别到额外证据限制", result.answer)
+        self.assertIn("结论", result.report.sections)
+
+    def test_table_escapes_claim_content(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "conclusion": "A | B\n下一行", "conclusion_evidence_refs": [],
+            "facts": [], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="table"), sources)
+        self.assertIn("A \\| B 下一行", result.answer)
+
+    def test_model_knowledge_brief_and_table_keep_all_retained_content(self):
+        selection, plan = _context("查询 GaN 与 Si 器件工艺差异 SOP")
+        validation = validate_evidence(plan, selection.selected_playbook, [])
+        contract = create_answer_contract(validation, allow_model_knowledge_fallback=True)
+        payload = {
+            "conclusion": "一般技术说明。", "conclusion_evidence_refs": [MODEL_KNOWLEDGE_REF],
+            "facts": [],
+            "inferences": [{"statement": "知识 | 内容", "evidence_refs": [MODEL_KNOWLEDGE_REF]}],
+            "hypotheses": [{"statement": "待验证\n内容", "evidence_refs": ["BAD"], "verification": "复核"}],
+            "recommendations": [{"action": "采取复核", "rationale": "降低风险", "requires_review": False}],
+            "limitations": [], "source_refs": [MODEL_KNOWLEDGE_REF],
+        }
+        brief = synthesize_submission(payload, replace(contract, presentation="brief"))
+        table = synthesize_submission(payload, replace(contract, presentation="table"))
+        for text in (brief.answer, table.answer):
+            self.assertIn("知识", text)
+            self.assertIn("待验证", text)
+            self.assertIn("采取复核", text)
+            self.assertIn(MODEL_KNOWLEDGE_DISCLOSURE, text)
+        self.assertIn("知识 \\| 内容", table.answer)
+
+    def test_not_applicable_ignores_presentation_without_regression(self):
+        selection, plan = _context("你好")
+        contract = create_answer_contract(validate_evidence(plan, selection.selected_playbook, []), question="请用表格")
+        result = synthesize_submission({"conclusion": "普通回答"}, contract)
+        self.assertEqual((result.answer, result.report.status, result.report.sections), ("普通回答", "not_applicable", ()))
+
     def test_manufacturing_claim_without_structured_contract_is_demoted_without_name_matching(self):
         contract, sources = _supported_yield_contract()
         payload = {
@@ -74,11 +155,11 @@ class AnswerSynthesizerTests(unittest.TestCase):
             "facts": [{"statement": "当前局部指标为 91.2%。", "evidence_refs": ["TOOL:get_fab_overview"]}],
             "inferences": [], "hypotheses": [], "recommendations": [], "limitations": [], "source_refs": [],
         }
-        result = synthesize_submission(payload, contract, sources)
+        result = synthesize_submission(payload, replace(contract, presentation="report"), sources)
         self.assertNotIn("## 已确认事实\n- 当前局部指标为 91.2%", result.answer)
         self.assertIn("当前证据没有以一致范围支持", result.answer)
 
-    def test_structured_submission_renders_all_sections_and_valid_sources(self):
+    def test_structured_submission_omits_empty_sections_and_keeps_valid_sources(self):
         contract, sources = _supported_yield_contract()
         payload = {
             "conclusion": "当前总体良率下降与 Nova-P1 产品内下降同时出现，但因果关系尚未证明。",
@@ -104,10 +185,12 @@ class AnswerSynthesizerTests(unittest.TestCase):
             "source_refs": ["KB-1"],
         }
 
-        result = synthesize_submission(payload, contract, sources)
+        result = synthesize_submission(payload, replace(contract, presentation="report"), sources)
 
-        for section in REQUIRED_SECTIONS:
-            self.assertIn(f"## {section}", result.answer)
+        self.assertIn("## 结论", result.answer)
+        self.assertIn("## 待验证假设", result.answer)
+        self.assertIn("## 建议", result.answer)
+        self.assertNotIn("当前没有", result.answer)
         self.assertIn("[数据 get_fab_overview]", result.answer)
         self.assertIn("[来源 KB-1]", result.answer)
         self.assertNotIn("## 来源", result.answer)
@@ -132,7 +215,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         result = synthesize_submission(payload, contract)
 
         self.assertIn("不能形成诊断性结论", result.answer)
-        self.assertIn("## 待验证假设", result.answer)
+        self.assertIn("待验证：", result.answer)
         self.assertNotIn("## 已确认事实\n- CMP-03", result.answer)
         self.assertGreaterEqual(result.report.moved_claims, 1)
         self.assertTrue(result.report.wording_adjustments)
@@ -163,7 +246,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertTrue(contract.model_knowledge_fallback)
         self.assertIn(MODEL_KNOWLEDGE_DISCLOSURE, result.answer)
         self.assertIn("GaN 的宽禁带", result.answer)
-        self.assertIn("## 模型通用知识", result.answer)
+        self.assertIn("模型通用知识：", result.answer)
         self.assertIn("[模型通用知识]", result.answer)
         self.assertNotIn("## 来源", result.answer)
         self.assertNotIn("不能形成诊断性结论", result.answer)
@@ -234,7 +317,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         repaired = synthesize_legacy_answer("模型返回了未分段答案。", contract, sources)
 
         self.assertEqual(repaired.report.status, "repaired")
-        self.assertTrue(all(f"## {section}" in repaired.answer for section in REQUIRED_SECTIONS))
+        self.assertIn("证据限制：", repaired.answer)
 
         selection, plan = _context("分析 CMP 划伤缺陷 Pareto")
         validation = validate_evidence(plan, selection.selected_playbook, [])
@@ -322,8 +405,14 @@ class AnswerSynthesizerTests(unittest.TestCase):
         streamed = "".join(event.get("delta", "") for event in events if event.get("event") == "answer_delta")
         self.assertEqual(streamed, result["answer"])
         self.assertEqual(result["answer_synthesis"]["status"], "structured")
-        self.assertIn("## 已确认事实", result["answer"])
+        self.assertIn("待验证：", result["answer"])
         self.assertIn("submit_analysis", {tool["function"]["name"] for tool in requests[0]["tools"]})
+        prompt_contract = next(
+            json.loads(item["content"].split("answer_contract=", 1)[1])
+            for item in requests[0]["messages"]
+            if item["role"] == "system" and "answer_contract=" in item["content"]
+        )
+        self.assertEqual(prompt_contract["presentation"], "compact")
         self.assertEqual(len(requests), 1)
         self.assertEqual(result["model_tool_selection_calls"], 0)
 

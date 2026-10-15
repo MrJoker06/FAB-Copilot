@@ -96,7 +96,10 @@ async def _ready_fallback(state: CoordinatorRunState, deps: "CoordinatorDependen
         state.execution_plan, state.loop_guard, state.run_id, state.progress,
     )
     validation = deps.validate_evidence(state.execution_plan, state.selected_playbook, observations)
-    contract = deps.create_answer_contract(validation, list(sources.values()))
+    contract = deps.create_answer_contract(
+        validation, list(sources.values()), question=state.question,
+        resolved_question=state.analysis_question,
+    )
     synthesis = deps.ready_synthesis_fallback(
         validation, contract, observations, "模型未配置或模型熔断器当前阻止综合请求",
     )

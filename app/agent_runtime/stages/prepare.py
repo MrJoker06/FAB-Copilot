@@ -55,7 +55,10 @@ async def prepare_immediate(
     state.evidence_validation = deps.validate_evidence(
         state.execution_plan, state.selected_playbook, state.evidence_observations,
     )
-    state.answer_contract = deps.create_answer_contract(state.evidence_validation)
+    state.answer_contract = deps.create_answer_contract(
+        state.evidence_validation, question=state.question,
+        resolved_question=state.analysis_question,
+    )
     deps.emit(
         "loop_guard_initialized",
         state.run_id,

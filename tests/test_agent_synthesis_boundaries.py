@@ -56,6 +56,19 @@ class AgentSynthesisBoundaryTests(unittest.TestCase):
         self.assertEqual(payload["question"], "问题")
         self.assertEqual(payload["evidence"], [])
 
+    def test_ready_contract_uses_current_format_before_resolved_format(self):
+        route = route_question("分析 CMP-03 最近7天 Cpk 不合格", current_date=date(2026, 8, 23))
+        plan = create_execution_plan("分析 CMP-03 最近7天 Cpk 不合格", route, select_playbook(route))
+        validation = agent.validate_evidence(plan, select_playbook(route).selected_playbook, [])
+        current = agent.create_answer_contract(
+            validation, question="一句话总结", resolved_question="请用表格比较",
+        )
+        restored = agent.create_answer_contract(
+            validation, question="继续分析", resolved_question="请用表格比较",
+        )
+        self.assertIn('"presentation":"brief"', agent._ready_synthesis_messages("问题", plan, validation, current, [])[1]["content"])
+        self.assertIn('"presentation":"table"', agent._ready_synthesis_messages("问题", plan, validation, restored, [])[1]["content"])
+
     def test_ready_messages_preserve_compact_ordered_evidence_json(self):
         route = route_question("分析 CMP-03 最近7天 Cpk 不合格", current_date=date(2026, 8, 23))
         plan = create_execution_plan("分析 CMP-03 最近7天 Cpk 不合格", route, select_playbook(route))

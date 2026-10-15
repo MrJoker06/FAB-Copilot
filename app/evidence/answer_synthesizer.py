@@ -10,6 +10,7 @@ from .semantics import EvidenceDescriptor, EvidenceScope, supports_claim
 
 
 SynthesisStatus = Literal["structured", "repaired", "not_applicable"]
+PresentationMode = Literal["brief", "table", "report", "compact"]
 
 REQUIRED_SECTIONS = (
     "结论",
@@ -152,6 +153,7 @@ class AnswerContract:
     primary_scope_labels: tuple[str, ...]
     source_scope_roles: dict[str, str]
     source_semantics: dict[str, dict[str, Any]]
+    presentation: PresentationMode = "compact"
     submission_tool: str = "submit_analysis"
 
     def to_dict(self) -> dict[str, Any]:
@@ -229,6 +231,8 @@ def create_answer_contract(
     sources: list[dict[str, Any]] | None = None,
     *,
     allow_model_knowledge_fallback: bool = False,
+    question: str = "",
+    resolved_question: str = "",
 ) -> AnswerContract:
     matched_tools = {
         tool
@@ -277,7 +281,34 @@ def create_answer_contract(
         primary_scope_labels=validation.primary_scope_labels,
         source_scope_roles=validation.source_scope_roles,
         source_semantics=validation.source_semantics,
+        presentation=_select_presentation(question, resolved_question),
     )
+
+
+def _explicit_presentation(question: str) -> PresentationMode | None:
+    normalized = _clean_text(question, 400).lower()
+    if any(token in normalized for token in ("表格", "列表比较", "对比表")):
+        return "table"
+    if any(token in normalized for token in ("完整报告", "详细报告", "诊断报告", "完整分析报告")):
+        return "report"
+    if any(token in normalized for token in ("一句话", "简短", "简要", "简洁", "直接回答")):
+        return "brief"
+    return None
+
+
+def _select_presentation(question: str, resolved_question: str = "") -> PresentationMode:
+    """Use this turn's explicit format first, then the resolved task's format."""
+    explicit = _explicit_presentation(question) or _explicit_presentation(resolved_question)
+    if explicit:
+        return explicit
+    normalized = _clean_text(question or resolved_question, 400).lower()
+    # Questions asking for one named metric can be answered directly unless the
+    # user explicitly selected a richer layout above.
+    if normalized and any(token in normalized for token in ("良率", "cpk", "产能", "吞吐", "告警", "稼动率")) and not any(
+        token in normalized for token in ("原因", "诊断", "分析", "建议", "为什么", "对比", "比较")
+    ):
+        return "brief"
+    return "compact"
 
 
 def synthesizer_system_message(contract: AnswerContract) -> str:
@@ -289,6 +320,7 @@ def synthesizer_system_message(contract: AnswerContract) -> str:
         )
     return (
         "最终回答必须通过 submit_analysis 提交，不要直接输出最终正文。"
+        f"服务端会按 presentation={contract.presentation} 呈现已验证声明；"
         "facts 只放工具结果直接支持的事实且必须填写 permitted_source_refs；"
         "inferences 是基于事实的解释，hypotheses 必须包含验证方法，recommendations 必须说明依据与复核要求。"
         "保持精炼：只保留对决策最重要的条目，不要逐行复述工具结果或穷举全部设备。"
@@ -450,6 +482,50 @@ def _render_section(title: str, items: list[str], empty: str) -> str:
     lines = [f"## {title}"]
     lines.extend(f"- {item}" for item in items) if items else lines.append(empty)
     return "\n".join(lines)
+
+
+def _render_populated_sections(items: list[tuple[str, list[str]]]) -> tuple[str, tuple[str, ...]]:
+    rendered = [(title, lines) for title, lines in items if lines]
+    return "\n\n".join(
+        "\n".join([f"## {title}", *(f"- {line}" for line in lines)])
+        for title, lines in rendered
+    ), tuple(title for title, _ in rendered)
+
+
+def _render_presentation(
+    contract: AnswerContract, conclusion: str, fact_lines: list[str], inference_lines: list[str],
+    hypothesis_lines: list[str], recommendation_lines: list[str], limitations: list[str],
+) -> tuple[str, tuple[str, ...]]:
+    limitation_lines = limitations
+    labeled = [
+        ("事实", fact_lines), ("推断", inference_lines), ("待验证", hypothesis_lines),
+        ("建议", recommendation_lines), ("证据限制", limitation_lines),
+    ]
+    if contract.presentation == "brief":
+        parts = [conclusion]
+        parts.extend(f"{title}：{'；'.join(lines)}" for title, lines in labeled if lines)
+        return " ".join(parts), ("结论", *(title for title, lines in labeled if lines))
+    if contract.presentation == "table":
+        rows = [("结论", conclusion)]
+        rows.extend(("事实", line) for line in fact_lines)
+        rows.extend(("推断", line) for line in inference_lines)
+        rows.extend(("待验证", line) for line in hypothesis_lines)
+        rows.extend(("建议", line) for line in recommendation_lines)
+        def cell(value: str) -> str:
+            return value.replace("|", "\\|").replace("\n", "<br>")
+        table = "\n".join(["| 类型 | 内容 |", "| --- | --- |", *(f"| {cell(kind)} | {cell(line)} |" for kind, line in rows)])
+        if limitation_lines:
+            return table + "\n\n## 证据限制\n" + "\n".join(f"- {line}" for line in limitation_lines), ("表格", "证据限制")
+        return table, ("表格",)
+    if contract.presentation == "compact":
+        lines = [conclusion]
+        lines.extend(f"{title}：{'；'.join(values)}" for title, values in labeled if values)
+        return "\n\n".join(lines), ("结论", *(title for title, values in labeled if values))
+    body, sections = _render_populated_sections([
+        ("结论", [conclusion]), ("已确认事实", fact_lines), ("分析推断", inference_lines),
+        ("待验证假设", hypothesis_lines), ("建议", recommendation_lines), ("证据限制", limitation_lines),
+    ])
+    return body, sections
 
 
 def synthesize_submission(
@@ -683,24 +759,58 @@ def synthesize_submission(
         for item in recommendations
     ]
     if contract.model_knowledge_fallback:
-        sections = MODEL_KNOWLEDGE_SECTIONS
-        answer = "\n\n".join((
-            f"## 结论\n{conclusion}",
-            _render_section("模型通用知识", inference_lines, "模型没有返回可展示的通用知识内容。"),
-            _render_section("待验证内容", hypothesis_lines, "没有额外待验证内容。"),
-            _render_section("建议", recommendation_lines, "如需厂内结论，请补充或上传相关正式文档。"),
-            _render_section("使用限制", limitations, MODEL_KNOWLEDGE_DISCLOSURE),
-        ))
+        model_limitations = limitations or [MODEL_KNOWLEDGE_DISCLOSURE]
+        if contract.presentation == "brief":
+            parts = [conclusion]
+            for title, lines in (
+                ("模型通用知识", inference_lines), ("待验证内容", hypothesis_lines),
+                ("建议", recommendation_lines), ("使用限制", model_limitations),
+            ):
+                if lines:
+                    parts.append(f"{title}：{'；'.join(lines)}")
+            answer = "\n".join(parts)
+            sections = tuple(title for title, lines in (
+                ("结论", [conclusion]), ("模型通用知识", inference_lines),
+                ("待验证内容", hypothesis_lines), ("建议", recommendation_lines),
+                ("使用限制", model_limitations),
+            ) if lines)
+        elif contract.presentation == "table":
+            rows = [("结论", conclusion)]
+            rows.extend(("模型通用知识", line) for line in inference_lines)
+            rows.extend(("待验证内容", line) for line in hypothesis_lines)
+            rows.extend(("建议", line) for line in recommendation_lines)
+            rows.extend(("使用限制", line) for line in model_limitations)
+            def cell(value: str) -> str:
+                return value.replace("|", "\\|").replace("\n", "<br>")
+            table = "\n".join(["| 类型 | 内容 |", "| --- | --- |", *(f"| {cell(kind)} | {cell(line)} |" for kind, line in rows)])
+            answer = table
+            sections = ("表格",)
+        elif contract.presentation == "compact":
+            parts = [conclusion]
+            if inference_lines:
+                parts.append("模型通用知识：" + "；".join(inference_lines))
+            if hypothesis_lines:
+                parts.append("待验证内容：" + "；".join(hypothesis_lines))
+            if recommendation_lines:
+                parts.append("建议：" + "；".join(recommendation_lines))
+            parts.append("使用限制：" + "；".join(model_limitations))
+            answer = "\n\n".join(parts)
+            sections = ("结论", "模型通用知识", "待验证内容", "建议", "使用限制")
+            sections = tuple(title for title in sections if title == "结论" or {
+                "模型通用知识": inference_lines, "待验证内容": hypothesis_lines,
+                "建议": recommendation_lines, "使用限制": model_limitations,
+            }[title])
+        else:
+            answer, sections = _render_populated_sections([
+                ("结论", [conclusion]), ("模型通用知识", inference_lines),
+                ("待验证内容", hypothesis_lines), ("建议", recommendation_lines),
+                ("使用限制", model_limitations),
+            ])
     else:
-        sections = REQUIRED_SECTIONS
-        answer = "\n\n".join((
-            f"## 结论\n{conclusion}",
-            _render_section("已确认事实", fact_lines, "当前没有可通过有效引用独立确认的事实。"),
-            _render_section("分析推断", inference_lines, "当前没有在证据等级内保留的分析推断。"),
-            _render_section("待验证假设", hypothesis_lines, "当前没有额外的待验证假设。"),
-            _render_section("建议", recommendation_lines, "先补齐证据缺口，再决定后续处置。"),
-            _render_section("证据限制", limitations, "未识别到额外证据限制。"),
-        ))
+        answer, sections = _render_presentation(
+            contract, conclusion, fact_lines, inference_lines, hypothesis_lines,
+            recommendation_lines, limitations,
+        )
     report = AnswerSynthesisReport(
         schema_version="1.0",
         synthesizer_version=contract.synthesizer_version,

@@ -28,6 +28,7 @@ from app.agent_runtime.stages import (
     prepare_immediate,
     prepare_model_stage,
 )
+from app.agent_runtime.execution.agent_loop import AgentLoopContext
 from app.agent_runtime.telemetry import notify
 
 
@@ -100,6 +101,56 @@ class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
         state.execution_plan = SimpleNamespace(status="needs_model")
 
         self.assertIsNone(await execute_ready_synthesis(state, deps=object()))
+
+    async def test_loop_stage_carries_current_and_resolved_questions(self):
+        state = CoordinatorRunState("一句话总结", [], "run-loop", None, False)
+        state.settings = SimpleNamespace()
+        state.connection = SimpleNamespace()
+        state.intent_route = SimpleNamespace()
+        state.execution_plan = SimpleNamespace()
+        state.selected_playbook = SimpleNamespace()
+        state.loop_guard = SimpleNamespace()
+        state.main_recovery_trial = False
+        state.health_enabled = False
+        state.selected_model_id = "model"
+        state.analysis_question = "请用表格比较"
+        state.playbook_selection = SimpleNamespace()
+        state.context_resolution = SimpleNamespace()
+        state.messages = []
+        state.trace = []
+        state.sources = {}
+        state.evidence_observations = []
+        state.evidence_validation = SimpleNamespace()
+        state.answer_contract = SimpleNamespace()
+        state.total_usage = {}
+        state.knowledge_fallback = {}
+        state.fallback_announced = False
+        state.applied_synthesis_reason = None
+        state.health = {}
+        captured = {}
+        async def run(context):
+            captured["context"] = context
+            return {"ok": True}
+        deps = SimpleNamespace(
+            agent_loop_context_type=AgentLoopContext, run_agent_loop=run,
+            notify=AsyncMock(), stream_answer=AsyncMock(), emit=lambda *_a, **_k: None,
+            stream_completion=AsyncMock(), retryable_model_error=lambda *_: False,
+            model_error_category=lambda *_: "", model_failure_reason=lambda *_: "",
+            model_retry_delay=lambda *_: 0, record_model_success=lambda *_: ({}, None),
+            record_model_failure=lambda *_a, **_k: ({}, None), audit_assistant=lambda value: value,
+            tools=[], submit_analysis_tool={}, parse_tool_arguments=lambda *_: ({}, None),
+            execute_registered_tool=lambda *_: None, usable_knowledge_result=lambda *_: False,
+            normalize_general_knowledge_answer=lambda value: value,
+            has_knowledge_fallback_disclosure=lambda *_: False,
+            knowledge_fallback_state=lambda *_: {}, validate_evidence=lambda *_: None,
+            create_answer_contract=lambda *_a, **_k: None, validator_system_message=lambda *_: "",
+            synthesizer_system_message=lambda *_: "", synthesize_legacy_answer=lambda *_: None,
+            synthesize_submission=lambda *_a, **_k: None, emit_answer_synthesis=lambda *_: None,
+            emit_evidence_validation=lambda *_: None, offline_answer=lambda *_a, **_k: {},
+            evidence_observation_type=object, provider_request_options=lambda *_: {},
+        )
+        self.assertEqual(await execute_agent_loop(state, deps=deps), {"ok": True})
+        self.assertEqual((captured["context"].question, captured["context"].analysis_question), ("一句话总结", "请用表格比较"))
 
     def test_request_preserves_legacy_input_identity(self):
         history = [{"role": "user", "content": "原始对象"}]

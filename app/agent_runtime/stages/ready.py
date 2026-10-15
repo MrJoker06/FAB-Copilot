@@ -38,6 +38,8 @@ async def execute_ready_synthesis(
     state.answer_contract = deps.create_answer_contract(
         state.evidence_validation, list(state.sources.values()),
         allow_model_knowledge_fallback=state.knowledge_fallback["used"],
+        question=state.question,
+        resolved_question=state.analysis_question,
     )
     deps.emit_evidence_validation(state.run_id, 1, state.evidence_validation.to_dict())
     await deps.notify(state.progress, {

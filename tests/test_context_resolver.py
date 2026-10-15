@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from app.agent_runtime import service as agent_module
-from app.evidence.answer_synthesizer import MODEL_KNOWLEDGE_REF
+from app.evidence.answer_synthesizer import MODEL_KNOWLEDGE_DISCLOSURE, MODEL_KNOWLEDGE_REF
 from app.conversation.context_resolver import (
     build_contextualizer_messages,
     resolve_question_context,
@@ -1378,7 +1378,9 @@ class ContextResolverTests(unittest.TestCase):
         self.assertTrue(all(item["rows"] == 0 for item in result["tool_trace"]))
         self.assertIn("知识库未检索到相关内容", result["answer"])
         self.assertIn("GaN 的宽禁带", result["answer"])
-        self.assertIn("## 模型通用知识", result["answer"])
+        self.assertIn("模型通用知识：", result["answer"])
+        self.assertIn("[模型通用知识]", result["answer"])
+        self.assertIn(MODEL_KNOWLEDGE_DISCLOSURE, result["answer"])
         self.assertNotIn("缺少字段", result["answer"])
         final_prompt = "\n".join(
             item.get("content", "")
