@@ -172,3 +172,9 @@ python scripts/run_quality_gate.py full
 ## AGENT-040 基线（2026-10-15）
 
 WSL 完整离线质量门 exit 0：发现 613 个 Python 测试，544/544 非系统测试；系统数据报表、HTTP/企业契约、知识与个人上传、模型治理、会话与流式分别为 13/15/13/17/11，墙钟 24.819/21.075/23.584/20.741/21.236 秒，总计 111.455 秒且全部低于预算。`app` 分支覆盖率 89%，Node 61/61、RAG 15/15、OCR 黄金集 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、确定性 Playwright 17/17（48.5 秒），仓库边界与冻结契约检查通过。AGENT-040 新增简答、表格、报告、当前/恢复格式优先级、Ready/Loop 透传、引用和限制保留及 `not_applicable` 测试；两条冻结 Agent 案例的 `answer_delta` 数量因默认答案变短而更新，未改变事件字段。第一次全套浏览器回归的 `E2E-JOURNEY-001` 会话刷新时序失败，单项与最终 full 均通过；普通门真实模型与外网调用为 0。
+
+## AGENT-041 基线（2026-10-16）
+
+逐声明回归新增七项：覆盖观测良率下降与缺失根因并存、局部和真实共享冲突、混合非法引用、证据字段不完整、结构化时间不匹配，以及通用知识不得审计为已确认厂内事实。定向 `tests.test_answer_synthesizer tests.test_evidence_validator tests.test_agent_synthesis_boundaries tests.test_ready_plan_execution` 为 51/51。EvidenceValidation schema 1.2 的 `reference_evidence` 和 AnswerSynthesisReport schema 1.1 的 `claim_support` 为兼容扩展；旧结果不要求新增字段，冻结契约未重录；这不是通用数值真实性核验。
+
+最终 WSL 原生文件系统临时 Git 副本的完整离线门 exit 0：四个待验收源码/测试补丁与原仓库逐字一致，补齐既有五个模拟部门数据库并链接同一 Node 依赖；620 个 Python 发现项、551/551 非系统、系统 13/15/13/17/11，全组墙钟 1.9/3.5/6.2/3.2/4.9 秒、合计 19.742 秒且均低于预算；分支覆盖率 89%，Node 61/61、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 17/17（49.2 秒）。原 `/mnt/d` 工作树首次 full 因知识组 13/13 断言通过但墙钟 81.6 秒超过 75 秒预算停止；第二次 full 在浏览器 `E2E-JOURNEY-003` 的导航请求 `ERR_ABORTED` 偶发失败，其余 16/17 通过，该单项随后 1/1 通过。最终验收未调整预算、跳过用例或更新快照；普通门真实模型与外网调用为 0。

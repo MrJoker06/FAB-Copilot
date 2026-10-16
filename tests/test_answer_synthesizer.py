@@ -67,7 +67,161 @@ def _supported_yield_contract():
     return create_answer_contract(validation, sources), sources
 
 
+def _structured_claim(contract, reference: str, statement: str, **extra):
+    metadata = contract.source_semantics[reference]
+    return {
+        "statement": statement,
+        "evidence_refs": [reference],
+        "claim_kind": metadata["kind"],
+        "semantic_id": metadata["semantic_id"],
+        "scope": metadata["scope"],
+        "time_range": {"start": metadata["start"], "end": metadata["end"]},
+        "grain": metadata["grain"],
+        "claim_role": metadata["scope_role"],
+        **extra,
+    }
+
+
 class AnswerSynthesizerTests(unittest.TestCase):
+    def test_claim_level_support_keeps_observed_yield_when_root_cause_is_missing(self):
+        selection, plan = _context("最近四周良率下降")
+        overview = _observation(plan, "get_fab_overview", {
+            "start": "2026-06-21", "end": "2026-07-18", "lots": 160,
+            "wafers": 4000, "yield_pct": 91.2,
+        })
+        trend = _observation(plan, "get_yield_trend", [
+            {"period": "2026-25", "week_start": "2026-06-22", "lots": 40, "yield_pct": 92.0},
+            {"period": "2026-26", "week_start": "2026-06-29", "lots": 40, "yield_pct": 91.5},
+        ])
+        product = _observation(plan, "query_manufacturing_data", [
+            {"product": "Nova-P1", "technology_nm": 28, "lots": 80, "wafers": 2000, "yield_pct": 90.8},
+        ])
+        missing_cause = _observation(plan, "get_defect_pareto", [])
+        validation = validate_evidence(plan, selection.selected_playbook, [overview, trend, product, missing_cause])
+        contract = create_answer_contract(validation)
+        yield_ref, cause_ref = "TOOL:S02", "TOOL:S04"
+        payload = {
+            "conclusion": "良率下降已得到当前观测证实。",
+            "conclusion_evidence_refs": [yield_ref],
+            "conclusion_claim": _structured_claim(contract, yield_ref, "良率下降已得到当前观测证实。"),
+            "facts": [_structured_claim(contract, yield_ref, "当前总体良率为 91.2%。")],
+            "inferences": [_structured_claim(contract, cause_ref, "缺陷记录足以解释良率下降。")],
+            "hypotheses": [], "recommendations": [], "limitations": [], "source_refs": [],
+        }
+
+        result = synthesize_submission(payload, replace(contract, presentation="report"))
+
+        self.assertIn("良率下降已得到当前观测证实", result.answer)
+        self.assertIn("当前总体良率为 91.2%", result.answer)
+        self.assertIn("缺陷记录足以解释良率下降", result.answer)
+        support = {(item["category"], item["statement"]): item["support"] for item in result.report.claim_support}
+        self.assertEqual(support[("conclusion", "良率下降已得到当前观测证实。")], "supported")
+        self.assertEqual(support[("inference", "缺陷记录足以解释良率下降。")], "unsupported")
+
+    def test_invalid_or_conflicted_reference_cannot_become_confirmed_fact(self):
+        contract, sources = _supported_yield_contract()
+        ref = "TOOL:S01"
+        conflicted = replace(contract, reference_evidence={
+            **(contract.reference_evidence or {}),
+            ref: {
+                "evidence_ids": ("YLD-01",), "statuses": {"YLD-01": "covered"},
+                "risk_codes": (), "critical_risk_codes": (), "conflict_codes": ("fact_conflict",),
+            },
+        })
+        payload = {
+            "conclusion": "当前良率需要复核。", "conclusion_evidence_refs": [ref],
+            "conclusion_claim": _structured_claim(conflicted, ref, "当前良率需要复核。"),
+            "facts": [
+                _structured_claim(conflicted, ref, "冲突的良率事实。"),
+                {**_structured_claim(conflicted, ref, "混合引用的良率事实。"), "evidence_refs": [ref, "BAD-REF"]},
+            ],
+            "inferences": [], "hypotheses": [], "recommendations": [], "limitations": [], "source_refs": [],
+        }
+
+        result = synthesize_submission(payload, conflicted, sources)
+
+        self.assertNotIn("## 已确认事实\n- 冲突的良率事实", result.answer)
+        self.assertIn("冲突的良率事实", result.answer)
+        self.assertIn("当前证据未能验证模型提交的结论", result.answer)
+        self.assertNotIn("没有以一致范围支持", result.answer)
+        self.assertEqual(result.report.invalid_source_refs, ("BAD-REF",))
+        facts = [item for item in result.report.claim_support if item["category"] == "fact"]
+        self.assertTrue(all(item["support"] == "unsupported" for item in facts))
+
+    def test_partial_and_structured_mismatch_are_audited_as_unsupported(self):
+        selection, plan = _context("最近四周良率下降")
+        overview = _observation(plan, "get_fab_overview", {
+            "start": "2026-06-21", "end": "2026-07-18", "lots": 160,
+            "wafers": 4000, "yield_pct": 91.2,
+        })
+        contract = create_answer_contract(validate_evidence(plan, selection.selected_playbook, [overview]))
+        ref = "TOOL:S01"
+        invalid_time = _structured_claim(contract, ref, "范围或时间错误的声明。")
+        invalid_time["time_range"] = {"start": "2020-01-01", "end": "2020-01-02"}
+        payload = {
+            "conclusion": "部分证据支持该结论。", "conclusion_evidence_refs": [ref],
+            "conclusion_claim": _structured_claim(contract, ref, "部分证据支持该结论。"),
+            "facts": [_structured_claim(contract, ref, "字段不完整的良率事实。"), invalid_time],
+            "inferences": [], "hypotheses": [], "recommendations": [], "limitations": [], "source_refs": [],
+        }
+
+        result = synthesize_submission(payload, contract)
+
+        self.assertNotIn("事实：字段不完整的良率事实", result.answer)
+        facts = [item for item in result.report.claim_support if item["category"] == "fact"]
+        self.assertTrue(all(item["support"] == "unsupported" for item in facts))
+        self.assertTrue(any("字段不完整" in "".join(item["reasons"]) for item in facts))
+        self.assertTrue(any("结构化语义" in "".join(item["reasons"]) for item in facts))
+
+    def test_mixed_valid_and_invalid_reference_fails_without_other_conflict(self):
+        contract, sources = _supported_yield_contract()
+        ref = "TOOL:S01"
+        claim = _structured_claim(contract, ref, "混合引用不能确认为事实。")
+        claim["evidence_refs"] = [ref, "BAD-REF"]
+        payload = {
+            "conclusion": "当前观测需要复核。", "conclusion_evidence_refs": [ref],
+            "conclusion_claim": _structured_claim(contract, ref, "当前观测需要复核。"),
+            "facts": [claim], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+
+        result = synthesize_submission(payload, contract, sources)
+
+        fact = next(item for item in result.report.claim_support if item["category"] == "fact")
+        self.assertEqual(fact["support"], "unsupported")
+        self.assertIn("未许可引用", "".join(fact["reasons"]))
+        self.assertEqual(result.report.invalid_source_refs, ("BAD-REF",))
+
+    def test_real_conflict_only_demotes_claims_that_depend_on_conflicted_evidence(self):
+        selection, plan = _context("分析 CMP-03 最近7天 Cpk 不合格")
+        capability = _observation(plan, "get_process_capability", [
+            {"equipment_id": "CMP-03", "samples": 80, "mean_value": 100.0, "sigma": 1.0,
+             "cpk": 1.1, "metric_name": "Thickness", "metric_unit": "nm", "spec_lsl": 95.0, "spec_usl": 105.0},
+            {"equipment_id": "CMP-03", "samples": 80, "mean_value": 100.0, "sigma": 1.0,
+             "cpk": 1.1, "metric_name": "Thickness", "metric_unit": "nm", "spec_lsl": 94.0, "spec_usl": 106.0},
+        ])
+        excursions = _observation(plan, "get_recent_excursions", [{
+            "run_time": "2026-07-17", "lot_id": "L-1", "process_step": "CMP", "equipment_id": "CMP-03",
+            "excursion_code": "E-1", "measurement_name": "ScratchCount", "measurement_value": 99.0,
+            "measurement_unit": "nm", "spec_lsl": 95.0, "spec_usl": 105.0,
+        }])
+        contract = create_answer_contract(validate_evidence(plan, selection.selected_playbook, [capability, excursions]))
+        payload = {
+            "conclusion": "异常记录需要进一步复核。", "conclusion_evidence_refs": ["TOOL:S02"],
+            "conclusion_claim": _structured_claim(contract, "TOOL:S02", "异常记录需要进一步复核。"),
+            "facts": [
+                _structured_claim(contract, "TOOL:S01", "冲突规格下的 Cpk 为 1.1。"),
+                _structured_claim(contract, "TOOL:S02", "CMP-03 存在已记录异常。"),
+            ],
+            "inferences": [], "hypotheses": [], "recommendations": [], "limitations": [], "source_refs": [],
+        }
+
+        result = synthesize_submission(payload, contract, status="structured")
+
+        support = {item["statement"]: item["support"] for item in result.report.claim_support if item["category"] == "fact"}
+        self.assertEqual(support["冲突规格下的 Cpk 为 1.1。"], "unsupported")
+        self.assertEqual(support["CMP-03 存在已记录异常。"], "supported")
+        self.assertIn("CMP-03 存在已记录异常", result.answer)
     def test_presentation_selection_obeys_current_request(self):
         contract, _ = _supported_yield_contract()
         self.assertEqual(replace(contract, presentation="brief").presentation, "brief")
@@ -157,7 +311,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         }
         result = synthesize_submission(payload, replace(contract, presentation="report"), sources)
         self.assertNotIn("## 已确认事实\n- 当前局部指标为 91.2%", result.answer)
-        self.assertIn("当前证据没有以一致范围支持", result.answer)
+        self.assertIn("当前证据未能验证模型提交的结论", result.answer)
 
     def test_structured_submission_omits_empty_sections_and_keeps_valid_sources(self):
         contract, sources = _supported_yield_contract()
@@ -252,6 +406,27 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertNotIn("不能形成诊断性结论", result.answer)
         self.assertNotIn("缺少字段", result.answer)
 
+    def test_model_knowledge_fact_is_audited_as_downgraded_inference(self):
+        selection, plan = _context("查询 GaN 与 Si 器件工艺差异 SOP")
+        contract = create_answer_contract(
+            validate_evidence(plan, selection.selected_playbook, []),
+            allow_model_knowledge_fallback=True,
+        )
+        payload = {
+            "conclusion": "一般技术说明。", "conclusion_evidence_refs": [MODEL_KNOWLEDGE_REF],
+            "facts": [{"statement": "GaN 通常适合高压应用。", "evidence_refs": []}],
+            "inferences": [], "hypotheses": [], "recommendations": [], "limitations": [],
+            "source_refs": [MODEL_KNOWLEDGE_REF],
+        }
+
+        result = synthesize_submission(payload, contract)
+
+        fact = next(item for item in result.report.claim_support if item["category"] == "fact")
+        self.assertEqual(fact["support"], "unsupported")
+        self.assertIn("不能确认厂内事实", "".join(fact["reasons"]))
+        self.assertIn("GaN 通常适合高压应用", result.answer)
+        self.assertIn("[模型通用知识]", result.answer)
+
     def test_invalid_source_is_removed_and_reported(self):
         contract, sources = _supported_yield_contract()
         payload = {
@@ -307,7 +482,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
 
         result = synthesize_submission(payload, contract)
 
-        self.assertIn("当前证据没有以一致范围支持", result.answer)
+        self.assertIn("当前证据未能验证模型提交的结论", result.answer)
         self.assertNotIn("## 已确认事实\n- 整厂良率为 90%", result.answer)
         self.assertNotIn("## 已确认事实\n- 刻蚀良率为 90%", result.answer)
         self.assertIn("范围证据不匹配", " ".join(result.report.wording_adjustments))

@@ -172,6 +172,24 @@ class EvidenceValidatorTests(unittest.TestCase):
         self.assertIn("result_truncated", risk_codes)
         self.assertEqual({item.code for item in validation.conflicts}, {"fact_conflict"})
         self.assertEqual(validation.allowed_conclusion_strength, "hypothesis_only")
+        self.assertIn("fact_conflict", validation.reference_evidence["TOOL:S01"]["conflict_codes"])
+        self.assertIn("fact_conflict", validation.reference_evidence["TOOL:get_process_capability"]["conflict_codes"])
+        self.assertNotIn("fact_conflict", validation.reference_evidence["TOOL:S02"]["conflict_codes"])
+
+    def test_reference_evidence_tracks_call_level_status_and_conflict_scope(self):
+        selection, plan = _context("最近四周良率下降")
+        overview = _observation(plan, "get_fab_overview", {
+            "start": "2026-06-21", "end": "2026-07-18", "lots": 160,
+            "wafers": 4000, "yield_pct": 91.2,
+        })
+        missing_cause = _observation(plan, "get_defect_pareto", [])
+
+        validation = validate_evidence(plan, selection.selected_playbook, [overview, missing_cause])
+
+        observed = validation.reference_evidence
+        self.assertEqual(observed["TOOL:S01"]["statuses"]["YLD-01"], "partial")
+        self.assertEqual(observed["TOOL:S04"]["statuses"]["YLD-03"], "partial")
+        self.assertEqual(observed["TOOL:S04"]["evidence_ids"], ("YLD-03",))
 
     def test_unsupported_plan_is_not_applicable_and_prompt_is_serializable(self):
         selection, plan = _context("分析 CMP 划伤缺陷 Pareto")

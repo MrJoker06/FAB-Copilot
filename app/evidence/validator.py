@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 from ..manufacturing.playbooks import DomainPlaybook
@@ -83,6 +83,10 @@ class EvidenceValidation:
     allowed_conclusion_strength: ConclusionStrength
     conclusion_guidance: str
     causal_claims_allowed: bool = False
+    # Per-reference evidence state is additive so previously persisted validation
+    # payloads remain readable.  It lets synthesis assess a claim independently
+    # of the task-wide conclusion strength.
+    reference_evidence: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return json.loads(json.dumps(asdict(self), ensure_ascii=False, default=str))
@@ -324,6 +328,48 @@ def _fact_conflicts(
     return conflicts
 
 
+def _reference_evidence(
+    plan: ExecutionPlan,
+    matched: list[tuple[EvidenceObservation, set[str]]],
+    checks: list[EvidenceCheck],
+    risks: tuple[ValidationIssue, ...],
+    conflicts: tuple[ValidationIssue, ...],
+) -> dict[str, dict[str, Any]]:
+    """Map each observed call reference to its concrete evidence obligations."""
+    status_by_id = {item.evidence_id: item.status for item in checks}
+    refs: dict[str, set[str]] = {}
+    for observation, evidence_ids in matched:
+        targets = {f"TOOL:{observation.tool}"}
+        targets.update(
+            f"TOOL:{step.step_id}" for step in plan.steps if _step_matches(step, observation)
+        )
+        if observation.source_ref:
+            targets.add(observation.source_ref)
+        for reference in targets:
+            refs.setdefault(reference, set()).update(evidence_ids)
+
+    result: dict[str, dict[str, Any]] = {}
+    for reference, evidence_ids in refs.items():
+        ids = tuple(sorted(evidence_ids))
+        related_risks = tuple(
+            item.code for item in risks if set(item.evidence_ids).intersection(evidence_ids)
+        )
+        related_conflicts = tuple(
+            item.code for item in conflicts if set(item.evidence_ids).intersection(evidence_ids)
+        )
+        result[reference] = {
+            "evidence_ids": ids,
+            "statuses": {item: status_by_id.get(item, "missing") for item in ids},
+            "risk_codes": related_risks,
+            "conflict_codes": related_conflicts,
+            "critical_risk_codes": tuple(
+                item.code for item in risks
+                if item.severity == "critical" and set(item.evidence_ids).intersection(evidence_ids)
+            ),
+        }
+    return result
+
+
 def _strength(
     required_total: int,
     required_covered: int,
@@ -345,7 +391,7 @@ def _strength(
 _GUIDANCE: dict[ConclusionStrength, str] = {
     "not_applicable": "当前没有适用的领域证据契约；按通用规则回答并明确数据来源。",
     "insufficient": "必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。",
-    "hypothesis_only": "只能给出待验证假设并逐项说明依据与反证方法；不得使用‘主要原因’、‘已经导致’等确定性措辞。",
+    "hypothesis_only": "任务级诊断或根因只能作为待验证假设并说明依据与反证方法；经逐声明验证的直接观测可以保留，但不得使用‘主要原因’、‘已经导致’等确定性或因果措辞。",
     "supported_with_limits": "可以给出受证据支持的方向性结论，但必须同时披露样本、截断、来源或口径限制。",
     "supported": "可以给出当前证据直接支持的结论；相关性仍不得表述为已证明的因果关系。",
 }
@@ -359,8 +405,8 @@ def validate_evidence(
     if plan.status != "ready" or playbook is None:
         strength: ConclusionStrength = "not_applicable"
         return EvidenceValidation(
-            schema_version="1.1",
-            validator_version="1.1.0",
+            schema_version="1.2",
+            validator_version="1.2.0",
             plan_id=plan.plan_id,
             status="not_applicable",
             coverage={
@@ -438,9 +484,10 @@ def validate_evidence(
         observed_refs.add(observation.source_ref or "")
         observed_refs.update(f"TOOL:{step.step_id}" for step in plan.steps if _step_matches(step, observation))
     observed_refs.discard("")
+    reference_evidence = _reference_evidence(plan, matched, checks, risks, conflicts)
     return EvidenceValidation(
-        schema_version="1.1",
-        validator_version="1.1.0",
+        schema_version="1.2",
+        validator_version="1.2.0",
         plan_id=plan.plan_id,
         status="validated",
         coverage={
@@ -460,6 +507,7 @@ def validate_evidence(
         observed_source_refs=tuple(sorted(observed_refs)),
         allowed_conclusion_strength=strength,
         conclusion_guidance=_GUIDANCE[strength],
+        reference_evidence=reference_evidence,
     )
 
 
@@ -467,7 +515,8 @@ def validator_system_message(validation: EvidenceValidation) -> str:
     return (
         "以下 evidence_validation 是基于实际工具结果生成的确定性约束，不是制造事实本身。"
         "若上下文中存在多份报告，以最后一份为准。"
-        "最终回答不得超过 allowed_conclusion_strength；必须披露 missing/partial 证据、critical 风险和冲突。"
+        "allowed_conclusion_strength 限制任务级诊断和根因；经逐声明验证的直接观测可保留。"
+        "必须披露 missing/partial 证据、critical 风险和冲突。"
         "source_scope_roles=context_only 的工具只能提供背景，不能支持 primary_scope 的专属指标或结论。"
         "causal_claims_allowed=false 时不得把相关性表述为已证明因果。\n"
         f"evidence_validation={validation.to_prompt()}"

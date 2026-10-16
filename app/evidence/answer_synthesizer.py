@@ -155,6 +155,7 @@ class AnswerContract:
     source_semantics: dict[str, dict[str, Any]]
     presentation: PresentationMode = "compact"
     submission_tool: str = "submit_analysis"
+    reference_evidence: dict[str, dict[str, Any]] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return json.loads(json.dumps(asdict(self), ensure_ascii=False, default=str))
@@ -175,6 +176,7 @@ class AnswerSynthesisReport:
     invalid_source_refs: tuple[str, ...]
     moved_claims: int
     wording_adjustments: tuple[str, ...]
+    claim_support: tuple[dict[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return json.loads(json.dumps(asdict(self), ensure_ascii=False, default=str))
@@ -197,6 +199,7 @@ class _Claim:
     time_range: dict[str, Any] | None = None
     grain: str = ""
     claim_role: str = "primary"
+    invalid_refs: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -282,6 +285,7 @@ def create_answer_contract(
         source_scope_roles=validation.source_scope_roles,
         source_semantics=validation.source_semantics,
         presentation=_select_presentation(question, resolved_question),
+        reference_evidence=validation.reference_evidence,
     )
 
 
@@ -335,7 +339,8 @@ def synthesizer_system_message(contract: AnswerContract) -> str:
         + "制造域的 facts、inferences 和 conclusion_claim 必须从 answer_contract.source_semantics 逐项复制 claim_kind、semantic_id、scope、grain 和 time_range；不得根据用户目标范围猜测证据范围。"
         + "不得提交隐藏思维链、逐 token 推理或未在 permitted_source_refs 中的来源。"
         "conclusion_evidence_refs 必须列出结论依据；仅由 context_only 来源支持的整厂背景不得表述为主范围自身指标。"
-        "结论不得超过 allowed_conclusion_strength，causal_claims_allowed=false 时不得声称已证明因果。\n"
+        "allowed_conclusion_strength 约束任务级诊断和根因；逐声明验证的直接观测可保留。"
+        "causal_claims_allowed=false 时不得声称已证明因果。\n"
         f"answer_contract={contract.to_prompt()}"
     )
 
@@ -370,12 +375,15 @@ def _parse_claims(value: Any, allowed: dict[str, str]) -> tuple[list[_Claim], se
         supplied_refs.extend(_embedded_refs(statement))
         statement = _SOURCE_PATTERN.sub("", statement).strip()
         refs: list[str] = []
+        claim_invalid: list[str] = []
         for supplied in supplied_refs:
             normalized = _normalize_ref(supplied, allowed)
             if normalized:
                 refs.append(normalized)
             elif str(supplied or "").strip():
-                invalid.add(str(supplied).strip())
+                invalid_ref = str(supplied).strip()
+                invalid.add(invalid_ref)
+                claim_invalid.append(invalid_ref)
         claims.append(_Claim(
             statement=statement,
             evidence_refs=tuple(dict.fromkeys(refs)),
@@ -386,6 +394,7 @@ def _parse_claims(value: Any, allowed: dict[str, str]) -> tuple[list[_Claim], se
             time_range=payload.get("time_range") if isinstance(payload.get("time_range"), dict) else None,
             grain=_clean_text(payload.get("grain"), 80),
             claim_role=_clean_text(payload.get("claim_role"), 20) or "primary",
+            invalid_refs=tuple(dict.fromkeys(claim_invalid)),
         ))
     return claims, invalid
 
@@ -464,6 +473,57 @@ def _structured_claim_mismatch(claim: _Claim, contract: AnswerContract) -> bool:
         ):
             return False
     return True
+
+
+def _claim_support(claim: _Claim, contract: AnswerContract) -> tuple[str, tuple[str, ...]]:
+    """Return fail-closed support status for one submitted declaration."""
+    if claim.invalid_refs:
+        return "unsupported", (f"含未许可引用：{', '.join(claim.invalid_refs)}。",)
+    if contract.model_knowledge_fallback and (
+        not claim.evidence_refs or set(claim.evidence_refs) == {MODEL_KNOWLEDGE_REF}
+    ):
+        return "supported", ()
+    if not claim.evidence_refs:
+        return "unsupported", ("未提供可验证引用。",)
+
+    evidence = contract.reference_evidence or {}
+    reasons: list[str] = []
+    limited = False
+    for reference in claim.evidence_refs:
+        item = evidence.get(reference)
+        if not item:
+            return "unsupported", (f"引用 {reference} 没有可追溯的证据检查。",)
+        statuses = item.get("statuses") if isinstance(item.get("statuses"), dict) else {}
+        if not statuses:
+            return "unsupported", (f"引用 {reference} 未关联已检查证据。",)
+        missing = [evidence_id for evidence_id, state in statuses.items() if state in {"missing", "optional_missing"}]
+        if missing:
+            return "unsupported", (f"引用 {reference} 关联证据未覆盖：{', '.join(missing)}。",)
+        critical = tuple(item.get("critical_risk_codes") or ())
+        conflicts = tuple(item.get("conflict_codes") or ())
+        if critical or conflicts:
+            codes = ", ".join((*critical, *conflicts))
+            return "unsupported", (f"引用 {reference} 存在关键风险或冲突：{codes}。",)
+        partial = [evidence_id for evidence_id, state in statuses.items() if state == "partial"]
+        if partial:
+            return "unsupported", (f"引用 {reference} 关联证据字段不完整：{', '.join(partial)}。",)
+        warning_codes = tuple(item.get("risk_codes") or ())
+        if warning_codes:
+            limited = True
+            reasons.append(f"引用 {reference} 存在限制：{', '.join(warning_codes)}。")
+    return ("limited", tuple(dict.fromkeys(reasons))) if limited else ("supported", ())
+
+
+def _final_claim_status(claim: _Claim, contract: AnswerContract) -> tuple[str, tuple[str, ...]]:
+    """Combine evidence support with semantic, scope, and wording guards."""
+    support, reasons = _claim_support(claim, contract)
+    if _structured_claim_mismatch(claim, contract):
+        return "unsupported", (*reasons, "结构化语义、范围、时间或粒度与引用不一致。")
+    if _scope_mismatch(claim.statement, claim.evidence_refs, contract):
+        return "unsupported", (*reasons, "引用未支持主范围声明。")
+    if _overclaim(claim.statement, contract.allowed_conclusion_strength, contract.causal_claims_allowed):
+        return "unsupported", (*reasons, "声明包含不允许的因果或确定性措辞。")
+    return support, reasons
 
 
 def _claim_line(claim: _Claim) -> str:
@@ -557,43 +617,52 @@ def synthesize_submission(
     invalid = invalid_facts | invalid_inferences | invalid_hypotheses
     recommendations = _parse_recommendations(payload.get("recommendations"))
     adjustments: list[str] = []
+    claim_support: list[dict[str, Any]] = []
     moved = 0
+
+    def record_support(category: str, claim: _Claim, support: str, reasons: tuple[str, ...]) -> None:
+        claim_support.append({
+            "category": category,
+            "statement": claim.statement,
+            "evidence_refs": claim.evidence_refs,
+            "support": support,
+            "reasons": reasons,
+        })
 
     verified_facts: list[_Claim] = []
     for claim in facts:
-        uses_model_knowledge = contract.model_knowledge_fallback and (
+        uses_model_knowledge = not claim.invalid_refs and contract.model_knowledge_fallback and (
             not claim.evidence_refs or set(claim.evidence_refs) == {MODEL_KNOWLEDGE_REF}
         )
-        if _structured_claim_mismatch(claim, contract) or _scope_mismatch(claim.statement, claim.evidence_refs, contract):
-            hypotheses.append(_Claim(
-                claim.statement,
-                claim.evidence_refs,
-                "补充与主范围一致的工具证据后复核。",
-            ))
-            moved += 1
-            adjustments.append("将范围证据不匹配的事实降级为待验证假设。")
-        elif uses_model_knowledge and not _overclaim(
-            claim.statement,
-            contract.allowed_conclusion_strength,
-            contract.causal_claims_allowed,
+        if uses_model_knowledge and not _overclaim(
+            claim.statement, contract.allowed_conclusion_strength, contract.causal_claims_allowed,
         ):
+            record_support("fact", claim, "unsupported", (
+                "模型通用知识不能确认厂内事实，已降级为模型通用知识推断。",
+            ))
             inferences.append(_Claim(claim.statement, (MODEL_KNOWLEDGE_REF,)))
             moved += 1
-        elif not claim.evidence_refs or _overclaim(
-            claim.statement,
-            contract.allowed_conclusion_strength,
-            contract.causal_claims_allowed,
-        ):
-            hypotheses.append(_Claim(claim.statement, claim.evidence_refs, "复核原始工具记录与同口径对照数据。"))
-            moved += 1
         else:
-            verified_facts.append(claim)
+            support, reasons = _final_claim_status(claim, contract)
+            record_support("fact", claim, support, reasons)
+            if support == "unsupported":
+                hypotheses.append(_Claim(
+                    claim.statement, claim.evidence_refs,
+                    "；".join(reasons) or "复核原始工具记录与同口径对照数据。",
+                    invalid_refs=claim.invalid_refs,
+                ))
+                moved += 1
+                adjustments.append("将范围证据不匹配或未获声明级证据支持的事实降级为待验证假设。")
+            else:
+                verified_facts.append(claim)
     facts = verified_facts
 
     if contract.model_knowledge_fallback:
         retained_hypotheses: list[_Claim] = []
         for claim in hypotheses:
-            uses_model_knowledge = not claim.evidence_refs or set(claim.evidence_refs) == {MODEL_KNOWLEDGE_REF}
+            uses_model_knowledge = not claim.invalid_refs and (
+                not claim.evidence_refs or set(claim.evidence_refs) == {MODEL_KNOWLEDGE_REF}
+            )
             if uses_model_knowledge and not _overclaim(
                 claim.statement,
                 contract.allowed_conclusion_strength,
@@ -607,36 +676,30 @@ def synthesize_submission(
 
     retained_inferences: list[_Claim] = []
     for claim in inferences:
-        uses_model_knowledge = contract.model_knowledge_fallback and (
+        uses_model_knowledge = not claim.invalid_refs and contract.model_knowledge_fallback and (
             not claim.evidence_refs or set(claim.evidence_refs) == {MODEL_KNOWLEDGE_REF}
         )
-        if _structured_claim_mismatch(claim, contract) or _scope_mismatch(claim.statement, claim.evidence_refs, contract):
-            hypotheses.append(_Claim(
-                claim.statement,
-                claim.evidence_refs,
-                claim.verification or "补充与主范围一致的工具证据后复核。",
-            ))
-            moved += 1
-            adjustments.append("将范围证据不匹配的推断降级为待验证假设。")
-        elif uses_model_knowledge and not _overclaim(
+        if uses_model_knowledge and not _overclaim(
             claim.statement,
             contract.allowed_conclusion_strength,
             contract.causal_claims_allowed,
         ):
+            support, reasons = _claim_support(claim, contract)
+            record_support("inference", claim, support, reasons)
             retained_inferences.append(_Claim(claim.statement, (MODEL_KNOWLEDGE_REF,)))
-        elif contract.allowed_conclusion_strength in {"insufficient", "hypothesis_only"} or _overclaim(
-            claim.statement,
-            contract.allowed_conclusion_strength,
-            contract.causal_claims_allowed,
-        ):
-            hypotheses.append(_Claim(
-                claim.statement,
-                claim.evidence_refs,
-                claim.verification or "补充同时间、同产品或同设备对照后验证。",
-            ))
-            moved += 1
         else:
-            retained_inferences.append(claim)
+            support, reasons = _final_claim_status(claim, contract)
+            record_support("inference", claim, support, reasons)
+            if support == "unsupported":
+                hypotheses.append(_Claim(
+                    claim.statement, claim.evidence_refs,
+                    claim.verification or "；".join(reasons) or "补充同时间、同产品或同设备对照后验证。",
+                    invalid_refs=claim.invalid_refs,
+                ))
+                moved += 1
+                adjustments.append("将范围证据不匹配或未获声明级证据支持的推断降级为待验证假设。")
+            else:
+                retained_inferences.append(claim)
     inferences = retained_inferences
     if moved:
         adjustments.append(
@@ -669,45 +732,53 @@ def synthesize_submission(
         time_range=conclusion_claim_payload.get("time_range") if isinstance(conclusion_claim_payload.get("time_range"), dict) else None,
         grain=_clean_text(conclusion_claim_payload.get("grain"), 80),
         claim_role=_clean_text(conclusion_claim_payload.get("claim_role"), 20) or "primary",
+        invalid_refs=tuple(sorted(invalid_conclusion_refs)),
     )
     conclusion_scope_mismatch = conclusion_scope_mismatch or _structured_claim_mismatch(conclusion_claim, contract)
     if contract.model_knowledge_fallback:
+        conclusion_support, conclusion_reasons = _claim_support(conclusion_claim, contract)
+        if _overclaim(submitted_conclusion, contract.allowed_conclusion_strength, contract.causal_claims_allowed):
+            conclusion_support = "unsupported"
+            conclusion_reasons = (*conclusion_reasons, "声明包含不允许的因果或确定性措辞。")
+    else:
+        conclusion_support, conclusion_reasons = _final_claim_status(conclusion_claim, contract)
+    record_support("conclusion", conclusion_claim, conclusion_support, conclusion_reasons)
+    if contract.model_knowledge_fallback:
         safe_conclusion = (
             submitted_conclusion
-            if submitted_conclusion and not _overclaim(
-                submitted_conclusion,
-                contract.allowed_conclusion_strength,
-                contract.causal_claims_allowed,
-            )
+            if submitted_conclusion and conclusion_support != "unsupported"
             else "可以提供一般性技术说明，但不能据此确认厂内实际情况。"
         )
         conclusion = f"> {MODEL_KNOWLEDGE_DISCLOSURE}\n\n{safe_conclusion}"
         if submitted_conclusion and safe_conclusion != submitted_conclusion:
-            hypotheses.append(_Claim(submitted_conclusion, (), "使用厂内文档或制造数据复核。"))
+            hypotheses.append(_Claim(
+                submitted_conclusion, tuple(dict.fromkeys(conclusion_refs)),
+                "；".join(conclusion_reasons) or "使用厂内文档或制造数据复核。",
+                invalid_refs=tuple(sorted(invalid_conclusion_refs)),
+            ))
             moved += 1
             adjustments.append("将模型通用知识中的确定性结论降级为待验证假设。")
-    elif contract.allowed_conclusion_strength == "insufficient":
+    elif contract.allowed_conclusion_strength == "insufficient" and conclusion_support == "unsupported":
         conclusion = "当前必需证据不足，不能形成诊断性结论。"
         if submitted_conclusion:
-            hypotheses.append(_Claim(submitted_conclusion, (), "补齐必需证据后重新评估。"))
+            hypotheses.append(_Claim(
+                submitted_conclusion, tuple(dict.fromkeys(conclusion_refs)),
+                "；".join(conclusion_reasons) or "补齐必需证据后重新评估。",
+                invalid_refs=tuple(sorted(invalid_conclusion_refs)),
+            ))
             moved += 1
-            adjustments.append("将模型提交的结论降级为待验证假设。")
-    elif contract.allowed_conclusion_strength == "hypothesis_only":
-        conclusion = "当前证据仅支持形成待验证假设，不能确认主要原因或因果关系。"
-        if submitted_conclusion:
-            hypotheses.append(_Claim(submitted_conclusion, (), "按证据限制中的缺口补充验证。"))
-            moved += 1
-            adjustments.append("将模型提交的结论降级为待验证假设。")
-    elif conclusion_scope_mismatch:
-        conclusion = "当前证据没有以一致范围支持模型提交的主范围结论。"
+            adjustments.append("将范围证据不匹配或未获声明级证据支持的结论降级为待验证假设。")
+    elif conclusion_scope_mismatch or conclusion_support == "unsupported":
+        conclusion = "当前证据未能验证模型提交的结论。"
         if submitted_conclusion:
             hypotheses.append(_Claim(
                 submitted_conclusion,
                 tuple(dict.fromkeys(conclusion_refs)),
-                "补充与主范围一致的工具证据后重新评估。",
+                "；".join(conclusion_reasons) or "补充与主范围一致的工具证据后重新评估。",
+                invalid_refs=tuple(sorted(invalid_conclusion_refs)),
             ))
             moved += 1
-            adjustments.append("将范围证据不匹配的结论降级为待验证假设。")
+            adjustments.append("将范围证据不匹配或未获声明级证据支持的结论降级为待验证假设。")
     elif submitted_conclusion and not _overclaim(
         submitted_conclusion,
         contract.allowed_conclusion_strength,
@@ -812,7 +883,7 @@ def synthesize_submission(
             recommendation_lines, limitations,
         )
     report = AnswerSynthesisReport(
-        schema_version="1.0",
+        schema_version="1.1",
         synthesizer_version=contract.synthesizer_version,
         plan_id=contract.plan_id,
         status=status,
@@ -822,6 +893,7 @@ def synthesize_submission(
         invalid_source_refs=tuple(sorted(invalid)),
         moved_claims=moved,
         wording_adjustments=tuple(dict.fromkeys(adjustments)),
+        claim_support=tuple(claim_support),
     )
     return SynthesizedAnswer(answer, report)
 
