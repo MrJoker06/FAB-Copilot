@@ -145,8 +145,30 @@ SUBMIT_ANALYSIS_TOOL = {
 }
 
 _SOURCE_PATTERN = re.compile(r"\[来源\s+([^\]]+)\]", re.IGNORECASE)
-_CAUSAL_PATTERN = re.compile(r"(?:直接|已经|必然)?导致|证明.{0,12}(?:根因|原因)|根因(?:为|是)")
-_DEFINITIVE_PATTERN = re.compile(r"主要原因(?:为|是)|可以确定|已经证实|确定无疑")
+# These expressions identify candidates only.  `_speech_act` below decides whether a
+# clause actually asserts the candidate, rather than merely asking, qualifying, or
+# explaining it.
+_CAUSAL_PATTERN = re.compile(r"导致|引起|造成|源于|归因于|问题出在|(?:根本)?根因")
+_DEFINITIVE_PATTERN = re.compile(r"主要原因(?:为|是)|可以确定|已经证实|确定无疑|(?:根本)?根因(?:为|是|在)")
+_CLAUSE_BOUNDARY_PATTERN = re.compile(r"[。！？!?；;,，]+|(?:但是|然而|不过|但)")
+_QUESTION_PATTERN = re.compile(r"(?:是否|是不是|能否|会不会|为何|为什么|如何)|[？?]$")
+_QUALIFIER_PATTERN = re.compile(
+    r"(?:不能|无法|未能|尚未|没有|缺乏|不足以).{0,10}(?:证明|证实|确认|表明)"
+    r"|(?:可能|或许|疑似|假设|待验证|尚待|不排除|倾向于|需要验证)"
+)
+_CAUSAL_ASSERTION_PATTERN = re.compile(
+    r".+(?:导致|引起|造成).+|(?:由|因).+(?:导致|引起|造成)|(?:源于|归因于).+"
+    r"|问题出在.+|(?:根本)?根因(?:为|是|在).+|.+是(?:.+?的)?(?:根本)?根因"
+)
+_GENERIC_MECHANISM_PATTERN = re.compile(
+    r"(?:通常|一般(?:而言|情况下)?|机理|原理|材料特性|物理|化学|在.+?条件下).{0,80}"
+    r"(?:导致|引起|造成|加速|影响)"
+)
+_PRODUCTION_SCOPE_PATTERN = re.compile(
+    r"当前|本次|该(?:厂|线|机台|设备)|(?:CMP|EQ)-\d+|(?:批次|批号|LOT)\s*[A-Z0-9-]+",
+    re.IGNORECASE,
+)
+_DIAGNOSTIC_TARGET_PATTERN = re.compile(r"原因|根因|问题|失效|故障")
 _HIGH_RISK_PATTERN = re.compile(r"停机|报废|放行|返工|配方(?:修改|变更)|恢复量产")
 
 
@@ -463,10 +485,65 @@ def _parse_recommendations(value: Any) -> list[_Recommendation]:
     return recommendations
 
 
-def _overclaim(statement: str, strength: str, causal_allowed: bool) -> bool:
-    if not causal_allowed and _CAUSAL_PATTERN.search(statement):
+def _speech_act(statement: str) -> tuple[bool, bool, bool, bool]:
+    """Return asserted causal, definitive, non-assertive, generic-mechanism flags.
+
+    This is deliberately clause-level and rule-auditable: keywords nominate a
+    clause for review, but a negation of proof, question, or hypothesis cannot
+    turn that clause into an asserted causal conclusion.  Contrast boundaries
+    keep a cautious sentence from masking a separate affirmative assertion.
+    """
+    asserted_causal = asserted_definitive = non_assertive_risk = False
+    # A generic cue cannot launder a claim about a current or named production
+    # scope.  Bare technical domain nouns remain valid in generic explanations.
+    generic_mechanism = bool(_GENERIC_MECHANISM_PATTERN.search(statement)) and not bool(
+        _PRODUCTION_SCOPE_PATTERN.search(statement)
+    )
+    for raw_clause in _CLAUSE_BOUNDARY_PATTERN.split(statement):
+        clause = raw_clause.strip()
+        if not clause:
+            continue
+        causal_candidate = bool(_CAUSAL_PATTERN.search(clause))
+        definitive_candidate = bool(_DEFINITIVE_PATTERN.search(clause))
+        if _QUESTION_PATTERN.search(clause) or _QUALIFIER_PATTERN.search(clause):
+            non_assertive_risk = True
+            continue
+        if not (causal_candidate or definitive_candidate):
+            continue
+        # A generic mechanism is not an assertion about the current fab.  It is
+        # only exempted from causal suppression for disclosed model knowledge;
+        # direct-fact validation still rejects it as a misclassified observation.
+        if generic_mechanism:
+            continue
+        if causal_candidate and _CAUSAL_ASSERTION_PATTERN.search(clause):
+            asserted_causal = True
+        # "数据已经证实良率下降" can be a direct observation.  Definitive
+        # wording is restricted here only when it declares a diagnosis/root
+        # cause, rather than the measured event itself.
+        if definitive_candidate and (causal_candidate or _DIAGNOSTIC_TARGET_PATTERN.search(clause)):
+            asserted_definitive = True
+    return asserted_causal, asserted_definitive, non_assertive_risk, generic_mechanism
+
+
+def _overclaim(
+    statement: str, strength: str, causal_allowed: bool, *, model_knowledge: bool = False,
+) -> bool:
+    asserted_causal, asserted_definitive, _, generic_mechanism = _speech_act(statement)
+    if not causal_allowed and (asserted_causal or (generic_mechanism and not model_knowledge)):
         return True
-    return strength in {"insufficient", "hypothesis_only"} and bool(_DEFINITIVE_PATTERN.search(statement))
+    return strength in {"insufficient", "hypothesis_only"} and asserted_definitive
+
+
+def _fact_wording_mismatch(statement: str) -> bool:
+    """Facts must be direct observations, not causal analysis or a speech act."""
+    asserted_causal, asserted_definitive, non_assertive_risk, generic_mechanism = _speech_act(statement)
+    return asserted_causal or asserted_definitive or non_assertive_risk or generic_mechanism
+
+
+def _inference_wording_mismatch(statement: str, *, model_knowledge: bool) -> bool:
+    """Questions and hypotheses belong in the verification bucket, not inferences."""
+    _, _, non_assertive_risk, generic_mechanism = _speech_act(statement)
+    return non_assertive_risk or (generic_mechanism and not model_knowledge)
 
 
 def _scope_mismatch(statement: str, references: tuple[str, ...], contract: AnswerContract) -> bool:
@@ -635,7 +712,10 @@ def _v2_composite_status(claim: _Claim, contract: AnswerContract) -> tuple[str, 
     support, reasons = _claim_support(claim, contract)
     if _scope_mismatch(claim.statement, claim.evidence_refs, contract):
         return "unsupported", (*reasons, "引用未支持主范围声明。")
-    if _overclaim(claim.statement, contract.allowed_conclusion_strength, contract.causal_claims_allowed):
+    if _overclaim(
+        claim.statement, contract.allowed_conclusion_strength, contract.causal_claims_allowed,
+        model_knowledge=contract.model_knowledge_fallback,
+    ):
         return "unsupported", (*reasons, "声明包含不允许的因果或确定性措辞。")
     return support, reasons
 
@@ -686,7 +766,10 @@ def _final_claim_status(claim: _Claim, contract: AnswerContract) -> tuple[str, t
         return "unsupported", (*reasons, "结构化语义、范围、时间或粒度与引用不一致。")
     if _scope_mismatch(claim.statement, claim.evidence_refs, contract):
         return "unsupported", (*reasons, "引用未支持主范围声明。")
-    if _overclaim(claim.statement, contract.allowed_conclusion_strength, contract.causal_claims_allowed):
+    if _overclaim(
+        claim.statement, contract.allowed_conclusion_strength, contract.causal_claims_allowed,
+        model_knowledge=contract.model_knowledge_fallback,
+    ):
         return "unsupported", (*reasons, "声明包含不允许的因果或确定性措辞。")
     return support, reasons
 
@@ -811,6 +894,7 @@ def synthesize_submission(
         )
         if uses_model_knowledge and not _overclaim(
             claim.statement, contract.allowed_conclusion_strength, contract.causal_claims_allowed,
+            model_knowledge=True,
         ):
             record_support("fact", claim, "unsupported", (
                 "模型通用知识不能确认厂内事实，已降级为模型通用知识推断。",
@@ -832,6 +916,8 @@ def synthesize_submission(
                 if protocol_reasons
                 else _final_claim_status(resolved_claim, contract)
             )
+            if support != "unsupported" and _fact_wording_mismatch(resolved_claim.statement):
+                support, reasons = "unsupported", (*reasons, "直接事实不能使用因果、确定性、疑问或假设性措辞。")
             record_support("fact", resolved_claim, support, reasons)
             if support == "unsupported":
                 hypotheses.append(_Claim(
@@ -856,6 +942,7 @@ def synthesize_submission(
                 claim.statement,
                 contract.allowed_conclusion_strength,
                 contract.causal_claims_allowed,
+                model_knowledge=True,
             ):
                 inferences.append(_Claim(claim.statement, (MODEL_KNOWLEDGE_REF,)))
                 moved += 1
@@ -873,7 +960,8 @@ def synthesize_submission(
             claim.statement,
             contract.allowed_conclusion_strength,
             contract.causal_claims_allowed,
-        ):
+            model_knowledge=True,
+        ) and not _inference_wording_mismatch(claim.statement, model_knowledge=True):
             support, reasons = _claim_support(claim, contract)
             record_support("inference", claim, support, reasons)
             retained_inferences.append(_Claim(claim.statement, (MODEL_KNOWLEDGE_REF,)))
@@ -890,6 +978,10 @@ def synthesize_submission(
                 if not protocol_reasons
                 else ("unsupported", protocol_reasons)
             )
+            if support != "unsupported" and _inference_wording_mismatch(
+                composite_claim.statement, model_knowledge=contract.model_knowledge_fallback,
+            ):
+                support, reasons = "unsupported", (*reasons, "疑问或假设性因果表述必须归入待验证内容。")
             record_support("inference", composite_claim, support, reasons)
             if support == "unsupported":
                 hypotheses.append(_Claim(
@@ -981,7 +1073,10 @@ def synthesize_submission(
         conclusion_scope_mismatch = conclusion_scope_mismatch or _structured_claim_mismatch(conclusion_claim, contract)
         if contract.model_knowledge_fallback:
             conclusion_support, conclusion_reasons = _claim_support(conclusion_claim, contract)
-            if _overclaim(submitted_conclusion, contract.allowed_conclusion_strength, contract.causal_claims_allowed):
+            if _overclaim(
+                submitted_conclusion, contract.allowed_conclusion_strength, contract.causal_claims_allowed,
+                model_knowledge=True,
+            ):
                 conclusion_support = "unsupported"
                 conclusion_reasons = (*conclusion_reasons, "声明包含不允许的因果或确定性措辞。")
         else:
@@ -1027,6 +1122,7 @@ def synthesize_submission(
         submitted_conclusion,
         contract.allowed_conclusion_strength,
         contract.causal_claims_allowed,
+        model_knowledge=contract.model_knowledge_fallback,
     ):
         conclusion = submitted_conclusion
     else:

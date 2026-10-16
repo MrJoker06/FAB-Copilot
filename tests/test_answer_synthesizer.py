@@ -358,6 +358,176 @@ class AnswerSynthesizerTests(unittest.TestCase):
         support = next(item for item in rejected.report.claim_support if item["category"] == "inference")
         self.assertEqual(support["support"], "unsupported")
         self.assertIn("未验证", "".join(support["reasons"]))
+
+    def test_clause_level_causal_assessment_preserves_caution_and_rejects_assertions(self):
+        contract, _ = _supported_yield_contract()
+        contract = replace(contract, causal_claims_allowed=False)
+        reference = "TOOL:S01"
+
+        for statement in (
+            "当前数据不能证明设备漂移导致良率下降。",
+            "是否由设备漂移导致良率下降仍需验证？",
+            "设备漂移可能导致良率下降，仍需受控对照。",
+        ):
+            payload = {
+                "conclusion": statement, "conclusion_evidence_refs": [reference],
+                "conclusion_claim": _structured_claim(contract, reference, statement),
+                "facts": [], "inferences": [], "hypotheses": [], "recommendations": [],
+                "limitations": [], "source_refs": [],
+            }
+            result = synthesize_submission(payload, contract)
+            conclusion = next(item for item in result.report.claim_support if item["category"] == "conclusion")
+            self.assertEqual(conclusion["support"], "supported", statement)
+            self.assertIn(statement, result.answer)
+
+        for statement in (
+            "设备漂移是良率下降的根因。",
+            "问题出在设备漂移。",
+            "良率下降由设备漂移引起。",
+            "良率下降源于设备漂移。",
+            "当前数据不能证明设备漂移导致良率下降。但是问题出在设备漂移。",
+            "不能证明设备漂移导致良率下降，设备漂移造成良率下降。",
+            "是否由设备漂移导致良率下降，设备漂移是根因。",
+        ):
+            payload = {
+                "conclusion": statement, "conclusion_evidence_refs": [reference],
+                "conclusion_claim": _structured_claim(contract, reference, statement),
+                "facts": [], "inferences": [], "hypotheses": [], "recommendations": [],
+                "limitations": [], "source_refs": [],
+            }
+            result = synthesize_submission(payload, contract)
+            conclusion = next(item for item in result.report.claim_support if item["category"] == "conclusion")
+            self.assertEqual(conclusion["support"], "unsupported", statement)
+            self.assertIn("当前证据未能验证模型提交的结论", result.answer)
+
+        for statement in ("是否存在设备漂移？", "设备漂移可能是主因。"):
+            fact_payload = {
+                "conclusion": "当前记录需要复核。", "conclusion_evidence_refs": [reference],
+                "conclusion_claim": _structured_claim(contract, reference, "当前记录需要复核。"),
+                "facts": [_structured_claim(contract, reference, statement)],
+                "inferences": [], "hypotheses": [], "recommendations": [], "limitations": [], "source_refs": [],
+            }
+            fact_result = synthesize_submission(fact_payload, contract)
+            fact = next(item for item in fact_result.report.claim_support if item["category"] == "fact")
+            self.assertEqual(fact["support"], "unsupported", statement)
+            self.assertIn("直接事实不能使用", "".join(fact["reasons"]))
+
+        definitive_contract = replace(contract, causal_claims_allowed=True, allowed_conclusion_strength="hypothesis_only")
+        definitive_payload = {
+            "conclusion": "可以确定主要原因是设备漂移。", "conclusion_evidence_refs": [reference],
+            "conclusion_claim": _structured_claim(definitive_contract, reference, "可以确定主要原因是设备漂移。"),
+            "facts": [], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        definitive_result = synthesize_submission(definitive_payload, definitive_contract)
+        definitive = next(item for item in definitive_result.report.claim_support if item["category"] == "conclusion")
+        self.assertEqual(definitive["support"], "unsupported")
+
+        trend_reference = "TOOL:S02"
+        observed_payload = {
+            "conclusion": "当前趋势数据已经证实良率下降。", "conclusion_evidence_refs": [trend_reference],
+            "conclusion_claim": _structured_claim(definitive_contract, trend_reference, "当前趋势数据已经证实良率下降。"),
+            "facts": [_structured_claim(definitive_contract, trend_reference, "当前趋势数据已经证实良率下降。")],
+            "inferences": [], "hypotheses": [], "recommendations": [], "limitations": [], "source_refs": [],
+        }
+        observed_result = synthesize_submission(observed_payload, definitive_contract)
+        observed_support = {
+            item["category"]: item["support"] for item in observed_result.report.claim_support
+            if item["category"] in {"conclusion", "fact"}
+        }
+        self.assertEqual(observed_support, {"conclusion": "supported", "fact": "supported"})
+
+        diagnosis_payload = {
+            "conclusion": "当前数据已经证实设备漂移是根因。", "conclusion_evidence_refs": [reference],
+            "conclusion_claim": _structured_claim(definitive_contract, reference, "当前数据已经证实设备漂移是根因。"),
+            "facts": [], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        diagnosis_result = synthesize_submission(diagnosis_payload, definitive_contract)
+        diagnosis = next(item for item in diagnosis_result.report.claim_support if item["category"] == "conclusion")
+        self.assertEqual(diagnosis["support"], "unsupported")
+
+    def test_v2_hypothetical_causal_inference_is_demoted_and_model_mechanism_is_retained(self):
+        contract, _ = _supported_yield_contract()
+        scope = {"equipment_ids": ("EQ-1",)}
+        semantics = {
+            ref: {
+                "kind": "metric", "semantic_id": semantic, "grain": "equipment_signal",
+                "scope": scope, "start": "2026-07-01", "end": "2026-07-07",
+                "filter_provenance": "fixed_report", "scope_role": "primary",
+            }
+            for ref, semantic in (
+                ("TOOL:S01", "equipment_alarm_count"),
+                ("TOOL:S02", "equipment_throughput"),
+            )
+        }
+        contract = replace(
+            contract, causal_claims_allowed=False, primary_scope_type="equipment",
+            primary_scope_labels=("EQ-1",), permitted_source_refs=tuple(semantics),
+            source_semantics=semantics, source_scope_roles={ref: "primary" for ref in semantics},
+            reference_evidence={
+                ref: {"statuses": {"E-1": "covered"}, "risk_codes": (), "critical_risk_codes": (), "conflict_codes": ()}
+                for ref in semantics
+            },
+        )
+        fact = lambda statement, ref, semantic: {
+            "statement": statement, "evidence_refs": [ref], "semantic_id": semantic,
+            "scope": scope, "time_range": {"start": "2026-07-01", "end": "2026-07-07"}, "claim_role": "primary",
+        }
+        payload = {
+            "analysis_protocol_version": "2.0", "conclusion": "是否由告警增加导致吞吐下降仍需验证？",
+            "conclusion_evidence_refs": [], "conclusion_claim": {
+                "inference_indices": [0], "scope": scope,
+                "time_range": {"start": "2026-07-01", "end": "2026-07-07"}, "claim_role": "primary",
+            },
+            "facts": [
+                fact("告警增加。", "TOOL:S01", "equipment_alarm_count"),
+                fact("吞吐下降。", "TOOL:S02", "equipment_throughput"),
+            ],
+            "inferences": [{
+                "statement": "是否由告警增加导致吞吐下降仍需验证？", "fact_indices": [0, 1],
+                "basis": "两项观测在同一设备和时间窗内出现。", "uncertainty": "尚未进行受控对照。",
+                "scope": scope, "time_range": {"start": "2026-07-01", "end": "2026-07-07"}, "claim_role": "primary",
+            }],
+            "hypotheses": [], "recommendations": [], "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, contract)
+        inference = next(item for item in result.report.claim_support if item["category"] == "inference")
+        conclusion = next(item for item in result.report.claim_support if item["category"] == "conclusion")
+        self.assertEqual(inference["support"], "unsupported")
+        self.assertIn("待验证内容", "".join(inference["reasons"]))
+        self.assertEqual(conclusion["support"], "unsupported")
+
+        selection, plan = _context("查询 GaN 与 Si 器件工艺差异 SOP")
+        knowledge_contract = create_answer_contract(
+            validate_evidence(plan, selection.selected_playbook, []), allow_model_knowledge_fallback=True,
+        )
+        for generic_statement in ("通常，温度升高会导致扩散速度增加。", "通常温度变化会导致晶圆应力增加。"):
+            knowledge_payload = {
+                "conclusion": "以下为一般技术机理说明。", "conclusion_evidence_refs": [MODEL_KNOWLEDGE_REF],
+                "facts": [], "inferences": [{
+                    "statement": generic_statement, "evidence_refs": [MODEL_KNOWLEDGE_REF],
+                }],
+                "hypotheses": [], "recommendations": [], "limitations": [], "source_refs": [MODEL_KNOWLEDGE_REF],
+            }
+            knowledge_result = synthesize_submission(knowledge_payload, knowledge_contract)
+            knowledge_inference = next(item for item in knowledge_result.report.claim_support if item["category"] == "inference")
+            self.assertEqual(knowledge_inference["support"], "supported", generic_statement)
+            self.assertIn(generic_statement, knowledge_result.answer)
+
+        production_payload = {
+            **knowledge_payload,
+            "inferences": [{
+                "statement": "一般而言，当前 CMP-03 漂移导致良率下降。",
+                "evidence_refs": [MODEL_KNOWLEDGE_REF],
+            }],
+        }
+        production_result = synthesize_submission(production_payload, knowledge_contract)
+        production = next(item for item in production_result.report.claim_support if item["category"] == "inference")
+        self.assertEqual(production["support"], "unsupported")
+        self.assertIn("待验证内容：一般而言，当前 CMP-03 漂移导致良率下降。 [模型通用知识]", production_result.answer)
+        self.assertNotIn("模型通用知识：一般而言，当前 CMP-03 漂移导致良率下降。", production_result.answer)
+
     def test_presentation_selection_obeys_current_request(self):
         contract, _ = _supported_yield_contract()
         self.assertEqual(replace(contract, presentation="brief").presentation, "brief")
