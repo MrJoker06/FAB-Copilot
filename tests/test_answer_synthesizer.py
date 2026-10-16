@@ -13,8 +13,10 @@ from app.evidence.answer_synthesizer import (
     MODEL_KNOWLEDGE_DISCLOSURE,
     MODEL_KNOWLEDGE_REF,
     REQUIRED_SECTIONS,
+    SUBMIT_ANALYSIS_TOOL,
     _select_presentation,
     create_answer_contract,
+    synthesizer_system_message,
     synthesize_legacy_answer,
     synthesize_submission,
 )
@@ -83,6 +85,35 @@ def _structured_claim(contract, reference: str, statement: str, **extra):
 
 
 class AnswerSynthesizerTests(unittest.TestCase):
+    def test_submit_analysis_schema_accepts_v2_shape_without_legacy_metadata(self):
+        properties = SUBMIT_ANALYSIS_TOOL["function"]["parameters"]["properties"]
+        self.assertEqual(properties["analysis_protocol_version"]["enum"], ["2.0"])
+        self.assertNotIn("required", properties["conclusion_claim"])
+        fact_required = properties["facts"]["items"]["required"]
+        self.assertEqual(fact_required, ["statement", "evidence_refs", "semantic_id", "scope", "time_range", "claim_role"])
+        inference = properties["inferences"]["items"]
+        self.assertEqual(inference["required"], ["statement"])
+        self.assertTrue({"fact_indices", "basis", "uncertainty", "scope", "time_range", "claim_role"} <= set(inference["properties"]))
+
+    def test_v2_prompt_scopes_conclusion_protocol_separately_from_legacy_metadata(self):
+        contract, _ = _supported_yield_contract()
+        prompt = synthesizer_system_message(contract)
+        self.assertIn("conclusion_claim 必须引用已验证综合推断的 inference_indices", prompt)
+        self.assertIn("目标 scope、time_range、claim_role", prompt)
+        self.assertIn("仅当省略 analysis_protocol_version、使用旧协议时", prompt)
+
+    def test_model_knowledge_prompt_uses_legacy_fallback_not_v2_manufacturing_protocol(self):
+        selection, plan = _context("查询 GaN 与 Si 器件工艺差异 SOP")
+        contract = create_answer_contract(
+            validate_evidence(plan, selection.selected_playbook, []),
+            allow_model_knowledge_fallback=True,
+        )
+        prompt = synthesizer_system_message(contract)
+        self.assertIn("省略 analysis_protocol_version", prompt)
+        self.assertIn("不要提交 TOOL:Sxx、fact_indices 或 inference_indices", prompt)
+        self.assertNotIn("使用 analysis_protocol_version=2.0", prompt)
+        self.assertNotIn("旧协议时，制造域", prompt)
+
     def test_claim_level_support_keeps_observed_yield_when_root_cause_is_missing(self):
         selection, plan = _context("最近四周良率下降")
         overview = _observation(plan, "get_fab_overview", {
@@ -222,6 +253,111 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertEqual(support["冲突规格下的 Cpk 为 1.1。"], "unsupported")
         self.assertEqual(support["CMP-03 存在已记录异常。"], "supported")
         self.assertIn("CMP-03 存在已记录异常", result.answer)
+
+    def test_v2_direct_facts_fill_only_known_metadata_and_composite_derives_refs(self):
+        contract, _ = _supported_yield_contract()
+        scope = {"equipment_ids": ("EQ-1",)}
+        semantics = {
+            ref: {
+                "kind": "metric", "semantic_id": semantic, "grain": "equipment_signal",
+                "scope": scope, "start": "2026-07-01", "end": "2026-07-07",
+                "filter_provenance": "fixed_report", "scope_role": role,
+            }
+            for ref, semantic, role in (
+                ("TOOL:S01", "equipment_alarm_count", "primary"),
+                ("TOOL:S02", "equipment_throughput", "primary"),
+                ("TOOL:S03", "equipment_alarm_count", "context_only"),
+            )
+        }
+        evidence = {
+            ref: {"statuses": {"E-1": "covered"}, "risk_codes": (), "critical_risk_codes": (), "conflict_codes": ()}
+            for ref in semantics
+        }
+        contract = replace(
+            contract, primary_scope_type="equipment", primary_scope_labels=("EQ-1",),
+            permitted_source_refs=tuple(semantics), source_semantics=semantics,
+            source_scope_roles={ref: item["scope_role"] for ref, item in semantics.items()},
+            reference_evidence=evidence,
+        )
+        fact = lambda statement, ref, semantic: {
+            "statement": statement, "evidence_refs": [ref], "semantic_id": semantic,
+            "scope": scope, "time_range": {"start": "2026-07-01", "end": "2026-07-07"},
+            "claim_role": "primary",
+        }
+        payload = {
+            "analysis_protocol_version": "2.0", "conclusion": "EQ-1 需要优先检查设备稳定性。",
+            "conclusion_evidence_refs": [], "conclusion_claim": {
+                "inference_indices": [0], "scope": scope,
+                "time_range": {"start": "2026-07-01", "end": "2026-07-07"}, "claim_role": "primary",
+            },
+            "facts": [
+                fact("告警增加。", "TOOL:S01", "equipment_alarm_count"),
+                fact("吞吐下降。", "TOOL:S02", "equipment_throughput"),
+            ],
+            "inferences": [{
+                "statement": "应优先排查设备稳定性。", "fact_indices": [0, 1],
+                "basis": "告警增加与吞吐下降在同一设备和时间窗内同时出现。",
+                "uncertainty": "这仅支持排查优先级，不证明根因。",
+                "scope": scope, "time_range": {"start": "2026-07-01", "end": "2026-07-07"},
+                "claim_role": "primary",
+            }],
+            "hypotheses": [], "recommendations": [], "limitations": [], "source_refs": [],
+        }
+
+        result = synthesize_submission(payload, contract)
+
+        inference = next(item for item in result.report.claim_support if item["category"] == "inference")
+        self.assertEqual(inference["support"], "supported")
+        self.assertEqual(inference["evidence_refs"], ("TOOL:S01", "TOOL:S02"))
+        self.assertEqual(result.report.analysis_protocol_version, "2.0")
+        self.assertEqual(result.report.schema_version, "1.2")
+        self.assertIn("不确定性：这仅支持排查优先级", result.answer)
+        self.assertNotIn("claim_kind", result.answer)
+
+        wrong_scope = {**payload, "inferences": [{
+            **payload["inferences"][0], "scope": {"equipment_ids": ("EQ-2",)},
+        }]}
+        rejected_scope = synthesize_submission(wrong_scope, contract)
+        scope_support = next(item for item in rejected_scope.report.claim_support if item["category"] == "inference")
+        self.assertEqual(scope_support["support"], "unsupported")
+        self.assertIn("目标范围", "".join(scope_support["reasons"]))
+
+        wrong_indices = {**payload, "inferences": [{
+            **payload["inferences"][0], "fact_indices": [0, 1, "bad"],
+        }]}
+        rejected_indices = synthesize_submission(wrong_indices, contract)
+        index_support = next(item for item in rejected_indices.report.claim_support if item["category"] == "inference")
+        self.assertEqual(index_support["support"], "unsupported")
+        self.assertIn("整数数组", "".join(index_support["reasons"]))
+
+        wrong_conclusion_scope = {**payload, "conclusion_claim": {
+            **payload["conclusion_claim"], "scope": {"equipment_ids": ("EQ-2",)},
+        }}
+        rejected_conclusion_scope = synthesize_submission(wrong_conclusion_scope, contract)
+        conclusion_scope_support = next(item for item in rejected_conclusion_scope.report.claim_support if item["category"] == "conclusion")
+        self.assertEqual(conclusion_scope_support["support"], "unsupported")
+        self.assertIn("范围", "".join(conclusion_scope_support["reasons"]))
+
+        invalid_conclusion_ref = {**payload, "conclusion_evidence_refs": ["BAD-REF"]}
+        rejected_conclusion_ref = synthesize_submission(invalid_conclusion_ref, contract)
+        conclusion_ref_support = next(item for item in rejected_conclusion_ref.report.claim_support if item["category"] == "conclusion")
+        self.assertEqual(conclusion_ref_support["support"], "unsupported")
+        self.assertIn("未许可", "".join(conclusion_ref_support["reasons"]))
+
+        unknown_protocol = {**payload, "analysis_protocol_version": "99.0"}
+        rejected_protocol = synthesize_submission(unknown_protocol, contract)
+        conclusion = next(item for item in rejected_protocol.report.claim_support if item["category"] == "conclusion")
+        self.assertEqual(conclusion["support"], "unsupported")
+        self.assertIn("不支持", "".join(conclusion["reasons"]))
+
+        incompatible = {**payload, "facts": [
+            fact("告警增加。", "TOOL:S01", "equipment_alarm_count"),
+            fact("背景告警。", "TOOL:S03", "equipment_alarm_count"),
+        ]}
+        rejected = synthesize_submission(incompatible, contract)
+        support = next(item for item in rejected.report.claim_support if item["category"] == "inference")
+        self.assertEqual(support["support"], "unsupported")
+        self.assertIn("未验证", "".join(support["reasons"]))
     def test_presentation_selection_obeys_current_request(self):
         contract, _ = _supported_yield_contract()
         self.assertEqual(replace(contract, presentation="brief").presentation, "brief")

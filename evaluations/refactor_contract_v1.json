@@ -89,6 +89,6 @@
   },
   "tools": {
     "names": ["get_enterprise_data_manifest", "get_enterprise_fab_summary", "query_enterprise_data", "get_fab_overview", "get_yield_trend", "get_process_pass_rate", "get_equipment_health", "get_equipment_productivity", "get_process_capability", "get_defect_pareto", "get_recent_excursions", "get_sensor_summary", "search_knowledge", "query_manufacturing_data", "submit_analysis"],
-    "schema_sha256": "7254a8ab0cf1b6876ba230a953cbccad00a203eb2df1f68d381c740761f3c325"
+    "schema_sha256": "8c2bfb7425bec185091841a5e0fc9542f6d9f271bdc1e73be28653385d6218cf"
   }
 }

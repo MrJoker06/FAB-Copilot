@@ -73,6 +73,11 @@ def ready_synthesis_messages(
             "conflicts": [item.message for item in validation.conflicts],
             "allowed_conclusion_strength": validation.allowed_conclusion_strength,
         },
+        "analysis_protocol": {
+            "version": "2.0",
+            "direct_facts": "声明语义、范围、时间和角色；调用级来源的 kind/grain 由服务端补全。",
+            "composite_inferences": "关联至少两个已验证事实索引，并给出面向用户的依据和不确定性。",
+        },
         "evidence": evidence,
     }
     return deps.stage_memory_messages("ready_synthesis", None) + [

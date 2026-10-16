@@ -4,7 +4,7 @@ import unittest
 
 from app.evidence.semantics import (
     EvidenceDescriptor, EvidenceScope, ScopeRelation, descriptor_for_tool,
-    scope_relation, supports_claim,
+    compatible_for_composite_inference, scope_relation, supports_claim,
 )
 from app.manufacturing.processes import MANUFACTURING_STEPS
 
@@ -58,3 +58,21 @@ class EvidenceSemanticsTests(unittest.TestCase):
         self.assertFalse(supports_claim(descriptor, kind="metric", semantic_id="process_run_pass_rate", scope=scope, grain="equipment"))
         self.assertFalse(supports_claim(descriptor, kind="metric", semantic_id="process_run_pass_rate", scope=scope, grain="process"))
         self.assertFalse(supports_claim(descriptor, kind="metric", semantic_id="process_run_pass_rate", scope=scope, grain="process", start="2026-01-02", end="2026-01-07"))
+
+    def test_composite_inference_requires_compatible_primary_observations(self):
+        process = MANUFACTURING_STEPS[0]
+        first = descriptor_for_tool("TOOL:S01", "get_process_pass_rate", {
+            "start": "2026-01-01", "end": "2026-01-07", "process_step": process,
+        })
+        second = descriptor_for_tool("TOOL:S02", "get_process_pass_rate", {
+            "start": "2026-01-01", "end": "2026-01-07", "process_step": process,
+        })
+        background = descriptor_for_tool("TOOL:S03", "get_process_pass_rate", {
+            "start": "2026-01-01", "end": "2026-01-07", "process_step": process,
+        }, scope_role="context_only")
+        later = descriptor_for_tool("TOOL:S04", "get_process_pass_rate", {
+            "start": "2026-01-08", "end": "2026-01-14", "process_step": process,
+        })
+        self.assertTrue(compatible_for_composite_inference([first, second]))
+        self.assertFalse(compatible_for_composite_inference([first, background]))
+        self.assertFalse(compatible_for_composite_inference([first, later]))

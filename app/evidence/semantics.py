@@ -124,6 +124,39 @@ def supports_claim(evidence: EvidenceDescriptor, *, kind: str, semantic_id: str,
     return evidence.scope_role != "context_only" or claim_role == "background"
 
 
+def compatible_for_composite_inference(descriptors: list[EvidenceDescriptor]) -> bool:
+    """Return whether direct observations can be combined as one inference.
+
+    A composite is an explanation over independently checked observations, not
+    a new measurement.  Therefore it may combine different metrics, but every
+    input must have known provenance, the same explicit scope and bounded time
+    range, and primary (rather than context-only) scope.  Unknown descriptors
+    fail closed instead of being silently broadened by the synthesizer.
+    """
+    if len(descriptors) < 2:
+        return False
+    first = descriptors[0]
+    if (
+        first.filter_provenance == "unknown"
+        or first.scope.is_empty()
+        or first.scope_role == "context_only"
+        or bool(first.start) != bool(first.end)
+    ):
+        return False
+    for descriptor in descriptors[1:]:
+        if (
+            descriptor.filter_provenance == "unknown"
+            or descriptor.scope.is_empty()
+            or descriptor.scope_role == "context_only"
+            or bool(descriptor.start) != bool(descriptor.end)
+            or scope_relation(first.scope, descriptor.scope) is not ScopeRelation.EXACT
+            or descriptor.start != first.start
+            or descriptor.end != first.end
+        ):
+            return False
+    return True
+
+
 _TOOL_SEMANTICS: dict[str, tuple[str, str, str, str]] = {
     "get_fab_overview": ("metric", "final_wafer_yield", "fab", "fixed_report"),
     "get_yield_trend": ("metric", "final_wafer_yield", "week", "fixed_report"),

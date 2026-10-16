@@ -178,3 +178,9 @@ WSL 完整离线质量门 exit 0：发现 613 个 Python 测试，544/544 非系
 逐声明回归新增七项：覆盖观测良率下降与缺失根因并存、局部和真实共享冲突、混合非法引用、证据字段不完整、结构化时间不匹配，以及通用知识不得审计为已确认厂内事实。定向 `tests.test_answer_synthesizer tests.test_evidence_validator tests.test_agent_synthesis_boundaries tests.test_ready_plan_execution` 为 51/51。EvidenceValidation schema 1.2 的 `reference_evidence` 和 AnswerSynthesisReport schema 1.1 的 `claim_support` 为兼容扩展；旧结果不要求新增字段，冻结契约未重录；这不是通用数值真实性核验。
 
 最终 WSL 原生文件系统临时 Git 副本的完整离线门 exit 0：四个待验收源码/测试补丁与原仓库逐字一致，补齐既有五个模拟部门数据库并链接同一 Node 依赖；620 个 Python 发现项、551/551 非系统、系统 13/15/13/17/11，全组墙钟 1.9/3.5/6.2/3.2/4.9 秒、合计 19.742 秒且均低于预算；分支覆盖率 89%，Node 61/61、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 17/17（49.2 秒）。原 `/mnt/d` 工作树首次 full 因知识组 13/13 断言通过但墙钟 81.6 秒超过 75 秒预算停止；第二次 full 在浏览器 `E2E-JOURNEY-003` 的导航请求 `ERR_ABORTED` 偶发失败，其余 16/17 通过，该单项随后 1/1 通过。最终验收未调整预算、跳过用例或更新快照；普通门真实模型与外网调用为 0。
+
+## AGENT-042 基线（2026-10-16）
+
+新增版本化 `submit_analysis` 2.0 协议的固定离线测试：调用级直接事实仅由服务端补全已知 kind/grain，综合推断必须关联至少两个已验证事实并提供依据与不确定性；错误事实索引、跨范围/时间、背景证据、非法结论引用及不支持的协议版本均拒绝。设备级有效结论使用服务端派生引用，模型通用知识回退与旧协议、历史报告兼容。主代理定向 52/52、冻结契约 5/5 和仓库边界检查通过。冻结快照只重录工具 Schema 哈希，原因是 `submit_analysis` 新增版本、事实/推断索引及 v2 可省略的重复来源字段；其余冻结章节未变。
+
+WSL 原工作树使用 Conda Python 和 Node 22 的完整离线门 exit 0：625 个 Python 发现项、556/556 非系统、系统 13/15/13/17/11 且墙钟 91.009 秒低于预算；分支覆盖率 89%，Node 61/61、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 17/17（46.5 秒）。前两轮因默认 Node 18 不满足 Playwright 的 Node 20+ 要求，以及临时 PATH 漏掉 Conda Python 而分别停止；最终未修改测试、预算或浏览器基线，普通门真实模型和外网调用为 0。
