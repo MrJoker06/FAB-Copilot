@@ -81,6 +81,7 @@ class LoopDependencies:
     model_failure_reason: Any
     model_retry_delay: Any
     audit_assistant: Any
+    request_synthesis_correction: Any
 
 
 @dataclass(frozen=True)

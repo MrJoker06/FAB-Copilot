@@ -897,7 +897,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertEqual(len(requests), 1)
         self.assertEqual(result["model_tool_selection_calls"], 0)
 
-    def test_agent_rejects_incomplete_structured_submission_without_another_model_round(self):
+    def test_agent_attempts_at_most_one_synthesis_only_repair_for_incomplete_submission(self):
         requests: list[dict] = []
         events: list[dict] = []
         round_number = 0
@@ -906,7 +906,10 @@ class AnswerSynthesizerTests(unittest.TestCase):
             nonlocal round_number
             round_number += 1
             requests.append(request_payload)
-            arguments = '{"conclusion":"被截断的结构化回答"'
+            arguments = (
+                '{"conclusion":"被截断的结构化回答"'
+                if round_number == 1 else "{}"
+            )
             return ({
                 "role": "assistant",
                 "content": "",
@@ -934,8 +937,16 @@ class AnswerSynthesizerTests(unittest.TestCase):
                 "分析 CMP-03 最近7天 Cpk 不合格", [], "run-submit-retry-test", progress,
             ))
 
-        self.assertEqual(len(requests), 1)
-        self.assertEqual(result["answer_synthesis"]["status"], "repaired")
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(
+            [tool["function"]["name"] for tool in requests[1]["tools"]],
+            ["submit_analysis"],
+        )
+        self.assertEqual(result["answer_synthesis"]["status"], "structured")
+        self.assertEqual(
+            result["answer_synthesis"]["repair_events"][0]["outcome"],
+            "model_correction_accepted",
+        )
         self.assertEqual(result["model_tool_selection_calls"], 0)
         validation_index = next(
             index for index, event in enumerate(events)
@@ -946,6 +957,67 @@ class AnswerSynthesizerTests(unittest.TestCase):
             if event.get("event") == "answer_delta"
         )
         self.assertLess(validation_index, first_answer_index)
+        self.assertEqual(
+            "".join(event.get("delta", "") for event in events if event.get("event") == "answer_delta"),
+            result["answer"],
+        )
+
+    def test_legacy_repair_preserves_display_blocks_without_confirming_them(self):
+        contract, sources = _supported_yield_contract()
+        legacy = (
+            "第一段保留引用 [来源 TOOL:get_fab_overview]。\n\n"
+            "- 列表项一\n- 列表项二\n\n"
+            "| 指标 | 值 |\n| --- | --- |\n| 良率 | 90% |"
+        )
+
+        repaired = synthesize_legacy_answer(legacy, contract, sources)
+
+        self.assertEqual(repaired.report.status, "repaired")
+        self.assertIn("第一段保留引用", repaired.answer)
+        self.assertIn("第一段保留引用 [来源 TOOL:get_fab_overview]。\n\n- 列表项一\n- 列表项二", repaired.answer)
+        self.assertIn("| 指标 | 值 |\n| --- | --- |\n| 良率 | 90% |", repaired.answer)
+        self.assertNotIn("## 已确认事实", repaired.answer)
+        self.assertEqual(repaired.report.repair_events[0]["outcome"], "preserved_as_unverified_blocks")
+
+    def test_legacy_invalid_reference_remains_auditable(self):
+        contract, sources = _supported_yield_contract()
+        repaired = synthesize_legacy_answer("结论 [来源 NOT-A-SOURCE]", contract, sources)
+
+        self.assertIn("NOT-A-SOURCE", repaired.report.invalid_source_refs)
+        self.assertNotIn("NOT-A-SOURCE", repaired.report.source_refs)
+        self.assertIn("[无效来源：NOT-A-SOURCE]", repaired.answer)
+        self.assertIn("证据限制：以下原文", repaired.answer)
+
+    def test_model_knowledge_legacy_preserves_layout_and_discloses_before_body(self):
+        selection, plan = _context("查询 GaN 与 Si 器件工艺差异 SOP")
+        contract = create_answer_contract(
+            validate_evidence(plan, selection.selected_playbook, []),
+            allow_model_knowledge_fallback=True,
+        )
+        legacy = "一般材料说明。\n\n- 宽禁带\n- 高击穿场强\n\n| 属性 | 说明 |\n| --- | --- |\n| GaN | 高频 |"
+        repaired = synthesize_legacy_answer(legacy, contract)
+
+        self.assertTrue(repaired.answer.startswith(MODEL_KNOWLEDGE_DISCLOSURE))
+        self.assertIn("- 宽禁带\n- 高击穿场强", repaired.answer)
+        self.assertIn("| 属性 | 说明 |\n| --- | --- |\n| GaN | 高频 |", repaired.answer)
+        self.assertNotIn("## 已确认事实", repaired.answer)
+
+    def test_model_repair_metadata_is_ignored_and_missing_fields_are_audited(self):
+        contract, sources = _supported_yield_contract()
+        result = synthesize_submission({
+            "conclusion": "未验证结论", "facts": [], "inferences": [],
+            "recommendations": [], "limitations": [],
+            "_repair_events": None,
+        }, contract, sources)
+        self.assertNotIn("hidden reasoning", str(result.report.to_dict()))
+        self.assertIn("missing_structured_field", {item["reason"] for item in result.report.repair_events})
+        invalid = synthesize_submission({
+            "facts": [{"statement": "声明", "evidence_refs": ["SECRET-REF"]}],
+            "inferences": [], "hypotheses": [], "recommendations": [], "limitations": [],
+            "_repair_events": "hidden reasoning secret",
+        }, contract, sources)
+        self.assertIn("SECRET-REF", invalid.report.invalid_source_refs)
+        self.assertNotIn("hidden reasoning", str(invalid.report.to_dict()))
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Any, Literal
 
 from .validator import EvidenceValidation
@@ -215,6 +215,9 @@ class AnswerSynthesisReport:
     claim_support: tuple[dict[str, Any], ...] = ()
     # Additive default keeps persisted 1.0/1.1 report dictionaries readable.
     analysis_protocol_version: str = "1.1"
+    # Public, auditable repair metadata.  This deliberately describes only
+    # parser/service actions, never model reasoning.
+    repair_events: tuple[dict[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return json.loads(json.dumps(asdict(self), ensure_ascii=False, default=str))
@@ -252,11 +255,31 @@ class _Recommendation:
     requires_review: bool
 
 
-def _clean_text(value: Any, limit: int = 3000) -> str:
+def _clean_text(value: Any, limit: int = 3000, *, preserve_layout: bool = False) -> str:
     text = str(value or "").strip()
-    text = re.sub(r"^\s*(?:[-*]|\d+[.)])\s+", "", text)
-    text = re.sub(r"\s+", " ", text)
+    if preserve_layout:
+        # User-facing legacy content can contain paragraphs, Markdown lists,
+        # tables and inline citations.  Normalize only horizontal whitespace
+        # within each physical line; collapsing all whitespace used to turn a
+        # complete answer into one un-auditable pseudo claim.
+        lines = [re.sub(r"[ \t]+", " ", line).rstrip() for line in text.splitlines()]
+        text = "\n".join(lines)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+    else:
+        text = re.sub(r"^\s*(?:[-*]|\d+[.)])\s+", "", text)
+        text = re.sub(r"\s+", " ", text)
     return text[:limit]
+
+
+def _legacy_blocks(answer: str) -> list[str]:
+    """Split display-oriented legacy content without destroying its layout."""
+    cleaned = _clean_text(answer, preserve_layout=True)
+    if not cleaned:
+        return []
+    blocks = [block.strip() for block in re.split(r"\n\s*\n", cleaned) if block.strip()]
+    # Avoid an oversized opaque assertion while still retaining tables and
+    # multi-line lists as coherent display blocks.
+    return [block[:3000] for block in blocks]
 
 
 def _validation_limitations(validation: EvidenceValidation) -> tuple[str, ...]:
@@ -848,9 +871,21 @@ def synthesize_submission(
     sources: list[dict[str, Any]] | None = None,
     *,
     status: SynthesisStatus = "structured",
+    repair_events: tuple[dict[str, Any], ...] = (),
 ) -> SynthesizedAnswer:
+    repair_events = [item for item in repair_events if isinstance(item, dict)]
+    # Missing collection fields have an unambiguous, evidence-neutral meaning.
+    # We repair their shape locally rather than asking the model to regenerate
+    # prose or invent support.  Values are not silently promoted to facts.
+    for field in ("facts", "inferences", "hypotheses", "recommendations", "limitations"):
+        if field not in payload:
+            repair_events.append({
+                "reason": "missing_structured_field",
+                "affected_field": field,
+                "outcome": "treated_as_empty",
+            })
     if contract.status == "not_applicable":
-        answer = _clean_text(payload.get("conclusion")) or "分析完成。"
+        answer = _clean_text(payload.get("conclusion"), preserve_layout=True) or "分析完成。"
         return SynthesizedAnswer(answer, AnswerSynthesisReport(
             schema_version="1.0",
             synthesizer_version=contract.synthesizer_version,
@@ -862,6 +897,7 @@ def synthesize_submission(
             invalid_source_refs=(),
             moved_claims=0,
             wording_adjustments=(),
+            repair_events=tuple(repair_events),
         ))
 
     allowed = {item.upper(): item for item in contract.permitted_source_refs}
@@ -1235,6 +1271,7 @@ def synthesize_submission(
         wording_adjustments=tuple(dict.fromkeys(adjustments)),
         claim_support=tuple(claim_support),
         analysis_protocol_version=(ANALYSIS_PROTOCOL_VERSION if v2_protocol else "1.1"),
+        repair_events=tuple(repair_events),
     )
     return SynthesizedAnswer(answer, report)
 
@@ -1243,6 +1280,8 @@ def synthesize_legacy_answer(
     answer: str,
     contract: AnswerContract,
     sources: list[dict[str, Any]] | None = None,
+    *,
+    repair_events: tuple[dict[str, Any], ...] = (),
 ) -> SynthesizedAnswer:
     if contract.status == "not_applicable":
         permitted = {item.upper() for item in contract.permitted_source_refs}
@@ -1261,25 +1300,85 @@ def synthesize_legacy_answer(
             moved_claims=0,
             wording_adjustments=(),
         ))
+    blocks = _legacy_blocks(answer)
     refs = [item for item in _embedded_refs(answer) if item.upper() in {
         allowed.upper() for allowed in contract.permitted_source_refs
     }]
     if contract.model_knowledge_fallback:
         refs = [MODEL_KNOWLEDGE_REF]
-    claim = {"statement": _SOURCE_PATTERN.sub("", answer), "evidence_refs": refs}
-    low_strength = contract.allowed_conclusion_strength in {"insufficient", "hypothesis_only"}
+    # A legacy body lacks the schema data needed to confirm manufacturing facts.
+    # Preserve each natural-language block as a separately labelled item and
+    # keep it in the verification bucket.  Even a valid embedded source ID is
+    # not enough to turn an arbitrary legacy assertion into a verified fact.
+    claims = [
+        {
+            "statement": _SOURCE_PATTERN.sub("", block).strip(),
+            # Keep every supplied ID for the normal claim parser: permitted
+            # IDs are normalized, while invalid ones remain in the report and
+            # cannot be laundered into a supported fact.
+            "evidence_refs": _embedded_refs(block),
+            "verification": "按证据限制补充验证。",
+        }
+        for block in blocks
+        if _SOURCE_PATTERN.sub("", block).strip()
+    ]
     payload = {
         "conclusion": "基于模型通用知识提供一般性技术说明。" if contract.model_knowledge_fallback else "",
         "conclusion_evidence_refs": [MODEL_KNOWLEDGE_REF] if contract.model_knowledge_fallback else [],
         "facts": [],
-        "inferences": [claim] if contract.model_knowledge_fallback or not low_strength else [],
-        "hypotheses": (
-            [{**claim, "verification": "按证据限制补充验证。"}]
-            if low_strength and not contract.model_knowledge_fallback
-            else []
-        ),
+        "inferences": claims if contract.model_knowledge_fallback else [],
+        "hypotheses": [] if contract.model_knowledge_fallback else claims,
         "recommendations": [],
-        "limitations": ["模型未使用结构化提交，服务端已执行安全降级。"],
+        "limitations": ["模型未使用结构化提交，服务端已执行安全降级；保留的原文均未作为已确认生产事实。"],
         "source_refs": refs,
     }
-    return synthesize_submission(payload, contract, sources, status="repaired")
+    synthesized = synthesize_submission(payload, contract, sources, status="repaired", repair_events=(
+        *repair_events,
+        {"reason": "legacy_unstructured_answer", "affected_field": "display_blocks",
+         "outcome": "preserved_as_unverified_blocks"},
+    ))
+    if contract.model_knowledge_fallback:
+        # General technical knowledge is still display-oriented prose.  Keep
+        # its layout while retaining the mandatory non-factory disclosure.
+        permitted = {item.upper() for item in contract.permitted_source_refs}
+        def mark_invalid_refs(block: str) -> str:
+            return _SOURCE_PATTERN.sub(
+                lambda match: match.group(0) if all(
+                    item.upper() in permitted
+                    for item in re.split(r"[,，、\s]+", match.group(1)) if item
+                ) else "[无效来源：" + match.group(1) + "]",
+                block,
+            )
+        disclosure = MODEL_KNOWLEDGE_DISCLOSURE
+        rendered = disclosure + "\n\n## 模型通用知识：[模型通用知识]\n\n" + "\n\n".join(mark_invalid_refs(block) for block in blocks)
+        limits = list(contract.mandatory_limitations)
+        if limits:
+            rendered += "\n\n## 使用限制\n" + "\n".join(f"- {item}" for item in limits)
+        return SynthesizedAnswer(rendered, replace(
+            synthesized.report,
+            sections=("模型通用知识", "使用限制") if limits else ("模型通用知识",),
+        ))
+    # Do not route display-oriented fallback prose through claim rendering:
+    # it would flatten lists/tables and make a tentative block resemble a
+    # verified bullet.  The whole block remains explicitly unverified.
+    invalid = synthesized.report.invalid_source_refs
+    permitted = {item.upper() for item in contract.permitted_source_refs}
+    def mark_invalid_refs(block: str) -> str:
+        def replace_ref(match: re.Match[str]) -> str:
+            refs = [item for item in re.split(r"[,，、\s]+", match.group(1)) if item]
+            if refs and all(item.upper() in permitted for item in refs):
+                return match.group(0)
+            return "[无效来源：" + match.group(1) + "]"
+        return _SOURCE_PATTERN.sub(replace_ref, block)
+    rendered = "## 待验证原文（未经结构化验证）\n\n" + "\n\n".join(
+        mark_invalid_refs(block) for block in blocks
+    )
+    limitations = ["证据限制：以下原文仅保留其展示结构，未作为已确认生产事实。"]
+    limitations.extend(contract.mandatory_limitations)
+    if invalid:
+        limitations.append("未接受的引用仍保留在原文中，仅作审计记录：" + ", ".join(invalid) + "。")
+    rendered += "\n\n## 证据限制\n" + "\n".join(f"- {item}" for item in limitations)
+    return SynthesizedAnswer(rendered, replace(
+        synthesized.report,
+        sections=("待验证原文（未经结构化验证）", "证据限制"),
+    ))

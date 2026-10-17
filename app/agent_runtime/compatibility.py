@@ -61,6 +61,7 @@ from .synthesis import (
     offline_answer as _offline_answer_runtime,
     ready_synthesis_fallback as _ready_synthesis_fallback_runtime,
     ready_synthesis_messages as _ready_synthesis_messages_runtime,
+    request_synthesis_correction as _request_synthesis_correction_runtime,
     request_ready_synthesis as _request_ready_synthesis_runtime,
     synthesize_ready_assistant as _synthesize_ready_assistant_runtime,
 )
@@ -401,6 +402,26 @@ async def _request_ready_synthesis(
     )
 
 
+async def _request_synthesis_correction(
+    client: httpx.AsyncClient,
+    endpoint: str,
+    headers: dict[str, str],
+    connection: Any,
+    messages: list[dict[str, str]],
+    invalid_arguments: str,
+    completion_token_budget: int,
+    wall_time_seconds: float,
+    run_id: str,
+    iteration: int,
+) -> tuple[dict[str, Any] | None, dict[str, Any], str | None, str]:
+    """Compatibility facade for one synthesis-only correction request."""
+    return await _request_synthesis_correction_runtime(
+        client, endpoint, headers, connection, messages, invalid_arguments,
+        completion_token_budget, wall_time_seconds, run_id, iteration,
+        deps=_ready_synthesis_dependencies(),
+    )
+
+
 def _synthesize_ready_assistant(
     assistant: dict[str, Any],
     contract: Any,
@@ -643,6 +664,7 @@ def _coordinator_dependencies() -> CoordinatorDependencies:
             provider_request_options=provider_request_options, evidence_observation_type=EvidenceObservation,
             stream_completion=_stream_completion, model_failure_reason=_model_failure_reason,
             model_retry_delay=_model_retry_delay, audit_assistant=_audit_assistant,
+            request_synthesis_correction=_request_synthesis_correction,
         ),
     )
 

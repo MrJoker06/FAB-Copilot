@@ -5,6 +5,7 @@ from .ready import (
     ReadySynthesisDependencies,
     ready_synthesis_fallback,
     ready_synthesis_messages,
+    request_synthesis_correction,
     request_ready_synthesis,
     synthesize_ready_assistant,
 )
@@ -19,5 +20,6 @@ __all__ = [
     "ready_synthesis_fallback",
     "ready_synthesis_messages",
     "request_ready_synthesis",
+    "request_synthesis_correction",
     "synthesize_ready_assistant",
 ]

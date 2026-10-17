@@ -10,6 +10,9 @@ from typing import Any, Awaitable, Callable
 import httpx
 
 from .failure import decide_model_failure
+from ..synthesis.ready import SYNTHESIS_REPAIR_MAX_SECONDS, salvage_submit_analysis, valid_submit_analysis
+
+LOOP_SYNTHESIS_MAX_TOKENS = 8192
 
 
 @dataclass
@@ -72,6 +75,7 @@ class AgentLoopContext:
     offline_answer: Callable[..., dict]
     evidence_observation_type: Any
     provider_request_options: Callable[[str, bool], dict]
+    request_synthesis_correction: Callable[..., Awaitable[tuple[dict[str, Any] | None, dict[str, Any], str | None, str]]]
 
 
 async def run_agent_loop(context: AgentLoopContext) -> dict:
@@ -134,6 +138,7 @@ async def run_agent_loop(context: AgentLoopContext) -> dict:
     _offline_answer = context.offline_answer
     EvidenceObservation = context.evidence_observation_type
     provider_request_options = context.provider_request_options
+    request_synthesis_correction = context.request_synthesis_correction
     endpoint = f"{connection.base_url}/chat/completions"
     thinking_answer_effective = False
 
@@ -178,8 +183,8 @@ async def run_agent_loop(context: AgentLoopContext) -> dict:
                     request_payload["tool_choice"] = (
                         "none" if synthesis_only and answer_contract.status != "required" else "auto"
                     )
-                if synthesis_only and answer_contract.status == "required":
-                    request_payload["max_tokens"] = 8192
+                if answer_contract.status == "required":
+                    request_payload["max_tokens"] = LOOP_SYNTHESIS_MAX_TOKENS
             retry_budget = 0 if main_recovery_trial else settings.model_max_retries
             for attempt in range(1, retry_budget + 2):
                 model_started = time.perf_counter()
@@ -361,28 +366,91 @@ async def run_agent_loop(context: AgentLoopContext) -> dict:
                 except Exception as exc:
                     submission = {}
                     submission_error = str(exc)
-                if submission_error and iteration < loop_guard.max_model_iterations - 1:
+                if submission_error:
                     emit(
                         "answer_submission_rejected",
                         run_id,
                         iteration=iteration + 1,
                         error_type="invalid_json",
                         error_message=submission_error,
+                        execution_mode="synthesis_only",
+                        repair_reason="truncated_or_invalid_submit_analysis",
+                        repair_outcome="repair_requested",
                     )
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_calls[0].get("id") or "submit-analysis-invalid",
-                        "content": json.dumps({
-                            "ok": False,
-                            "error": "submit_analysis 参数不是完整 JSON，请缩短内容并重新提交。",
-                        }, ensure_ascii=False),
-                    })
+                    original_token_cap = request_payload.get("max_tokens")
+                    if request_synthesis_correction is not None and original_token_cap is not None:
+                        repaired, repair_usage, _repair_response_id, repair_outcome = await request_synthesis_correction(
+                            client,
+                            endpoint,
+                            {"Authorization": f"Bearer {connection.api_key}", "Content-Type": "application/json"},
+                            connection,
+                            messages,
+                            raw_arguments,
+                            int(original_token_cap) - int(usage.get("completion_tokens", 0) or 0),
+                            SYNTHESIS_REPAIR_MAX_SECONDS - (time.perf_counter() - model_started),
+                            run_id,
+                            iteration + 1,
+                        )
+                    else:
+                        repaired, repair_usage, _repair_response_id, repair_outcome = None, {}, None, "unavailable_or_timeout"
+                    for key in total_usage:
+                        total_usage[key] += int(repair_usage.get(key, 0) or 0)
+                    if repaired is not None:
+                        submission = valid_submit_analysis(repaired)
+                        if submission is not None:
+                            repair_events = ({
+                                "reason": "truncated_or_invalid_submit_analysis",
+                                "affected_field": "submit_analysis",
+                                "outcome": "model_correction_accepted",
+                            },)
+                            emit(
+                                "answer_submission_repair", run_id, iteration=iteration + 1,
+                                repair_reason="truncated_or_invalid_submit_analysis",
+                                repair_outcome=repair_outcome,
+                            )
+                            synthesis = synthesize_submission(
+                                submission, answer_contract, list(sources.values()), status="structured",
+                                    repair_events=repair_events,
+                            )
+                            _emit_answer_synthesis(run_id, synthesis.report)
+                            await _stream_answer(progress, synthesis.answer)
+                            return _build_result(synthesis.answer, synthesis.report)
+                        else:
+                            repair_outcome = "invalid_correction_response"
                     await _notify(progress, {
                         "event": "stage",
                         "stage": "synthesis",
-                        "message": "结构化答案不完整，正在精简并重新提交",
+                        "message": "结构化答案不完整，正在保留已完成取证并安全降级",
                     })
-                    continue
+                    emit(
+                        "answer_submission_repair", run_id, iteration=iteration + 1,
+                        repair_reason="truncated_or_invalid_submit_analysis",
+                        repair_outcome=repair_outcome,
+                    )
+                    salvaged = salvage_submit_analysis(raw_arguments)
+                    if salvaged is not None:
+                        repair_events = tuple(salvaged.pop("_repair_events", ()))
+                        synthesis = synthesize_submission(
+                            salvaged, answer_contract, list(sources.values()), status="repaired",
+                            repair_events=repair_events,
+                        )
+                        _emit_answer_synthesis(run_id, synthesis.report)
+                        await _stream_answer(progress, synthesis.answer)
+                        return _build_result(synthesis.answer, synthesis.report)
+                    synthesis = synthesize_legacy_answer(
+                        "模型提交的结构化结果不完整，服务端未重跑业务工具；"
+                        "请基于本次已完成取证重新提交分析。",
+                        answer_contract,
+                        list(sources.values()),
+                        repair_events=({
+                            "reason": "truncated_or_invalid_submit_analysis",
+                            "affected_field": "submit_analysis",
+                            "outcome": repair_outcome,
+                        },),
+                    )
+                    _emit_answer_synthesis(run_id, synthesis.report)
+                    await _stream_answer(progress, synthesis.answer)
+                    return _build_result(synthesis.answer, synthesis.report)
                 synthesis = synthesize_submission(
                     submission,
                     answer_contract,

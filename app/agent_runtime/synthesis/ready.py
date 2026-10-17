@@ -12,11 +12,172 @@ from typing import Any, Awaitable, Callable
 
 READY_SYNTHESIS_MAX_TOKENS = 8192
 DEEPSEEK_THINKING_READY_SYNTHESIS_MAX_TOKENS = 32768
+SYNTHESIS_REPAIR_MAX_TOKENS = 2048
+SYNTHESIS_REPAIR_MAX_SECONDS = 10.0
 
 
 def ready_synthesis_max_tokens(provider: str, thinking: bool) -> int:
     """Reserve enough completion budget for DeepSeek reasoning before submit_analysis."""
     return DEEPSEEK_THINKING_READY_SYNTHESIS_MAX_TOKENS if provider == "deepseek" and thinking else READY_SYNTHESIS_MAX_TOKENS
+
+
+def _invalid_submit_arguments(assistant: dict[str, Any]) -> str | None:
+    """Return malformed submit_analysis arguments, never interpreting prose."""
+    calls = assistant.get("tool_calls") or []
+    if len(calls) != 1 or calls[0].get("function", {}).get("name") != "submit_analysis":
+        return None
+    raw = calls[0].get("function", {}).get("arguments") or "{}"
+    try:
+        value = json.loads(raw)
+        return None if isinstance(value, dict) else str(raw)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return str(raw)
+
+
+def valid_submit_analysis(assistant: dict[str, Any]) -> dict[str, Any] | None:
+    """Accept only the sole allowed correction output; never coerce prose."""
+    calls = assistant.get("tool_calls") or []
+    if len(calls) != 1 or calls[0].get("function", {}).get("name") != "submit_analysis":
+        return None
+    try:
+        value = json.loads(calls[0].get("function", {}).get("arguments") or "{}")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+_SALVAGEABLE_SUBMISSION_FIELDS = {
+    "analysis_protocol_version": str, "conclusion": str,
+    "conclusion_evidence_refs": list, "conclusion_claim": dict, "facts": list,
+    "inferences": list, "hypotheses": list, "recommendations": list,
+    "limitations": list, "source_refs": list,
+}
+
+
+def salvage_submit_analysis(raw_arguments: str) -> dict[str, Any] | None:
+    """Recover only independently complete top-level JSON values from a cut payload."""
+    decoder = json.JSONDecoder()
+    recovered: dict[str, Any] = {}
+    index = 0
+    length = len(raw_arguments)
+    def skip_space(position: int) -> int:
+        while position < length and raw_arguments[position].isspace():
+            position += 1
+        return position
+    index = skip_space(index)
+    if index >= length or raw_arguments[index] != "{":
+        return None
+    index += 1
+    while True:
+        index = skip_space(index)
+        if index >= length or raw_arguments[index] == "}":
+            break
+        try:
+            field, index = decoder.raw_decode(raw_arguments, index)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            break
+        if not isinstance(field, str):
+            break
+        index = skip_space(index)
+        if index >= length or raw_arguments[index] != ":":
+            break
+        index = skip_space(index + 1)
+        try:
+            value, index = decoder.raw_decode(raw_arguments, index)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            break
+        expected = _SALVAGEABLE_SUBMISSION_FIELDS.get(field)
+        if expected is not None and isinstance(value, expected):
+            recovered[field] = value
+        index = skip_space(index)
+        if index >= length:
+            break
+        if raw_arguments[index] == "}":
+            break
+        if raw_arguments[index] != ",":
+            break
+        index += 1
+    substantive = any(recovered.get(field) for field in (
+        "conclusion", "facts", "inferences", "hypotheses", "recommendations",
+    ))
+    if not substantive:
+        return None
+    limitations = recovered.get("limitations")
+    if not isinstance(limitations, list):
+        limitations = []
+        recovered["limitations"] = limitations
+    limitations.append(
+        "submit_analysis 参数被截断；服务端仅保留了可独立解析的字段，未推断缺失内容。"
+    )
+    recovered["_repair_events"] = [{
+        "reason": "truncated_submit_analysis",
+        "affected_field": "parseable_top_level_fields",
+        "outcome": "deterministic_partial_salvage",
+    }]
+    return recovered
+
+
+async def request_synthesis_correction(
+    client: Any,
+    endpoint: str,
+    headers: dict[str, str],
+    connection: Any,
+    messages: list[dict[str, str]],
+    invalid_arguments: str,
+    completion_token_budget: int,
+    wall_time_seconds: float,
+    run_id: str,
+    iteration: int,
+    *,
+    deps: "ReadySynthesisDependencies",
+) -> tuple[dict[str, Any] | None, dict[str, Any], str | None, str]:
+    """Make the single allowed synthesis-only correction request.
+
+    The caller owns the combined original+repair budget.  A correction never
+    receives business tools, and callers must locally synthesize on any error.
+    """
+    max_tokens = min(SYNTHESIS_REPAIR_MAX_TOKENS, max(0, completion_token_budget))
+    if max_tokens <= 0 or wall_time_seconds <= 0:
+        return None, {}, None, "budget_exhausted"
+    payload = {
+        "model": connection.model,
+        "messages": [
+            *messages,
+            {"role": "system", "content": "上一条 submit_analysis 参数不完整。仅修复为一个完整 JSON 对象并再次调用 submit_analysis；不得输出正文、不得调用任何业务工具、不得补造证据。"},
+            {"role": "user", "content": json.dumps({"invalid_submit_analysis": invalid_arguments[:6000]}, ensure_ascii=False)},
+        ],
+        "temperature": 0,
+        "tools": [deps.submit_analysis_tool],
+        "max_tokens": max_tokens,
+        **deps.provider_request_options(connection.provider, False),
+    }
+    if connection.provider != "deepseek":
+        payload["tool_choice"] = "auto"
+    state: dict[str, Any] = {"answer_emitted": False, "suppress_embedded_tool_json": True}
+    started = deps.perf_counter()
+    deps.emit("model_call_started", run_id, phase="synthesis_repair", iteration=iteration,
+              attempt=1, model=connection.model, message_count=len(payload["messages"]),
+              business_tool_selection_enabled=False, completion_token_budget=max_tokens,
+              wall_time_budget_ms=round(wall_time_seconds * 1000, 1))
+    try:
+        assistant, usage, response_id = await asyncio.wait_for(
+            deps.stream_completion(client, endpoint, headers, payload, None, state),
+            timeout=wall_time_seconds,
+        )
+    except Exception as exc:
+        deps.emit("model_call_finished", run_id, status="error", phase="synthesis_repair",
+                  iteration=iteration, attempt=1, model=connection.model,
+                  duration_ms=round((deps.perf_counter() - started) * 1000, 1),
+                  error_type=type(exc).__name__, answer_emitted=False,
+                  business_tool_selection_enabled=False, repair_outcome="local_fallback")
+        return None, {}, None, "unavailable_or_timeout"
+    deps.emit("model_call_finished", run_id, status="success", phase="synthesis_repair",
+              iteration=iteration, attempt=1, model=connection.model,
+              duration_ms=round((deps.perf_counter() - started) * 1000, 1),
+              input_tokens=usage.get("prompt_tokens", 0), output_tokens=usage.get("completion_tokens", 0),
+              total_tokens=usage.get("total_tokens", 0), answer_emitted=False,
+              business_tool_selection_enabled=False, repair_outcome="submitted")
+    return assistant, usage, response_id, "submitted"
 
 
 @dataclass(slots=True)
@@ -116,7 +277,14 @@ def ready_synthesis_fallback(
     lines.append(
         f"综合降级原因：{reason}。请稍后重试模型综合；本次不会重复执行制造数据工具。"
     )
-    return deps.synthesize_legacy_answer("\n\n".join(lines), contract)
+    return deps.synthesize_legacy_answer(
+        "\n\n".join(lines), contract,
+        repair_events=({
+            "reason": reason,
+            "affected_field": "submit_analysis",
+            "outcome": "local_evidence_safe_fallback",
+        },),
+    )
 
 
 def synthesize_ready_assistant(
@@ -141,7 +309,8 @@ def synthesize_ready_assistant(
             if not isinstance(submission, dict):
                 raise ValueError("submit_analysis 参数必须是 JSON 对象")
             return deps.synthesize_submission(
-                submission, contract, sources, status="structured"
+                submission, contract, sources, status="structured",
+                repair_events=tuple(assistant.get("_server_repair_events", ())),
             )
         except Exception as exc:
             deps.emit(
@@ -151,7 +320,15 @@ def synthesize_ready_assistant(
                 error_type="invalid_json",
                 error_message=str(exc),
                 execution_mode="synthesis_only",
+                repair_reason="truncated_or_invalid_submit_analysis",
+                repair_outcome="local_evidence_safe_fallback",
             )
+            salvaged = salvage_submit_analysis(raw_arguments)
+            if salvaged is not None:
+                repair_events = tuple(salvaged.pop("_repair_events", ()))
+                return deps.synthesize_submission(
+                    salvaged, contract, sources, status="repaired", repair_events=repair_events,
+                )
             return deps.ready_synthesis_fallback(
                 validation,
                 contract,
@@ -283,5 +460,40 @@ async def request_ready_synthesis(
             business_tool_selection_enabled=False,
             full_content={"response": deps.audit_assistant(assistant)},
         )
+        invalid_arguments = _invalid_submit_arguments(assistant)
+        if invalid_arguments is not None:
+            token_cap = ready_synthesis_max_tokens(connection.provider, thinking)
+            used = int(usage.get("completion_tokens", 0) or 0)
+            repaired, repair_usage, repair_response_id, repair_outcome = await request_synthesis_correction(
+                client, endpoint, headers, connection, messages, invalid_arguments,
+                token_cap - used, SYNTHESIS_REPAIR_MAX_SECONDS - (deps.perf_counter() - started),
+                run_id, 1, deps=deps,
+            )
+            if repaired is not None:
+                repaired_submission = valid_submit_analysis(repaired)
+                if repaired_submission is not None:
+                    repaired["_server_repair_events"] = ({
+                        "reason": "truncated_or_invalid_submit_analysis",
+                        "affected_field": "submit_analysis",
+                        "outcome": "model_correction_accepted",
+                    },)
+                    repaired["tool_calls"][0]["function"]["arguments"] = json.dumps(repaired_submission, ensure_ascii=False)
+                    assistant = repaired
+                    response_id = repair_response_id or response_id
+                    usage = {
+                        key: int(usage.get(key, 0) or 0) + int(repair_usage.get(key, 0) or 0)
+                        for key in {"prompt_tokens", "completion_tokens", "total_tokens"}
+                    }
+                    deps.emit("answer_submission_repair", run_id, iteration=1,
+                              repair_reason="truncated_or_invalid_submit_analysis",
+                              repair_outcome=repair_outcome)
+                else:
+                    deps.emit("answer_submission_repair", run_id, iteration=1,
+                              repair_reason="truncated_or_invalid_submit_analysis",
+                              repair_outcome="invalid_correction_response")
+            else:
+                deps.emit("answer_submission_repair", run_id, iteration=1,
+                          repair_reason="truncated_or_invalid_submit_analysis",
+                          repair_outcome=repair_outcome)
         return assistant, usage, response_id, state
     raise RuntimeError("模型综合请求未返回结果")

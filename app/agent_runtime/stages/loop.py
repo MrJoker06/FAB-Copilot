@@ -69,5 +69,6 @@ async def execute_agent_loop(
         emit_evidence_validation=deps.emit_evidence_validation, offline_answer=deps.offline_answer,
         evidence_observation_type=deps.evidence_observation_type,
         provider_request_options=deps.provider_request_options,
+        request_synthesis_correction=getattr(deps, "request_synthesis_correction", None),
     )
     return await deps.run_agent_loop(context)

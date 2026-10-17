@@ -12,7 +12,10 @@ from app.evidence.answer_synthesizer import SUBMIT_ANALYSIS_TOOL
 from app.manufacturing.playbooks import select_playbook
 from app.intent_runtime.routing import route_question
 from app.planning_runtime.service import create_execution_plan
-from app.agent_runtime.synthesis.ready import ready_synthesis_max_tokens, synthesize_ready_assistant
+from app.agent_runtime.synthesis.ready import (
+    ready_synthesis_max_tokens, request_synthesis_correction, salvage_submit_analysis,
+    synthesize_ready_assistant, valid_submit_analysis,
+)
 from app.agent_runtime.synthesis.result import (
     build_ready_model_unavailable_result,
     build_result,
@@ -20,6 +23,45 @@ from app.agent_runtime.synthesis.result import (
 
 
 class AgentSynthesisBoundaryTests(unittest.TestCase):
+    def test_synthesis_repair_zero_budget_skips_network_and_wrong_tool_is_rejected(self):
+        deps = agent._ready_synthesis_dependencies()
+        async def forbidden(*_args, **_kwargs):
+            raise AssertionError("network must not be called")
+        deps.stream_completion = forbidden
+        connection = SimpleNamespace(model="m", provider="other")
+        result = asyncio.run(request_synthesis_correction(
+            None, "endpoint", {}, connection, [], "{", 0, 10, "run", 1, deps=deps,
+        ))
+        self.assertEqual(result[3], "budget_exhausted")
+        self.assertIsNone(valid_submit_analysis({"tool_calls": []}))
+        self.assertIsNone(valid_submit_analysis({"tool_calls": [{"function": {"name": "other", "arguments": "{}"}}]}))
+
+    def test_truncated_submit_salvages_only_complete_top_level_fields(self):
+        recovered = salvage_submit_analysis(
+            '{"conclusion":"已完成", "conclusion_evidence_refs":["TOOL:S01"], '
+            '"facts":[{"statement":"完整","evidence_refs":["TOOL:S01"]}], "hypotheses":['
+        )
+        self.assertEqual(recovered["conclusion"], "已完成")
+        self.assertEqual(recovered["facts"][0]["statement"], "完整")
+        self.assertNotIn("hypotheses", recovered)
+        self.assertEqual(recovered["_repair_events"][0]["outcome"], "deterministic_partial_salvage")
+        self.assertIsNone(salvage_submit_analysis('{"facts":['))
+
+    def test_truncated_submit_salvage_is_top_level_and_type_safe(self):
+        recovered = salvage_submit_analysis(
+            '{"facts":[{"statement":"nested \\"conclusion\\": fake"}], "x":['
+        )
+        self.assertIn("facts", recovered)
+        self.assertNotIn("conclusion", recovered)
+        self.assertIsNone(salvage_submit_analysis(
+            '{"analysis_protocol_version":"2.0", "source_refs":["TOOL:S1"], "x":['
+        ))
+        recovered = salvage_submit_analysis(
+            '{"facts":[], "conclusion":"safe", "limitations":"bad-shape", "tail":['
+        )
+        self.assertEqual(recovered["conclusion"], "safe")
+        self.assertIsInstance(recovered["limitations"], list)
+
     def test_ready_synthesis_token_budget_expands_only_for_deepseek_thinking(self):
         self.assertEqual(ready_synthesis_max_tokens("deepseek", True), 32768)
         self.assertEqual(ready_synthesis_max_tokens("deepseek", False), 8192)
@@ -100,6 +142,26 @@ class AgentSynthesisBoundaryTests(unittest.TestCase):
         with patch("app.agent_runtime.service._stream_completion", completion), patch("app.agent_runtime.service.emit", side_effect=lambda *args, **kwargs: events.append(args[0])):
             asyncio.run(agent._request_ready_synthesis(None, "e", {}, Connection(), Settings(), [], "run", False, 0))
         self.assertEqual(events, ["model_call_started", "model_call_finished"])
+
+    def test_ready_invalid_submit_attempts_one_repair_then_keeps_local_fallback_path(self):
+        calls: list[dict] = []
+
+        async def completion(_client, _endpoint, _headers, payload, _progress, _state):
+            calls.append(payload)
+            if len(calls) == 1:
+                return {"tool_calls": [{"function": {"name": "submit_analysis", "arguments": "{"}}]}, {"completion_tokens": 5}, "first"
+            raise TimeoutError("repair unavailable")
+
+        class Connection: model = "m"; provider = "other"
+        class Settings: model_retry_base_seconds = 0
+        with patch("app.agent_runtime.service._stream_completion", completion), patch("app.agent_runtime.service.emit"):
+            assistant, usage, _, _ = asyncio.run(
+                agent._request_ready_synthesis(None, "e", {}, Connection(), Settings(), [], "run", False, 0)
+            )
+        self.assertEqual(len(calls), 2)
+        self.assertEqual([tool["function"]["name"] for tool in calls[1]["tools"]], ["submit_analysis"])
+        self.assertEqual(assistant["tool_calls"][0]["function"]["arguments"], "{")
+        self.assertEqual(usage["completion_tokens"], 5)
 
     def test_offline_fallback_uses_live_local_handlers(self):
         route = route_question("分析最近良率", current_date=date(2026, 8, 23))
