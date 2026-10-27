@@ -2,16 +2,17 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import asdict, dataclass, replace
+from dataclasses import dataclass, replace
 from typing import Any, Literal
 
-from .validator import EvidenceValidation
 from .semantics import (
     EvidenceDescriptor,
     EvidenceScope,
     compatible_for_composite_inference,
     supports_claim,
 )
+from .serialization import json_dataclass_payload
+from .validator import EvidenceValidation
 
 
 SynthesisStatus = Literal["structured", "repaired", "not_applicable"]
@@ -194,7 +195,7 @@ class AnswerContract:
     reference_evidence: dict[str, dict[str, Any]] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return json.loads(json.dumps(asdict(self), ensure_ascii=False, default=str))
+        return json_dataclass_payload(self)
 
     def to_prompt(self) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, separators=(",", ":"))
@@ -220,7 +221,7 @@ class AnswerSynthesisReport:
     repair_events: tuple[dict[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
-        return json.loads(json.dumps(asdict(self), ensure_ascii=False, default=str))
+        return json_dataclass_payload(self)
 
 
 @dataclass(frozen=True)

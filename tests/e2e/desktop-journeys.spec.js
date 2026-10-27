@@ -52,14 +52,32 @@ test(
     "QA009 first persisted session",
     "QA009 second persisted session",
   ]) {
-    if (ids.length) await page.locator("#clearChat").click();
+    if (ids.length) {
+      const created = page.waitForResponse(
+        (r) => r.url().endsWith("/api/sessions") && r.request().method() === "POST",
+      );
+      await page.locator("#clearChat").click();
+      const response = await created;
+      expect(response.status()).toBe(200);
+      const nextSessionId = (await response.json()).session_id;
+      expect(nextSessionId).not.toBe(ids.at(-1));
+      await expect
+        .poll(() => page.evaluate(() => localStorage.getItem("fabInsightSessionId")))
+        .toBe(nextSessionId);
+      await expect(page.locator("#chatMessages")).toContainText("已创建新会话。");
+    }
+    const activeSessionId = await page.evaluate(
+      () => localStorage.getItem("fabInsightSessionId"),
+    );
     const stream = page.waitForResponse(
       (r) =>
         r.url().endsWith("/api/chat/stream") && r.request().method() === "POST",
     );
     await page.locator("#chatInput").fill(question);
     await page.locator("#sendButton").click();
-    expect((await stream).status()).toBe(200);
+    const streamed = await stream;
+    expect(streamed.status()).toBe(200);
+    expect(streamed.request().postDataJSON().session_id).toBe(activeSessionId);
     await expect(page.locator("#sendButton")).toBeEnabled();
     ids.push(
       await page.evaluate(() => localStorage.getItem("fabInsightSessionId")),
@@ -201,12 +219,24 @@ test(
   await page.locator('#dateForm button[type="submit"]').click();
   expect((await dashboard).status()).toBe(200);
   await noOverflow(page);
+  const initialCapability = page.waitForResponse(
+    (r) =>
+      r.url().includes("/api/reports/capability") &&
+      !r.url().includes("process_step=ETCH"),
+  );
   const capability = page.waitForResponse(
     (r) =>
       r.url().includes("/api/reports/capability") &&
       r.url().includes("process_step=ETCH"),
   );
   await page.locator('[data-view="capability"]').click();
+  const initialCapabilityResponse = await initialCapability;
+  expect(initialCapabilityResponse.status()).toBe(200);
+  await initialCapabilityResponse.finished();
+  await expect(page.locator("#capabilityBody").locator("xpath=..")).not.toHaveAttribute(
+    "aria-busy",
+    "true",
+  );
   await page.locator('#stepSelector [data-step="ETCH"]').click();
   expect((await capability).status()).toBe(200);
   await expect(page.locator("#capabilityView")).toContainText(/ETCH|刻蚀/);

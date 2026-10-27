@@ -1,0 +1,120 @@
+{
+  "artifacts": {
+    "behavior": {
+      "path": "evaluations/mod_002_behavior_baseline_v2.json",
+      "source_candidate": "runtime/quality/mod-002-20261022-r1/behavior_candidate_v2.json"
+    },
+    "final_comparison_report": "runtime/quality/mod-002-20261022-r1/final_comparison_report.json",
+    "performance": {
+      "independent_validation": "runtime/quality/mod-002-20261022-r1/performance_validation.json",
+      "path": "evaluations/mod_002_performance_baseline_v2.json",
+      "source_candidate": "runtime/quality/mod-002-20261022-r1/performance_candidate.json"
+    }
+  },
+  "behavior_normalization": {
+    "scope": "Only legal JSON objects after the exact newline answer_contract marker in system model_messages are key-sorted; prefixes, user messages, arrays, malformed JSON, and other content remain unchanged."
+  },
+  "behavior_verification": {
+    "cross_hashseed": "PYTHONHASHSEED=0 capture and PYTHONHASHSEED=1 read-only compare passed",
+    "default_compare": "passed",
+    "targeted_tests": 34
+  },
+  "build_id": "mod-002-20261022-r1",
+  "full_gate": {
+    "command": "env PATH=/home/zackzhang/miniconda3/envs/fab-insight-agent/bin:/usr/local/bin:/usr/bin:/bin python scripts/run_quality_gate.py full",
+    "log": "runtime/quality/mod-002-20261022-r1/full-gate.log",
+    "node": 61,
+    "ocr": 8,
+    "playbook": 12,
+    "playwright": {
+      "passed": 17,
+      "seconds": 49.6,
+      "total": 17
+    },
+    "python": {
+      "coverage_pct": 89,
+      "non_system": 634,
+      "non_system_seconds": 72.736,
+      "system": 70,
+      "system_groups": [
+        13,
+        15,
+        14,
+        17,
+        11
+      ],
+      "system_seconds": 90.965349185,
+      "total": 704
+    },
+    "rag": 15,
+    "ready": 3,
+    "status": "passed",
+    "trace": 7
+  },
+  "module": "MOD-002",
+  "parent_head": "0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4",
+  "performance": {
+    "candidate_results": {
+      "knowledge_retrieval_success": {
+        "median_ns": 14267847,
+        "p95_ns": 28444670,
+        "relative_allowance_pct": 15.12
+      },
+      "loop_success": {
+        "median_ns": 14449768,
+        "p95_ns": 20304480,
+        "relative_allowance_pct": 16.65
+      },
+      "ready_success": {
+        "median_ns": 17125417,
+        "p95_ns": 21407736,
+        "relative_allowance_pct": 17.54
+      }
+    },
+    "candidate_status_before_freeze": "candidate_calibration",
+    "final_default_compare": {
+      "behavior_status": "passed",
+      "diagnostic_observation": "A separate 10-warmup, single-batch 200-sample observation had median 16.36969 ms and p95 20.231399 ms; runtime GC was observed per call, but causation and stability remain unresolved. This does not replace the failed formal 200x2 comparison.",
+      "failure": "ready_success.p95_ns exceeded the frozen 17.54% relative allowance plus observed spread",
+      "ready_success": {
+        "batch_p95_ns": [
+          26061923,
+          28546614
+        ],
+        "frozen_p95_ns": 21407736,
+        "limit_ns": 25162652.8944,
+        "median_ns": 17308425,
+        "p95_ns": 28440304,
+        "relative_allowance_pct": 17.54
+      },
+      "report": "runtime/quality/mod-002-20261022-r1/final_comparison_report.json",
+      "status": "failed"
+    },
+    "independent_validation": {
+      "comparison": "Fixed candidate relative allowances were used without relaxation.",
+      "results": {
+        "knowledge_retrieval_success": {
+          "median_ns": 13110009,
+          "p95_ns": 15077018
+        },
+        "loop_success": {
+          "median_ns": 13496327,
+          "p95_ns": 16701873
+        },
+        "ready_success": {
+          "median_ns": 15722484,
+          "p95_ns": 21532570
+        }
+      },
+      "status": "passed_against_frozen_candidate"
+    },
+    "measurement_scope": "Offline hot Runtime fixture path only; not a production SLO and not a cold-import measurement."
+  },
+  "recorded_on": "2026-10-22",
+  "schema_version": "1.0",
+  "status": "behavior_validated_performance_recheck_failed",
+  "working_tree": {
+    "note": "The dirty working tree is recorded for provenance only and does not enumerate or represent all local changes.",
+    "state": "dirty"
+  }
+}

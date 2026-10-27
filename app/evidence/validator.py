@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from ..manufacturing.playbooks import DomainPlaybook
 from ..planning_runtime.contracts import ExecutionPlan, PlanStep
 from .semantics import EvidenceScope, descriptor_for_tool
-
+from .serialization import json_dataclass_payload
 
 ObservationStatus = Literal["success", "error", "blocked"]
 EvidenceStatus = Literal["covered", "partial", "missing", "optional_missing"]
@@ -89,7 +89,7 @@ class EvidenceValidation:
     reference_evidence: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        return json.loads(json.dumps(asdict(self), ensure_ascii=False, default=str))
+        return json_dataclass_payload(self)
 
     def to_prompt(self) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, separators=(",", ":"))

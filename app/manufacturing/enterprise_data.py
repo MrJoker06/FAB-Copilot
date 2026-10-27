@@ -5,11 +5,13 @@ import hashlib
 import hmac
 import json
 import math
+import re
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Protocol
+from collections.abc import Callable
 
 from ..core.settings import get_settings
 from ..core.identity import Principal, current_principal
+from .data_contracts import EnterpriseDataProvider
 from .processes import MANUFACTURING_STEPS
 
 
@@ -35,21 +37,6 @@ class EnterpriseDataError(ValueError):
         super().__init__(detail)
         self.error_code = error_code
         self.detail = detail
-
-
-class EnterpriseDataProvider(Protocol):
-    def manifest(self, principal: Principal) -> dict: ...
-
-    def summary(self, principal: Principal, filters: dict) -> dict: ...
-
-    def page(
-        self,
-        entity: str,
-        principal: Principal,
-        limit: int,
-        cursor: str | None,
-        filters: dict,
-    ) -> dict: ...
 
 
 def _canonical_filters(filters: dict) -> dict:
@@ -423,11 +410,59 @@ class SyntheticFabProvider:
             raise EnterpriseDataError("INVALID_CURSOR", "分页游标无效或已被修改") from exc
 
 
+_PROVIDER_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
+_RESERVED_PROVIDER_NAMES = frozenset({"synthetic"})
+_ENTERPRISE_PROVIDER_FACTORIES: dict[str, Callable[[], EnterpriseDataProvider]] = {}
+_REQUIRED_PROVIDER_METHODS = ("manifest", "summary", "page")
+
+
+def register_enterprise_provider(
+    name: str,
+    factory: Callable[[], EnterpriseDataProvider],
+) -> None:
+    """Register a startup-time factory for an explicitly configured provider.
+
+    Registration deliberately does not discover adapters or open connections.
+    Production composition code must register an adapter before setting
+    ``FAB_DATA_PROVIDER`` to its name.
+    """
+    if not isinstance(name, str) or not _PROVIDER_NAME_PATTERN.fullmatch(name):
+        raise ValueError("enterprise provider name must be lowercase and use letters, digits, '-' or '_'")
+    if name in _RESERVED_PROVIDER_NAMES:
+        raise ValueError(f"enterprise provider name is reserved: {name}")
+    if not callable(factory):
+        raise TypeError("enterprise provider factory must be callable")
+    if name in _ENTERPRISE_PROVIDER_FACTORIES:
+        raise ValueError(f"enterprise provider is already registered: {name}")
+    _ENTERPRISE_PROVIDER_FACTORIES[name] = factory
+
+
+def _configured_provider_error(name: str) -> EnterpriseDataError:
+    return EnterpriseDataError(
+        "PROVIDER_NOT_CONFIGURED",
+        f"企业数据提供器未配置: {name}",
+    )
+
+
+def _provider_from_factory(name: str, factory: Callable[[], EnterpriseDataProvider]) -> EnterpriseDataProvider:
+    try:
+        provider = factory()
+    except Exception as exc:
+        raise _configured_provider_error(name) from exc
+    if not all(callable(getattr(provider, method, None)) for method in _REQUIRED_PROVIDER_METHODS):
+        raise _configured_provider_error(name)
+    return provider
+
+
 def get_enterprise_provider() -> EnterpriseDataProvider:
     settings = get_settings()
-    if settings.enterprise_data_provider != "synthetic":
-        raise EnterpriseDataError("PROVIDER_NOT_CONFIGURED", "当前样例仅启用 synthetic 数据提供器")
-    return SyntheticFabProvider()
+    name = settings.enterprise_data_provider
+    if name == "synthetic":
+        return SyntheticFabProvider()
+    factory = _ENTERPRISE_PROVIDER_FACTORIES.get(name)
+    if factory is None:
+        raise _configured_provider_error(name)
+    return _provider_from_factory(name, factory)
 
 
 def enterprise_data_manifest() -> dict:

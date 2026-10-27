@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "units": {
+    "memory_core": {
+      "version": "1.0.0",
+      "description": "Contextual-memory contracts, rules, and use case without HTTP or persistence.",
+      "files": [
+        "app/__init__.py",
+        "app/memory_system/__init__.py",
+        "app/memory_system/contracts.py",
+        "app/memory_system/ports.py",
+        "app/memory_system/service.py",
+        "app/memory_system/context/__init__.py",
+        "app/memory_system/context/builder.py",
+        "app/memory_system/context/history.py",
+        "app/memory_system/context/protocol.py",
+        "app/memory_system/context/resolver.py",
+        "tests/test_memory_system_history.py"
+      ]
+    },
+    "decision_core": {
+      "version": "1.0.1",
+      "description": "Deterministic intent routing, planning, playbooks, and evidence semantics.",
+      "files": [
+        "app/__init__.py",
+        "app/manufacturing/__init__.py",
+        "app/manufacturing/processes.py",
+        "app/manufacturing/playbooks.py",
+        "app/intent_runtime/__init__.py",
+        "app/intent_runtime/contracts.py",
+        "app/intent_runtime/routing.py",
+        "app/intent_runtime/rules.py",
+        "app/intent_runtime/scope.py",
+        "app/intent_runtime/time.py",
+        "app/planning_runtime/__init__.py",
+        "app/planning_runtime/contracts.py",
+        "app/planning_runtime/queries.py",
+        "app/planning_runtime/scope.py",
+        "app/planning_runtime/service.py",
+        "app/planning_runtime/steps.py",
+        "app/evidence/__init__.py",
+        "app/evidence/answer_synthesizer.py",
+        "app/evidence/serialization.py",
+        "app/evidence/semantics.py",
+        "app/evidence/validator.py",
+        "evaluations/playbook_gold.json",
+        "scripts/evaluate_playbooks.py"
+      ]
+    },
+    "model_transport": {
+      "version": "1.0.0",
+      "description": "Offline-testable OpenAI-compatible SSE parsing and retry policy, without provider configuration or credentials.",
+      "external_dependencies": [
+        "httpx>=0.28,<1"
+      ],
+      "files": [
+        "app/__init__.py",
+        "app/model_gateway/__init__.py",
+        "app/model_gateway/streaming.py",
+        "tests/test_model_transport_portable.py"
+      ]
+    },
+    "enterprise_data_contract": {
+      "version": "1.0.0",
+      "description": "Offline manufacturing data-provider protocol and tenant principal contract; implementation adapters remain outside this unit.",
+      "files": [
+        "app/__init__.py",
+        "app/manufacturing/__init__.py",
+        "app/manufacturing/data_contracts.py",
+        "tests/test_enterprise_data_contract_portable.py"
+      ]
+    },
+    "retrieval_policy": {
+      "version": "1.0.0",
+      "description": "Offline deterministic retrieval ranking and grounding/fallback policy; SQLite retrieval, personal store, and ACL enforcement remain outside this unit.",
+      "files": [
+        "app/__init__.py",
+        "app/manufacturing/__init__.py",
+        "app/manufacturing/processes.py",
+        "app/knowledge/__init__.py",
+        "app/knowledge/decision.py",
+        "app/knowledge/ranking.py",
+        "tests/test_retrieval_policy_portable.py"
+      ]
+    },
+    "factory_search_contract": {
+      "version": "1.0.0",
+      "description": "Offline factory knowledge/case search and catalog-response protocols plus query token helpers; SQLite, personal storage, and production ACL adapters remain outside this unit.",
+      "files": [
+        "app/__init__.py",
+        "app/manufacturing/__init__.py",
+        "app/manufacturing/processes.py",
+        "app/knowledge/__init__.py",
+        "app/knowledge/search_contracts.py",
+        "app/knowledge/search_query.py",
+        "tests/test_factory_search_contract_portable.py"
+      ]
+    },
+    "identity_contract": {
+      "version": "1.0.0",
+      "description": "Offline immutable identity claims and demo API header-resolution policy; HTTP transport and trusted authentication remain outside this unit.",
+      "files": [
+        "app/__init__.py",
+        "app/core/__init__.py",
+        "app/core/identity_contracts.py",
+        "tests/test_identity_contract_portable.py"
+      ]
+    }
+  }
+}

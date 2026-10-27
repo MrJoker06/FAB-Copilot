@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "build_id": "mod-001-20261021-r1",
+  "parent_git_head": "0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4",
+  "source_revision_note": "The build was made from a deliberately dirty working tree. Parent Git HEAD identifies the committed baseline only; it does not identify all reviewed local changes.",
+  "environment": {
+    "platform": "Linux x86_64 under WSL Ubuntu-24.04",
+    "python": "3.11.15",
+    "httpx": "0.28.1"
+  },
+  "artifact_root": "runtime/portable/mod-001-20261021-r1",
+  "units": [
+    {"name": "memory_core", "version": "1.0.0", "path": "runtime/portable/mod-001-20261021-r1/memory_core-1.0.0.zip", "requirements": []},
+    {"name": "decision_core", "version": "1.0.0", "path": "runtime/portable/mod-001-20261021-r1/decision_core-1.0.0.zip", "requirements": []},
+    {"name": "model_transport", "version": "1.0.0", "path": "runtime/portable/mod-001-20261021-r1/model_transport-1.0.0.zip", "requirements": ["httpx>=0.28,<1"]},
+    {"name": "enterprise_data_contract", "version": "1.0.0", "path": "runtime/portable/mod-001-20261021-r1/enterprise_data_contract-1.0.0.zip", "requirements": []},
+    {"name": "retrieval_policy", "version": "1.0.0", "path": "runtime/portable/mod-001-20261021-r1/retrieval_policy-1.0.0.zip", "requirements": []},
+    {"name": "factory_search_contract", "version": "1.0.0", "path": "runtime/portable/mod-001-20261021-r1/factory_search_contract-1.0.0.zip", "requirements": []},
+    {"name": "identity_contract", "version": "1.0.0", "path": "runtime/portable/mod-001-20261021-r1/identity_contract-1.0.0.zip", "requirements": []}
+  ],
+  "reviewed_change_groups": {
+    "identity_contract": ["app/core/identity.py", "app/core/identity_contracts.py", "tests/test_identity_boundary.py", "tests/test_identity_contract_portable.py"],
+    "enterprise_data_contract": ["app/core/settings.py", "app/manufacturing/data_contracts.py", "app/manufacturing/enterprise_data.py", "tests/test_enterprise_data_contract_portable.py", "tests/test_enterprise_provider_boundary.py"],
+    "retrieval_and_factory_search": ["app/knowledge/rag.py", "app/knowledge/ranking.py", "app/knowledge/search_contracts.py", "app/knowledge/search_query.py", "app/knowledge/search_registry.py", "app/knowledge/sqlite_backend.py", "tests/system/test_knowledge_uploads.py", "tests/test_factory_search_contract_portable.py", "tests/test_factory_search_backend_boundary.py", "tests/test_retrieval_policy_portable.py"],
+    "portable_delivery": ["evaluations/portable_units_v1.json", "scripts/build_portable_unit.py", "tests/test_portable_units.py"]
+  },
+  "audited_workspace_inventory": {
+    "modified": ["app/core/identity.py", "app/core/settings.py", "app/knowledge/rag.py", "app/manufacturing/enterprise_data.py", "docs/todos/deployment-architecture.md", "docs/todos/execution-plan.md", "evaluations/module_boundaries_v1.json", "tests/system/test_knowledge_uploads.py"],
+    "untracked": ["app/core/identity_contracts.py", "app/knowledge/ranking.py", "app/knowledge/search_contracts.py", "app/knowledge/search_query.py", "app/knowledge/search_registry.py", "app/knowledge/sqlite_backend.py", "app/manufacturing/data_contracts.py", "docs/architecture-modularization-master-plan.md", "docs/module-portability.md", "docs/reports/mod-001-portable-baseline.md", "docs/todos/modularization.md", "evaluations/mod_001_portable_baseline_v1.json", "evaluations/portable_units_v1.json", "scripts/build_portable_unit.py", "tests/test_enterprise_data_contract_portable.py", "tests/test_enterprise_provider_boundary.py", "tests/test_factory_search_backend_boundary.py", "tests/test_factory_search_contract_portable.py", "tests/test_identity_boundary.py", "tests/test_identity_contract_portable.py", "tests/test_model_transport_portable.py", "tests/test_portable_units.py", "tests/test_retrieval_policy_portable.py"],
+    "excluded_user_files": ["fab_litho_agent_gantt_boss.xlsx"],
+    "inventory_note": "Captured with git status --short --untracked-files=all. The parent Git HEAD identifies only the committed baseline and does not identify these dirty-worktree changes."
+  },
+  "shared_file_overlaps": {
+    "app/__init__.py": ["memory_core", "decision_core", "model_transport", "enterprise_data_contract", "retrieval_policy", "factory_search_contract", "identity_contract"],
+    "app/manufacturing/__init__.py": ["decision_core", "enterprise_data_contract", "retrieval_policy", "factory_search_contract"],
+    "app/manufacturing/processes.py": ["decision_core", "retrieval_policy", "factory_search_contract"],
+    "app/knowledge/__init__.py": ["retrieval_policy", "factory_search_contract"]
+  },
+  "excluded_user_files": ["fab_litho_agent_gantt_boss.xlsx"],
+  "validation": [
+    {"command": "python -m unittest tests.test_portable_units tests.test_enterprise_data_contract_portable tests.test_enterprise_provider_boundary tests.test_factory_search_contract_portable tests.test_factory_search_backend_boundary tests.test_identity_contract_portable tests.test_identity_boundary tests.test_model_transport_portable tests.test_retrieval_policy_portable tests.test_refactor_contracts tests.test_module_boundaries", "result": "75 tests passed"},
+    {"command": "python scripts/build_portable_unit.py --verify --output-dir runtime/portable/mod-001-20261021-r1", "result": "7 ZIP units built and verified outside the repository"},
+    {"command": "python scripts/check_repository.py", "result": "All checks passed; module boundary baseline passed"},
+    {"command": "python -m unittest -v tests.system.test_http_contracts.HttpContractsSystemTests.test_enterprise_context_resolves_request_identity tests.system.test_sessions_streaming.SessionsStreamingSystemTests.test_sessions_are_isolated_by_tenant_and_user tests.system.test_knowledge_uploads.KnowledgeUploadsSystemTests.test_rag_returns_cited_source tests.system.test_knowledge_uploads.KnowledgeUploadsSystemTests.test_rag_infers_chinese_process_and_defect_aliases tests.system.test_knowledge_uploads.KnowledgeUploadsSystemTests.test_rag_uses_database_managed_defect_aliases tests.system.test_knowledge_uploads.KnowledgeUploadsSystemTests.test_rag_gold_dataset tests.system.test_knowledge_uploads.KnowledgeUploadsSystemTests.test_knowledge_documents_support_chunk_navigation tests.system.test_knowledge_uploads.KnowledgeUploadsSystemTests.test_historical_cases_keep_validated_catalog_and_missing_case_404", "result": "8 tests passed"},
+    {"command": "python scripts/evaluate_rag.py", "result": "15/15 queries passed; hit rate, source coverage, and MRR were 1.0"},
+    {"command": "git diff --check", "result": "passed"},
+    {"command": "independent build in /tmp/mod-001-primary-review followed by diff -qr /tmp/mod-001-primary-review runtime/portable/mod-001-20261021-r1", "result": "all seven ZIP artifacts had identical file contents"}
+  ],
+  "validation_execution_note": "The selected system tests and RAG evaluation initialize a shared SQLite fixture and must run serially. Parallel execution observed database is locked from fixture write-lock contention; serial reruns passed and establish the recorded result.",
+  "known_limitations": [
+    "The ZIP files are isolated source bundles, not co-installable wheels or services.",
+    "Shared app anchors, knowledge/manufacturing package initializers, and manufacturing/processes.py need a single publication owner before combined distribution.",
+    "Production model, real enterprise data adapters, production ACL/SSO, Agent Runtime dispatcher refactoring, and checkpoint recovery remain incomplete.",
+    "No database, log, .env, credential, or SHA-256 content-validation data is included."
+  ]
+}

@@ -1,16 +1,21 @@
 from __future__ import annotations
 
-import re
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
 
 from starlette.responses import JSONResponse
 
 from ..telemetry.audit import current_request_id
+from .identity_contracts import (
+    IDENTITY_PATTERN,
+    IdentityClaims,
+    IdentityResolutionError,
+    resolve_demo_header_claims,
+    valid_identifier,
+)
 from .settings import get_settings
 
 
-IDENTITY_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$")
 _principal: ContextVar["Principal | None"] = ContextVar("fab_principal", default=None)
 
 
@@ -20,6 +25,15 @@ class Principal:
     user_id: str
     roles: tuple[str, ...] = ("analyst",)
     authentication_scheme: str = "demo"
+
+    @classmethod
+    def from_claims(cls, claims: IdentityClaims) -> "Principal":
+        return cls(
+            tenant_id=claims.tenant_id,
+            user_id=claims.user_id,
+            roles=claims.roles,
+            authentication_scheme=claims.authentication_scheme,
+        )
 
     @property
     def knowledge_owner_id(self) -> str:
@@ -65,7 +79,7 @@ def _header_map(scope: dict) -> dict[str, str]:
 
 
 def _valid_identifier(value: str) -> bool:
-    return bool(IDENTITY_PATTERN.fullmatch(value))
+    return valid_identifier(value)
 
 
 class PrincipalContextMiddleware:
@@ -81,46 +95,38 @@ class PrincipalContextMiddleware:
 
         settings = get_settings()
         headers = _header_map(scope)
-        supplied_tenant = headers.get("x-tenant-id", "")
-        supplied_user = headers.get("x-user-id", "")
-        if settings.enterprise_require_identity and (not supplied_tenant or not supplied_user):
-            response = JSONResponse(
-                status_code=401,
-                content={
-                    "error_code": "IDENTITY_REQUIRED",
-                    "detail": "缺少 X-Tenant-ID 或 X-User-ID",
-                    "request_id": current_request_id() or "",
-                    "retryable": False,
-                },
+        try:
+            claims = resolve_demo_header_claims(
+                headers,
+                default_tenant_id=settings.enterprise_default_tenant_id,
+                default_user_id=settings.enterprise_default_user_id,
+                require_identity=settings.enterprise_require_identity,
             )
+        except IdentityResolutionError as error:
+            if error.error_code == "IDENTITY_REQUIRED":
+                response = JSONResponse(
+                    status_code=401,
+                    content={
+                        "error_code": "IDENTITY_REQUIRED",
+                        "detail": "缺少 X-Tenant-ID 或 X-User-ID",
+                        "request_id": current_request_id() or "",
+                        "retryable": False,
+                    },
+                )
+            else:
+                response = JSONResponse(
+                    status_code=400,
+                    content={
+                        "error_code": "INVALID_IDENTITY",
+                        "detail": "租户和用户标识只允许字母、数字、点、冒号、下划线和连字符，最长 64 字符",
+                        "request_id": current_request_id() or "",
+                        "retryable": False,
+                    },
+                )
             await response(scope, receive, send)
             return
 
-        tenant_id = supplied_tenant or settings.enterprise_default_tenant_id
-        user_id = supplied_user or settings.enterprise_default_user_id
-        if not _valid_identifier(tenant_id) or not _valid_identifier(user_id):
-            response = JSONResponse(
-                status_code=400,
-                content={
-                    "error_code": "INVALID_IDENTITY",
-                    "detail": "租户和用户标识只允许字母、数字、点、冒号、下划线和连字符，最长 64 字符",
-                    "request_id": current_request_id() or "",
-                    "retryable": False,
-                },
-            )
-            await response(scope, receive, send)
-            return
-
-        roles = tuple(
-            role for role in (item.strip() for item in headers.get("x-roles", "analyst").split(","))
-            if role and _valid_identifier(role)
-        ) or ("analyst",)
-        principal = Principal(
-            tenant_id=tenant_id,
-            user_id=user_id,
-            roles=roles,
-            authentication_scheme="headers" if supplied_tenant or supplied_user else "demo",
-        )
+        principal = Principal.from_claims(claims)
         token = set_principal(principal)
         try:
             await self.app(scope, receive, send)

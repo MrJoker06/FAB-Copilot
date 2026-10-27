@@ -64,6 +64,7 @@ class Settings:
     personal_knowledge_max_upload_bytes: int
     enterprise_mode: bool
     enterprise_data_provider: str
+    factory_search_backend: str
     enterprise_default_tenant_id: str
     enterprise_default_user_id: str
     enterprise_require_identity: bool
@@ -137,6 +138,7 @@ def get_settings() -> Settings:
         ),
         enterprise_mode=os.getenv("FAB_ENTERPRISE_MODE", "true").strip().lower() in {"1", "true", "yes", "on"},
         enterprise_data_provider=os.getenv("FAB_DATA_PROVIDER", "synthetic").strip().lower() or "synthetic",
+        factory_search_backend=os.getenv("FAB_FACTORY_SEARCH_BACKEND", "sqlite").strip().lower() or "sqlite",
         enterprise_default_tenant_id=os.getenv("FAB_DEFAULT_TENANT_ID", "demo-fab").strip() or "demo-fab",
         enterprise_default_user_id=os.getenv(
             "FAB_DEFAULT_USER_ID",

@@ -1,0 +1,711 @@
+{
+  "approval": {
+    "behavior_baseline": "evaluations/mod_002_behavior_baseline_v2.json",
+    "behavior_report": "runtime/quality/mod-002-20261024-r1/observe.json",
+    "reviewed_on": "2026-10-24",
+    "source_audit": "passed"
+  },
+  "base_revision": "0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4",
+  "members": [
+    {
+      "path": "app/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/assistant_capabilities.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/compatibility.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/contracts.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/coordinator.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/coordinator_availability.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/coordinator_loop.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/coordinator_model.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/coordinator_prepare.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/coordinator_ready.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/coordinator_state.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/dependencies.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/execution/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/execution/agent_loop.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/execution/failure.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/execution/loop_guard.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/execution/ready_plan.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/preparation/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/preparation/context.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/preparation/pipeline.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/preparation/planning.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/preparation/routing.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/retrieval/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/retrieval/general_knowledge.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/service.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/stages/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/stages/availability.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/stages/loop.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/stages/model.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/stages/prepare.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/stages/ready.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/synthesis/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/synthesis/fallback.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/synthesis/ready.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/synthesis/result.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/telemetry.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/tools/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/tools/catalog.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/tools/executor.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/agent_runtime/tools/registry.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/application.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/dependencies.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/errors.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/routers/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/routers/admin.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/routers/chat.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/routers/enterprise.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/routers/knowledge.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/routers/models.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/routers/monitor.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/routers/reports.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/routers/runtime.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/routers/sessions.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/routers/system.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/runtime_dependencies.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/schemas.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/services/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/services/chat.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/services/chat_stream.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/services/history.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/api/services/personal_job_events.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/conversation/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/conversation/context_resolver.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/conversation/decision_arbiter.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/conversation/sessions.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/conversation/turn_decision.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/core/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/core/identity.py",
+      "source": "current-reviewed-overlay"
+    },
+    {
+      "path": "app/core/identity_contracts.py",
+      "source": "current-reviewed-overlay"
+    },
+    {
+      "path": "app/core/settings.py",
+      "source": "current-reviewed-overlay"
+    },
+    {
+      "path": "app/evidence/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/evidence/answer_synthesizer.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/evidence/semantics.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/evidence/validator.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/intent_runtime/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/intent_runtime/contracts.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/intent_runtime/routing.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/intent_runtime/rules.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/intent_runtime/scope.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/intent_runtime/time.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/knowledge/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/knowledge/decision.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/knowledge/ocr.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/knowledge/ocr_quality.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/knowledge/rag.py",
+      "source": "current-reviewed-overlay"
+    },
+    {
+      "path": "app/knowledge/ranking.py",
+      "source": "current-reviewed-overlay"
+    },
+    {
+      "path": "app/knowledge/search_contracts.py",
+      "source": "current-reviewed-overlay"
+    },
+    {
+      "path": "app/knowledge/search_query.py",
+      "source": "current-reviewed-overlay"
+    },
+    {
+      "path": "app/knowledge/search_registry.py",
+      "source": "current-reviewed-overlay"
+    },
+    {
+      "path": "app/knowledge/sqlite_backend.py",
+      "source": "current-reviewed-overlay"
+    },
+    {
+      "path": "app/main.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/manufacturing/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/manufacturing/data_contracts.py",
+      "source": "current-reviewed-overlay"
+    },
+    {
+      "path": "app/manufacturing/enterprise_data.py",
+      "source": "current-reviewed-overlay"
+    },
+    {
+      "path": "app/manufacturing/playbooks.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/manufacturing/processes.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/manufacturing/reports.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/manufacturing/seed.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/memory_system/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/memory_system/context/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/memory_system/context/builder.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/memory_system/context/history.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/memory_system/context/protocol.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/memory_system/context/resolver.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/memory_system/contracts.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/memory_system/ports.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/memory_system/service.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/model_gateway/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/model_gateway/compatibility.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/model_gateway/health.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/model_gateway/registry.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/model_gateway/streaming.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/persistence/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/persistence/database.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/persistence/department_schemas.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/persistence/execution_store.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/contracts.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/documents.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/extractors/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/extractors/image.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/extractors/office.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/extractors/pdf.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/extractors/text.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/ingestion.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/jobs.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/metadata.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/search.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/service.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/storage.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/planning_runtime/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/planning_runtime/contracts.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/planning_runtime/queries.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/planning_runtime/scope.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/planning_runtime/service.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/planning_runtime/steps.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/admin.css",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/admin.html",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/admin.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/app.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/app/bootstrap.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/app/chat/controller.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/app/chat/presenter.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/app/core/api.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/app/core/dom.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/app/core/state.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/app/core/toast.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/app/core/version.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/app/dashboard/controller.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/app/knowledge/controller.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/app/layout/controller.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/app/model/controller.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/app/sessions/controller.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/index.html",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/model_capabilities.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/personal_job_events.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/personal_knowledge_metadata.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/personal_upload_queue.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/source_presenter.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/stream_buffer.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/stream_diagnostics.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/stream_markdown.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/styles.css",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/static/thinking_control.js",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/telemetry/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/telemetry/audit.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/telemetry/http.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/telemetry/runtime_status.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "evaluations/trace_replay_matrix.json",
+      "source": "current-fixture"
+    },
+    {
+      "path": "scripts/evaluate_trace_replay.py",
+      "source": "current-fixture"
+    },
+    {
+      "path": "scripts/modularization_baseline.py",
+      "source": "current-fixture"
+    },
+    {
+      "path": "scripts/refactor_contracts.py",
+      "source": "current-fixture"
+    }
+  ],
+  "reference_id": "mod-002-reference-v4",
+  "schema_version": "1.0",
+  "status": "approved",
+  "zip": "evaluations/mod_002_reference_v4.zip"
+}

@@ -76,6 +76,20 @@ class KnowledgeUploadsSystemTests(unittest.TestCase):
             self.assertEqual(document.json()["document"]["status"], "Active")
             self.assertTrue(document.json()["document"]["version"])
             self.assertGreaterEqual(document.json()["document"]["authority"], 1)
+            self.assertEqual(client.get("/api/knowledge/chunks/999999999").status_code, 404)
+
+    def test_historical_cases_keep_validated_catalog_and_missing_case_404(self):
+        with TestClient(app) as client:
+            cases = client.get("/api/cases")
+            self.assertEqual(cases.status_code, 200)
+            self.assertTrue(cases.json())
+            self.assertTrue(all(case["case_status"] == "Validated" for case in cases.json()))
+            first_case_id = cases.json()[0]["case_id"]
+            detail = client.get(f"/api/cases/{first_case_id}")
+            self.assertEqual(detail.status_code, 200)
+            self.assertEqual(detail.json()["case_id"], first_case_id)
+            self.assertEqual(detail.json()["case_status"], "Validated")
+            self.assertEqual(client.get("/api/cases/CASE-DOES-NOT-EXIST").status_code, 404)
 
     def test_personal_knowledge_upload_search_privacy_and_delete(self):
         content = (

@@ -1,0 +1,2511 @@
+{
+  "schema_version": 1,
+  "files": [
+    {
+      "path": "app/__init__.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/agent_runtime/__init__.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/assistant_capabilities.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/compatibility.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core",
+      "status": "transitional",
+      "split_targets": [
+        "runtime",
+        "application_bootstrap"
+      ],
+      "reason": "coordinator assembly moved to bootstrap; preparation, offline synthesis and legacy concrete aliases remain transitional",
+      "exit_task": "MOD-015"
+    },
+    {
+      "path": "app/agent_runtime/contracts.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/coordinator.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/coordinator_availability.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/coordinator_loop.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/coordinator_model.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/coordinator_prepare.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/coordinator_ready.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/coordinator_state.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/dependencies.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/definition.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/application.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/__init__.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/agent_loop.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/failure.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/loop_guard.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/loop_response.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/loop_dispatch.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/pilot_stages.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/runtime_contracts.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/runtime_ports.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/tool_budget.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/tool_result_bridge.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/ready_plan.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/ready_graph.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/ready_dispatch.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/ready_result_policy.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/preparation/__init__.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/preparation/context.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/preparation/pipeline.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/preparation/planning.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/preparation/routing.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/retrieval/__init__.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/retrieval/general_knowledge.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/service.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/stages/__init__.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/stages/availability.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/stages/loop.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/stages/model.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/stages/prepare.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/stages/ready.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/synthesis/__init__.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/synthesis/fallback.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/synthesis/ready.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/synthesis/result.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/telemetry.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/tools/__init__.py",
+      "primary_module": "tool_system",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/tools/contracts.py",
+      "primary_module": "tool_system",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/tools/definition.py",
+      "primary_module": "tool_system",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/tools/tool_registry.py",
+      "primary_module": "tool_system",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/tools/dispatch_contracts.py",
+      "primary_module": "tool_system",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/tools/dispatch_policy.py",
+      "primary_module": "tool_system",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/tools/dispatcher.py",
+      "primary_module": "tool_system",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/tools/catalog.py",
+      "primary_module": "tool_system",
+      "artifact_group": "platform_core",
+      "status": "transitional",
+      "split_targets": ["tool_system", "application_bootstrap"],
+      "reason": "legacy catalog facade re-exports the bootstrap-installed schema list for remaining schema compatibility consumers",
+      "exit_task": "MOD-015"
+    },
+    {
+      "path": "app/agent_runtime/tools/executor.py",
+      "primary_module": "tool_system",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/tools/registry.py",
+      "primary_module": "tool_system",
+      "artifact_group": "platform_core",
+      "status": "transitional",
+      "split_targets": [
+        "tool_system",
+        "application_bootstrap"
+      ],
+      "reason": "legacy registry facade re-exports bootstrap-installed concrete bindings pending recorded binding migration",
+      "exit_task": "MOD-008"
+    },
+    {
+      "path": "app/bootstrap/__init__.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/dispatcher_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/agent_assembly.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/ready_assembly.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/loop_assembly.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/legacy_agent_assembly.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/agent_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/ready_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/loop_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/diagnostics_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/tool_catalog.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/tool_bindings.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/__init__.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/application.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/dependencies.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/errors.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/routers/__init__.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/routers/admin.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/routers/chat.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/routers/enterprise.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/routers/knowledge.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/routers/models.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/routers/monitor.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/routers/reports.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/routers/runtime.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/routers/sessions.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/routers/system.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/runtime_dependencies.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/schemas.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/services/__init__.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/services/chat.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/services/chat_stream.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/services/history.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/services/personal_job_events.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/conversation/__init__.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/conversation/context_resolver.py",
+      "primary_module": "context_memory",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/conversation/decision_arbiter.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/conversation/sessions.py",
+      "primary_module": "context_memory",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/conversation/turn_decision.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/core/__init__.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/core/identity.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/core/identity_contracts.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/core/settings.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core",
+      "status": "transitional",
+      "split_targets": [
+        "core_contracts_configuration",
+        "application_bootstrap"
+      ],
+      "reason": "configuration loading remains coupled to application assembly pending compatibility consumer migration",
+      "exit_task": "MOD-015"
+    },
+    {
+      "path": "app/evidence/__init__.py",
+      "primary_module": "evidence",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/evidence/answer_synthesizer.py",
+      "primary_module": "evidence",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/evidence/semantics.py",
+      "primary_module": "evidence",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/evidence/serialization.py",
+      "primary_module": "evidence",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/evidence/validator.py",
+      "primary_module": "evidence",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/intent_runtime/__init__.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/intent_runtime/contracts.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/intent_runtime/routing.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/intent_runtime/rules.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/intent_runtime/scope.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/intent_runtime/time.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/knowledge/__init__.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/knowledge/decision.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/knowledge/ocr.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/knowledge/ocr_quality.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/knowledge/rag.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/knowledge/ranking.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/knowledge/search_contracts.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/knowledge/search_query.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/knowledge/search_registry.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/knowledge/sqlite_backend.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/main.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/manufacturing/__init__.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/manufacturing/equipment_health/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/equipment_health/contracts.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/equipment_health/handler.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/equipment_health/binding.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/process_diagnostics/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/process_diagnostics/contracts.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/process_diagnostics/handler.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/process_diagnostics/binding.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/integrations/__init__.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/__init__.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/fake_equipment_health.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/sqlite_equipment_health.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/fake_process_diagnostics.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/sqlite_process_diagnostics.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/manufacturing/data_contracts.py",
+      "primary_module": "manufacturing_domain",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/manufacturing/enterprise_data.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability",
+      "status": "transitional",
+      "split_targets": [
+        "business_tools",
+        "integrations",
+        "simulation"
+      ],
+      "reason": "provider wrapper contains synthetic fallback and integration concerns",
+      "exit_task": "MOD-008"
+    },
+    {
+      "path": "app/manufacturing/playbooks.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/manufacturing/processes.py",
+      "primary_module": "manufacturing_domain",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/manufacturing/reports.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability",
+      "status": "transitional",
+      "split_targets": [
+        "business_tools",
+        "integrations",
+        "manufacturing_domain"
+      ],
+      "reason": "business tool, direct SQL, and domain calculations remain co-located",
+      "exit_task": "MOD-008"
+    },
+    {
+      "path": "app/manufacturing/seed.py",
+      "primary_module": "simulation",
+      "artifact_group": "simulation_fixtures"
+    },
+    {
+      "path": "app/memory_system/__init__.py",
+      "primary_module": "context_memory",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/memory_system/context/__init__.py",
+      "primary_module": "context_memory",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/memory_system/context/builder.py",
+      "primary_module": "context_memory",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/memory_system/context/history.py",
+      "primary_module": "context_memory",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/memory_system/context/protocol.py",
+      "primary_module": "context_memory",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/memory_system/context/resolver.py",
+      "primary_module": "context_memory",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/memory_system/contracts.py",
+      "primary_module": "context_memory",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/memory_system/ports.py",
+      "primary_module": "context_memory",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/memory_system/service.py",
+      "primary_module": "context_memory",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/model_gateway/__init__.py",
+      "primary_module": "models",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/model_gateway/compatibility.py",
+      "primary_module": "models",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/model_gateway/health.py",
+      "primary_module": "models",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/model_gateway/registry.py",
+      "primary_module": "models",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/model_gateway/streaming.py",
+      "primary_module": "models",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/persistence/__init__.py",
+      "primary_module": "persistence",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/persistence/database.py",
+      "primary_module": "persistence",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/persistence/department_schemas.py",
+      "primary_module": "persistence",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/persistence/execution_store.py",
+      "primary_module": "persistence",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/__init__.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/contracts.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/documents.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/extractors/__init__.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/extractors/image.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/extractors/office.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/extractors/pdf.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/extractors/text.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/ingestion.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/jobs.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/metadata.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/search.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/service.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/personal_knowledge_runtime/storage.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/planning_runtime/__init__.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/planning_runtime/contracts.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/planning_runtime/queries.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/planning_runtime/scope.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/planning_runtime/service.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/planning_runtime/steps.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/static/admin.css",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/admin.html",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/admin.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/app/bootstrap.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/app/chat/controller.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/app/chat/presenter.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/app/core/api.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/app/core/dom.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/app/core/state.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/app/core/toast.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/app/core/version.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/app/dashboard/controller.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/app/knowledge/controller.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/app/layout/controller.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/app/model/controller.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/app/sessions/controller.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/app.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/index.html",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/model_capabilities.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/personal_job_events.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/personal_knowledge_metadata.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/personal_upload_queue.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/source_presenter.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/stream_buffer.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/stream_diagnostics.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/stream_markdown.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/styles.css",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/thinking_control.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/telemetry/__init__.py",
+      "primary_module": "observability",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/telemetry/audit.py",
+      "primary_module": "observability",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/telemetry/http.py",
+      "primary_module": "observability",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/telemetry/runtime_status.py",
+      "primary_module": "observability",
+      "artifact_group": "platform_core"
+    }
+  ],
+  "allowed_dependencies": {
+    "core_contracts_configuration": [
+      "core_contracts_configuration"
+    ],
+    "manufacturing_domain": [
+      "core_contracts_configuration",
+      "manufacturing_domain"
+    ],
+    "evidence": [
+      "core_contracts_configuration",
+      "evidence",
+      "manufacturing_domain"
+    ],
+    "orchestration": [
+      "core_contracts_configuration",
+      "evidence",
+      "manufacturing_domain",
+      "orchestration"
+    ],
+    "context_memory": [
+      "context_memory",
+      "core_contracts_configuration",
+      "evidence",
+      "orchestration"
+    ],
+    "models": [
+      "core_contracts_configuration",
+      "models"
+    ],
+    "knowledge": [
+      "core_contracts_configuration",
+      "evidence",
+      "knowledge",
+      "manufacturing_domain"
+    ],
+    "tool_system": [
+      "core_contracts_configuration",
+      "tool_system"
+    ],
+    "business_tools": [
+      "business_tools",
+      "core_contracts_configuration",
+      "manufacturing_domain",
+      "tool_system"
+    ],
+    "runtime": [
+      "context_memory",
+      "core_contracts_configuration",
+      "evidence",
+      "knowledge",
+      "models",
+      "observability",
+      "orchestration",
+      "runtime",
+      "tool_system"
+    ],
+    "observability": [
+      "core_contracts_configuration",
+      "observability"
+    ],
+    "persistence": [
+      "core_contracts_configuration",
+      "persistence"
+    ],
+    "simulation": [
+      "core_contracts_configuration",
+      "manufacturing_domain",
+      "persistence",
+      "simulation"
+    ],
+    "integrations": [
+      "business_tools",
+      "context_memory",
+      "core_contracts_configuration",
+      "integrations",
+      "knowledge",
+      "manufacturing_domain",
+      "models",
+      "observability",
+      "persistence",
+      "tool_system"
+    ],
+    "static_ui": [
+      "static_ui"
+    ],
+    "application_bootstrap": [
+      "application_bootstrap",
+      "business_tools",
+      "context_memory",
+      "core_contracts_configuration",
+      "evidence",
+      "integrations",
+      "knowledge",
+      "manufacturing_domain",
+      "models",
+      "observability",
+      "orchestration",
+      "persistence",
+      "runtime",
+      "simulation",
+      "static_ui",
+      "tool_system"
+    ]
+  },
+  "dependency_debt": [
+    {
+      "source": "app.agent_runtime.compatibility",
+      "target": "app.manufacturing.processes",
+      "reason": "Runtime facade assembles concrete manufacturing functions; move binding to bootstrap and inject Ports.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.agent_runtime.compatibility",
+      "target": "app.manufacturing.reports",
+      "reason": "Runtime facade assembles concrete manufacturing functions; move binding to bootstrap and inject Ports.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.agent_runtime.compatibility",
+      "target": "app.bootstrap.legacy_agent_assembly",
+      "reason": "Legacy facade delegates coordinator dependency snapshot assembly while preserving invocation-local live patch bindings.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.agent_runtime.tools.catalog",
+      "target": "app.bootstrap.tool_catalog",
+      "reason": "Legacy catalog facade retains stable schema identity for remaining compatibility consumers while bootstrap owns assembly.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.agent_runtime.tools.registry",
+      "target": "app.bootstrap.tool_bindings",
+      "reason": "Legacy registry facade retains live patch consumers while application bootstrap owns concrete binding assembly.",
+      "exit_task": "MOD-008"
+    },
+    {
+      "source": "app.conversation.decision_arbiter",
+      "target": "app.memory_system.contracts",
+      "reason": "Arbiter imports concrete memory contracts; narrow the decision context boundary during Runtime type convergence.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.conversation.sessions",
+      "target": "app.persistence.database",
+      "reason": "Session use case directly binds SQLite execution store or identity adapter; inject internal Store/identity Ports.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.conversation.sessions",
+      "target": "app.persistence.execution_store",
+      "reason": "Session use case directly binds SQLite execution store or identity adapter; inject internal Store/identity Ports.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.conversation.sessions",
+      "target": "app.core.identity",
+      "reason": "Session use case directly binds SQLite execution store or identity adapter; inject internal Store/identity Ports.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.evidence.validator",
+      "target": "app.manufacturing.playbooks",
+      "reason": "Evidence validation consumes planning/playbook implementation contracts; extract stable evidence requirements at the boundary.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.evidence.validator",
+      "target": "app.planning_runtime.contracts",
+      "reason": "Evidence validation consumes planning/playbook implementation contracts; extract stable evidence requirements at the boundary.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.knowledge.rag",
+      "target": "app.persistence.database",
+      "reason": "Knowledge facade/registry selects SQLite or environment identity directly; move selection to explicit assembly and retain consumer Ports.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.knowledge.rag",
+      "target": "app.core.identity",
+      "reason": "Knowledge facade/registry selects SQLite or environment identity directly; move selection to explicit assembly and retain consumer Ports.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.knowledge.rag",
+      "target": "app.knowledge.sqlite_backend",
+      "reason": "Knowledge facade/registry selects SQLite or environment identity directly; move selection to explicit assembly and retain consumer Ports.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.knowledge.search_registry",
+      "target": "app.knowledge.sqlite_backend",
+      "reason": "Knowledge facade/registry selects SQLite or environment identity directly; move selection to explicit assembly and retain consumer Ports.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.manufacturing.enterprise_data",
+      "target": "app.core.identity",
+      "reason": "Business tool directly binds identity or SQL persistence; replace with consumer-owned business Data Port.",
+      "exit_task": "MOD-008"
+    },
+    {
+      "source": "app.manufacturing.reports",
+      "target": "app.persistence.database",
+      "reason": "Business tool directly binds identity or SQL persistence; replace with consumer-owned business Data Port.",
+      "exit_task": "MOD-008"
+    },
+    {
+      "source": "app.model_gateway.compatibility",
+      "target": "app.memory_system.context.history",
+      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports.",
+      "exit_task": "MOD-012"
+    },
+    {
+      "source": "app.model_gateway.compatibility",
+      "target": "app.memory_system.context.protocol",
+      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports.",
+      "exit_task": "MOD-012"
+    },
+    {
+      "source": "app.model_gateway.health",
+      "target": "app.persistence.database",
+      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports.",
+      "exit_task": "MOD-012"
+    },
+    {
+      "source": "app.model_gateway.registry",
+      "target": "app.persistence.database",
+      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports.",
+      "exit_task": "MOD-012"
+    },
+    {
+      "source": "app.model_gateway.registry",
+      "target": "app.core.identity",
+      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports.",
+      "exit_task": "MOD-012"
+    },
+    {
+      "source": "app.persistence.database",
+      "target": "app.model_gateway.registry",
+      "reason": "Persistence implementation reaches model initialization or environment identity; separate storage from application assembly.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.persistence.execution_store",
+      "target": "app.core.identity",
+      "reason": "Persistence implementation reaches model initialization or environment identity; separate storage from application assembly.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.personal_knowledge_runtime.service",
+      "target": "app.telemetry.audit",
+      "reason": "Internal knowledge/observability use case directly binds audit, identity or SQLite; inject narrow internal Ports.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.personal_knowledge_runtime.service",
+      "target": "app.persistence.database",
+      "reason": "Internal knowledge/observability use case directly binds audit, identity or SQLite; inject narrow internal Ports.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.telemetry.runtime_status",
+      "target": "app.persistence.database",
+      "reason": "Internal knowledge/observability use case directly binds audit, identity or SQLite; inject narrow internal Ports.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.telemetry.runtime_status",
+      "target": "app.core.identity",
+      "reason": "Internal knowledge/observability use case directly binds audit, identity or SQLite; inject narrow internal Ports.",
+      "exit_task": "MOD-015"
+    }
+  ],
+  "portable_overlaps": [
+    {
+      "path": "app/__init__.py",
+      "reason": "isolated ZIP validation currently duplicates package anchors/shared pure vocabulary",
+      "unique_owner": "application_bundle"
+    },
+    {
+      "path": "app/manufacturing/__init__.py",
+      "reason": "isolated ZIP validation currently duplicates package anchors/shared pure vocabulary",
+      "unique_owner": "platform_core"
+    },
+    {
+      "path": "app/manufacturing/processes.py",
+      "reason": "isolated ZIP validation currently duplicates package anchors/shared pure vocabulary",
+      "unique_owner": "platform_core"
+    },
+    {
+      "path": "app/knowledge/__init__.py",
+      "reason": "isolated ZIP validation currently duplicates package anchors/shared pure vocabulary",
+      "unique_owner": "platform_core"
+    }
+  ],
+  "compatibility_ledger": [
+    {
+      "entrypoint": "app.agent_runtime.service.run_agent",
+      "owner": "runtime",
+      "strategy": "Retain public API; delegate to typed Runtime Ports, not mandatory deletion",
+      "exit_task": "MOD-015",
+      "exit_condition": "Public entrypoint remains; internal assembly and behavior tests pass through Ports.",
+      "target_checkpoint": "P2 runtime migration",
+      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
+      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
+    },
+    {
+      "entrypoint": "app.agent_runtime.service._run_agent_impl",
+      "owner": "runtime",
+      "strategy": "retain internal seam",
+      "exit_task": "MOD-015",
+      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
+      "target_checkpoint": "P2 runtime migration",
+      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
+      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
+    },
+    {
+      "entrypoint": "app.agent_runtime.service._coordinator_dependencies",
+      "owner": "runtime",
+      "strategy": "retain compatibility seam delegated to bootstrap with the live service namespace",
+      "exit_task": "MOD-015",
+      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
+      "target_checkpoint": "P2 compatibility migration",
+      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
+      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
+    },
+    {
+      "entrypoint": "app.agent_runtime.service.TOOLS",
+      "owner": "tool_system",
+      "strategy": "retain compatibility registry; preserve object identity and live mutation until audited exit",
+      "exit_task": "MOD-015",
+      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
+      "target_checkpoint": "P2 runtime migration",
+      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
+      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
+    },
+    {
+      "entrypoint": "app.agent_runtime.service.TOOL_HANDLERS",
+      "owner": "tool_system",
+      "strategy": "retain patch seam; preserve object identity and live mutation until audited exit",
+      "exit_task": "MOD-015",
+      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
+      "target_checkpoint": "P2 runtime migration",
+      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
+      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
+    },
+    {
+      "entrypoint": "app.agent_runtime.service",
+      "owner": "runtime",
+      "strategy": "module-wide dynamic publication; static consumers only",
+      "exit_task": "MOD-015",
+      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
+      "target_checkpoint": "P2 runtime migration",
+      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
+      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
+    },
+    {
+      "entrypoint": "app.agent_runtime.compatibility",
+      "owner": "application_bootstrap",
+      "strategy": "coordinator dependency assembly is delegated to bootstrap; preparation, offline synthesis and legacy concrete aliases remain while _EXPORT_NAMES is computed from globals",
+      "exit_task": "MOD-015",
+      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
+      "target_checkpoint": "P2 compatibility migration",
+      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
+      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
+    },
+    {
+      "entrypoint": "app.agent_runtime.coordinator_availability",
+      "owner": "runtime",
+      "strategy": "pure forwarding module",
+      "exit_task": "MOD-015",
+      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
+      "target_checkpoint": "P2 compatibility convergence",
+      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
+      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
+    },
+    {
+      "entrypoint": "app.agent_runtime.coordinator_loop",
+      "owner": "runtime",
+      "strategy": "pure forwarding module",
+      "exit_task": "MOD-015",
+      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
+      "target_checkpoint": "P2 compatibility convergence",
+      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
+      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
+    },
+    {
+      "entrypoint": "app.agent_runtime.coordinator_model",
+      "owner": "runtime",
+      "strategy": "pure forwarding module",
+      "exit_task": "MOD-015",
+      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
+      "target_checkpoint": "P2 compatibility convergence",
+      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
+      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
+    },
+    {
+      "entrypoint": "app.agent_runtime.coordinator_prepare",
+      "owner": "runtime",
+      "strategy": "pure forwarding module",
+      "exit_task": "MOD-015",
+      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
+      "target_checkpoint": "P2 compatibility convergence",
+      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
+      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
+    },
+    {
+      "entrypoint": "app.agent_runtime.coordinator_ready",
+      "owner": "runtime",
+      "strategy": "pure forwarding module",
+      "exit_task": "MOD-015",
+      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
+      "target_checkpoint": "P2 compatibility convergence",
+      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
+      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
+    },
+    {
+      "entrypoint": "app.conversation.context_resolver",
+      "owner": "context_memory",
+      "strategy": "retain forwarding compatibility",
+      "exit_task": "MOD-015",
+      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
+      "target_checkpoint": "P2 compatibility convergence",
+      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
+      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
+    }
+  ],
+  "compatibility_consumers": [
+    {
+      "file": "app/agent_runtime/service.py",
+      "symbol": "app.agent_runtime.compatibility",
+      "kind": "import"
+    },
+    {
+      "file": "app/api/runtime_dependencies.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "app/api/runtime_dependencies.py",
+      "symbol": "app.agent_runtime.service.run_agent",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/evaluate_ready_execution.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/evaluate_ready_execution.py",
+      "symbol": "app.agent_runtime.service.TOOLS",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/modularization_baseline.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/modularization_baseline.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "scripts/modularization_baseline.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "scripts/modularization_baseline.py",
+      "symbol": "app.agent_runtime.service.TOOLS",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/modularization_baseline.py",
+      "symbol": "app.agent_runtime.service.TOOL_HANDLERS",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "scripts/modularization_fixture_clock.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "dynamic_import"
+    },
+    {
+      "file": "scripts/refactor_contracts.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/refactor_contracts.py",
+      "symbol": "app.agent_runtime.service.TOOLS",
+      "kind": "import"
+    },
+    {
+      "file": "tests/system/test_knowledge_uploads.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/system/test_model_governance.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/system/test_model_governance.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_agent_execution_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_agent_execution_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_agent_execution_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_agent_execution_boundaries.py",
+      "symbol": "app.agent_runtime.service.TOOL_HANDLERS",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_agent_module_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_agent_module_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_agent_preparation_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_agent_preparation_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_agent_retrieval_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_agent_retrieval_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_agent_retrieval_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_agent_retrieval_boundaries.py",
+      "symbol": "app.agent_runtime.service.TOOL_HANDLERS",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_agent_runtime_boundaries.py",
+      "symbol": "app.agent_runtime.coordinator_availability",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_agent_runtime_boundaries.py",
+      "symbol": "app.agent_runtime.coordinator_loop",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_agent_runtime_boundaries.py",
+      "symbol": "app.agent_runtime.coordinator_model",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_agent_runtime_boundaries.py",
+      "symbol": "app.agent_runtime.coordinator_prepare",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_agent_runtime_boundaries.py",
+      "symbol": "app.agent_runtime.coordinator_ready",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_agent_runtime_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_agent_runtime_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_agent_runtime_boundaries.py",
+      "symbol": "app.agent_runtime.service._run_agent_impl",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_agent_synthesis_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_agent_synthesis_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_agent_tool_runtime_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_agent_tool_runtime_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_agent_tool_runtime_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_agent_tool_runtime_boundaries.py",
+      "symbol": "app.agent_runtime.service.TOOL_HANDLERS",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_answer_synthesizer.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_answer_synthesizer.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_answer_synthesizer.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_answer_synthesizer.py",
+      "symbol": "app.agent_runtime.service.TOOL_HANDLERS",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_context_resolver.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_context_resolver.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_context_resolver.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_context_resolver.py",
+      "symbol": "app.agent_runtime.service.TOOL_HANDLERS",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_context_resolver.py",
+      "symbol": "app.agent_runtime.service._run_agent_impl",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_context_resolver.py",
+      "symbol": "app.conversation.context_resolver",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_conversation_runtime_module_boundaries.py",
+      "symbol": "app.conversation.context_resolver",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_domain_playbooks.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_domain_playbooks.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_evidence_validator.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_evidence_validator.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_evidence_validator.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_evidence_validator.py",
+      "symbol": "app.agent_runtime.service.TOOL_HANDLERS",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_intent_router.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_intent_router.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_intent_router.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_intent_router.py",
+      "symbol": "app.agent_runtime.service.TOOL_HANDLERS",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_legacy_agent_assembly.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_legacy_agent_assembly.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.object"
+    },
+    {
+      "file": "tests/test_legacy_agent_assembly.py",
+      "symbol": "app.agent_runtime.service.TOOLS",
+      "kind": "patch.object"
+    },
+    {
+      "file": "tests/test_loop_guard.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_loop_guard.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_loop_guard.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_loop_guard.py",
+      "symbol": "app.agent_runtime.service.TOOL_HANDLERS",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_memory_system_context.py",
+      "symbol": "app.conversation.context_resolver",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_model_compatibility.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_modularization_fixture_clock.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "dynamic_import"
+    },
+    {
+      "file": "tests/test_planner.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_planner.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_ready_dispatcher.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_ready_dispatcher.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.object"
+    },
+    {
+      "file": "tests/test_ready_plan_execution.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_ready_plan_execution.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_ready_plan_execution.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_ready_plan_execution.py",
+      "symbol": "app.agent_runtime.service.TOOL_HANDLERS",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_ready_plan_execution.py",
+      "symbol": "app.agent_runtime.service._run_agent_impl",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_stream_diagnostics.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_turn_decision.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_turn_decision.py",
+      "symbol": "app.agent_runtime.service.TOOL_HANDLERS",
+      "kind": "import"
+    }
+  ],
+  "database_candidates": [
+    {
+      "source_file": "app/api/application.py",
+      "imports": [],
+      "calls": [
+        "connection.execute",
+        "deps.db_session",
+        "deps.ensure_department_databases",
+        "deps.generate_database",
+        "deps.seed_reference_data"
+      ],
+      "table_hints": [
+        "knowledge_chunks",
+        "process_runs",
+        "sensor_readings"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/api/routers/admin.py",
+      "imports": [],
+      "calls": [
+        "connection.execute"
+      ],
+      "table_hints": [
+        "agent.model_catalog"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/api/routers/system.py",
+      "imports": [],
+      "calls": [
+        "connection.execute"
+      ],
+      "table_hints": [
+        "historical_cases",
+        "knowledge_chunks",
+        "lots",
+        "process_runs",
+        "sensor_readings",
+        "wafer_maps"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/api/runtime_dependencies.py",
+      "imports": [
+        "persistence.database.db_session"
+      ],
+      "calls": [],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/conversation/sessions.py",
+      "imports": [
+        "persistence.database.db_session"
+      ],
+      "calls": [
+        "connection.execute",
+        "db_session"
+      ],
+      "table_hints": [
+        "agent.agent_runs",
+        "agent.agent_tool_events",
+        "agent.chat_messages",
+        "agent.chat_sessions",
+        "agent.message_sources",
+        "agent_runs",
+        "chat_messages",
+        "chat_sessions"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/integrations/manufacturing/sqlite_equipment_health.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "connection.execute",
+        "sqlite3.connect"
+      ],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/integrations/manufacturing/sqlite_process_diagnostics.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "connection.execute",
+        "sqlite3.connect"
+      ],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/knowledge/sqlite_backend.py",
+      "imports": [
+        "persistence.database.db_session"
+      ],
+      "calls": [
+        "connection.execute",
+        "db_session"
+      ],
+      "table_hints": [
+        "historical_cases",
+        "knowledge.case_trigram_fts",
+        "knowledge.knowledge_trigram_fts",
+        "knowledge_chunks",
+        "knowledge_documents"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/main.py",
+      "imports": [
+        "api.runtime_dependencies.db_session"
+      ],
+      "calls": [],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/manufacturing/reports.py",
+      "imports": [
+        "persistence.database.db_session"
+      ],
+      "calls": [
+        "connection.execute",
+        "db_session"
+      ],
+      "table_hints": [
+        "lots",
+        "process_runs"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/manufacturing/seed.py",
+      "imports": [
+        "persistence.database.db_session"
+      ],
+      "calls": [
+        "connection.execute",
+        "connection.executemany",
+        "db_session",
+        "initialize"
+      ],
+      "table_hints": [
+        "lots",
+        "process_runs"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/model_gateway/health.py",
+      "imports": [
+        "persistence.database.db_session"
+      ],
+      "calls": [
+        "connection.execute"
+      ],
+      "table_hints": [
+        "agent.model_health"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/model_gateway/registry.py",
+      "imports": [
+        "persistence.database.db_session"
+      ],
+      "calls": [
+        "connection.execute",
+        "connection.executemany",
+        "db_session"
+      ],
+      "table_hints": [
+        "agent.model_catalog",
+        "agent.user_model_preferences",
+        "model_catalog",
+        "user_model_preferences"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/persistence/database.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "connect",
+        "connection.execute",
+        "connection.executemany",
+        "connection.executescript",
+        "db_session",
+        "initialize",
+        "sqlite3.connect"
+      ],
+      "table_hints": [
+        "agent_runs",
+        "chat_messages",
+        "defect_records",
+        "defect_types",
+        "historical_cases",
+        "knowledge.case_trigram_fts",
+        "knowledge.historical_cases",
+        "knowledge.knowledge_trigram_fts",
+        "knowledge.personal_knowledge_fts",
+        "knowledge_chunks",
+        "lots",
+        "manufacturing.lots",
+        "manufacturing.process_runs",
+        "model_catalog",
+        "model_health",
+        "personal_knowledge_chunks",
+        "personal_knowledge_documents",
+        "quality.defect_records",
+        "quality.defect_types",
+        "quality.wafer_maps",
+        "schema_migrations",
+        "sensor_readings",
+        "simulation_metadata",
+        "sqlite_master",
+        "wafer_maps"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/persistence/execution_store.py",
+      "imports": [
+        "database.db_session"
+      ],
+      "calls": [
+        "connection.execute",
+        "db_session"
+      ],
+      "table_hints": [
+        "agent.agent_execution_plans",
+        "agent.agent_plan_steps",
+        "agent.agent_runs",
+        "agent.agent_tool_events",
+        "agent_execution_plans",
+        "agent_plan_steps",
+        "agent_runs",
+        "agent_tool_events"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/personal_knowledge_runtime/documents.py",
+      "imports": [],
+      "calls": [
+        "connection.execute",
+        "deps.db_session"
+      ],
+      "table_hints": [
+        "knowledge.personal_knowledge_fts",
+        "personal_knowledge_chunks",
+        "personal_knowledge_documents"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/personal_knowledge_runtime/ingestion.py",
+      "imports": [],
+      "calls": [
+        "connection.execute",
+        "db_session"
+      ],
+      "table_hints": [
+        "knowledge.personal_knowledge_chunks",
+        "knowledge.personal_knowledge_documents",
+        "knowledge.personal_knowledge_fts",
+        "knowledge.personal_knowledge_jobs",
+        "personal_knowledge_documents"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/personal_knowledge_runtime/jobs.py",
+      "imports": [],
+      "calls": [
+        "connection.execute",
+        "db_session"
+      ],
+      "table_hints": [
+        "knowledge.personal_knowledge_documents",
+        "knowledge.personal_knowledge_fts",
+        "knowledge.personal_knowledge_jobs",
+        "personal_knowledge_documents",
+        "personal_knowledge_jobs"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/personal_knowledge_runtime/search.py",
+      "imports": [],
+      "calls": [
+        "connection.execute",
+        "deps.db_session"
+      ],
+      "table_hints": [
+        "personal_knowledge_chunks"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/personal_knowledge_runtime/service.py",
+      "imports": [
+        "persistence.database.db_session"
+      ],
+      "calls": [],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/telemetry/runtime_status.py",
+      "imports": [
+        "persistence.database.db_session"
+      ],
+      "calls": [
+        "connection.execute",
+        "db_session"
+      ],
+      "table_hints": [
+        "agent_runs",
+        "chat_sessions"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    }
+  ],
+  "database_ledger": {
+    "legacy_sql_tool": {
+      "definition": "query_manufacturing_data(sql)",
+      "registry_binding": "app.agent_runtime.tools.registry.TOOL_HANDLERS['query_manufacturing_data'] -> app.manufacturing.reports.safe_select",
+      "report_implementation": "app.manufacturing.reports.safe_select",
+      "prompt_exposure": "app.agent_runtime.compatibility.SYSTEM_PROMPT",
+      "status": "enabled pending capability reduction",
+      "exit_tasks": [
+        "MOD-003",
+        "MOD-004",
+        "MOD-005",
+        "MOD-006",
+        "MOD-007",
+        "MOD-008",
+        "MOD-009",
+        "MOD-015"
+      ],
+      "catalog_definition": "app.agent_runtime.tools.catalog.TOOLS: query_manufacturing_data parameters.sql",
+      "replacement": "Use named business tools with structured parameters; SQL construction remains server-controlled in Adapter/Repository. Remove legacy exposure/binding in MOD-008; verify Ready/Loop and consumer exit in MOD-009/015."
+    },
+    "scope_note": "Static candidates and incomplete table hints only; no data-flow/permissions proof. Separate company business reads from application-owned sessions/models/knowledge stores and demo initialization. No real enterprise integration accepted.",
+    "sources": [
+      {
+        "source_file": "app/api/application.py",
+        "owner": "application_bootstrap",
+        "classification": "mixed-startup",
+        "stores": "knowledge_chunks, process_runs, sensor_readings",
+        "init_effects": "Lifespan invokes ensure_department_databases, generate_database or seed_reference_data and resumes personal jobs; startup is not safe company read-only access",
+        "exit_task": "MOD-015"
+      },
+      {
+        "source_file": "app/api/routers/admin.py",
+        "owner": "application_bootstrap",
+        "classification": "modelcatalog-internal",
+        "stores": "agent.model_catalog",
+        "init_effects": "Injected/delegated connection lifecycle; concrete binding may retain global initialization/attach effects, not proven by AST.",
+        "exit_task": "MOD-015"
+      },
+      {
+        "source_file": "app/api/routers/system.py",
+        "owner": "application_bootstrap",
+        "classification": "mixed-diagnostic",
+        "stores": "historical_cases, knowledge_chunks, lots, process_runs, sensor_readings, wafer_maps",
+        "init_effects": "Injected/delegated connection lifecycle; concrete binding may retain global initialization/attach effects, not proven by AST.",
+        "exit_task": "MOD-015"
+      },
+      {
+        "source_file": "app/api/runtime_dependencies.py",
+        "owner": "application_bootstrap",
+        "classification": "storage-binding",
+        "stores": "unknown/dynamic or delegated; review consumer operation",
+        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "exit_task": "MOD-015"
+      },
+      {
+        "source_file": "app/conversation/sessions.py",
+        "owner": "context_memory",
+        "classification": "internal-store",
+        "stores": "agent.agent_runs, agent.agent_tool_events, agent.chat_messages, agent.chat_sessions, agent.message_sources, agent_runs, chat_messages, chat_sessions",
+        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "exit_task": "MOD-015"
+      },
+      {
+        "source_file": "app/integrations/manufacturing/sqlite_equipment_health.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "main.process_runs, equipment.equipment_events",
+        "init_effects": "Explicit two-path SQLite URI mode=ro adapter; attaches one equipment store, sets query_only, and never initializes, migrates, seeds, or falls back.",
+        "exit_task": "MOD-009 conformance (retain adapter)"
+      },
+      {
+        "source_file": "app/integrations/manufacturing/sqlite_process_diagnostics.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "process_runs, sensor_readings",
+        "init_effects": "Explicit per-kind SQLite URI mode=ro adapter; opens only the selected supplied store, sets query_only, and never initializes, migrates, seeds, attaches, or falls back.",
+        "exit_task": "MOD-009 conformance (retain adapter)"
+      },
+      {
+        "source_file": "app/knowledge/sqlite_backend.py",
+        "owner": "integrations",
+        "classification": "knowledge-read",
+        "stores": "historical_cases, knowledge.case_trigram_fts, knowledge.knowledge_trigram_fts, knowledge_chunks, knowledge_documents",
+        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "exit_task": "MOD-015"
+      },
+      {
+        "source_file": "app/main.py",
+        "owner": "application_bootstrap",
+        "classification": "bootstrap-init",
+        "stores": "unknown/dynamic or delegated; review consumer operation",
+        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "exit_task": "MOD-015"
+      },
+      {
+        "source_file": "app/manufacturing/reports.py",
+        "owner": "business_tools",
+        "classification": "business-read",
+        "stores": "lots, process_runs",
+        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "exit_task": "MOD-008"
+      },
+      {
+        "source_file": "app/manufacturing/seed.py",
+        "owner": "simulation",
+        "classification": "demo-init",
+        "stores": "lots, process_runs",
+        "init_effects": "Demo initializer and seed writes; not a company-source prerequisite",
+        "exit_task": "MOD-008"
+      },
+      {
+        "source_file": "app/model_gateway/health.py",
+        "owner": "models",
+        "classification": "internal-store",
+        "stores": "agent.model_health",
+        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "exit_task": "MOD-012"
+      },
+      {
+        "source_file": "app/model_gateway/registry.py",
+        "owner": "models",
+        "classification": "internal-store",
+        "stores": "agent.model_catalog, agent.user_model_preferences, model_catalog, user_model_preferences",
+        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "exit_task": "MOD-012"
+      },
+      {
+        "source_file": "app/persistence/database.py",
+        "owner": "persistence",
+        "classification": "mixed-global-init",
+        "stores": "agent_runs, chat_messages, defect_records, defect_types, historical_cases, knowledge.case_trigram_fts, knowledge.historical_cases, knowledge.knowledge_trigram_fts, knowledge.personal_knowledge_fts, knowledge_chunks, lots, manufacturing.lots, manufacturing.process_runs, model_catalog, model_health, personal_knowledge_chunks, personal_knowledge_documents, quality.defect_records, quality.defect_types, quality.wafer_maps, schema_migrations, sensor_readings, simulation_metadata, sqlite_master, wafer_maps",
+        "init_effects": "connect/db_session can initialize missing stores and attach a main database plus four department databases (five total); application owns demo/internal schema, never company schema",
+        "exit_task": "MOD-015"
+      },
+      {
+        "source_file": "app/persistence/execution_store.py",
+        "owner": "persistence",
+        "classification": "internal-store",
+        "stores": "agent.agent_execution_plans, agent.agent_plan_steps, agent.agent_runs, agent.agent_tool_events, agent_execution_plans, agent_plan_steps, agent_runs, agent_tool_events",
+        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "exit_task": "MOD-015"
+      },
+      {
+        "source_file": "app/personal_knowledge_runtime/documents.py",
+        "owner": "knowledge",
+        "classification": "internal-store",
+        "stores": "knowledge.personal_knowledge_fts, personal_knowledge_chunks, personal_knowledge_documents",
+        "init_effects": "Injected/delegated connection lifecycle; concrete binding may retain global initialization/attach effects, not proven by AST.",
+        "exit_task": "MOD-015"
+      },
+      {
+        "source_file": "app/personal_knowledge_runtime/ingestion.py",
+        "owner": "knowledge",
+        "classification": "internal-store",
+        "stores": "knowledge.personal_knowledge_chunks, knowledge.personal_knowledge_documents, knowledge.personal_knowledge_fts, knowledge.personal_knowledge_jobs, personal_knowledge_documents",
+        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "exit_task": "MOD-015"
+      },
+      {
+        "source_file": "app/personal_knowledge_runtime/jobs.py",
+        "owner": "knowledge",
+        "classification": "internal-store",
+        "stores": "knowledge.personal_knowledge_documents, knowledge.personal_knowledge_fts, knowledge.personal_knowledge_jobs, personal_knowledge_documents, personal_knowledge_jobs",
+        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "exit_task": "MOD-015"
+      },
+      {
+        "source_file": "app/personal_knowledge_runtime/search.py",
+        "owner": "knowledge",
+        "classification": "internal-store",
+        "stores": "personal_knowledge_chunks",
+        "init_effects": "Injected/delegated connection lifecycle; concrete binding may retain global initialization/attach effects, not proven by AST.",
+        "exit_task": "MOD-015"
+      },
+      {
+        "source_file": "app/personal_knowledge_runtime/service.py",
+        "owner": "knowledge",
+        "classification": "internal-store",
+        "stores": "unknown/dynamic or delegated; review consumer operation",
+        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "exit_task": "MOD-015"
+      },
+      {
+        "source_file": "app/telemetry/runtime_status.py",
+        "owner": "observability",
+        "classification": "internal-store",
+        "stores": "agent_runs, chat_sessions",
+        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "exit_task": "MOD-015"
+      }
+    ]
+  },
+  "artifact_groups": [
+    "application_bundle",
+    "enterprise_adapters",
+    "manufacturing_capability",
+    "platform_core",
+    "simulation_fixtures"
+  ]
+}

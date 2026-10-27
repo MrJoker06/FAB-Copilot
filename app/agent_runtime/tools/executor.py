@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping
+from typing import Any
+
+from .tool_registry import LegacyBindingAdapter
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,8 +24,8 @@ def parse_tool_arguments(raw_arguments: Any) -> ParsedToolArguments:
     try:
         arguments = json.loads(raw)
         if not isinstance(arguments, dict):
-            raise ValueError("工具参数必须是 JSON 对象")
-    except Exception as exc:
+            raise ValueError("工具参数必须是 JSON 对象")  # noqa: TRY004
+    except Exception as exc:  # noqa: BLE001
         return ParsedToolArguments({"_raw": str(raw)[:1000]}, exc)
     return ParsedToolArguments(arguments)
 
@@ -31,10 +34,7 @@ def execute_registered_tool(
     name: str, arguments: dict[str, Any], registry: Mapping[str, Callable[..., Any]]
 ) -> Any:
     """Resolve and invoke one handler while retaining result identity."""
-    handler = registry.get(name)
-    if handler is None:
-        raise ValueError(f"未知工具: {name}")
-    return handler(**arguments)
+    return LegacyBindingAdapter(name, registry).invoke(arguments)
 
 
 __all__ = ["ParsedToolArguments", "execute_registered_tool", "parse_tool_arguments"]

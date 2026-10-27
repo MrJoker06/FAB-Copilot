@@ -1,0 +1,71 @@
+{
+  "deferred": [
+    "Dispatcher microbenchmark is deferred until MOD-007 introduces Dispatcher.",
+    "No live-provider or SLO claim is made."
+  ],
+  "environment": {
+    "httpx": "0.28.1",
+    "implementation": "CPython",
+    "machine": "x86_64",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.11.15"
+  },
+  "measurement": {
+    "clock": "perf_counter_ns",
+    "cold_import": "not measured; imports occur before timing",
+    "fixture_delay": "0; model/HTTP/DB are mocked",
+    "percentile": "nearest-rank",
+    "status": "observation_and_regression_gate"
+  },
+  "scenarios": {
+    "knowledge_retrieval_success": {
+      "allowed_regression_pct": 16.49,
+      "batch_median_ns": [
+        17372415,
+        17117796
+      ],
+      "batch_p95_ns": [
+        22611991,
+        20041436
+      ],
+      "batches": 2,
+      "median_ns": 17245105,
+      "p95_ns": 21326713,
+      "samples_per_batch": 200,
+      "warmups_per_batch": 10
+    },
+    "loop_duplicate_blocked": {
+      "allowed_regression_pct": 15.11,
+      "batch_median_ns": [
+        17472981,
+        17454475
+      ],
+      "batch_p95_ns": [
+        24485251,
+        25643329
+      ],
+      "batches": 2,
+      "median_ns": 17463728,
+      "p95_ns": 25064290,
+      "samples_per_batch": 200,
+      "warmups_per_batch": 10
+    },
+    "ready_success": {
+      "allowed_regression_pct": 16.16,
+      "batch_median_ns": [
+        18501704,
+        18716364
+      ],
+      "batch_p95_ns": [
+        23851395,
+        25512860
+      ],
+      "batches": 2,
+      "median_ns": 18609034,
+      "p95_ns": 24682127,
+      "samples_per_batch": 200,
+      "warmups_per_batch": 10
+    }
+  },
+  "schema_version": "1.0"
+}

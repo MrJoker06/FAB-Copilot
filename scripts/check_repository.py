@@ -51,6 +51,7 @@ def run_static(*, runner=subprocess.run) -> None:
     runner([sys.executable, "-m", "compileall", "-q", *STATIC_PATHS], cwd=PROJECT_DIR, check=True)
     runner([sys.executable, "-m", "ruff", "check", "--select", RUFF_SELECT, *STATIC_PATHS], cwd=PROJECT_DIR, check=True)
     runner([sys.executable, "scripts/check_module_boundaries.py"], cwd=PROJECT_DIR, check=True)
+    runner([sys.executable, "scripts/check_modularization_boundaries.py"], cwd=PROJECT_DIR, check=True)
 
 
 def main(argv: list[str] | None = None) -> int:

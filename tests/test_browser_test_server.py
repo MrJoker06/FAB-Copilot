@@ -168,10 +168,12 @@ class BrowserTestServerTests(unittest.TestCase):
                 }
                 chunks = connection.execute("SELECT count(*) FROM personal_knowledge_chunks WHERE document_id = ?", (server.BROWSER_TEST_JOURNEY_PERSONAL_DOCUMENT_ID,)).fetchone()[0]
                 factory = connection.execute("SELECT count(*) FROM knowledge_chunks WHERE source = ?", (server.BROWSER_TEST_JOURNEY_FACTORY_SOURCE,)).fetchone()[0]
+                factory_status = connection.execute("SELECT status FROM knowledge_documents WHERE source = ?", (server.BROWSER_TEST_JOURNEY_FACTORY_SOURCE,)).fetchone()[0]
                 case = connection.execute("SELECT title FROM historical_cases WHERE case_id = ?", (server.BROWSER_TEST_JOURNEY_CASE_ID,)).fetchone()
             self.assertEqual(tuple(session), (server.BROWSER_TEST_JOURNEY_TENANT_ID, server.BROWSER_TEST_JOURNEY_USER_ID))
             self.assertEqual(personal_owners, {server.BROWSER_TEST_JOURNEY_KNOWLEDGE_OWNER_ID})
             self.assertEqual((chunks, factory), (2, 2))
+            self.assertEqual(factory_status, "Active")
             self.assertEqual(case[0], "QA009 CVD 历史案例")
             self.assertEqual(metadata["run_id"], "qa009-trace-run")
             self.assertEqual(len(metadata["tool_trace"]), 1)

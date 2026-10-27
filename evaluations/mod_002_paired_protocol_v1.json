@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "reference_id": "mod-002-reference-v4",
+  "reference_zip": "evaluations/mod_002_reference_v4.zip",
+  "reference_metadata": "evaluations/mod_002_reference_v4.json",
+  "behavior_baseline": "evaluations/mod_002_behavior_baseline_v2.json",
+  "scenarios": {
+    "ready_success": {"relative_allowance_pct": 15.65},
+    "loop_success": {"relative_allowance_pct": 16.36},
+    "knowledge_retrieval_success": {"relative_allowance_pct": 15.64}
+  },
+  "sampling": {"formal_samples_per_batch": 1000, "formal_batches": 2, "minimum_samples_per_batch": 100, "warmups_per_batch": 10, "block_size": 50, "percentile": "nearest-rank", "block_order": "balanced AB/BA"},
+  "measurement": {
+    "wall_clock": "elapsed_runtime_ns returned by fixture",
+    "cpu_clock": "observation_only",
+    "gc_policy": "collect_before_each_fixture_sample_auto_gc_enabled",
+    "fixture_clock": {
+      "capture_environment_date": "2026-10-22",
+      "runtime_route_date": "2026-08-07",
+      "scope": "input_patch_not_output_normalization"
+    },
+    "clock_control": "scripts/modularization_fixture_clock.py is shared current harness control for both isolated workers; the frozen ZIP and behavior v2 remain unchanged"
+  }
+}

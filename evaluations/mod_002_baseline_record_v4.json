@@ -1,0 +1,255 @@
+{
+  "artifacts": {
+    "behavior": "evaluations/mod_002_behavior_baseline_v2.json",
+    "performance": {
+      "path": "evaluations/mod_002_performance_baseline_v4.json",
+      "source_candidate": "runtime/quality/mod-002-20261022-r3/performance_candidate_v4.json"
+    },
+    "validations": [
+      {
+        "comparison": "",
+        "path": "runtime/quality/mod-002-20261022-r3/performance_validation_A_v4.json",
+        "results": {
+          "knowledge_retrieval_success": {
+            "median_ns": 5833489,
+            "p95_ns": 7103549
+          },
+          "loop_success": {
+            "median_ns": 6263389,
+            "p95_ns": 7791103
+          },
+          "ready_success": {
+            "median_ns": 8607780,
+            "p95_ns": 10158586
+          }
+        },
+        "status": "passed"
+      },
+      {
+        "comparison": "",
+        "path": "runtime/quality/mod-002-20261022-r3/performance_validation_B_v4.json",
+        "results": {
+          "knowledge_retrieval_success": {
+            "median_ns": 5843132,
+            "p95_ns": 7145928
+          },
+          "loop_success": {
+            "median_ns": 6337542,
+            "p95_ns": 8122944
+          },
+          "ready_success": {
+            "median_ns": 8647640,
+            "p95_ns": 10189282
+          }
+        },
+        "status": "passed"
+      }
+    ]
+  },
+  "build_id": "mod-002-20261022-r3",
+  "approved_method_change": {
+    "approved_on": "2026-10-22",
+    "artifact_paths": {
+      "protocol": "evaluations/mod_002_paired_protocol_v1.json",
+      "reference_metadata": "evaluations/mod_002_reference_v4.json",
+      "reference_zip": "evaluations/mod_002_reference_v4.zip"
+    },
+    "description": "Approved same-run reference/current paired wall-clock gate replaces the current formal use of historical static absolute p95 values. It retains the v4 fixed relative allowances of 15.65%, 16.36%, and 15.64%; historical r1-r5 outcomes remain unchanged.",
+    "protocol": "Two independent temporary WSL trees use identical frozen fixtures, 1000 samples x 2 batches per scene, 10 warmups, balanced 50-sample AB/BA blocks, and hard wall-clock median and p95 gates. Thread/process CPU and cleanup are observation-only."
+  },
+  "paired_recheck": {
+    "build_id": "mod-002-20261024-r1",
+    "recorded_on": "2026-10-24",
+    "status": "passed",
+    "reference_source_audit": "174 frozen ZIP members matched the fixed Git base/reviewed overlay and original fixtures byte-for-byte before current harness clock control was added; all archive members are ordinary 100644; ZIP unchanged; no content hashes used",
+    "observation": {
+      "path": "runtime/quality/mod-002-20261024-r1/observe.json",
+      "status": "observed",
+      "samples_per_batch": 2,
+      "batches": 1,
+      "reference_behavior_status": "passed",
+      "current_behavior_status": "passed",
+      "qualification": "Both sides exactly matched unchanged behavior v2, used isolated module origins and equal environments, disabled env files, reported zero network/database access, and cleaned their temporary trees. This is not formal performance acceptance."
+    },
+    "clock_control": {
+      "capture_environment_date": "2026-10-22",
+      "runtime_route_date": "2026-08-07",
+      "finding": "Two legacy behavior tests failed after the host date changed to 2026-10-24: import-time prompt and nested policy route defaults leaked the original capture date. Explicit input patches reproduce unchanged behavior v2; no date, plan ID or business output fields are normalized away.",
+      "scope": "Shared current harness control, not a production clock change or rewrite of the frozen ZIP."
+    },
+    "full_gate": {
+      "status": "passed",
+      "log": "runtime/quality/mod-002-20261024-r1/full-gate.log",
+      "python": {"total": 758, "non_system": 688, "non_system_seconds": 85.758, "system": 70, "system_seconds": 88.85506916400027, "coverage_pct": 89},
+      "system_timings": "runtime/quality/mod-002-20261024-r1/system_test_timings.json",
+      "node": 61,
+      "rag": 15,
+      "ocr": 8,
+      "playbook": 12,
+      "ready": 3,
+      "trace": 7,
+      "playwright": {"passed": 17, "total": 17, "seconds": 41.5}
+    },
+    "post_full_gate_cli_validation": {
+      "reason": "Moved the new clock-helper import below existing project sys.path setup; no business or timing logic changed after the full gate.",
+      "targeted_tests": 76,
+      "targeted_seconds": 6.786,
+      "status": "passed",
+      "isolated_cli_help": "python -I scripts/modularization_baseline.py --help with PYTHONPATH removed; a regression test also runs from an external temporary cwd",
+      "log": "runtime/quality/mod-002-20261024-r1/cli-help.log"
+    },
+    "independent_review": "Both reports were recomputed from raw wall samples using integer median/nearest-rank p95 and exact rational fixed allowances. 24000 total measured wall samples; 120 AB/BA blocks per run; behavior v2 unchanged; temporary trees removed. This proves only the approved offline regression gate, not a production SLO or resolution of all scheduling noise.",
+    "formal_plan": {
+      "samples_per_batch_per_side_per_scene": 1000,
+      "batches": 2,
+      "warmups_per_batch": 10,
+      "block_size": 50,
+      "policy": "Run A and B independently and serially; both must pass; retain any failure and do not append retries merely to obtain a pass.",
+      "runs": [
+        {"id": "A", "report": "runtime/quality/mod-002-20261024-r1/paired_formal_A.json", "status": "passed", "comparison_diff": "", "current_results": {"ready_success": {"median_ns": 6703274, "p95_ns": 7678095}, "loop_success": {"median_ns": 5055390, "p95_ns": 5746667}, "knowledge_retrieval_success": {"median_ns": 4580181, "p95_ns": 5275320}}},
+        {"id": "B", "report": "runtime/quality/mod-002-20261024-r1/paired_formal_B.json", "status": "passed", "comparison_diff": "", "current_results": {"ready_success": {"median_ns": 6550970, "p95_ns": 7317110}, "loop_success": {"median_ns": 5051951, "p95_ns": 6179137}, "knowledge_retrieval_success": {"median_ns": 4592982, "p95_ns": 5544712}}}
+      ]
+    }
+  },
+  "current_recheck": {
+    "build_id": "mod-002-20261022-r5",
+    "formal_comparisons": [
+      {"behavior_status": "passed", "failures": ["loop_success.p95_ns", "knowledge_retrieval_success.p95_ns"], "path": "runtime/quality/mod-002-20261022-r5/formal_comparison_1.json", "results": {"knowledge_retrieval_success": {"median_ns": 6271997, "p95_ns": 9916747}, "loop_success": {"median_ns": 6800018, "p95_ns": 9942433}, "ready_success": {"median_ns": 8419447, "p95_ns": 10810712}}, "status": "failed"},
+      {"behavior_status": "passed", "failures": ["loop_success.p95_ns"], "path": "runtime/quality/mod-002-20261022-r5/formal_comparison_2.json", "results": {"knowledge_retrieval_success": {"median_ns": 6159944, "p95_ns": 8117430}, "loop_success": {"median_ns": 6584792, "p95_ns": 9658678}, "ready_success": {"median_ns": 8214352, "p95_ns": 9973540}}, "status": "failed"},
+      {"behavior_status": "passed", "failures": ["loop_success.p95_ns"], "path": "runtime/quality/mod-002-20261022-r5/formal_comparison_3.json", "results": {"knowledge_retrieval_success": {"median_ns": 6250402, "p95_ns": 8174931}, "loop_success": {"median_ns": 6752001, "p95_ns": 9667516}, "ready_success": {"median_ns": 8463712, "p95_ns": 10502247}}, "status": "failed"}
+    ],
+    "frozen_p95_limits_ns": {"knowledge_retrieval_success": 8639796.2868, "loop_success": 9215586.3312, "ready_success": 12009455.6715},
+    "summary": "All three predeclared r5 formal comparisons exited 1 while behavior comparison passed. loop_success.p95_ns exceeded its unchanged frozen limit in every run; knowledge_retrieval_success.p95_ns also exceeded its unchanged frozen limit in run 1. ready_success passed in all three runs."
+  },
+  "default_compare": {
+    "behavior_status": "passed",
+    "failure": "ready_success.p95_ns exceeded the frozen 15.65% relative allowance plus observed spread",
+    "other_scenarios": "All loop and knowledge median/p95 measurements passed.",
+    "ready_success": {
+      "batch_p95_ns": [
+        12464785,
+        11627103
+      ],
+      "excess_ns": 15208,
+      "frozen_p95_ns": 10384311,
+      "limit_ns": 12009455,
+      "median_ns": 9335950,
+      "p95_ns": 12024663,
+      "relative_allowance_pct": 15.65
+    },
+    "report": "runtime/quality/mod-002-20261022-r3/final_comparison_report.json",
+    "stability_note": "Scenario medians and non-timed cleanup medians were broadly higher than the candidate, but no specific cause is proven; read-only process and listener checks found no residual Python, Node, Playwright, or port 8899 listener.",
+    "status": "failed"
+  },
+  "diagnostic_note": "An initial diagnostic that retained capture results is not formal evidence. The reviewed paired diagnostic supported controlling GC initial conditions before each fixture sample; it does not establish a production speedup.",
+  "full_gate": {
+    "log": "runtime/quality/mod-002-20261022-r5/full-gate.log",
+    "node": 61,
+    "ocr": 8,
+    "playbook": 12,
+    "playwright": {
+      "passed": 17,
+      "seconds": 44.0,
+      "total": 17
+    },
+    "python": {
+      "coverage_pct": 89,
+      "non_system": 644,
+      "non_system_seconds": 71.966,
+      "system": 70,
+      "system_groups": [
+        13,
+        15,
+        14,
+        17,
+        11
+      ],
+      "system_seconds": 83.110282274,
+      "total": 714
+    },
+    "rag": 15,
+    "ready": 3,
+    "status": "passed",
+    "trace": 7
+  },
+  "history": {
+    "r2_proxy_only_v3": {
+      "candidate": "runtime/quality/mod-002-20261022-r2/performance_candidate_v3.json",
+      "status": "not_approved; both validations failed",
+      "validation_a": "runtime/quality/mod-002-20261022-r2/performance_validation_A_v3.json",
+      "validation_b": "runtime/quality/mod-002-20261022-r2/performance_validation_B_v3.json"
+    },
+    "r3_default_compare": {
+      "report": "runtime/quality/mod-002-20261022-r3/final_comparison_report.json",
+      "status": "failed; ready_success.p95_ns exceeded the frozen limit by 15208 ns"
+    },
+    "r3_full_gate": {
+      "log": "runtime/quality/mod-002-20261022-r3/full-gate.log",
+      "status": "passed"
+    },
+    "v2_formal_default_compare": {
+      "reason": "ready_success.p95_ns exceeded the frozen fixed relative allowance",
+      "report": "runtime/quality/mod-002-20261022-r1/final_comparison_report.json",
+      "status": "failed"
+    },
+    "v2_full_gate": {
+      "log": "runtime/quality/mod-002-20261022-r1/full-gate.log",
+      "status": "passed"
+    }
+  },
+  "mod_003": {
+    "status": "blocked_by_mod_002_performance_recheck"
+  },
+  "module": "MOD-002",
+  "parent_head": "0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4",
+  "performance_candidate": {
+    "scenarios": {
+      "knowledge_retrieval_success": {
+        "batches": 2,
+        "median_ns": 5692488,
+        "p95_ns": 7471287,
+        "relative_allowance_pct": 15.64,
+        "samples_per_batch": 1000
+      },
+      "loop_success": {
+        "batches": 2,
+        "median_ns": 6139216,
+        "p95_ns": 7919892,
+        "relative_allowance_pct": 16.36,
+        "samples_per_batch": 1000
+      },
+      "ready_success": {
+        "batches": 2,
+        "median_ns": 8595994,
+        "p95_ns": 10384311,
+        "relative_allowance_pct": 15.65,
+        "samples_per_batch": 1000
+      }
+    },
+    "schema_version": "1.3",
+    "validation_policy": "Both independent validations passed using the fixed candidate relative allowances without relaxation."
+  },
+  "protocol": {
+    "automatic_gc": "enabled_inside_runtime",
+    "cleanup_observation": "Cleanup duration and collected-object counts are recorded independently and are non-gating; they are not production total latency.",
+    "comparability": "Schema 1.3 proxy- and GC-controlled measurements are not directly comparable with earlier protocols.",
+    "gc_policy": "collect_before_each_fixture_sample_auto_gc_enabled",
+    "proxy_environment": "excluded_inside_offline_fixture",
+    "sampling": "10 warmups, 1000 samples per batch, 2 batches",
+    "scope": "Offline hot Runtime fixture only; not an application speedup claim or production SLO."
+  },
+  "portable_unit_verification": {
+    "command": "python scripts/build_portable_unit.py --verify --output-dir runtime/portable/mod-002-20261022-r5",
+    "output_dir": "runtime/portable/mod-002-20261022-r5",
+    "packages": "7 verified; decision_core-1.0.1.zip and six retained 1.0.0 units; all new ZIP members have ordinary 100644 modes",
+    "qualification": "Portable-unit verification does not replace the failed MOD-002 performance gate.",
+    "status": "passed"
+  },
+  "recorded_on": "2026-10-22",
+  "schema_version": "1.0",
+  "status": "verified_paired_protocol",
+  "working_tree": {
+    "note": "The dirty working tree is recorded for provenance only and does not enumerate or represent all local changes.",
+    "state": "dirty"
+  }
+}

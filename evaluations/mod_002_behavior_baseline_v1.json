@@ -1,0 +1,5321 @@
+{
+  "data_classification": "synthetic_redacted",
+  "execution_policy": {
+    "database_calls": 0,
+    "network_calls": 0,
+    "real_model_calls": 0
+  },
+  "normalization": {
+    "removed_fields": [
+      "completed_at",
+      "duration_ms",
+      "first_token_ms",
+      "run_id",
+      "started_at",
+      "timestamp"
+    ],
+    "rule": "Only lifecycle timing/identity fields are removed; events, evidence, messages and answers are retained."
+  },
+  "scenarios": {
+    "knowledge_retrieval_empty_degraded": {
+      "answer": "知识库未检索到相关内容。以下回答使用模型通用知识，仅供参考，不代表厂内 SOP、规格或当前生产事实。\n\n## 模型通用知识：[模型通用知识]\n\n离线合成结论。\n\n## 使用限制\n- 知识库检索未获得可用内容，未找到可引用的厂内知识或历史案例。\n- 知识库未检索到相关内容。以下回答使用模型通用知识，仅供参考，不代表厂内 SOP、规格或当前生产事实。\n- 模型通用知识不能替代厂内 SOP、配方、规格或生产数据。",
+      "answer_synthesis": {
+        "allowed_conclusion_strength": "insufficient",
+        "analysis_protocol_version": "1.1",
+        "claim_support": [
+          {
+            "category": "inference",
+            "evidence_refs": [],
+            "reasons": [],
+            "statement": "离线合成结论。",
+            "support": "supported"
+          },
+          {
+            "category": "conclusion",
+            "evidence_refs": [
+              "MODEL_GENERAL_KNOWLEDGE"
+            ],
+            "reasons": [],
+            "statement": "基于模型通用知识提供一般性技术说明。",
+            "support": "supported"
+          }
+        ],
+        "invalid_source_refs": [],
+        "moved_claims": 0,
+        "plan_id": "plan-2eea976cb27a0424",
+        "repair_events": [
+          {
+            "affected_field": "display_blocks",
+            "outcome": "preserved_as_unverified_blocks",
+            "reason": "legacy_unstructured_answer"
+          }
+        ],
+        "schema_version": "1.2",
+        "sections": [
+          "模型通用知识",
+          "使用限制"
+        ],
+        "source_refs": [
+          "MODEL_GENERAL_KNOWLEDGE"
+        ],
+        "status": "repaired",
+        "synthesizer_version": "1.2.0",
+        "wording_adjustments": []
+      },
+      "evidence_validation": {
+        "allowed_conclusion_strength": "insufficient",
+        "causal_claims_allowed": false,
+        "conclusion_guidance": "必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。",
+        "conflicts": [],
+        "coverage": {
+          "field_coverage_pct": 0.0,
+          "required_coverage_pct": 0.0,
+          "required_covered": 0,
+          "required_total": 2
+        },
+        "evidence_checks": [
+          {
+            "evidence_id": "SOP-01",
+            "matched_tools": [
+              "search_knowledge"
+            ],
+            "missing_fields": [
+              "reference_id",
+              "source_type",
+              "source",
+              "title",
+              "section",
+              "content",
+              "retrieval"
+            ],
+            "name": "正式规范来源",
+            "present_fields": [],
+            "required": true,
+            "row_count": 0,
+            "status": "partial",
+            "successful_calls": 0
+          },
+          {
+            "evidence_id": "SOP-02",
+            "matched_tools": [
+              "search_knowledge"
+            ],
+            "missing_fields": [
+              "status",
+              "version",
+              "effective_date",
+              "owner",
+              "process_steps",
+              "equipment_families"
+            ],
+            "name": "版本与适用范围",
+            "present_fields": [],
+            "required": true,
+            "row_count": 0,
+            "status": "partial",
+            "successful_calls": 0
+          },
+          {
+            "evidence_id": "SOP-03",
+            "matched_tools": [
+              "search_knowledge"
+            ],
+            "missing_fields": [
+              "reference_id",
+              "source_type",
+              "problem",
+              "solution",
+              "result",
+              "summary",
+              "retrieval"
+            ],
+            "name": "历史案例补充",
+            "present_fields": [],
+            "required": false,
+            "row_count": 0,
+            "status": "partial",
+            "successful_calls": 0
+          }
+        ],
+        "observed_source_refs": [
+          "TOOL:S01",
+          "TOOL:S02",
+          "TOOL:search_knowledge"
+        ],
+        "plan_id": "plan-2eea976cb27a0424",
+        "primary_scope_ids": [
+          "CMP"
+        ],
+        "primary_scope_labels": [
+          "CMP",
+          "化学机械研磨",
+          "化学机械抛光",
+          "cmp",
+          "chemical mechanical polishing"
+        ],
+        "primary_scope_type": "process",
+        "reference_evidence": {
+          "TOOL:S01": {
+            "conflict_codes": [],
+            "critical_risk_codes": [
+              "empty_result"
+            ],
+            "evidence_ids": [
+              "SOP-01",
+              "SOP-02"
+            ],
+            "risk_codes": [
+              "empty_result"
+            ],
+            "statuses": {
+              "SOP-01": "partial",
+              "SOP-02": "partial"
+            }
+          },
+          "TOOL:S02": {
+            "conflict_codes": [],
+            "critical_risk_codes": [
+              "empty_result"
+            ],
+            "evidence_ids": [
+              "SOP-03"
+            ],
+            "risk_codes": [
+              "empty_result"
+            ],
+            "statuses": {
+              "SOP-03": "partial"
+            }
+          },
+          "TOOL:search_knowledge": {
+            "conflict_codes": [],
+            "critical_risk_codes": [
+              "empty_result",
+              "empty_result"
+            ],
+            "evidence_ids": [
+              "SOP-01",
+              "SOP-02",
+              "SOP-03"
+            ],
+            "risk_codes": [
+              "empty_result",
+              "empty_result"
+            ],
+            "statuses": {
+              "SOP-01": "partial",
+              "SOP-02": "partial",
+              "SOP-03": "partial"
+            }
+          }
+        },
+        "risks": [
+          {
+            "code": "empty_result",
+            "evidence_ids": [
+              "SOP-01",
+              "SOP-02"
+            ],
+            "message": "search_knowledge 返回空结果。",
+            "severity": "critical"
+          },
+          {
+            "code": "empty_result",
+            "evidence_ids": [
+              "SOP-03"
+            ],
+            "message": "search_knowledge 返回空结果。",
+            "severity": "critical"
+          }
+        ],
+        "schema_version": "1.2",
+        "source_scope_roles": {
+          "TOOL:S01": "primary",
+          "TOOL:S02": "primary",
+          "TOOL:search_knowledge": "primary"
+        },
+        "source_semantics": {
+          "TOOL:S01": {
+            "end": null,
+            "filter_provenance": "planner",
+            "grain": "document",
+            "kind": "document",
+            "scope": {
+              "chambers": [],
+              "equipment_ids": [],
+              "fab_ids": [],
+              "lot_ids": [],
+              "process_steps": [
+                "CMP"
+              ],
+              "products": [],
+              "recipes": [],
+              "wafer_ids": []
+            },
+            "scope_role": "primary",
+            "semantic_id": "knowledge_document",
+            "start": null
+          },
+          "TOOL:S02": {
+            "end": null,
+            "filter_provenance": "planner",
+            "grain": "document",
+            "kind": "document",
+            "scope": {
+              "chambers": [],
+              "equipment_ids": [],
+              "fab_ids": [],
+              "lot_ids": [],
+              "process_steps": [
+                "CMP"
+              ],
+              "products": [],
+              "recipes": [],
+              "wafer_ids": []
+            },
+            "scope_role": "primary",
+            "semantic_id": "knowledge_document",
+            "start": null
+          }
+        },
+        "status": "validated",
+        "validator_version": "1.2.0"
+      },
+      "execution_layer": "_run_agent_impl",
+      "execution_mode": "deterministic_ready_plan",
+      "input": {
+        "question": "查询 CMP 恢复量产 SOP"
+      },
+      "loop_guard": {
+        "blocked_calls": 0,
+        "blocked_reasons": {},
+        "budget": {
+          "enforcement": "runtime",
+          "max_identical_parameter_calls": 1,
+          "max_model_iterations": 6,
+          "max_no_progress_rounds": 2,
+          "max_rows_per_call": 100,
+          "max_tool_calls": 4,
+          "per_tool_limits": {
+            "search_knowledge": 3
+          },
+          "planned_tool_calls": 2
+        },
+        "consecutive_no_progress_rounds": 1,
+        "enforcement": "runtime",
+        "force_synthesis": true,
+        "per_tool_calls": {
+          "search_knowledge": 2
+        },
+        "plan_id": "plan-2eea976cb27a0424",
+        "stop_message": "确定性 ready 计划已完成，禁止继续选择业务工具。",
+        "stop_reason": "deterministic_plan_completed",
+        "total_calls": 2,
+        "unique_evidence_results": 0
+      },
+      "mode": "deterministic-fallback",
+      "model_message_lengths": [
+        4176
+      ],
+      "model_request_count": 1,
+      "model_tool_names": [
+        [
+          "submit_analysis"
+        ]
+      ],
+      "progress_events": [
+        {
+          "event": "stage",
+          "message": "已识别为SOP 与知识查询 · CMP，正在限定数据范围",
+          "route": {
+            "candidate_intents": [
+              "sop_lookup"
+            ],
+            "clarification_needed": false,
+            "clarification_questions": [],
+            "confidence": 0.99,
+            "data_requirements": [
+              "search_knowledge"
+            ],
+            "equipment_ids": [],
+            "intent": "sop_lookup",
+            "intent_label": "SOP 与知识查询",
+            "process_steps": [
+              "CMP"
+            ],
+            "risk_level": "high",
+            "risk_reasons": [
+              "高风险处置"
+            ],
+            "scope_resolution": {
+              "clarification_needed": false,
+              "confidence": 1.0,
+              "resolved_ids": [],
+              "scope_type": "not_applicable",
+              "source": "deterministic",
+              "unresolved_mentions": []
+            },
+            "time_range": {
+              "assumed": true,
+              "end": "2026-10-21",
+              "source": "default_90_days",
+              "start": "2026-07-24"
+            }
+          },
+          "stage": "routing"
+        },
+        {
+          "event": "stage",
+          "message": "已加载 SOP 与控制规范查询 · v1.0.0",
+          "playbook": {
+            "candidate_playbooks": [
+              {
+                "intent": "sop_lookup",
+                "playbook_id": "PB-SOP-001",
+                "playbook_version": "1.0.0",
+                "title": "SOP 与控制规范查询"
+              }
+            ],
+            "reason": "路由意图与版本化 Domain Playbook 精确匹配。",
+            "route_intent": "sop_lookup",
+            "selected_playbook": {
+              "analysis_questions": [
+                "用户要查的是强制要求、操作步骤、规格门槛还是历史经验？",
+                "文档版本、状态、生效日期和适用制程是否匹配？",
+                "多个来源是否冲突，哪一项具有更高权威性？",
+                "哪些内容来自正式规范，哪些仅来自历史案例？"
+              ],
+              "answer_sections": [
+                "适用规范",
+                "关键要求",
+                "适用范围与版本",
+                "历史经验补充",
+                "缺口与确认人"
+              ],
+              "evidence_requirements": [
+                {
+                  "acceptance_criteria": [
+                    "至少一个 knowledge 或 personal 正式文档结果具有非低置信度。",
+                    "回答中的规范性要求必须逐项引用 reference_id。"
+                  ],
+                  "evidence_id": "SOP-01",
+                  "name": "正式规范来源",
+                  "purpose": "检索与问题、制程和设备范围匹配的 SOP、控制计划或治理规范。",
+                  "required": true,
+                  "required_fields": [
+                    "reference_id",
+                    "source_type",
+                    "source",
+                    "title",
+                    "section",
+                    "content",
+                    "retrieval"
+                  ],
+                  "source_tools": [
+                    "search_knowledge"
+                  ]
+                },
+                {
+                  "acceptance_criteria": [
+                    "存在多个版本或冲突要求时优先使用生效且权威等级更高的来源。",
+                    "缺少版本或适用范围时必须标记为待文档所有者确认。"
+                  ],
+                  "evidence_id": "SOP-02",
+                  "name": "版本与适用范围",
+                  "purpose": "确认文档状态、版本、生效日期、所有者、制程和设备适用范围。",
+                  "required": true,
+                  "required_fields": [
+                    "status",
+                    "version",
+                    "effective_date",
+                    "owner",
+                    "process_steps",
+                    "equipment_families"
+                  ],
+                  "source_tools": [
+                    "search_knowledge"
+                  ]
+                },
+                {
+                  "acceptance_criteria": [
+                    "案例必须标记为历史经验，并说明与当前场景的相似点和差异。",
+                    "案例与正式规范冲突时以生效规范为准。"
+                  ],
+                  "evidence_id": "SOP-03",
+                  "name": "历史案例补充",
+                  "purpose": "提供执行经验、验证方法和常见失效模式，但不替代正式要求。",
+                  "required": false,
+                  "required_fields": [
+                    "reference_id",
+                    "source_type",
+                    "problem",
+                    "solution",
+                    "result",
+                    "summary",
+                    "retrieval"
+                  ],
+                  "source_tools": [
+                    "search_knowledge"
+                  ]
+                }
+              ],
+              "intent": "sop_lookup",
+              "objective": "返回适用、可定位、可引用的正式知识，并将规范要求与历史经验明确分离。",
+              "playbook_id": "PB-SOP-001",
+              "playbook_version": "1.0.0",
+              "released_at": "2026-07-18",
+              "required_inputs": [
+                "query"
+              ],
+              "safety_constraints": [
+                "不得执行写库、停机、放行、返工、报废或配方变更操作。",
+                "停机、放行、返工、报废、配方变更和恢复量产建议必须要求对应工程与制造人员复核。",
+                "相关性、时间重合和历史案例相似性只能形成假设，不能单独证明因果。",
+                "缺少必需证据时必须明确列出缺口并降低结论强度，不得补造数据。"
+              ],
+              "schema_version": "1.0",
+              "title": "SOP 与控制规范查询"
+            },
+            "status": "selected"
+          },
+          "stage": "playbook"
+        },
+        {
+          "event": "stage",
+          "message": "执行计划已生成 · 2 步 · 预算 4 次工具调用",
+          "plan": {
+            "budget": {
+              "enforcement": "runtime",
+              "max_identical_parameter_calls": 1,
+              "max_model_iterations": 6,
+              "max_no_progress_rounds": 2,
+              "max_rows_per_call": 100,
+              "max_tool_calls": 4,
+              "per_tool_limits": {
+                "search_knowledge": 3
+              },
+              "planned_tool_calls": 2
+            },
+            "clarification_questions": [],
+            "missing_inputs": [],
+            "plan_id": "plan-2eea976cb27a0424",
+            "planner_version": "1.1.0",
+            "playbook_id": "PB-SOP-001",
+            "playbook_version": "1.0.0",
+            "reason": "已将路由范围和 Domain Playbook 证据模板实例化为确定性工具计划。",
+            "required_evidence_ids": [
+              "SOP-01",
+              "SOP-02"
+            ],
+            "route_intent": "sop_lookup",
+            "schema_version": "1.1",
+            "scope_contract": {
+              "context_only_tools": [
+                "get_fab_overview",
+                "get_yield_trend"
+              ],
+              "primary_scope_ids": [
+                "CMP"
+              ],
+              "primary_scope_labels": [
+                "CMP",
+                "化学机械研磨",
+                "化学机械抛光",
+                "cmp",
+                "chemical mechanical polishing"
+              ],
+              "primary_scope_type": "process"
+            },
+            "status": "ready",
+            "steps": [
+              {
+                "depends_on": [],
+                "estimated_result_limit": 10,
+                "evidence_end": null,
+                "evidence_ids": [
+                  "SOP-01",
+                  "SOP-02"
+                ],
+                "evidence_kind": "document",
+                "evidence_scope": {
+                  "chambers": [],
+                  "equipment_ids": [],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [
+                    "CMP"
+                  ],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "evidence_start": null,
+                "filter_provenance": "planner",
+                "grain": "document",
+                "parameter_sources": {
+                  "limit": "planner.default",
+                  "process_step": "intent_route.process_steps[0]",
+                  "query": "user.question",
+                  "source_types": "playbook.evidence_scope"
+                },
+                "parameters": {
+                  "limit": 10,
+                  "process_step": "CMP",
+                  "query": "查询 CMP 恢复量产 SOP",
+                  "source_types": [
+                    "personal",
+                    "knowledge"
+                  ]
+                },
+                "required": true,
+                "scope_role": "primary",
+                "semantic_id": "knowledge_document",
+                "step_id": "S01",
+                "success_criteria": [
+                  "至少一个 knowledge 或 personal 正式文档结果具有非低置信度。",
+                  "回答中的规范性要求必须逐项引用 reference_id。",
+                  "存在多个版本或冲突要求时优先使用生效且权威等级更高的来源。",
+                  "缺少版本或适用范围时必须标记为待文档所有者确认。"
+                ],
+                "title": "正式规范来源 / 版本与适用范围",
+                "tool": "search_knowledge"
+              },
+              {
+                "depends_on": [
+                  "S01"
+                ],
+                "estimated_result_limit": 10,
+                "evidence_end": null,
+                "evidence_ids": [
+                  "SOP-03"
+                ],
+                "evidence_kind": "document",
+                "evidence_scope": {
+                  "chambers": [],
+                  "equipment_ids": [],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [
+                    "CMP"
+                  ],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "evidence_start": null,
+                "filter_provenance": "planner",
+                "grain": "document",
+                "parameter_sources": {
+                  "limit": "planner.default",
+                  "process_step": "intent_route.process_steps[0]",
+                  "query": "user.question",
+                  "source_types": "playbook.evidence_scope"
+                },
+                "parameters": {
+                  "limit": 10,
+                  "process_step": "CMP",
+                  "query": "查询 CMP 恢复量产 SOP",
+                  "source_types": [
+                    "case"
+                  ]
+                },
+                "required": false,
+                "scope_role": "primary",
+                "semantic_id": "knowledge_document",
+                "step_id": "S02",
+                "success_criteria": [
+                  "案例必须标记为历史经验，并说明与当前场景的相似点和差异。",
+                  "案例与正式规范冲突时以生效规范为准。"
+                ],
+                "title": "历史案例补充",
+                "tool": "search_knowledge"
+              }
+            ]
+          },
+          "stage": "plan"
+        },
+        {
+          "event": "stage",
+          "execution_mode": "deterministic",
+          "message": "正在按依赖顺序执行 2 个已批准步骤",
+          "stage": "tools"
+        },
+        {
+          "arguments": {
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "查询 CMP 恢复量产 SOP",
+            "source_types": [
+              "personal",
+              "knowledge"
+            ]
+          },
+          "event": "tool_started",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S01",
+          "tool": "search_knowledge"
+        },
+        {
+          "arguments": {
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "查询 CMP 恢复量产 SOP",
+            "source_types": [
+              "personal",
+              "knowledge"
+            ]
+          },
+          "event": "tool_finished",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S01",
+          "raw_rows": 0,
+          "rows": 0,
+          "status": "ok",
+          "tool": "search_knowledge"
+        },
+        {
+          "arguments": {
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "查询 CMP 恢复量产 SOP",
+            "source_types": [
+              "case"
+            ]
+          },
+          "event": "tool_started",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S02",
+          "tool": "search_knowledge"
+        },
+        {
+          "arguments": {
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "查询 CMP 恢复量产 SOP",
+            "source_types": [
+              "case"
+            ]
+          },
+          "event": "tool_finished",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S02",
+          "raw_rows": 0,
+          "rows": 0,
+          "status": "ok",
+          "tool": "search_knowledge"
+        },
+        {
+          "event": "stage",
+          "execution_mode": "deterministic",
+          "message": "证据校验完成 · 必需证据 0/2 · 结论强度 insufficient",
+          "stage": "validation",
+          "validation": {
+            "allowed_conclusion_strength": "insufficient",
+            "causal_claims_allowed": false,
+            "conclusion_guidance": "必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。",
+            "conflicts": [],
+            "coverage": {
+              "field_coverage_pct": 0.0,
+              "required_coverage_pct": 0.0,
+              "required_covered": 0,
+              "required_total": 2
+            },
+            "evidence_checks": [
+              {
+                "evidence_id": "SOP-01",
+                "matched_tools": [
+                  "search_knowledge"
+                ],
+                "missing_fields": [
+                  "reference_id",
+                  "source_type",
+                  "source",
+                  "title",
+                  "section",
+                  "content",
+                  "retrieval"
+                ],
+                "name": "正式规范来源",
+                "present_fields": [],
+                "required": true,
+                "row_count": 0,
+                "status": "partial",
+                "successful_calls": 0
+              },
+              {
+                "evidence_id": "SOP-02",
+                "matched_tools": [
+                  "search_knowledge"
+                ],
+                "missing_fields": [
+                  "status",
+                  "version",
+                  "effective_date",
+                  "owner",
+                  "process_steps",
+                  "equipment_families"
+                ],
+                "name": "版本与适用范围",
+                "present_fields": [],
+                "required": true,
+                "row_count": 0,
+                "status": "partial",
+                "successful_calls": 0
+              },
+              {
+                "evidence_id": "SOP-03",
+                "matched_tools": [
+                  "search_knowledge"
+                ],
+                "missing_fields": [
+                  "reference_id",
+                  "source_type",
+                  "problem",
+                  "solution",
+                  "result",
+                  "summary",
+                  "retrieval"
+                ],
+                "name": "历史案例补充",
+                "present_fields": [],
+                "required": false,
+                "row_count": 0,
+                "status": "partial",
+                "successful_calls": 0
+              }
+            ],
+            "observed_source_refs": [
+              "TOOL:S01",
+              "TOOL:S02",
+              "TOOL:search_knowledge"
+            ],
+            "plan_id": "plan-2eea976cb27a0424",
+            "primary_scope_ids": [
+              "CMP"
+            ],
+            "primary_scope_labels": [
+              "CMP",
+              "化学机械研磨",
+              "化学机械抛光",
+              "cmp",
+              "chemical mechanical polishing"
+            ],
+            "primary_scope_type": "process",
+            "reference_evidence": {
+              "TOOL:S01": {
+                "conflict_codes": [],
+                "critical_risk_codes": [
+                  "empty_result"
+                ],
+                "evidence_ids": [
+                  "SOP-01",
+                  "SOP-02"
+                ],
+                "risk_codes": [
+                  "empty_result"
+                ],
+                "statuses": {
+                  "SOP-01": "partial",
+                  "SOP-02": "partial"
+                }
+              },
+              "TOOL:S02": {
+                "conflict_codes": [],
+                "critical_risk_codes": [
+                  "empty_result"
+                ],
+                "evidence_ids": [
+                  "SOP-03"
+                ],
+                "risk_codes": [
+                  "empty_result"
+                ],
+                "statuses": {
+                  "SOP-03": "partial"
+                }
+              },
+              "TOOL:search_knowledge": {
+                "conflict_codes": [],
+                "critical_risk_codes": [
+                  "empty_result",
+                  "empty_result"
+                ],
+                "evidence_ids": [
+                  "SOP-01",
+                  "SOP-02",
+                  "SOP-03"
+                ],
+                "risk_codes": [
+                  "empty_result",
+                  "empty_result"
+                ],
+                "statuses": {
+                  "SOP-01": "partial",
+                  "SOP-02": "partial",
+                  "SOP-03": "partial"
+                }
+              }
+            },
+            "risks": [
+              {
+                "code": "empty_result",
+                "evidence_ids": [
+                  "SOP-01",
+                  "SOP-02"
+                ],
+                "message": "search_knowledge 返回空结果。",
+                "severity": "critical"
+              },
+              {
+                "code": "empty_result",
+                "evidence_ids": [
+                  "SOP-03"
+                ],
+                "message": "search_knowledge 返回空结果。",
+                "severity": "critical"
+              }
+            ],
+            "schema_version": "1.2",
+            "source_scope_roles": {
+              "TOOL:S01": "primary",
+              "TOOL:S02": "primary",
+              "TOOL:search_knowledge": "primary"
+            },
+            "source_semantics": {
+              "TOOL:S01": {
+                "end": null,
+                "filter_provenance": "planner",
+                "grain": "document",
+                "kind": "document",
+                "scope": {
+                  "chambers": [],
+                  "equipment_ids": [],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [
+                    "CMP"
+                  ],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "scope_role": "primary",
+                "semantic_id": "knowledge_document",
+                "start": null
+              },
+              "TOOL:S02": {
+                "end": null,
+                "filter_provenance": "planner",
+                "grain": "document",
+                "kind": "document",
+                "scope": {
+                  "chambers": [],
+                  "equipment_ids": [],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [
+                    "CMP"
+                  ],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "scope_role": "primary",
+                "semantic_id": "knowledge_document",
+                "start": null
+              }
+            },
+            "status": "validated",
+            "validator_version": "1.2.0"
+          }
+        },
+        {
+          "event": "stage",
+          "knowledge_fallback": {
+            "disclosure": "知识库未检索到相关内容。以下回答使用模型通用知识，仅供参考，不代表厂内 SOP、规格或当前生产事实。",
+            "reason": "search_empty",
+            "used": true
+          },
+          "message": "知识库未检索到相关内容，正在使用模型通用知识补充回答",
+          "stage": "knowledge_fallback"
+        },
+        {
+          "event": "stage",
+          "execution_mode": "synthesis_only",
+          "message": "计划工具已执行完毕，正在基于已验证证据生成结论",
+          "stage": "synthesis"
+        },
+        {
+          "delta": "知识库未检索到相关内容。以下回答使用模型通用知识，仅供参考，不代表厂内 SOP、规格或当前生产事实。\n\n## 模型通用知识：[模型通用知识]\n\n离线合成结论。\n\n## 使用限制\n- 知识库检索未获得可用内容，未找到可引用的厂内知识或历史案例",
+          "event": "answer_delta"
+        },
+        {
+          "delta": "。\n- 知识库未检索到相关内容。以下回答使用模型通用知识，仅供参考，不代表厂内 SOP、规格或当前生产事实。\n- 模型通用知识不能替代厂内 SOP、配方、规格或生产数据。",
+          "event": "answer_delta"
+        }
+      ],
+      "sources": [],
+      "tool_trace": [
+        {
+          "arguments": {
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "查询 CMP 恢复量产 SOP",
+            "source_types": [
+              "personal",
+              "knowledge"
+            ]
+          },
+          "execution_mode": "deterministic",
+          "plan_step_id": "S01",
+          "raw_rows": 0,
+          "rows": 0,
+          "status": "ok",
+          "tool": "search_knowledge"
+        },
+        {
+          "arguments": {
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "查询 CMP 恢复量产 SOP",
+            "source_types": [
+              "case"
+            ]
+          },
+          "execution_mode": "deterministic",
+          "plan_step_id": "S02",
+          "raw_rows": 0,
+          "rows": 0,
+          "status": "ok",
+          "tool": "search_knowledge"
+        }
+      ]
+    },
+    "knowledge_retrieval_success": {
+      "answer": "## 待验证原文（未经结构化验证）\n\n离线合成结论。\n\n## 证据限制\n- 证据限制：以下原文仅保留其展示结构，未作为已确认生产事实。\n- SOP-01 正式规范来源 为partial，缺少字段：source, title, section, retrieval。\n- SOP-02 版本与适用范围 为partial，缺少字段：status, version, effective_date, owner, process_steps, equipment_families。\n- SOP-03 历史案例补充 为partial，缺少字段：problem, solution, result, summary, retrieval。\n- 必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。",
+      "answer_synthesis": {
+        "allowed_conclusion_strength": "insufficient",
+        "analysis_protocol_version": "1.1",
+        "claim_support": [
+          {
+            "category": "conclusion",
+            "evidence_refs": [],
+            "reasons": [
+              "未提供可验证引用。",
+              "结构化语义、范围、时间或粒度与引用不一致。"
+            ],
+            "statement": "",
+            "support": "unsupported"
+          }
+        ],
+        "invalid_source_refs": [],
+        "moved_claims": 0,
+        "plan_id": "plan-2eea976cb27a0424",
+        "repair_events": [
+          {
+            "affected_field": "display_blocks",
+            "outcome": "preserved_as_unverified_blocks",
+            "reason": "legacy_unstructured_answer"
+          }
+        ],
+        "schema_version": "1.2",
+        "sections": [
+          "待验证原文（未经结构化验证）",
+          "证据限制"
+        ],
+        "source_refs": [],
+        "status": "repaired",
+        "synthesizer_version": "1.2.0",
+        "wording_adjustments": []
+      },
+      "evidence_validation": {
+        "allowed_conclusion_strength": "insufficient",
+        "causal_claims_allowed": false,
+        "conclusion_guidance": "必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。",
+        "conflicts": [],
+        "coverage": {
+          "field_coverage_pct": 23.1,
+          "required_coverage_pct": 0.0,
+          "required_covered": 0,
+          "required_total": 2
+        },
+        "evidence_checks": [
+          {
+            "evidence_id": "SOP-01",
+            "matched_tools": [
+              "search_knowledge"
+            ],
+            "missing_fields": [
+              "source",
+              "title",
+              "section",
+              "retrieval"
+            ],
+            "name": "正式规范来源",
+            "present_fields": [
+              "reference_id",
+              "source_type",
+              "content"
+            ],
+            "required": true,
+            "row_count": 1,
+            "status": "partial",
+            "successful_calls": 1
+          },
+          {
+            "evidence_id": "SOP-02",
+            "matched_tools": [
+              "search_knowledge"
+            ],
+            "missing_fields": [
+              "status",
+              "version",
+              "effective_date",
+              "owner",
+              "process_steps",
+              "equipment_families"
+            ],
+            "name": "版本与适用范围",
+            "present_fields": [],
+            "required": true,
+            "row_count": 1,
+            "status": "partial",
+            "successful_calls": 1
+          },
+          {
+            "evidence_id": "SOP-03",
+            "matched_tools": [
+              "search_knowledge"
+            ],
+            "missing_fields": [
+              "problem",
+              "solution",
+              "result",
+              "summary",
+              "retrieval"
+            ],
+            "name": "历史案例补充",
+            "present_fields": [
+              "reference_id",
+              "source_type"
+            ],
+            "required": false,
+            "row_count": 1,
+            "status": "partial",
+            "successful_calls": 1
+          }
+        ],
+        "observed_source_refs": [
+          "TOOL:S01",
+          "TOOL:S02",
+          "TOOL:search_knowledge"
+        ],
+        "plan_id": "plan-2eea976cb27a0424",
+        "primary_scope_ids": [
+          "CMP"
+        ],
+        "primary_scope_labels": [
+          "CMP",
+          "化学机械研磨",
+          "化学机械抛光",
+          "cmp",
+          "chemical mechanical polishing"
+        ],
+        "primary_scope_type": "process",
+        "reference_evidence": {
+          "TOOL:S01": {
+            "conflict_codes": [],
+            "critical_risk_codes": [],
+            "evidence_ids": [
+              "SOP-01",
+              "SOP-02"
+            ],
+            "risk_codes": [],
+            "statuses": {
+              "SOP-01": "partial",
+              "SOP-02": "partial"
+            }
+          },
+          "TOOL:S02": {
+            "conflict_codes": [],
+            "critical_risk_codes": [],
+            "evidence_ids": [
+              "SOP-03"
+            ],
+            "risk_codes": [],
+            "statuses": {
+              "SOP-03": "partial"
+            }
+          },
+          "TOOL:search_knowledge": {
+            "conflict_codes": [],
+            "critical_risk_codes": [],
+            "evidence_ids": [
+              "SOP-01",
+              "SOP-02",
+              "SOP-03"
+            ],
+            "risk_codes": [],
+            "statuses": {
+              "SOP-01": "partial",
+              "SOP-02": "partial",
+              "SOP-03": "partial"
+            }
+          }
+        },
+        "risks": [],
+        "schema_version": "1.2",
+        "source_scope_roles": {
+          "TOOL:S01": "primary",
+          "TOOL:S02": "primary",
+          "TOOL:search_knowledge": "primary"
+        },
+        "source_semantics": {
+          "TOOL:S01": {
+            "end": null,
+            "filter_provenance": "planner",
+            "grain": "document",
+            "kind": "document",
+            "scope": {
+              "chambers": [],
+              "equipment_ids": [],
+              "fab_ids": [],
+              "lot_ids": [],
+              "process_steps": [
+                "CMP"
+              ],
+              "products": [],
+              "recipes": [],
+              "wafer_ids": []
+            },
+            "scope_role": "primary",
+            "semantic_id": "knowledge_document",
+            "start": null
+          },
+          "TOOL:S02": {
+            "end": null,
+            "filter_provenance": "planner",
+            "grain": "document",
+            "kind": "document",
+            "scope": {
+              "chambers": [],
+              "equipment_ids": [],
+              "fab_ids": [],
+              "lot_ids": [],
+              "process_steps": [
+                "CMP"
+              ],
+              "products": [],
+              "recipes": [],
+              "wafer_ids": []
+            },
+            "scope_role": "primary",
+            "semantic_id": "knowledge_document",
+            "start": null
+          }
+        },
+        "status": "validated",
+        "validator_version": "1.2.0"
+      },
+      "execution_layer": "_run_agent_impl",
+      "execution_mode": "deterministic_ready_plan",
+      "input": {
+        "question": "查询 CMP 恢复量产 SOP"
+      },
+      "loop_guard": {
+        "blocked_calls": 0,
+        "blocked_reasons": {},
+        "budget": {
+          "enforcement": "runtime",
+          "max_identical_parameter_calls": 1,
+          "max_model_iterations": 6,
+          "max_no_progress_rounds": 2,
+          "max_rows_per_call": 100,
+          "max_tool_calls": 4,
+          "per_tool_limits": {
+            "search_knowledge": 3
+          },
+          "planned_tool_calls": 2
+        },
+        "consecutive_no_progress_rounds": 0,
+        "enforcement": "runtime",
+        "force_synthesis": true,
+        "per_tool_calls": {
+          "search_knowledge": 2
+        },
+        "plan_id": "plan-2eea976cb27a0424",
+        "stop_message": "确定性 ready 计划已完成，禁止继续选择业务工具。",
+        "stop_reason": "deterministic_plan_completed",
+        "total_calls": 2,
+        "unique_evidence_results": 2
+      },
+      "mode": "deterministic-fallback",
+      "model_message_lengths": [
+        4990
+      ],
+      "model_request_count": 1,
+      "model_tool_names": [
+        [
+          "submit_analysis"
+        ]
+      ],
+      "progress_events": [
+        {
+          "event": "stage",
+          "message": "已识别为SOP 与知识查询 · CMP，正在限定数据范围",
+          "route": {
+            "candidate_intents": [
+              "sop_lookup"
+            ],
+            "clarification_needed": false,
+            "clarification_questions": [],
+            "confidence": 0.99,
+            "data_requirements": [
+              "search_knowledge"
+            ],
+            "equipment_ids": [],
+            "intent": "sop_lookup",
+            "intent_label": "SOP 与知识查询",
+            "process_steps": [
+              "CMP"
+            ],
+            "risk_level": "high",
+            "risk_reasons": [
+              "高风险处置"
+            ],
+            "scope_resolution": {
+              "clarification_needed": false,
+              "confidence": 1.0,
+              "resolved_ids": [],
+              "scope_type": "not_applicable",
+              "source": "deterministic",
+              "unresolved_mentions": []
+            },
+            "time_range": {
+              "assumed": true,
+              "end": "2026-10-21",
+              "source": "default_90_days",
+              "start": "2026-07-24"
+            }
+          },
+          "stage": "routing"
+        },
+        {
+          "event": "stage",
+          "message": "已加载 SOP 与控制规范查询 · v1.0.0",
+          "playbook": {
+            "candidate_playbooks": [
+              {
+                "intent": "sop_lookup",
+                "playbook_id": "PB-SOP-001",
+                "playbook_version": "1.0.0",
+                "title": "SOP 与控制规范查询"
+              }
+            ],
+            "reason": "路由意图与版本化 Domain Playbook 精确匹配。",
+            "route_intent": "sop_lookup",
+            "selected_playbook": {
+              "analysis_questions": [
+                "用户要查的是强制要求、操作步骤、规格门槛还是历史经验？",
+                "文档版本、状态、生效日期和适用制程是否匹配？",
+                "多个来源是否冲突，哪一项具有更高权威性？",
+                "哪些内容来自正式规范，哪些仅来自历史案例？"
+              ],
+              "answer_sections": [
+                "适用规范",
+                "关键要求",
+                "适用范围与版本",
+                "历史经验补充",
+                "缺口与确认人"
+              ],
+              "evidence_requirements": [
+                {
+                  "acceptance_criteria": [
+                    "至少一个 knowledge 或 personal 正式文档结果具有非低置信度。",
+                    "回答中的规范性要求必须逐项引用 reference_id。"
+                  ],
+                  "evidence_id": "SOP-01",
+                  "name": "正式规范来源",
+                  "purpose": "检索与问题、制程和设备范围匹配的 SOP、控制计划或治理规范。",
+                  "required": true,
+                  "required_fields": [
+                    "reference_id",
+                    "source_type",
+                    "source",
+                    "title",
+                    "section",
+                    "content",
+                    "retrieval"
+                  ],
+                  "source_tools": [
+                    "search_knowledge"
+                  ]
+                },
+                {
+                  "acceptance_criteria": [
+                    "存在多个版本或冲突要求时优先使用生效且权威等级更高的来源。",
+                    "缺少版本或适用范围时必须标记为待文档所有者确认。"
+                  ],
+                  "evidence_id": "SOP-02",
+                  "name": "版本与适用范围",
+                  "purpose": "确认文档状态、版本、生效日期、所有者、制程和设备适用范围。",
+                  "required": true,
+                  "required_fields": [
+                    "status",
+                    "version",
+                    "effective_date",
+                    "owner",
+                    "process_steps",
+                    "equipment_families"
+                  ],
+                  "source_tools": [
+                    "search_knowledge"
+                  ]
+                },
+                {
+                  "acceptance_criteria": [
+                    "案例必须标记为历史经验，并说明与当前场景的相似点和差异。",
+                    "案例与正式规范冲突时以生效规范为准。"
+                  ],
+                  "evidence_id": "SOP-03",
+                  "name": "历史案例补充",
+                  "purpose": "提供执行经验、验证方法和常见失效模式，但不替代正式要求。",
+                  "required": false,
+                  "required_fields": [
+                    "reference_id",
+                    "source_type",
+                    "problem",
+                    "solution",
+                    "result",
+                    "summary",
+                    "retrieval"
+                  ],
+                  "source_tools": [
+                    "search_knowledge"
+                  ]
+                }
+              ],
+              "intent": "sop_lookup",
+              "objective": "返回适用、可定位、可引用的正式知识，并将规范要求与历史经验明确分离。",
+              "playbook_id": "PB-SOP-001",
+              "playbook_version": "1.0.0",
+              "released_at": "2026-07-18",
+              "required_inputs": [
+                "query"
+              ],
+              "safety_constraints": [
+                "不得执行写库、停机、放行、返工、报废或配方变更操作。",
+                "停机、放行、返工、报废、配方变更和恢复量产建议必须要求对应工程与制造人员复核。",
+                "相关性、时间重合和历史案例相似性只能形成假设，不能单独证明因果。",
+                "缺少必需证据时必须明确列出缺口并降低结论强度，不得补造数据。"
+              ],
+              "schema_version": "1.0",
+              "title": "SOP 与控制规范查询"
+            },
+            "status": "selected"
+          },
+          "stage": "playbook"
+        },
+        {
+          "event": "stage",
+          "message": "执行计划已生成 · 2 步 · 预算 4 次工具调用",
+          "plan": {
+            "budget": {
+              "enforcement": "runtime",
+              "max_identical_parameter_calls": 1,
+              "max_model_iterations": 6,
+              "max_no_progress_rounds": 2,
+              "max_rows_per_call": 100,
+              "max_tool_calls": 4,
+              "per_tool_limits": {
+                "search_knowledge": 3
+              },
+              "planned_tool_calls": 2
+            },
+            "clarification_questions": [],
+            "missing_inputs": [],
+            "plan_id": "plan-2eea976cb27a0424",
+            "planner_version": "1.1.0",
+            "playbook_id": "PB-SOP-001",
+            "playbook_version": "1.0.0",
+            "reason": "已将路由范围和 Domain Playbook 证据模板实例化为确定性工具计划。",
+            "required_evidence_ids": [
+              "SOP-01",
+              "SOP-02"
+            ],
+            "route_intent": "sop_lookup",
+            "schema_version": "1.1",
+            "scope_contract": {
+              "context_only_tools": [
+                "get_fab_overview",
+                "get_yield_trend"
+              ],
+              "primary_scope_ids": [
+                "CMP"
+              ],
+              "primary_scope_labels": [
+                "CMP",
+                "化学机械研磨",
+                "化学机械抛光",
+                "cmp",
+                "chemical mechanical polishing"
+              ],
+              "primary_scope_type": "process"
+            },
+            "status": "ready",
+            "steps": [
+              {
+                "depends_on": [],
+                "estimated_result_limit": 10,
+                "evidence_end": null,
+                "evidence_ids": [
+                  "SOP-01",
+                  "SOP-02"
+                ],
+                "evidence_kind": "document",
+                "evidence_scope": {
+                  "chambers": [],
+                  "equipment_ids": [],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [
+                    "CMP"
+                  ],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "evidence_start": null,
+                "filter_provenance": "planner",
+                "grain": "document",
+                "parameter_sources": {
+                  "limit": "planner.default",
+                  "process_step": "intent_route.process_steps[0]",
+                  "query": "user.question",
+                  "source_types": "playbook.evidence_scope"
+                },
+                "parameters": {
+                  "limit": 10,
+                  "process_step": "CMP",
+                  "query": "查询 CMP 恢复量产 SOP",
+                  "source_types": [
+                    "personal",
+                    "knowledge"
+                  ]
+                },
+                "required": true,
+                "scope_role": "primary",
+                "semantic_id": "knowledge_document",
+                "step_id": "S01",
+                "success_criteria": [
+                  "至少一个 knowledge 或 personal 正式文档结果具有非低置信度。",
+                  "回答中的规范性要求必须逐项引用 reference_id。",
+                  "存在多个版本或冲突要求时优先使用生效且权威等级更高的来源。",
+                  "缺少版本或适用范围时必须标记为待文档所有者确认。"
+                ],
+                "title": "正式规范来源 / 版本与适用范围",
+                "tool": "search_knowledge"
+              },
+              {
+                "depends_on": [
+                  "S01"
+                ],
+                "estimated_result_limit": 10,
+                "evidence_end": null,
+                "evidence_ids": [
+                  "SOP-03"
+                ],
+                "evidence_kind": "document",
+                "evidence_scope": {
+                  "chambers": [],
+                  "equipment_ids": [],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [
+                    "CMP"
+                  ],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "evidence_start": null,
+                "filter_provenance": "planner",
+                "grain": "document",
+                "parameter_sources": {
+                  "limit": "planner.default",
+                  "process_step": "intent_route.process_steps[0]",
+                  "query": "user.question",
+                  "source_types": "playbook.evidence_scope"
+                },
+                "parameters": {
+                  "limit": 10,
+                  "process_step": "CMP",
+                  "query": "查询 CMP 恢复量产 SOP",
+                  "source_types": [
+                    "case"
+                  ]
+                },
+                "required": false,
+                "scope_role": "primary",
+                "semantic_id": "knowledge_document",
+                "step_id": "S02",
+                "success_criteria": [
+                  "案例必须标记为历史经验，并说明与当前场景的相似点和差异。",
+                  "案例与正式规范冲突时以生效规范为准。"
+                ],
+                "title": "历史案例补充",
+                "tool": "search_knowledge"
+              }
+            ]
+          },
+          "stage": "plan"
+        },
+        {
+          "event": "stage",
+          "execution_mode": "deterministic",
+          "message": "正在按依赖顺序执行 2 个已批准步骤",
+          "stage": "tools"
+        },
+        {
+          "arguments": {
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "查询 CMP 恢复量产 SOP",
+            "source_types": [
+              "personal",
+              "knowledge"
+            ]
+          },
+          "event": "tool_started",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S01",
+          "tool": "search_knowledge"
+        },
+        {
+          "arguments": {
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "查询 CMP 恢复量产 SOP",
+            "source_types": [
+              "personal",
+              "knowledge"
+            ]
+          },
+          "event": "tool_finished",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S01",
+          "raw_rows": 1,
+          "rows": 1,
+          "status": "ok",
+          "tool": "search_knowledge"
+        },
+        {
+          "arguments": {
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "查询 CMP 恢复量产 SOP",
+            "source_types": [
+              "case"
+            ]
+          },
+          "event": "tool_started",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S02",
+          "tool": "search_knowledge"
+        },
+        {
+          "arguments": {
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "查询 CMP 恢复量产 SOP",
+            "source_types": [
+              "case"
+            ]
+          },
+          "event": "tool_finished",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S02",
+          "raw_rows": 1,
+          "rows": 1,
+          "status": "ok",
+          "tool": "search_knowledge"
+        },
+        {
+          "event": "stage",
+          "execution_mode": "deterministic",
+          "message": "证据校验完成 · 必需证据 0/2 · 结论强度 insufficient",
+          "stage": "validation",
+          "validation": {
+            "allowed_conclusion_strength": "insufficient",
+            "causal_claims_allowed": false,
+            "conclusion_guidance": "必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。",
+            "conflicts": [],
+            "coverage": {
+              "field_coverage_pct": 23.1,
+              "required_coverage_pct": 0.0,
+              "required_covered": 0,
+              "required_total": 2
+            },
+            "evidence_checks": [
+              {
+                "evidence_id": "SOP-01",
+                "matched_tools": [
+                  "search_knowledge"
+                ],
+                "missing_fields": [
+                  "source",
+                  "title",
+                  "section",
+                  "retrieval"
+                ],
+                "name": "正式规范来源",
+                "present_fields": [
+                  "reference_id",
+                  "source_type",
+                  "content"
+                ],
+                "required": true,
+                "row_count": 1,
+                "status": "partial",
+                "successful_calls": 1
+              },
+              {
+                "evidence_id": "SOP-02",
+                "matched_tools": [
+                  "search_knowledge"
+                ],
+                "missing_fields": [
+                  "status",
+                  "version",
+                  "effective_date",
+                  "owner",
+                  "process_steps",
+                  "equipment_families"
+                ],
+                "name": "版本与适用范围",
+                "present_fields": [],
+                "required": true,
+                "row_count": 1,
+                "status": "partial",
+                "successful_calls": 1
+              },
+              {
+                "evidence_id": "SOP-03",
+                "matched_tools": [
+                  "search_knowledge"
+                ],
+                "missing_fields": [
+                  "problem",
+                  "solution",
+                  "result",
+                  "summary",
+                  "retrieval"
+                ],
+                "name": "历史案例补充",
+                "present_fields": [
+                  "reference_id",
+                  "source_type"
+                ],
+                "required": false,
+                "row_count": 1,
+                "status": "partial",
+                "successful_calls": 1
+              }
+            ],
+            "observed_source_refs": [
+              "TOOL:S01",
+              "TOOL:S02",
+              "TOOL:search_knowledge"
+            ],
+            "plan_id": "plan-2eea976cb27a0424",
+            "primary_scope_ids": [
+              "CMP"
+            ],
+            "primary_scope_labels": [
+              "CMP",
+              "化学机械研磨",
+              "化学机械抛光",
+              "cmp",
+              "chemical mechanical polishing"
+            ],
+            "primary_scope_type": "process",
+            "reference_evidence": {
+              "TOOL:S01": {
+                "conflict_codes": [],
+                "critical_risk_codes": [],
+                "evidence_ids": [
+                  "SOP-01",
+                  "SOP-02"
+                ],
+                "risk_codes": [],
+                "statuses": {
+                  "SOP-01": "partial",
+                  "SOP-02": "partial"
+                }
+              },
+              "TOOL:S02": {
+                "conflict_codes": [],
+                "critical_risk_codes": [],
+                "evidence_ids": [
+                  "SOP-03"
+                ],
+                "risk_codes": [],
+                "statuses": {
+                  "SOP-03": "partial"
+                }
+              },
+              "TOOL:search_knowledge": {
+                "conflict_codes": [],
+                "critical_risk_codes": [],
+                "evidence_ids": [
+                  "SOP-01",
+                  "SOP-02",
+                  "SOP-03"
+                ],
+                "risk_codes": [],
+                "statuses": {
+                  "SOP-01": "partial",
+                  "SOP-02": "partial",
+                  "SOP-03": "partial"
+                }
+              }
+            },
+            "risks": [],
+            "schema_version": "1.2",
+            "source_scope_roles": {
+              "TOOL:S01": "primary",
+              "TOOL:S02": "primary",
+              "TOOL:search_knowledge": "primary"
+            },
+            "source_semantics": {
+              "TOOL:S01": {
+                "end": null,
+                "filter_provenance": "planner",
+                "grain": "document",
+                "kind": "document",
+                "scope": {
+                  "chambers": [],
+                  "equipment_ids": [],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [
+                    "CMP"
+                  ],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "scope_role": "primary",
+                "semantic_id": "knowledge_document",
+                "start": null
+              },
+              "TOOL:S02": {
+                "end": null,
+                "filter_provenance": "planner",
+                "grain": "document",
+                "kind": "document",
+                "scope": {
+                  "chambers": [],
+                  "equipment_ids": [],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [
+                    "CMP"
+                  ],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "scope_role": "primary",
+                "semantic_id": "knowledge_document",
+                "start": null
+              }
+            },
+            "status": "validated",
+            "validator_version": "1.2.0"
+          }
+        },
+        {
+          "event": "stage",
+          "execution_mode": "synthesis_only",
+          "message": "计划工具已执行完毕，正在基于已验证证据生成结论",
+          "stage": "synthesis"
+        },
+        {
+          "delta": "## 待验证原文（未经结构化验证）\n\n离线合成结论。\n\n## 证据限制\n- 证据限制：以下原文仅保留其展示结构，未作为已确认生产事实。\n- SOP-01 正式规范来源 为partial，缺少字段：source, title, section",
+          "event": "answer_delta"
+        },
+        {
+          "delta": ", retrieval。\n- SOP-02 版本与适用范围 为partial，缺少字段：status, version, effective_date, owner, process_steps, equipment_families。\n-",
+          "event": "answer_delta"
+        },
+        {
+          "delta": " SOP-03 历史案例补充 为partial，缺少字段：problem, solution, result, summary, retrieval。\n- 必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。",
+          "event": "answer_delta"
+        }
+      ],
+      "sources": [],
+      "tool_trace": [
+        {
+          "arguments": {
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "查询 CMP 恢复量产 SOP",
+            "source_types": [
+              "personal",
+              "knowledge"
+            ]
+          },
+          "execution_mode": "deterministic",
+          "plan_step_id": "S01",
+          "raw_rows": 1,
+          "rows": 1,
+          "status": "ok",
+          "tool": "search_knowledge"
+        },
+        {
+          "arguments": {
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "查询 CMP 恢复量产 SOP",
+            "source_types": [
+              "case"
+            ]
+          },
+          "execution_mode": "deterministic",
+          "plan_step_id": "S02",
+          "raw_rows": 1,
+          "rows": 1,
+          "status": "ok",
+          "tool": "search_knowledge"
+        }
+      ]
+    },
+    "loop_duplicate_blocked": {
+      "answer": "已有证据不足，已停止重复查询。",
+      "answer_synthesis": {
+        "allowed_conclusion_strength": "not_applicable",
+        "analysis_protocol_version": "1.1",
+        "claim_support": [],
+        "invalid_source_refs": [],
+        "moved_claims": 0,
+        "plan_id": "plan-4c8907b31a951955",
+        "repair_events": [],
+        "schema_version": "1.0",
+        "sections": [],
+        "source_refs": [],
+        "status": "not_applicable",
+        "synthesizer_version": "1.2.0",
+        "wording_adjustments": []
+      },
+      "evidence_validation": {
+        "allowed_conclusion_strength": "not_applicable",
+        "causal_claims_allowed": false,
+        "conclusion_guidance": "当前没有适用的领域证据契约；按通用规则回答并明确数据来源。",
+        "conflicts": [],
+        "coverage": {
+          "field_coverage_pct": 0.0,
+          "required_coverage_pct": 0.0,
+          "required_covered": 0,
+          "required_total": 0
+        },
+        "evidence_checks": [],
+        "observed_source_refs": [],
+        "plan_id": "plan-4c8907b31a951955",
+        "primary_scope_ids": [
+          "CMP"
+        ],
+        "primary_scope_labels": [
+          "CMP",
+          "化学机械研磨",
+          "化学机械抛光",
+          "cmp",
+          "chemical mechanical polishing"
+        ],
+        "primary_scope_type": "process",
+        "reference_evidence": {},
+        "risks": [],
+        "schema_version": "1.2",
+        "source_scope_roles": {},
+        "source_semantics": {},
+        "status": "not_applicable",
+        "validator_version": "1.2.0"
+      },
+      "execution_layer": "_run_agent_impl",
+      "execution_mode": null,
+      "input": {
+        "question": "分析 CMP 划伤缺陷 Pareto"
+      },
+      "loop_guard": {
+        "blocked_calls": 2,
+        "blocked_reasons": {
+          "duplicate_arguments": 2
+        },
+        "budget": {
+          "enforcement": "runtime",
+          "max_identical_parameter_calls": 1,
+          "max_model_iterations": 6,
+          "max_no_progress_rounds": 2,
+          "max_rows_per_call": 100,
+          "max_tool_calls": 10,
+          "per_tool_limits": {
+            "*": 3,
+            "query_manufacturing_data": 5,
+            "search_knowledge": 6
+          },
+          "planned_tool_calls": 0
+        },
+        "consecutive_no_progress_rounds": 2,
+        "enforcement": "runtime",
+        "force_synthesis": true,
+        "per_tool_calls": {
+          "get_process_capability": 1
+        },
+        "plan_id": "plan-4c8907b31a951955",
+        "stop_message": "连续 2 轮没有获得新证据。",
+        "stop_reason": "no_progress",
+        "total_calls": 1,
+        "unique_evidence_results": 1
+      },
+      "mode": "deepseek",
+      "model_message_lengths": [
+        7893,
+        10186,
+        12389,
+        14731
+      ],
+      "model_request_count": 4,
+      "model_tool_names": [
+        [
+          "get_enterprise_data_manifest",
+          "get_enterprise_fab_summary",
+          "query_enterprise_data",
+          "get_fab_overview",
+          "get_yield_trend",
+          "get_process_pass_rate",
+          "get_equipment_health",
+          "get_equipment_productivity",
+          "get_process_capability",
+          "get_defect_pareto",
+          "get_recent_excursions",
+          "get_sensor_summary",
+          "search_knowledge",
+          "query_manufacturing_data",
+          "submit_analysis"
+        ],
+        [
+          "get_enterprise_data_manifest",
+          "get_enterprise_fab_summary",
+          "query_enterprise_data",
+          "get_fab_overview",
+          "get_yield_trend",
+          "get_process_pass_rate",
+          "get_equipment_health",
+          "get_equipment_productivity",
+          "get_process_capability",
+          "get_defect_pareto",
+          "get_recent_excursions",
+          "get_sensor_summary",
+          "search_knowledge",
+          "query_manufacturing_data",
+          "submit_analysis"
+        ],
+        [
+          "get_enterprise_data_manifest",
+          "get_enterprise_fab_summary",
+          "query_enterprise_data",
+          "get_fab_overview",
+          "get_yield_trend",
+          "get_process_pass_rate",
+          "get_equipment_health",
+          "get_equipment_productivity",
+          "get_process_capability",
+          "get_defect_pareto",
+          "get_recent_excursions",
+          "get_sensor_summary",
+          "search_knowledge",
+          "query_manufacturing_data",
+          "submit_analysis"
+        ],
+        [
+          "get_enterprise_data_manifest",
+          "get_enterprise_fab_summary",
+          "query_enterprise_data",
+          "get_fab_overview",
+          "get_yield_trend",
+          "get_process_pass_rate",
+          "get_equipment_health",
+          "get_equipment_productivity",
+          "get_process_capability",
+          "get_defect_pareto",
+          "get_recent_excursions",
+          "get_sensor_summary",
+          "search_knowledge",
+          "query_manufacturing_data",
+          "submit_analysis"
+        ]
+      ],
+      "progress_events": [
+        {
+          "event": "stage",
+          "message": "已识别为缺陷分析 · CMP，正在限定数据范围",
+          "route": {
+            "candidate_intents": [
+              "defect_analysis"
+            ],
+            "clarification_needed": false,
+            "clarification_questions": [],
+            "confidence": 0.99,
+            "data_requirements": [
+              "get_defect_pareto",
+              "get_recent_excursions",
+              "query_manufacturing_data",
+              "search_knowledge"
+            ],
+            "equipment_ids": [],
+            "intent": "defect_analysis",
+            "intent_label": "缺陷分析",
+            "process_steps": [
+              "CMP"
+            ],
+            "risk_level": "medium",
+            "risk_reasons": [
+              "问题包含制造异常信号"
+            ],
+            "scope_resolution": {
+              "clarification_needed": false,
+              "confidence": 1.0,
+              "resolved_ids": [
+                "CMP"
+              ],
+              "scope_type": "process",
+              "source": "deterministic",
+              "unresolved_mentions": []
+            },
+            "time_range": {
+              "assumed": true,
+              "end": "2026-10-21",
+              "source": "default_90_days",
+              "start": "2026-07-24"
+            }
+          },
+          "stage": "routing"
+        },
+        {
+          "event": "stage",
+          "message": "当前问题使用通用分析规则",
+          "playbook": {
+            "candidate_playbooks": [],
+            "reason": "当前六类 Domain Playbook 不覆盖该意图，继续使用通用 Agent 规则。",
+            "route_intent": "defect_analysis",
+            "selected_playbook": null,
+            "status": "unsupported"
+          },
+          "stage": "playbook"
+        },
+        {
+          "event": "stage",
+          "message": "当前问题不使用领域执行计划",
+          "plan": {
+            "budget": {
+              "enforcement": "runtime",
+              "max_identical_parameter_calls": 1,
+              "max_model_iterations": 6,
+              "max_no_progress_rounds": 2,
+              "max_rows_per_call": 100,
+              "max_tool_calls": 10,
+              "per_tool_limits": {
+                "*": 3,
+                "query_manufacturing_data": 5,
+                "search_knowledge": 6
+              },
+              "planned_tool_calls": 0
+            },
+            "clarification_questions": [],
+            "missing_inputs": [],
+            "plan_id": "plan-4c8907b31a951955",
+            "planner_version": "1.1.0",
+            "playbook_id": null,
+            "playbook_version": null,
+            "reason": "当前 Planner 仅实例化六类 Domain Playbook；该问题继续使用通用 Agent 路径。",
+            "required_evidence_ids": [],
+            "route_intent": "defect_analysis",
+            "schema_version": "1.1",
+            "scope_contract": {
+              "context_only_tools": [
+                "get_fab_overview",
+                "get_yield_trend"
+              ],
+              "primary_scope_ids": [
+                "CMP"
+              ],
+              "primary_scope_labels": [
+                "CMP",
+                "化学机械研磨",
+                "化学机械抛光",
+                "cmp",
+                "chemical mechanical polishing"
+              ],
+              "primary_scope_type": "process"
+            },
+            "status": "unsupported",
+            "steps": []
+          },
+          "stage": "plan"
+        },
+        {
+          "event": "stage",
+          "iteration": 1,
+          "message": "正在理解问题并规划分析路径",
+          "stage": "planning"
+        },
+        {
+          "arguments": {
+            "end": "2026-07-18",
+            "process_step": "CMP",
+            "start": "2026-07-12"
+          },
+          "event": "tool_started",
+          "tool": "get_process_capability"
+        },
+        {
+          "arguments": {
+            "end": "2026-07-18",
+            "process_step": "CMP",
+            "start": "2026-07-12"
+          },
+          "event": "tool_finished",
+          "rows": 1,
+          "status": "ok",
+          "tool": "get_process_capability"
+        },
+        {
+          "event": "stage",
+          "message": "证据校验完成 · 必需证据 0/0 · 结论强度 not_applicable",
+          "stage": "validation",
+          "validation": {
+            "allowed_conclusion_strength": "not_applicable",
+            "causal_claims_allowed": false,
+            "conclusion_guidance": "当前没有适用的领域证据契约；按通用规则回答并明确数据来源。",
+            "conflicts": [],
+            "coverage": {
+              "field_coverage_pct": 0.0,
+              "required_coverage_pct": 0.0,
+              "required_covered": 0,
+              "required_total": 0
+            },
+            "evidence_checks": [],
+            "observed_source_refs": [],
+            "plan_id": "plan-4c8907b31a951955",
+            "primary_scope_ids": [
+              "CMP"
+            ],
+            "primary_scope_labels": [
+              "CMP",
+              "化学机械研磨",
+              "化学机械抛光",
+              "cmp",
+              "chemical mechanical polishing"
+            ],
+            "primary_scope_type": "process",
+            "reference_evidence": {},
+            "risks": [],
+            "schema_version": "1.2",
+            "source_scope_roles": {},
+            "source_semantics": {},
+            "status": "not_applicable",
+            "validator_version": "1.2.0"
+          }
+        },
+        {
+          "event": "stage",
+          "iteration": 2,
+          "message": "正在结合工具结果判断是否继续，并组织结论",
+          "stage": "planning"
+        },
+        {
+          "arguments": {
+            "end": "2026-07-18",
+            "process_step": "CMP",
+            "start": "2026-07-12"
+          },
+          "event": "tool_started",
+          "tool": "get_process_capability"
+        },
+        {
+          "arguments": {
+            "end": "2026-07-18",
+            "process_step": "CMP",
+            "start": "2026-07-12"
+          },
+          "error": "相同工具和参数已经调用过，重复调用不会产生新证据。",
+          "error_code": "duplicate_arguments",
+          "event": "tool_finished",
+          "status": "blocked",
+          "tool": "get_process_capability"
+        },
+        {
+          "event": "stage",
+          "message": "证据校验完成 · 必需证据 0/0 · 结论强度 not_applicable",
+          "stage": "validation",
+          "validation": {
+            "allowed_conclusion_strength": "not_applicable",
+            "causal_claims_allowed": false,
+            "conclusion_guidance": "当前没有适用的领域证据契约；按通用规则回答并明确数据来源。",
+            "conflicts": [],
+            "coverage": {
+              "field_coverage_pct": 0.0,
+              "required_coverage_pct": 0.0,
+              "required_covered": 0,
+              "required_total": 0
+            },
+            "evidence_checks": [],
+            "observed_source_refs": [],
+            "plan_id": "plan-4c8907b31a951955",
+            "primary_scope_ids": [
+              "CMP"
+            ],
+            "primary_scope_labels": [
+              "CMP",
+              "化学机械研磨",
+              "化学机械抛光",
+              "cmp",
+              "chemical mechanical polishing"
+            ],
+            "primary_scope_type": "process",
+            "reference_evidence": {},
+            "risks": [],
+            "schema_version": "1.2",
+            "source_scope_roles": {},
+            "source_semantics": {},
+            "status": "not_applicable",
+            "validator_version": "1.2.0"
+          }
+        },
+        {
+          "event": "stage",
+          "iteration": 3,
+          "message": "正在结合工具结果判断是否继续，并组织结论",
+          "stage": "planning"
+        },
+        {
+          "arguments": {
+            "end": "2026-07-18",
+            "process_step": "CMP",
+            "start": "2026-07-12"
+          },
+          "event": "tool_started",
+          "tool": "get_process_capability"
+        },
+        {
+          "arguments": {
+            "end": "2026-07-18",
+            "process_step": "CMP",
+            "start": "2026-07-12"
+          },
+          "error": "相同工具和参数已经调用过，重复调用不会产生新证据。",
+          "error_code": "duplicate_arguments",
+          "event": "tool_finished",
+          "status": "blocked",
+          "tool": "get_process_capability"
+        },
+        {
+          "event": "stage",
+          "message": "证据校验完成 · 必需证据 0/0 · 结论强度 not_applicable",
+          "stage": "validation",
+          "validation": {
+            "allowed_conclusion_strength": "not_applicable",
+            "causal_claims_allowed": false,
+            "conclusion_guidance": "当前没有适用的领域证据契约；按通用规则回答并明确数据来源。",
+            "conflicts": [],
+            "coverage": {
+              "field_coverage_pct": 0.0,
+              "required_coverage_pct": 0.0,
+              "required_covered": 0,
+              "required_total": 0
+            },
+            "evidence_checks": [],
+            "observed_source_refs": [],
+            "plan_id": "plan-4c8907b31a951955",
+            "primary_scope_ids": [
+              "CMP"
+            ],
+            "primary_scope_labels": [
+              "CMP",
+              "化学机械研磨",
+              "化学机械抛光",
+              "cmp",
+              "chemical mechanical polishing"
+            ],
+            "primary_scope_type": "process",
+            "reference_evidence": {},
+            "risks": [],
+            "schema_version": "1.2",
+            "source_scope_roles": {},
+            "source_semantics": {},
+            "status": "not_applicable",
+            "validator_version": "1.2.0"
+          }
+        },
+        {
+          "event": "stage",
+          "iteration": 4,
+          "message": "工具执行已停止，正在基于现有证据组织结论 · 连续 2 轮没有获得新证据。",
+          "stage": "synthesis"
+        }
+      ],
+      "sources": [],
+      "tool_trace": [
+        {
+          "arguments": {
+            "end": "2026-07-18",
+            "process_step": "CMP",
+            "start": "2026-07-12"
+          },
+          "rows": 1,
+          "status": "ok",
+          "tool": "get_process_capability"
+        },
+        {
+          "arguments": {
+            "end": "2026-07-18",
+            "process_step": "CMP",
+            "start": "2026-07-12"
+          },
+          "error": "相同工具和参数已经调用过，重复调用不会产生新证据。",
+          "error_code": "duplicate_arguments",
+          "status": "blocked",
+          "tool": "get_process_capability"
+        },
+        {
+          "arguments": {
+            "end": "2026-07-18",
+            "process_step": "CMP",
+            "start": "2026-07-12"
+          },
+          "error": "相同工具和参数已经调用过，重复调用不会产生新证据。",
+          "error_code": "duplicate_arguments",
+          "status": "blocked",
+          "tool": "get_process_capability"
+        }
+      ]
+    },
+    "loop_success": {
+      "answer": "离线 Loop 工具调用完成。",
+      "answer_synthesis": {
+        "allowed_conclusion_strength": "not_applicable",
+        "analysis_protocol_version": "1.1",
+        "claim_support": [],
+        "invalid_source_refs": [],
+        "moved_claims": 0,
+        "plan_id": "plan-4c8907b31a951955",
+        "repair_events": [],
+        "schema_version": "1.0",
+        "sections": [],
+        "source_refs": [],
+        "status": "not_applicable",
+        "synthesizer_version": "1.2.0",
+        "wording_adjustments": []
+      },
+      "evidence_validation": {
+        "allowed_conclusion_strength": "not_applicable",
+        "causal_claims_allowed": false,
+        "conclusion_guidance": "当前没有适用的领域证据契约；按通用规则回答并明确数据来源。",
+        "conflicts": [],
+        "coverage": {
+          "field_coverage_pct": 0.0,
+          "required_coverage_pct": 0.0,
+          "required_covered": 0,
+          "required_total": 0
+        },
+        "evidence_checks": [],
+        "observed_source_refs": [],
+        "plan_id": "plan-4c8907b31a951955",
+        "primary_scope_ids": [
+          "CMP"
+        ],
+        "primary_scope_labels": [
+          "CMP",
+          "化学机械研磨",
+          "化学机械抛光",
+          "cmp",
+          "chemical mechanical polishing"
+        ],
+        "primary_scope_type": "process",
+        "reference_evidence": {},
+        "risks": [],
+        "schema_version": "1.2",
+        "source_scope_roles": {},
+        "source_semantics": {},
+        "status": "not_applicable",
+        "validator_version": "1.2.0"
+      },
+      "execution_layer": "_run_agent_impl",
+      "execution_mode": null,
+      "input": {
+        "question": "分析 CMP 划伤缺陷 Pareto"
+      },
+      "loop_guard": {
+        "blocked_calls": 0,
+        "blocked_reasons": {},
+        "budget": {
+          "enforcement": "runtime",
+          "max_identical_parameter_calls": 1,
+          "max_model_iterations": 6,
+          "max_no_progress_rounds": 2,
+          "max_rows_per_call": 100,
+          "max_tool_calls": 10,
+          "per_tool_limits": {
+            "*": 3,
+            "query_manufacturing_data": 5,
+            "search_knowledge": 6
+          },
+          "planned_tool_calls": 0
+        },
+        "consecutive_no_progress_rounds": 0,
+        "enforcement": "runtime",
+        "force_synthesis": false,
+        "per_tool_calls": {
+          "get_process_capability": 1
+        },
+        "plan_id": "plan-4c8907b31a951955",
+        "stop_message": null,
+        "stop_reason": null,
+        "total_calls": 1,
+        "unique_evidence_results": 1
+      },
+      "mode": "deepseek",
+      "model_message_lengths": [
+        7893,
+        10186
+      ],
+      "model_request_count": 2,
+      "model_tool_names": [
+        [
+          "get_enterprise_data_manifest",
+          "get_enterprise_fab_summary",
+          "query_enterprise_data",
+          "get_fab_overview",
+          "get_yield_trend",
+          "get_process_pass_rate",
+          "get_equipment_health",
+          "get_equipment_productivity",
+          "get_process_capability",
+          "get_defect_pareto",
+          "get_recent_excursions",
+          "get_sensor_summary",
+          "search_knowledge",
+          "query_manufacturing_data",
+          "submit_analysis"
+        ],
+        [
+          "get_enterprise_data_manifest",
+          "get_enterprise_fab_summary",
+          "query_enterprise_data",
+          "get_fab_overview",
+          "get_yield_trend",
+          "get_process_pass_rate",
+          "get_equipment_health",
+          "get_equipment_productivity",
+          "get_process_capability",
+          "get_defect_pareto",
+          "get_recent_excursions",
+          "get_sensor_summary",
+          "search_knowledge",
+          "query_manufacturing_data",
+          "submit_analysis"
+        ]
+      ],
+      "progress_events": [
+        {
+          "event": "stage",
+          "message": "已识别为缺陷分析 · CMP，正在限定数据范围",
+          "route": {
+            "candidate_intents": [
+              "defect_analysis"
+            ],
+            "clarification_needed": false,
+            "clarification_questions": [],
+            "confidence": 0.99,
+            "data_requirements": [
+              "get_defect_pareto",
+              "get_recent_excursions",
+              "query_manufacturing_data",
+              "search_knowledge"
+            ],
+            "equipment_ids": [],
+            "intent": "defect_analysis",
+            "intent_label": "缺陷分析",
+            "process_steps": [
+              "CMP"
+            ],
+            "risk_level": "medium",
+            "risk_reasons": [
+              "问题包含制造异常信号"
+            ],
+            "scope_resolution": {
+              "clarification_needed": false,
+              "confidence": 1.0,
+              "resolved_ids": [
+                "CMP"
+              ],
+              "scope_type": "process",
+              "source": "deterministic",
+              "unresolved_mentions": []
+            },
+            "time_range": {
+              "assumed": true,
+              "end": "2026-10-21",
+              "source": "default_90_days",
+              "start": "2026-07-24"
+            }
+          },
+          "stage": "routing"
+        },
+        {
+          "event": "stage",
+          "message": "当前问题使用通用分析规则",
+          "playbook": {
+            "candidate_playbooks": [],
+            "reason": "当前六类 Domain Playbook 不覆盖该意图，继续使用通用 Agent 规则。",
+            "route_intent": "defect_analysis",
+            "selected_playbook": null,
+            "status": "unsupported"
+          },
+          "stage": "playbook"
+        },
+        {
+          "event": "stage",
+          "message": "当前问题不使用领域执行计划",
+          "plan": {
+            "budget": {
+              "enforcement": "runtime",
+              "max_identical_parameter_calls": 1,
+              "max_model_iterations": 6,
+              "max_no_progress_rounds": 2,
+              "max_rows_per_call": 100,
+              "max_tool_calls": 10,
+              "per_tool_limits": {
+                "*": 3,
+                "query_manufacturing_data": 5,
+                "search_knowledge": 6
+              },
+              "planned_tool_calls": 0
+            },
+            "clarification_questions": [],
+            "missing_inputs": [],
+            "plan_id": "plan-4c8907b31a951955",
+            "planner_version": "1.1.0",
+            "playbook_id": null,
+            "playbook_version": null,
+            "reason": "当前 Planner 仅实例化六类 Domain Playbook；该问题继续使用通用 Agent 路径。",
+            "required_evidence_ids": [],
+            "route_intent": "defect_analysis",
+            "schema_version": "1.1",
+            "scope_contract": {
+              "context_only_tools": [
+                "get_fab_overview",
+                "get_yield_trend"
+              ],
+              "primary_scope_ids": [
+                "CMP"
+              ],
+              "primary_scope_labels": [
+                "CMP",
+                "化学机械研磨",
+                "化学机械抛光",
+                "cmp",
+                "chemical mechanical polishing"
+              ],
+              "primary_scope_type": "process"
+            },
+            "status": "unsupported",
+            "steps": []
+          },
+          "stage": "plan"
+        },
+        {
+          "event": "stage",
+          "iteration": 1,
+          "message": "正在理解问题并规划分析路径",
+          "stage": "planning"
+        },
+        {
+          "arguments": {
+            "end": "2026-07-18",
+            "process_step": "CMP",
+            "start": "2026-07-12"
+          },
+          "event": "tool_started",
+          "tool": "get_process_capability"
+        },
+        {
+          "arguments": {
+            "end": "2026-07-18",
+            "process_step": "CMP",
+            "start": "2026-07-12"
+          },
+          "event": "tool_finished",
+          "rows": 1,
+          "status": "ok",
+          "tool": "get_process_capability"
+        },
+        {
+          "event": "stage",
+          "message": "证据校验完成 · 必需证据 0/0 · 结论强度 not_applicable",
+          "stage": "validation",
+          "validation": {
+            "allowed_conclusion_strength": "not_applicable",
+            "causal_claims_allowed": false,
+            "conclusion_guidance": "当前没有适用的领域证据契约；按通用规则回答并明确数据来源。",
+            "conflicts": [],
+            "coverage": {
+              "field_coverage_pct": 0.0,
+              "required_coverage_pct": 0.0,
+              "required_covered": 0,
+              "required_total": 0
+            },
+            "evidence_checks": [],
+            "observed_source_refs": [],
+            "plan_id": "plan-4c8907b31a951955",
+            "primary_scope_ids": [
+              "CMP"
+            ],
+            "primary_scope_labels": [
+              "CMP",
+              "化学机械研磨",
+              "化学机械抛光",
+              "cmp",
+              "chemical mechanical polishing"
+            ],
+            "primary_scope_type": "process",
+            "reference_evidence": {},
+            "risks": [],
+            "schema_version": "1.2",
+            "source_scope_roles": {},
+            "source_semantics": {},
+            "status": "not_applicable",
+            "validator_version": "1.2.0"
+          }
+        },
+        {
+          "event": "stage",
+          "iteration": 2,
+          "message": "正在结合工具结果判断是否继续，并组织结论",
+          "stage": "planning"
+        }
+      ],
+      "sources": [],
+      "tool_trace": [
+        {
+          "arguments": {
+            "end": "2026-07-18",
+            "process_step": "CMP",
+            "start": "2026-07-12"
+          },
+          "rows": 1,
+          "status": "ok",
+          "tool": "get_process_capability"
+        }
+      ]
+    },
+    "ready_dependency_failure": {
+      "answer": "## 待验证原文（未经结构化验证）\n\n离线合成结论。\n\n## 证据限制\n- 证据限制：以下原文仅保留其展示结构，未作为已确认生产事实。\n- CAP-01 设备级制程能力 为missing，缺少字段：equipment_id, samples, mean_value, sigma, cpk, metric_name, metric_unit, spec_lsl, spec_usl。\n- CAP-02 异常批次明细 为missing，缺少字段：run_time, lot_id, process_step, equipment_id, excursion_code, measurement_name, measurement_value, measurement_unit, spec_lsl, spec_usl。\n- CAP-04 控制计划与历史案例 为missing，缺少字段：reference_id, source_type, source, section, retrieval。\n- get_process_capability 调用状态为 error，未产生可验证证据。\n- get_recent_excursions 调用状态为 blocked，未产生可验证证据。\n- get_sensor_summary 调用状态为 blocked，未产生可验证证据。\n- search_knowledge 调用状态为 blocked，未产生可验证证据。\n- 必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。",
+      "answer_synthesis": {
+        "allowed_conclusion_strength": "insufficient",
+        "analysis_protocol_version": "1.1",
+        "claim_support": [
+          {
+            "category": "conclusion",
+            "evidence_refs": [],
+            "reasons": [
+              "未提供可验证引用。",
+              "结构化语义、范围、时间或粒度与引用不一致。"
+            ],
+            "statement": "",
+            "support": "unsupported"
+          }
+        ],
+        "invalid_source_refs": [],
+        "moved_claims": 0,
+        "plan_id": "plan-6022db1ec8a82d08",
+        "repair_events": [
+          {
+            "affected_field": "display_blocks",
+            "outcome": "preserved_as_unverified_blocks",
+            "reason": "legacy_unstructured_answer"
+          }
+        ],
+        "schema_version": "1.2",
+        "sections": [
+          "待验证原文（未经结构化验证）",
+          "证据限制"
+        ],
+        "source_refs": [],
+        "status": "repaired",
+        "synthesizer_version": "1.2.0",
+        "wording_adjustments": []
+      },
+      "evidence_validation": {
+        "allowed_conclusion_strength": "insufficient",
+        "causal_claims_allowed": false,
+        "conclusion_guidance": "必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。",
+        "conflicts": [],
+        "coverage": {
+          "field_coverage_pct": 0.0,
+          "required_coverage_pct": 0.0,
+          "required_covered": 0,
+          "required_total": 3
+        },
+        "evidence_checks": [
+          {
+            "evidence_id": "CAP-01",
+            "matched_tools": [],
+            "missing_fields": [
+              "equipment_id",
+              "samples",
+              "mean_value",
+              "sigma",
+              "cpk",
+              "metric_name",
+              "metric_unit",
+              "spec_lsl",
+              "spec_usl"
+            ],
+            "name": "设备级制程能力",
+            "present_fields": [],
+            "required": true,
+            "row_count": 0,
+            "status": "missing",
+            "successful_calls": 0
+          },
+          {
+            "evidence_id": "CAP-02",
+            "matched_tools": [],
+            "missing_fields": [
+              "run_time",
+              "lot_id",
+              "process_step",
+              "equipment_id",
+              "excursion_code",
+              "measurement_name",
+              "measurement_value",
+              "measurement_unit",
+              "spec_lsl",
+              "spec_usl"
+            ],
+            "name": "异常批次明细",
+            "present_fields": [],
+            "required": true,
+            "row_count": 0,
+            "status": "missing",
+            "successful_calls": 0
+          },
+          {
+            "evidence_id": "CAP-03",
+            "matched_tools": [],
+            "missing_fields": [
+              "process_step",
+              "equipment_id",
+              "signal_name",
+              "samples",
+              "missing_samples",
+              "flagged_outliers",
+              "mean_value",
+              "min_value",
+              "max_value"
+            ],
+            "name": "设备传感器上下文",
+            "present_fields": [],
+            "required": false,
+            "row_count": 0,
+            "status": "optional_missing",
+            "successful_calls": 0
+          },
+          {
+            "evidence_id": "CAP-04",
+            "matched_tools": [],
+            "missing_fields": [
+              "reference_id",
+              "source_type",
+              "source",
+              "section",
+              "retrieval"
+            ],
+            "name": "控制计划与历史案例",
+            "present_fields": [],
+            "required": true,
+            "row_count": 0,
+            "status": "missing",
+            "successful_calls": 0
+          }
+        ],
+        "observed_source_refs": [],
+        "plan_id": "plan-6022db1ec8a82d08",
+        "primary_scope_ids": [
+          "CMP-03"
+        ],
+        "primary_scope_labels": [
+          "CMP-03"
+        ],
+        "primary_scope_type": "equipment",
+        "reference_evidence": {},
+        "risks": [
+          {
+            "code": "tool_not_completed",
+            "evidence_ids": [
+              "CAP-01"
+            ],
+            "message": "get_process_capability 调用状态为 error，未产生可验证证据。",
+            "severity": "warning"
+          },
+          {
+            "code": "tool_not_completed",
+            "evidence_ids": [
+              "CAP-02"
+            ],
+            "message": "get_recent_excursions 调用状态为 blocked，未产生可验证证据。",
+            "severity": "warning"
+          },
+          {
+            "code": "tool_not_completed",
+            "evidence_ids": [
+              "CAP-03"
+            ],
+            "message": "get_sensor_summary 调用状态为 blocked，未产生可验证证据。",
+            "severity": "warning"
+          },
+          {
+            "code": "tool_not_completed",
+            "evidence_ids": [
+              "CAP-04"
+            ],
+            "message": "search_knowledge 调用状态为 blocked，未产生可验证证据。",
+            "severity": "warning"
+          }
+        ],
+        "schema_version": "1.2",
+        "source_scope_roles": {
+          "TOOL:S01": "context_only",
+          "TOOL:S02": "primary",
+          "TOOL:S03": "primary",
+          "TOOL:S04": "primary",
+          "TOOL:get_process_capability": "context_only",
+          "TOOL:get_recent_excursions": "primary",
+          "TOOL:get_sensor_summary": "primary",
+          "TOOL:search_knowledge": "primary"
+        },
+        "source_semantics": {
+          "TOOL:S01": {
+            "end": "2026-10-21",
+            "filter_provenance": "planner",
+            "grain": "equipment_distribution",
+            "kind": "metric",
+            "scope": {
+              "chambers": [],
+              "equipment_ids": [],
+              "fab_ids": [],
+              "lot_ids": [],
+              "process_steps": [
+                "CMP"
+              ],
+              "products": [],
+              "recipes": [],
+              "wafer_ids": []
+            },
+            "scope_role": "context_only",
+            "semantic_id": "process_capability_cpk",
+            "start": "2026-10-15"
+          },
+          "TOOL:S02": {
+            "end": "2026-10-21",
+            "filter_provenance": "planner",
+            "grain": "event",
+            "kind": "event",
+            "scope": {
+              "chambers": [],
+              "equipment_ids": [
+                "CMP-03"
+              ],
+              "fab_ids": [],
+              "lot_ids": [],
+              "process_steps": [],
+              "products": [],
+              "recipes": [],
+              "wafer_ids": []
+            },
+            "scope_role": "primary",
+            "semantic_id": "process_excursion",
+            "start": "2026-10-15"
+          },
+          "TOOL:S03": {
+            "end": "2026-10-21",
+            "filter_provenance": "planner",
+            "grain": "equipment_signal",
+            "kind": "metric",
+            "scope": {
+              "chambers": [],
+              "equipment_ids": [
+                "CMP-03"
+              ],
+              "fab_ids": [],
+              "lot_ids": [],
+              "process_steps": [],
+              "products": [],
+              "recipes": [],
+              "wafer_ids": []
+            },
+            "scope_role": "primary",
+            "semantic_id": "sensor_summary",
+            "start": "2026-10-15"
+          },
+          "TOOL:S04": {
+            "end": null,
+            "filter_provenance": "planner",
+            "grain": "document",
+            "kind": "document",
+            "scope": {
+              "chambers": [],
+              "equipment_ids": [
+                "CMP-03"
+              ],
+              "fab_ids": [],
+              "lot_ids": [],
+              "process_steps": [],
+              "products": [],
+              "recipes": [],
+              "wafer_ids": []
+            },
+            "scope_role": "primary",
+            "semantic_id": "knowledge_document",
+            "start": null
+          }
+        },
+        "status": "validated",
+        "validator_version": "1.2.0"
+      },
+      "execution_layer": "_run_agent_impl",
+      "execution_mode": "deterministic_ready_plan",
+      "input": {
+        "question": "分析 CMP-03 最近7天 Cpk 不合格"
+      },
+      "loop_guard": {
+        "blocked_calls": 0,
+        "blocked_reasons": {},
+        "budget": {
+          "enforcement": "runtime",
+          "max_identical_parameter_calls": 1,
+          "max_model_iterations": 6,
+          "max_no_progress_rounds": 2,
+          "max_rows_per_call": 100,
+          "max_tool_calls": 6,
+          "per_tool_limits": {
+            "get_process_capability": 2,
+            "get_recent_excursions": 2,
+            "get_sensor_summary": 2,
+            "search_knowledge": 2
+          },
+          "planned_tool_calls": 4
+        },
+        "consecutive_no_progress_rounds": 1,
+        "enforcement": "runtime",
+        "force_synthesis": true,
+        "per_tool_calls": {
+          "get_process_capability": 1
+        },
+        "plan_id": "plan-6022db1ec8a82d08",
+        "stop_message": "确定性 ready 计划已完成，禁止继续选择业务工具。",
+        "stop_reason": "deterministic_plan_completed",
+        "total_calls": 1,
+        "unique_evidence_results": 0
+      },
+      "mode": "deterministic-fallback",
+      "model_message_lengths": [
+        5531
+      ],
+      "model_request_count": 1,
+      "model_tool_names": [
+        [
+          "submit_analysis"
+        ]
+      ],
+      "progress_events": [
+        {
+          "event": "stage",
+          "message": "已识别为制程能力异常 · CMP-03，正在限定数据范围",
+          "route": {
+            "candidate_intents": [
+              "capability_excursion"
+            ],
+            "clarification_needed": false,
+            "clarification_questions": [],
+            "confidence": 0.99,
+            "data_requirements": [
+              "get_process_capability",
+              "get_recent_excursions",
+              "get_sensor_summary",
+              "search_knowledge"
+            ],
+            "equipment_ids": [
+              "CMP-03"
+            ],
+            "intent": "capability_excursion",
+            "intent_label": "制程能力异常",
+            "process_steps": [
+              "CMP"
+            ],
+            "risk_level": "medium",
+            "risk_reasons": [
+              "问题包含制造异常信号"
+            ],
+            "scope_resolution": {
+              "clarification_needed": false,
+              "confidence": 1.0,
+              "resolved_ids": [
+                "CMP-03"
+              ],
+              "scope_type": "equipment",
+              "source": "deterministic",
+              "unresolved_mentions": []
+            },
+            "time_range": {
+              "assumed": false,
+              "end": "2026-10-21",
+              "source": "relative",
+              "start": "2026-10-15"
+            }
+          },
+          "stage": "routing"
+        },
+        {
+          "event": "stage",
+          "message": "已加载 制程能力异常分析 · v1.0.0",
+          "playbook": {
+            "candidate_playbooks": [
+              {
+                "intent": "capability_excursion",
+                "playbook_id": "PB-CAPABILITY-001",
+                "playbook_version": "1.0.0",
+                "title": "制程能力异常分析"
+              }
+            ],
+            "reason": "路由意图与版本化 Domain Playbook 精确匹配。",
+            "route_intent": "capability_excursion",
+            "selected_playbook": {
+              "analysis_questions": [
+                "样本量和规格口径是否足以比较设备能力？",
+                "低 Cpk 主要由均值靠近规格限、sigma 扩大，还是两者共同造成？",
+                "异常是否集中于单设备、特定时间段、产品或配方？",
+                "传感器、维护和历史案例能否提出可验证且相互区分的根因假设？"
+              ],
+              "answer_sections": [
+                "结论",
+                "能力与样本证据",
+                "异常分层",
+                "根因假设与待验证项",
+                "处置建议与风险"
+              ],
+              "evidence_requirements": [
+                {
+                  "acceptance_criteria": [
+                    "时间范围和制程与路由一致。",
+                    "至少返回一台设备，并同时报告样本量与规格限。",
+                    "按统一门槛区分 Cpk<1.33、1.33<=Cpk<1.67 和 Cpk>=1.67。"
+                  ],
+                  "evidence_id": "CAP-01",
+                  "name": "设备级制程能力",
+                  "purpose": "确认目标量测、规格、样本量、均值、波动和设备间 Cpk 差异。",
+                  "required": true,
+                  "required_fields": [
+                    "equipment_id",
+                    "samples",
+                    "mean_value",
+                    "sigma",
+                    "cpk",
+                    "metric_name",
+                    "metric_unit",
+                    "spec_lsl",
+                    "spec_usl"
+                  ],
+                  "source_tools": [
+                    "get_process_capability"
+                  ]
+                },
+                {
+                  "acceptance_criteria": [
+                    "异常明细使用与能力计算相同的制程和时间口径。",
+                    "明确是否集中于单设备、连续时间窗或多个设备。"
+                  ],
+                  "evidence_id": "CAP-02",
+                  "name": "异常批次明细",
+                  "purpose": "定位超规时间、批次、设备、异常代码和量测偏移方向。",
+                  "required": true,
+                  "required_fields": [
+                    "run_time",
+                    "lot_id",
+                    "process_step",
+                    "equipment_id",
+                    "excursion_code",
+                    "measurement_name",
+                    "measurement_value",
+                    "measurement_unit",
+                    "spec_lsl",
+                    "spec_usl"
+                  ],
+                  "source_tools": [
+                    "get_recent_excursions"
+                  ]
+                },
+                {
+                  "acceptance_criteria": [
+                    "优先覆盖低 Cpk 或超规集中的设备。",
+                    "传感器异常仅作为关联线索，不直接认定根因。"
+                  ],
+                  "evidence_id": "CAP-03",
+                  "name": "设备传感器上下文",
+                  "purpose": "检查能力变化是否伴随可观测设备信号异常、缺失或离群。",
+                  "required": false,
+                  "required_fields": [
+                    "process_step",
+                    "equipment_id",
+                    "signal_name",
+                    "samples",
+                    "missing_samples",
+                    "flagged_outliers",
+                    "mean_value",
+                    "min_value",
+                    "max_value"
+                  ],
+                  "source_tools": [
+                    "get_sensor_summary"
+                  ]
+                },
+                {
+                  "acceptance_criteria": [
+                    "至少包含适用制程的正式知识来源；历史案例不得替代当前制造数据。",
+                    "低置信度检索结果不能支持确定性结论。"
+                  ],
+                  "evidence_id": "CAP-04",
+                  "name": "控制计划与历史案例",
+                  "purpose": "取得适用规格、处置要求以及经过验证的相似根因假设。",
+                  "required": true,
+                  "required_fields": [
+                    "reference_id",
+                    "source_type",
+                    "source",
+                    "section",
+                    "retrieval"
+                  ],
+                  "source_tools": [
+                    "search_knowledge"
+                  ]
+                }
+              ],
+              "intent": "capability_excursion",
+              "objective": "判断能力不足来自均值偏移、波动扩大、局部设备异常还是样本与口径问题，并形成可验证的根因假设。",
+              "playbook_id": "PB-CAPABILITY-001",
+              "playbook_version": "1.0.0",
+              "released_at": "2026-07-18",
+              "required_inputs": [
+                "process_step",
+                "time_range"
+              ],
+              "safety_constraints": [
+                "不得执行写库、停机、放行、返工、报废或配方变更操作。",
+                "停机、放行、返工、报废、配方变更和恢复量产建议必须要求对应工程与制造人员复核。",
+                "相关性、时间重合和历史案例相似性只能形成假设，不能单独证明因果。",
+                "缺少必需证据时必须明确列出缺口并降低结论强度，不得补造数据。"
+              ],
+              "schema_version": "1.0",
+              "title": "制程能力异常分析"
+            },
+            "status": "selected"
+          },
+          "stage": "playbook"
+        },
+        {
+          "event": "stage",
+          "message": "执行计划已生成 · 4 步 · 预算 6 次工具调用",
+          "plan": {
+            "budget": {
+              "enforcement": "runtime",
+              "max_identical_parameter_calls": 1,
+              "max_model_iterations": 6,
+              "max_no_progress_rounds": 2,
+              "max_rows_per_call": 100,
+              "max_tool_calls": 6,
+              "per_tool_limits": {
+                "get_process_capability": 2,
+                "get_recent_excursions": 2,
+                "get_sensor_summary": 2,
+                "search_knowledge": 2
+              },
+              "planned_tool_calls": 4
+            },
+            "clarification_questions": [],
+            "missing_inputs": [],
+            "plan_id": "plan-6022db1ec8a82d08",
+            "planner_version": "1.1.0",
+            "playbook_id": "PB-CAPABILITY-001",
+            "playbook_version": "1.0.0",
+            "reason": "已将路由范围和 Domain Playbook 证据模板实例化为确定性工具计划。",
+            "required_evidence_ids": [
+              "CAP-01",
+              "CAP-02",
+              "CAP-04"
+            ],
+            "route_intent": "capability_excursion",
+            "schema_version": "1.1",
+            "scope_contract": {
+              "context_only_tools": [],
+              "primary_scope_ids": [
+                "CMP-03"
+              ],
+              "primary_scope_labels": [
+                "CMP-03"
+              ],
+              "primary_scope_type": "equipment"
+            },
+            "status": "ready",
+            "steps": [
+              {
+                "depends_on": [],
+                "estimated_result_limit": 100,
+                "evidence_end": "2026-10-21",
+                "evidence_ids": [
+                  "CAP-01"
+                ],
+                "evidence_kind": "metric",
+                "evidence_scope": {
+                  "chambers": [],
+                  "equipment_ids": [],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [
+                    "CMP"
+                  ],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "evidence_start": "2026-10-15",
+                "filter_provenance": "planner",
+                "grain": "equipment_distribution",
+                "parameter_sources": {
+                  "end": "intent_route.time_range",
+                  "process_step": "intent_route.process_steps[0]",
+                  "start": "intent_route.time_range"
+                },
+                "parameters": {
+                  "end": "2026-10-21",
+                  "process_step": "CMP",
+                  "start": "2026-10-15"
+                },
+                "required": true,
+                "scope_role": "context_only",
+                "semantic_id": "process_capability_cpk",
+                "step_id": "S01",
+                "success_criteria": [
+                  "时间范围和制程与路由一致。",
+                  "至少返回一台设备，并同时报告样本量与规格限。",
+                  "按统一门槛区分 Cpk<1.33、1.33<=Cpk<1.67 和 Cpk>=1.67。"
+                ],
+                "title": "设备级制程能力",
+                "tool": "get_process_capability"
+              },
+              {
+                "depends_on": [
+                  "S01"
+                ],
+                "estimated_result_limit": 100,
+                "evidence_end": "2026-10-21",
+                "evidence_ids": [
+                  "CAP-02"
+                ],
+                "evidence_kind": "event",
+                "evidence_scope": {
+                  "chambers": [],
+                  "equipment_ids": [
+                    "CMP-03"
+                  ],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "evidence_start": "2026-10-15",
+                "filter_provenance": "planner",
+                "grain": "event",
+                "parameter_sources": {
+                  "end": "intent_route.time_range",
+                  "equipment_id": "intent_route.equipment_ids[0]",
+                  "limit": "planner.default",
+                  "process_step": "intent_route.process_steps[0]",
+                  "start": "intent_route.time_range"
+                },
+                "parameters": {
+                  "end": "2026-10-21",
+                  "equipment_id": "CMP-03",
+                  "limit": 100,
+                  "process_step": "CMP",
+                  "start": "2026-10-15"
+                },
+                "required": true,
+                "scope_role": "primary",
+                "semantic_id": "process_excursion",
+                "step_id": "S02",
+                "success_criteria": [
+                  "异常明细使用与能力计算相同的制程和时间口径。",
+                  "明确是否集中于单设备、连续时间窗或多个设备。"
+                ],
+                "title": "异常批次明细",
+                "tool": "get_recent_excursions"
+              },
+              {
+                "depends_on": [
+                  "S02"
+                ],
+                "estimated_result_limit": 100,
+                "evidence_end": "2026-10-21",
+                "evidence_ids": [
+                  "CAP-03"
+                ],
+                "evidence_kind": "metric",
+                "evidence_scope": {
+                  "chambers": [],
+                  "equipment_ids": [
+                    "CMP-03"
+                  ],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "evidence_start": "2026-10-15",
+                "filter_provenance": "planner",
+                "grain": "equipment_signal",
+                "parameter_sources": {
+                  "end": "intent_route.time_range",
+                  "equipment_id": "intent_route.equipment_ids[0]",
+                  "process_step": "intent_route.process_steps[0]",
+                  "start": "intent_route.time_range"
+                },
+                "parameters": {
+                  "end": "2026-10-21",
+                  "equipment_id": "CMP-03",
+                  "process_step": "CMP",
+                  "start": "2026-10-15"
+                },
+                "required": false,
+                "scope_role": "primary",
+                "semantic_id": "sensor_summary",
+                "step_id": "S03",
+                "success_criteria": [
+                  "优先覆盖低 Cpk 或超规集中的设备。",
+                  "传感器异常仅作为关联线索，不直接认定根因。"
+                ],
+                "title": "设备传感器上下文",
+                "tool": "get_sensor_summary"
+              },
+              {
+                "depends_on": [
+                  "S02"
+                ],
+                "estimated_result_limit": 10,
+                "evidence_end": null,
+                "evidence_ids": [
+                  "CAP-04"
+                ],
+                "evidence_kind": "document",
+                "evidence_scope": {
+                  "chambers": [],
+                  "equipment_ids": [
+                    "CMP-03"
+                  ],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "evidence_start": null,
+                "filter_provenance": "planner",
+                "grain": "document",
+                "parameter_sources": {
+                  "equipment_id": "intent_route.equipment_ids[0]",
+                  "limit": "planner.default",
+                  "process_step": "intent_route.process_steps[0]",
+                  "query": "user.question",
+                  "source_types": "playbook.evidence_scope"
+                },
+                "parameters": {
+                  "equipment_id": "CMP-03",
+                  "limit": 10,
+                  "process_step": "CMP",
+                  "query": "分析 CMP-03 最近7天 Cpk 不合格",
+                  "source_types": [
+                    "personal",
+                    "knowledge",
+                    "case"
+                  ]
+                },
+                "required": true,
+                "scope_role": "primary",
+                "semantic_id": "knowledge_document",
+                "step_id": "S04",
+                "success_criteria": [
+                  "至少包含适用制程的正式知识来源；历史案例不得替代当前制造数据。",
+                  "低置信度检索结果不能支持确定性结论。"
+                ],
+                "title": "控制计划与历史案例",
+                "tool": "search_knowledge"
+              }
+            ]
+          },
+          "stage": "plan"
+        },
+        {
+          "event": "stage",
+          "execution_mode": "deterministic",
+          "message": "正在按依赖顺序执行 4 个已批准步骤",
+          "stage": "tools"
+        },
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "event": "tool_started",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S01",
+          "tool": "get_process_capability"
+        },
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "error": "synthetic capability failure",
+          "event": "tool_finished",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S01",
+          "status": "error",
+          "tool": "get_process_capability"
+        },
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "equipment_id": "CMP-03",
+            "limit": 100,
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "event": "tool_started",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S02",
+          "tool": "get_recent_excursions"
+        },
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "equipment_id": "CMP-03",
+            "limit": 100,
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "error": "依赖步骤未成功：S01",
+          "error_code": "dependency_failed",
+          "event": "tool_finished",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S02",
+          "status": "blocked",
+          "tool": "get_recent_excursions"
+        },
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "equipment_id": "CMP-03",
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "event": "tool_started",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S03",
+          "tool": "get_sensor_summary"
+        },
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "equipment_id": "CMP-03",
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "error": "依赖步骤未成功：S02",
+          "error_code": "dependency_failed",
+          "event": "tool_finished",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S03",
+          "status": "blocked",
+          "tool": "get_sensor_summary"
+        },
+        {
+          "arguments": {
+            "equipment_id": "CMP-03",
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "分析 CMP-03 最近7天 Cpk 不合格",
+            "source_types": [
+              "personal",
+              "knowledge",
+              "case"
+            ]
+          },
+          "event": "tool_started",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S04",
+          "tool": "search_knowledge"
+        },
+        {
+          "arguments": {
+            "equipment_id": "CMP-03",
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "分析 CMP-03 最近7天 Cpk 不合格",
+            "source_types": [
+              "personal",
+              "knowledge",
+              "case"
+            ]
+          },
+          "error": "依赖步骤未成功：S02",
+          "error_code": "dependency_failed",
+          "event": "tool_finished",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S04",
+          "status": "blocked",
+          "tool": "search_knowledge"
+        },
+        {
+          "event": "stage",
+          "execution_mode": "deterministic",
+          "message": "证据校验完成 · 必需证据 0/3 · 结论强度 insufficient",
+          "stage": "validation",
+          "validation": {
+            "allowed_conclusion_strength": "insufficient",
+            "causal_claims_allowed": false,
+            "conclusion_guidance": "必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。",
+            "conflicts": [],
+            "coverage": {
+              "field_coverage_pct": 0.0,
+              "required_coverage_pct": 0.0,
+              "required_covered": 0,
+              "required_total": 3
+            },
+            "evidence_checks": [
+              {
+                "evidence_id": "CAP-01",
+                "matched_tools": [],
+                "missing_fields": [
+                  "equipment_id",
+                  "samples",
+                  "mean_value",
+                  "sigma",
+                  "cpk",
+                  "metric_name",
+                  "metric_unit",
+                  "spec_lsl",
+                  "spec_usl"
+                ],
+                "name": "设备级制程能力",
+                "present_fields": [],
+                "required": true,
+                "row_count": 0,
+                "status": "missing",
+                "successful_calls": 0
+              },
+              {
+                "evidence_id": "CAP-02",
+                "matched_tools": [],
+                "missing_fields": [
+                  "run_time",
+                  "lot_id",
+                  "process_step",
+                  "equipment_id",
+                  "excursion_code",
+                  "measurement_name",
+                  "measurement_value",
+                  "measurement_unit",
+                  "spec_lsl",
+                  "spec_usl"
+                ],
+                "name": "异常批次明细",
+                "present_fields": [],
+                "required": true,
+                "row_count": 0,
+                "status": "missing",
+                "successful_calls": 0
+              },
+              {
+                "evidence_id": "CAP-03",
+                "matched_tools": [],
+                "missing_fields": [
+                  "process_step",
+                  "equipment_id",
+                  "signal_name",
+                  "samples",
+                  "missing_samples",
+                  "flagged_outliers",
+                  "mean_value",
+                  "min_value",
+                  "max_value"
+                ],
+                "name": "设备传感器上下文",
+                "present_fields": [],
+                "required": false,
+                "row_count": 0,
+                "status": "optional_missing",
+                "successful_calls": 0
+              },
+              {
+                "evidence_id": "CAP-04",
+                "matched_tools": [],
+                "missing_fields": [
+                  "reference_id",
+                  "source_type",
+                  "source",
+                  "section",
+                  "retrieval"
+                ],
+                "name": "控制计划与历史案例",
+                "present_fields": [],
+                "required": true,
+                "row_count": 0,
+                "status": "missing",
+                "successful_calls": 0
+              }
+            ],
+            "observed_source_refs": [],
+            "plan_id": "plan-6022db1ec8a82d08",
+            "primary_scope_ids": [
+              "CMP-03"
+            ],
+            "primary_scope_labels": [
+              "CMP-03"
+            ],
+            "primary_scope_type": "equipment",
+            "reference_evidence": {},
+            "risks": [
+              {
+                "code": "tool_not_completed",
+                "evidence_ids": [
+                  "CAP-01"
+                ],
+                "message": "get_process_capability 调用状态为 error，未产生可验证证据。",
+                "severity": "warning"
+              },
+              {
+                "code": "tool_not_completed",
+                "evidence_ids": [
+                  "CAP-02"
+                ],
+                "message": "get_recent_excursions 调用状态为 blocked，未产生可验证证据。",
+                "severity": "warning"
+              },
+              {
+                "code": "tool_not_completed",
+                "evidence_ids": [
+                  "CAP-03"
+                ],
+                "message": "get_sensor_summary 调用状态为 blocked，未产生可验证证据。",
+                "severity": "warning"
+              },
+              {
+                "code": "tool_not_completed",
+                "evidence_ids": [
+                  "CAP-04"
+                ],
+                "message": "search_knowledge 调用状态为 blocked，未产生可验证证据。",
+                "severity": "warning"
+              }
+            ],
+            "schema_version": "1.2",
+            "source_scope_roles": {
+              "TOOL:S01": "context_only",
+              "TOOL:S02": "primary",
+              "TOOL:S03": "primary",
+              "TOOL:S04": "primary",
+              "TOOL:get_process_capability": "context_only",
+              "TOOL:get_recent_excursions": "primary",
+              "TOOL:get_sensor_summary": "primary",
+              "TOOL:search_knowledge": "primary"
+            },
+            "source_semantics": {
+              "TOOL:S01": {
+                "end": "2026-10-21",
+                "filter_provenance": "planner",
+                "grain": "equipment_distribution",
+                "kind": "metric",
+                "scope": {
+                  "chambers": [],
+                  "equipment_ids": [],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [
+                    "CMP"
+                  ],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "scope_role": "context_only",
+                "semantic_id": "process_capability_cpk",
+                "start": "2026-10-15"
+              },
+              "TOOL:S02": {
+                "end": "2026-10-21",
+                "filter_provenance": "planner",
+                "grain": "event",
+                "kind": "event",
+                "scope": {
+                  "chambers": [],
+                  "equipment_ids": [
+                    "CMP-03"
+                  ],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "scope_role": "primary",
+                "semantic_id": "process_excursion",
+                "start": "2026-10-15"
+              },
+              "TOOL:S03": {
+                "end": "2026-10-21",
+                "filter_provenance": "planner",
+                "grain": "equipment_signal",
+                "kind": "metric",
+                "scope": {
+                  "chambers": [],
+                  "equipment_ids": [
+                    "CMP-03"
+                  ],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "scope_role": "primary",
+                "semantic_id": "sensor_summary",
+                "start": "2026-10-15"
+              },
+              "TOOL:S04": {
+                "end": null,
+                "filter_provenance": "planner",
+                "grain": "document",
+                "kind": "document",
+                "scope": {
+                  "chambers": [],
+                  "equipment_ids": [
+                    "CMP-03"
+                  ],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "scope_role": "primary",
+                "semantic_id": "knowledge_document",
+                "start": null
+              }
+            },
+            "status": "validated",
+            "validator_version": "1.2.0"
+          }
+        },
+        {
+          "event": "stage",
+          "execution_mode": "synthesis_only",
+          "message": "计划工具已执行完毕，正在基于已验证证据生成结论",
+          "stage": "synthesis"
+        },
+        {
+          "delta": "## 待验证原文（未经结构化验证）\n\n离线合成结论。\n\n## 证据限制\n- 证据限制：以下原文仅保留其展示结构，未作为已确认生产事实。\n- CAP-01 设备级制程能力 为missing，缺少字段：equipment_id, samples",
+          "event": "answer_delta"
+        },
+        {
+          "delta": ", mean_value, sigma, cpk, metric_name, metric_unit, spec_lsl, spec_usl。\n- CAP-02 异常批次明细 为missing，缺少字段：run_time, lot_id, ",
+          "event": "answer_delta"
+        },
+        {
+          "delta": "process_step, equipment_id, excursion_code, measurement_name, measurement_value, measurement_unit, spec_lsl, spec_usl。\n-",
+          "event": "answer_delta"
+        },
+        {
+          "delta": " CAP-04 控制计划与历史案例 为missing，缺少字段：reference_id, source_type, source, section, retrieval。\n- get_process_capability 调用状态为 er",
+          "event": "answer_delta"
+        },
+        {
+          "delta": "ror，未产生可验证证据。\n- get_recent_excursions 调用状态为 blocked，未产生可验证证据。\n- get_sensor_summary 调用状态为 blocked，未产生可验证证据。\n- search_know",
+          "event": "answer_delta"
+        },
+        {
+          "delta": "ledge 调用状态为 blocked，未产生可验证证据。\n- 必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。",
+          "event": "answer_delta"
+        }
+      ],
+      "sources": [],
+      "tool_trace": [
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "error": "synthetic capability failure",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S01",
+          "status": "error",
+          "tool": "get_process_capability"
+        },
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "equipment_id": "CMP-03",
+            "limit": 100,
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "error": "依赖步骤未成功：S01",
+          "error_code": "dependency_failed",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S02",
+          "status": "blocked",
+          "tool": "get_recent_excursions"
+        },
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "equipment_id": "CMP-03",
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "error": "依赖步骤未成功：S02",
+          "error_code": "dependency_failed",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S03",
+          "status": "blocked",
+          "tool": "get_sensor_summary"
+        },
+        {
+          "arguments": {
+            "equipment_id": "CMP-03",
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "分析 CMP-03 最近7天 Cpk 不合格",
+            "source_types": [
+              "personal",
+              "knowledge",
+              "case"
+            ]
+          },
+          "error": "依赖步骤未成功：S02",
+          "error_code": "dependency_failed",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S04",
+          "status": "blocked",
+          "tool": "search_knowledge"
+        }
+      ]
+    },
+    "ready_success": {
+      "answer": "## 待验证原文（未经结构化验证）\n\n离线合成结论。\n\n## 证据限制\n- 证据限制：以下原文仅保留其展示结构，未作为已确认生产事实。\n- CAP-01 设备级制程能力 为partial，缺少字段：equipment_id, samples, mean_value, sigma, cpk, metric_name, metric_unit, spec_lsl, spec_usl。\n- CAP-02 异常批次明细 为partial，缺少字段：run_time, lot_id, process_step, equipment_id, excursion_code, measurement_name, measurement_value, measurement_unit, spec_lsl, spec_usl。\n- CAP-03 设备传感器上下文 为partial，缺少字段：process_step, equipment_id, signal_name, samples, missing_samples, flagged_outliers, mean_value, min_value, max_value。\n- CAP-04 控制计划与历史案例 为partial，缺少字段：source, section, retrieval。\n- 必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。",
+      "answer_synthesis": {
+        "allowed_conclusion_strength": "insufficient",
+        "analysis_protocol_version": "1.1",
+        "claim_support": [
+          {
+            "category": "conclusion",
+            "evidence_refs": [],
+            "reasons": [
+              "未提供可验证引用。",
+              "结构化语义、范围、时间或粒度与引用不一致。"
+            ],
+            "statement": "",
+            "support": "unsupported"
+          }
+        ],
+        "invalid_source_refs": [],
+        "moved_claims": 0,
+        "plan_id": "plan-6022db1ec8a82d08",
+        "repair_events": [
+          {
+            "affected_field": "display_blocks",
+            "outcome": "preserved_as_unverified_blocks",
+            "reason": "legacy_unstructured_answer"
+          }
+        ],
+        "schema_version": "1.2",
+        "sections": [
+          "待验证原文（未经结构化验证）",
+          "证据限制"
+        ],
+        "source_refs": [],
+        "status": "repaired",
+        "synthesizer_version": "1.2.0",
+        "wording_adjustments": []
+      },
+      "evidence_validation": {
+        "allowed_conclusion_strength": "insufficient",
+        "causal_claims_allowed": false,
+        "conclusion_guidance": "必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。",
+        "conflicts": [],
+        "coverage": {
+          "field_coverage_pct": 8.3,
+          "required_coverage_pct": 0.0,
+          "required_covered": 0,
+          "required_total": 3
+        },
+        "evidence_checks": [
+          {
+            "evidence_id": "CAP-01",
+            "matched_tools": [
+              "get_process_capability"
+            ],
+            "missing_fields": [
+              "equipment_id",
+              "samples",
+              "mean_value",
+              "sigma",
+              "cpk",
+              "metric_name",
+              "metric_unit",
+              "spec_lsl",
+              "spec_usl"
+            ],
+            "name": "设备级制程能力",
+            "present_fields": [],
+            "required": true,
+            "row_count": 1,
+            "status": "partial",
+            "successful_calls": 1
+          },
+          {
+            "evidence_id": "CAP-02",
+            "matched_tools": [
+              "get_recent_excursions"
+            ],
+            "missing_fields": [
+              "run_time",
+              "lot_id",
+              "process_step",
+              "equipment_id",
+              "excursion_code",
+              "measurement_name",
+              "measurement_value",
+              "measurement_unit",
+              "spec_lsl",
+              "spec_usl"
+            ],
+            "name": "异常批次明细",
+            "present_fields": [],
+            "required": true,
+            "row_count": 1,
+            "status": "partial",
+            "successful_calls": 1
+          },
+          {
+            "evidence_id": "CAP-03",
+            "matched_tools": [
+              "get_sensor_summary"
+            ],
+            "missing_fields": [
+              "process_step",
+              "equipment_id",
+              "signal_name",
+              "samples",
+              "missing_samples",
+              "flagged_outliers",
+              "mean_value",
+              "min_value",
+              "max_value"
+            ],
+            "name": "设备传感器上下文",
+            "present_fields": [],
+            "required": false,
+            "row_count": 1,
+            "status": "partial",
+            "successful_calls": 1
+          },
+          {
+            "evidence_id": "CAP-04",
+            "matched_tools": [
+              "search_knowledge"
+            ],
+            "missing_fields": [
+              "source",
+              "section",
+              "retrieval"
+            ],
+            "name": "控制计划与历史案例",
+            "present_fields": [
+              "reference_id",
+              "source_type"
+            ],
+            "required": true,
+            "row_count": 1,
+            "status": "partial",
+            "successful_calls": 1
+          }
+        ],
+        "observed_source_refs": [
+          "TOOL:S01",
+          "TOOL:S02",
+          "TOOL:S03",
+          "TOOL:S04",
+          "TOOL:get_process_capability",
+          "TOOL:get_recent_excursions",
+          "TOOL:get_sensor_summary",
+          "TOOL:search_knowledge"
+        ],
+        "plan_id": "plan-6022db1ec8a82d08",
+        "primary_scope_ids": [
+          "CMP-03"
+        ],
+        "primary_scope_labels": [
+          "CMP-03"
+        ],
+        "primary_scope_type": "equipment",
+        "reference_evidence": {
+          "TOOL:S01": {
+            "conflict_codes": [],
+            "critical_risk_codes": [],
+            "evidence_ids": [
+              "CAP-01"
+            ],
+            "risk_codes": [],
+            "statuses": {
+              "CAP-01": "partial"
+            }
+          },
+          "TOOL:S02": {
+            "conflict_codes": [],
+            "critical_risk_codes": [],
+            "evidence_ids": [
+              "CAP-02"
+            ],
+            "risk_codes": [],
+            "statuses": {
+              "CAP-02": "partial"
+            }
+          },
+          "TOOL:S03": {
+            "conflict_codes": [],
+            "critical_risk_codes": [],
+            "evidence_ids": [
+              "CAP-03"
+            ],
+            "risk_codes": [],
+            "statuses": {
+              "CAP-03": "partial"
+            }
+          },
+          "TOOL:S04": {
+            "conflict_codes": [],
+            "critical_risk_codes": [],
+            "evidence_ids": [
+              "CAP-04"
+            ],
+            "risk_codes": [],
+            "statuses": {
+              "CAP-04": "partial"
+            }
+          },
+          "TOOL:get_process_capability": {
+            "conflict_codes": [],
+            "critical_risk_codes": [],
+            "evidence_ids": [
+              "CAP-01"
+            ],
+            "risk_codes": [],
+            "statuses": {
+              "CAP-01": "partial"
+            }
+          },
+          "TOOL:get_recent_excursions": {
+            "conflict_codes": [],
+            "critical_risk_codes": [],
+            "evidence_ids": [
+              "CAP-02"
+            ],
+            "risk_codes": [],
+            "statuses": {
+              "CAP-02": "partial"
+            }
+          },
+          "TOOL:get_sensor_summary": {
+            "conflict_codes": [],
+            "critical_risk_codes": [],
+            "evidence_ids": [
+              "CAP-03"
+            ],
+            "risk_codes": [],
+            "statuses": {
+              "CAP-03": "partial"
+            }
+          },
+          "TOOL:search_knowledge": {
+            "conflict_codes": [],
+            "critical_risk_codes": [],
+            "evidence_ids": [
+              "CAP-04"
+            ],
+            "risk_codes": [],
+            "statuses": {
+              "CAP-04": "partial"
+            }
+          }
+        },
+        "risks": [],
+        "schema_version": "1.2",
+        "source_scope_roles": {
+          "TOOL:S01": "context_only",
+          "TOOL:S02": "primary",
+          "TOOL:S03": "primary",
+          "TOOL:S04": "primary",
+          "TOOL:get_process_capability": "context_only",
+          "TOOL:get_recent_excursions": "primary",
+          "TOOL:get_sensor_summary": "primary",
+          "TOOL:search_knowledge": "primary"
+        },
+        "source_semantics": {
+          "TOOL:S01": {
+            "end": "2026-10-21",
+            "filter_provenance": "planner",
+            "grain": "equipment_distribution",
+            "kind": "metric",
+            "scope": {
+              "chambers": [],
+              "equipment_ids": [],
+              "fab_ids": [],
+              "lot_ids": [],
+              "process_steps": [
+                "CMP"
+              ],
+              "products": [],
+              "recipes": [],
+              "wafer_ids": []
+            },
+            "scope_role": "context_only",
+            "semantic_id": "process_capability_cpk",
+            "start": "2026-10-15"
+          },
+          "TOOL:S02": {
+            "end": "2026-10-21",
+            "filter_provenance": "planner",
+            "grain": "event",
+            "kind": "event",
+            "scope": {
+              "chambers": [],
+              "equipment_ids": [
+                "CMP-03"
+              ],
+              "fab_ids": [],
+              "lot_ids": [],
+              "process_steps": [],
+              "products": [],
+              "recipes": [],
+              "wafer_ids": []
+            },
+            "scope_role": "primary",
+            "semantic_id": "process_excursion",
+            "start": "2026-10-15"
+          },
+          "TOOL:S03": {
+            "end": "2026-10-21",
+            "filter_provenance": "planner",
+            "grain": "equipment_signal",
+            "kind": "metric",
+            "scope": {
+              "chambers": [],
+              "equipment_ids": [
+                "CMP-03"
+              ],
+              "fab_ids": [],
+              "lot_ids": [],
+              "process_steps": [],
+              "products": [],
+              "recipes": [],
+              "wafer_ids": []
+            },
+            "scope_role": "primary",
+            "semantic_id": "sensor_summary",
+            "start": "2026-10-15"
+          },
+          "TOOL:S04": {
+            "end": null,
+            "filter_provenance": "planner",
+            "grain": "document",
+            "kind": "document",
+            "scope": {
+              "chambers": [],
+              "equipment_ids": [
+                "CMP-03"
+              ],
+              "fab_ids": [],
+              "lot_ids": [],
+              "process_steps": [],
+              "products": [],
+              "recipes": [],
+              "wafer_ids": []
+            },
+            "scope_role": "primary",
+            "semantic_id": "knowledge_document",
+            "start": null
+          }
+        },
+        "status": "validated",
+        "validator_version": "1.2.0"
+      },
+      "execution_layer": "_run_agent_impl",
+      "execution_mode": "deterministic_ready_plan",
+      "input": {
+        "question": "分析 CMP-03 最近7天 Cpk 不合格"
+      },
+      "loop_guard": {
+        "blocked_calls": 0,
+        "blocked_reasons": {},
+        "budget": {
+          "enforcement": "runtime",
+          "max_identical_parameter_calls": 1,
+          "max_model_iterations": 6,
+          "max_no_progress_rounds": 2,
+          "max_rows_per_call": 100,
+          "max_tool_calls": 6,
+          "per_tool_limits": {
+            "get_process_capability": 2,
+            "get_recent_excursions": 2,
+            "get_sensor_summary": 2,
+            "search_knowledge": 2
+          },
+          "planned_tool_calls": 4
+        },
+        "consecutive_no_progress_rounds": 0,
+        "enforcement": "runtime",
+        "force_synthesis": true,
+        "per_tool_calls": {
+          "get_process_capability": 1,
+          "get_recent_excursions": 1,
+          "get_sensor_summary": 1,
+          "search_knowledge": 1
+        },
+        "plan_id": "plan-6022db1ec8a82d08",
+        "stop_message": "确定性 ready 计划已完成，禁止继续选择业务工具。",
+        "stop_reason": "deterministic_plan_completed",
+        "total_calls": 4,
+        "unique_evidence_results": 4
+      },
+      "mode": "deterministic-fallback",
+      "model_message_lengths": [
+        7513
+      ],
+      "model_request_count": 1,
+      "model_tool_names": [
+        [
+          "submit_analysis"
+        ]
+      ],
+      "progress_events": [
+        {
+          "event": "stage",
+          "message": "已识别为制程能力异常 · CMP-03，正在限定数据范围",
+          "route": {
+            "candidate_intents": [
+              "capability_excursion"
+            ],
+            "clarification_needed": false,
+            "clarification_questions": [],
+            "confidence": 0.99,
+            "data_requirements": [
+              "get_process_capability",
+              "get_recent_excursions",
+              "get_sensor_summary",
+              "search_knowledge"
+            ],
+            "equipment_ids": [
+              "CMP-03"
+            ],
+            "intent": "capability_excursion",
+            "intent_label": "制程能力异常",
+            "process_steps": [
+              "CMP"
+            ],
+            "risk_level": "medium",
+            "risk_reasons": [
+              "问题包含制造异常信号"
+            ],
+            "scope_resolution": {
+              "clarification_needed": false,
+              "confidence": 1.0,
+              "resolved_ids": [
+                "CMP-03"
+              ],
+              "scope_type": "equipment",
+              "source": "deterministic",
+              "unresolved_mentions": []
+            },
+            "time_range": {
+              "assumed": false,
+              "end": "2026-10-21",
+              "source": "relative",
+              "start": "2026-10-15"
+            }
+          },
+          "stage": "routing"
+        },
+        {
+          "event": "stage",
+          "message": "已加载 制程能力异常分析 · v1.0.0",
+          "playbook": {
+            "candidate_playbooks": [
+              {
+                "intent": "capability_excursion",
+                "playbook_id": "PB-CAPABILITY-001",
+                "playbook_version": "1.0.0",
+                "title": "制程能力异常分析"
+              }
+            ],
+            "reason": "路由意图与版本化 Domain Playbook 精确匹配。",
+            "route_intent": "capability_excursion",
+            "selected_playbook": {
+              "analysis_questions": [
+                "样本量和规格口径是否足以比较设备能力？",
+                "低 Cpk 主要由均值靠近规格限、sigma 扩大，还是两者共同造成？",
+                "异常是否集中于单设备、特定时间段、产品或配方？",
+                "传感器、维护和历史案例能否提出可验证且相互区分的根因假设？"
+              ],
+              "answer_sections": [
+                "结论",
+                "能力与样本证据",
+                "异常分层",
+                "根因假设与待验证项",
+                "处置建议与风险"
+              ],
+              "evidence_requirements": [
+                {
+                  "acceptance_criteria": [
+                    "时间范围和制程与路由一致。",
+                    "至少返回一台设备，并同时报告样本量与规格限。",
+                    "按统一门槛区分 Cpk<1.33、1.33<=Cpk<1.67 和 Cpk>=1.67。"
+                  ],
+                  "evidence_id": "CAP-01",
+                  "name": "设备级制程能力",
+                  "purpose": "确认目标量测、规格、样本量、均值、波动和设备间 Cpk 差异。",
+                  "required": true,
+                  "required_fields": [
+                    "equipment_id",
+                    "samples",
+                    "mean_value",
+                    "sigma",
+                    "cpk",
+                    "metric_name",
+                    "metric_unit",
+                    "spec_lsl",
+                    "spec_usl"
+                  ],
+                  "source_tools": [
+                    "get_process_capability"
+                  ]
+                },
+                {
+                  "acceptance_criteria": [
+                    "异常明细使用与能力计算相同的制程和时间口径。",
+                    "明确是否集中于单设备、连续时间窗或多个设备。"
+                  ],
+                  "evidence_id": "CAP-02",
+                  "name": "异常批次明细",
+                  "purpose": "定位超规时间、批次、设备、异常代码和量测偏移方向。",
+                  "required": true,
+                  "required_fields": [
+                    "run_time",
+                    "lot_id",
+                    "process_step",
+                    "equipment_id",
+                    "excursion_code",
+                    "measurement_name",
+                    "measurement_value",
+                    "measurement_unit",
+                    "spec_lsl",
+                    "spec_usl"
+                  ],
+                  "source_tools": [
+                    "get_recent_excursions"
+                  ]
+                },
+                {
+                  "acceptance_criteria": [
+                    "优先覆盖低 Cpk 或超规集中的设备。",
+                    "传感器异常仅作为关联线索，不直接认定根因。"
+                  ],
+                  "evidence_id": "CAP-03",
+                  "name": "设备传感器上下文",
+                  "purpose": "检查能力变化是否伴随可观测设备信号异常、缺失或离群。",
+                  "required": false,
+                  "required_fields": [
+                    "process_step",
+                    "equipment_id",
+                    "signal_name",
+                    "samples",
+                    "missing_samples",
+                    "flagged_outliers",
+                    "mean_value",
+                    "min_value",
+                    "max_value"
+                  ],
+                  "source_tools": [
+                    "get_sensor_summary"
+                  ]
+                },
+                {
+                  "acceptance_criteria": [
+                    "至少包含适用制程的正式知识来源；历史案例不得替代当前制造数据。",
+                    "低置信度检索结果不能支持确定性结论。"
+                  ],
+                  "evidence_id": "CAP-04",
+                  "name": "控制计划与历史案例",
+                  "purpose": "取得适用规格、处置要求以及经过验证的相似根因假设。",
+                  "required": true,
+                  "required_fields": [
+                    "reference_id",
+                    "source_type",
+                    "source",
+                    "section",
+                    "retrieval"
+                  ],
+                  "source_tools": [
+                    "search_knowledge"
+                  ]
+                }
+              ],
+              "intent": "capability_excursion",
+              "objective": "判断能力不足来自均值偏移、波动扩大、局部设备异常还是样本与口径问题，并形成可验证的根因假设。",
+              "playbook_id": "PB-CAPABILITY-001",
+              "playbook_version": "1.0.0",
+              "released_at": "2026-07-18",
+              "required_inputs": [
+                "process_step",
+                "time_range"
+              ],
+              "safety_constraints": [
+                "不得执行写库、停机、放行、返工、报废或配方变更操作。",
+                "停机、放行、返工、报废、配方变更和恢复量产建议必须要求对应工程与制造人员复核。",
+                "相关性、时间重合和历史案例相似性只能形成假设，不能单独证明因果。",
+                "缺少必需证据时必须明确列出缺口并降低结论强度，不得补造数据。"
+              ],
+              "schema_version": "1.0",
+              "title": "制程能力异常分析"
+            },
+            "status": "selected"
+          },
+          "stage": "playbook"
+        },
+        {
+          "event": "stage",
+          "message": "执行计划已生成 · 4 步 · 预算 6 次工具调用",
+          "plan": {
+            "budget": {
+              "enforcement": "runtime",
+              "max_identical_parameter_calls": 1,
+              "max_model_iterations": 6,
+              "max_no_progress_rounds": 2,
+              "max_rows_per_call": 100,
+              "max_tool_calls": 6,
+              "per_tool_limits": {
+                "get_process_capability": 2,
+                "get_recent_excursions": 2,
+                "get_sensor_summary": 2,
+                "search_knowledge": 2
+              },
+              "planned_tool_calls": 4
+            },
+            "clarification_questions": [],
+            "missing_inputs": [],
+            "plan_id": "plan-6022db1ec8a82d08",
+            "planner_version": "1.1.0",
+            "playbook_id": "PB-CAPABILITY-001",
+            "playbook_version": "1.0.0",
+            "reason": "已将路由范围和 Domain Playbook 证据模板实例化为确定性工具计划。",
+            "required_evidence_ids": [
+              "CAP-01",
+              "CAP-02",
+              "CAP-04"
+            ],
+            "route_intent": "capability_excursion",
+            "schema_version": "1.1",
+            "scope_contract": {
+              "context_only_tools": [],
+              "primary_scope_ids": [
+                "CMP-03"
+              ],
+              "primary_scope_labels": [
+                "CMP-03"
+              ],
+              "primary_scope_type": "equipment"
+            },
+            "status": "ready",
+            "steps": [
+              {
+                "depends_on": [],
+                "estimated_result_limit": 100,
+                "evidence_end": "2026-10-21",
+                "evidence_ids": [
+                  "CAP-01"
+                ],
+                "evidence_kind": "metric",
+                "evidence_scope": {
+                  "chambers": [],
+                  "equipment_ids": [],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [
+                    "CMP"
+                  ],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "evidence_start": "2026-10-15",
+                "filter_provenance": "planner",
+                "grain": "equipment_distribution",
+                "parameter_sources": {
+                  "end": "intent_route.time_range",
+                  "process_step": "intent_route.process_steps[0]",
+                  "start": "intent_route.time_range"
+                },
+                "parameters": {
+                  "end": "2026-10-21",
+                  "process_step": "CMP",
+                  "start": "2026-10-15"
+                },
+                "required": true,
+                "scope_role": "context_only",
+                "semantic_id": "process_capability_cpk",
+                "step_id": "S01",
+                "success_criteria": [
+                  "时间范围和制程与路由一致。",
+                  "至少返回一台设备，并同时报告样本量与规格限。",
+                  "按统一门槛区分 Cpk<1.33、1.33<=Cpk<1.67 和 Cpk>=1.67。"
+                ],
+                "title": "设备级制程能力",
+                "tool": "get_process_capability"
+              },
+              {
+                "depends_on": [
+                  "S01"
+                ],
+                "estimated_result_limit": 100,
+                "evidence_end": "2026-10-21",
+                "evidence_ids": [
+                  "CAP-02"
+                ],
+                "evidence_kind": "event",
+                "evidence_scope": {
+                  "chambers": [],
+                  "equipment_ids": [
+                    "CMP-03"
+                  ],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "evidence_start": "2026-10-15",
+                "filter_provenance": "planner",
+                "grain": "event",
+                "parameter_sources": {
+                  "end": "intent_route.time_range",
+                  "equipment_id": "intent_route.equipment_ids[0]",
+                  "limit": "planner.default",
+                  "process_step": "intent_route.process_steps[0]",
+                  "start": "intent_route.time_range"
+                },
+                "parameters": {
+                  "end": "2026-10-21",
+                  "equipment_id": "CMP-03",
+                  "limit": 100,
+                  "process_step": "CMP",
+                  "start": "2026-10-15"
+                },
+                "required": true,
+                "scope_role": "primary",
+                "semantic_id": "process_excursion",
+                "step_id": "S02",
+                "success_criteria": [
+                  "异常明细使用与能力计算相同的制程和时间口径。",
+                  "明确是否集中于单设备、连续时间窗或多个设备。"
+                ],
+                "title": "异常批次明细",
+                "tool": "get_recent_excursions"
+              },
+              {
+                "depends_on": [
+                  "S02"
+                ],
+                "estimated_result_limit": 100,
+                "evidence_end": "2026-10-21",
+                "evidence_ids": [
+                  "CAP-03"
+                ],
+                "evidence_kind": "metric",
+                "evidence_scope": {
+                  "chambers": [],
+                  "equipment_ids": [
+                    "CMP-03"
+                  ],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "evidence_start": "2026-10-15",
+                "filter_provenance": "planner",
+                "grain": "equipment_signal",
+                "parameter_sources": {
+                  "end": "intent_route.time_range",
+                  "equipment_id": "intent_route.equipment_ids[0]",
+                  "process_step": "intent_route.process_steps[0]",
+                  "start": "intent_route.time_range"
+                },
+                "parameters": {
+                  "end": "2026-10-21",
+                  "equipment_id": "CMP-03",
+                  "process_step": "CMP",
+                  "start": "2026-10-15"
+                },
+                "required": false,
+                "scope_role": "primary",
+                "semantic_id": "sensor_summary",
+                "step_id": "S03",
+                "success_criteria": [
+                  "优先覆盖低 Cpk 或超规集中的设备。",
+                  "传感器异常仅作为关联线索，不直接认定根因。"
+                ],
+                "title": "设备传感器上下文",
+                "tool": "get_sensor_summary"
+              },
+              {
+                "depends_on": [
+                  "S02"
+                ],
+                "estimated_result_limit": 10,
+                "evidence_end": null,
+                "evidence_ids": [
+                  "CAP-04"
+                ],
+                "evidence_kind": "document",
+                "evidence_scope": {
+                  "chambers": [],
+                  "equipment_ids": [
+                    "CMP-03"
+                  ],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "evidence_start": null,
+                "filter_provenance": "planner",
+                "grain": "document",
+                "parameter_sources": {
+                  "equipment_id": "intent_route.equipment_ids[0]",
+                  "limit": "planner.default",
+                  "process_step": "intent_route.process_steps[0]",
+                  "query": "user.question",
+                  "source_types": "playbook.evidence_scope"
+                },
+                "parameters": {
+                  "equipment_id": "CMP-03",
+                  "limit": 10,
+                  "process_step": "CMP",
+                  "query": "分析 CMP-03 最近7天 Cpk 不合格",
+                  "source_types": [
+                    "personal",
+                    "knowledge",
+                    "case"
+                  ]
+                },
+                "required": true,
+                "scope_role": "primary",
+                "semantic_id": "knowledge_document",
+                "step_id": "S04",
+                "success_criteria": [
+                  "至少包含适用制程的正式知识来源；历史案例不得替代当前制造数据。",
+                  "低置信度检索结果不能支持确定性结论。"
+                ],
+                "title": "控制计划与历史案例",
+                "tool": "search_knowledge"
+              }
+            ]
+          },
+          "stage": "plan"
+        },
+        {
+          "event": "stage",
+          "execution_mode": "deterministic",
+          "message": "正在按依赖顺序执行 4 个已批准步骤",
+          "stage": "tools"
+        },
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "event": "tool_started",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S01",
+          "tool": "get_process_capability"
+        },
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "event": "tool_finished",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S01",
+          "raw_rows": 1,
+          "rows": 1,
+          "status": "ok",
+          "tool": "get_process_capability"
+        },
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "equipment_id": "CMP-03",
+            "limit": 100,
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "event": "tool_started",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S02",
+          "tool": "get_recent_excursions"
+        },
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "equipment_id": "CMP-03",
+            "limit": 100,
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "event": "tool_finished",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S02",
+          "raw_rows": 1,
+          "rows": 1,
+          "status": "ok",
+          "tool": "get_recent_excursions"
+        },
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "equipment_id": "CMP-03",
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "event": "tool_started",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S03",
+          "tool": "get_sensor_summary"
+        },
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "equipment_id": "CMP-03",
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "event": "tool_finished",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S03",
+          "raw_rows": 1,
+          "rows": 1,
+          "status": "ok",
+          "tool": "get_sensor_summary"
+        },
+        {
+          "arguments": {
+            "equipment_id": "CMP-03",
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "分析 CMP-03 最近7天 Cpk 不合格",
+            "source_types": [
+              "personal",
+              "knowledge",
+              "case"
+            ]
+          },
+          "event": "tool_started",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S04",
+          "tool": "search_knowledge"
+        },
+        {
+          "arguments": {
+            "equipment_id": "CMP-03",
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "分析 CMP-03 最近7天 Cpk 不合格",
+            "source_types": [
+              "personal",
+              "knowledge",
+              "case"
+            ]
+          },
+          "event": "tool_finished",
+          "execution_mode": "deterministic",
+          "plan_step_id": "S04",
+          "raw_rows": 1,
+          "rows": 1,
+          "status": "ok",
+          "tool": "search_knowledge"
+        },
+        {
+          "event": "stage",
+          "execution_mode": "deterministic",
+          "message": "证据校验完成 · 必需证据 0/3 · 结论强度 insufficient",
+          "stage": "validation",
+          "validation": {
+            "allowed_conclusion_strength": "insufficient",
+            "causal_claims_allowed": false,
+            "conclusion_guidance": "必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。",
+            "conflicts": [],
+            "coverage": {
+              "field_coverage_pct": 8.3,
+              "required_coverage_pct": 0.0,
+              "required_covered": 0,
+              "required_total": 3
+            },
+            "evidence_checks": [
+              {
+                "evidence_id": "CAP-01",
+                "matched_tools": [
+                  "get_process_capability"
+                ],
+                "missing_fields": [
+                  "equipment_id",
+                  "samples",
+                  "mean_value",
+                  "sigma",
+                  "cpk",
+                  "metric_name",
+                  "metric_unit",
+                  "spec_lsl",
+                  "spec_usl"
+                ],
+                "name": "设备级制程能力",
+                "present_fields": [],
+                "required": true,
+                "row_count": 1,
+                "status": "partial",
+                "successful_calls": 1
+              },
+              {
+                "evidence_id": "CAP-02",
+                "matched_tools": [
+                  "get_recent_excursions"
+                ],
+                "missing_fields": [
+                  "run_time",
+                  "lot_id",
+                  "process_step",
+                  "equipment_id",
+                  "excursion_code",
+                  "measurement_name",
+                  "measurement_value",
+                  "measurement_unit",
+                  "spec_lsl",
+                  "spec_usl"
+                ],
+                "name": "异常批次明细",
+                "present_fields": [],
+                "required": true,
+                "row_count": 1,
+                "status": "partial",
+                "successful_calls": 1
+              },
+              {
+                "evidence_id": "CAP-03",
+                "matched_tools": [
+                  "get_sensor_summary"
+                ],
+                "missing_fields": [
+                  "process_step",
+                  "equipment_id",
+                  "signal_name",
+                  "samples",
+                  "missing_samples",
+                  "flagged_outliers",
+                  "mean_value",
+                  "min_value",
+                  "max_value"
+                ],
+                "name": "设备传感器上下文",
+                "present_fields": [],
+                "required": false,
+                "row_count": 1,
+                "status": "partial",
+                "successful_calls": 1
+              },
+              {
+                "evidence_id": "CAP-04",
+                "matched_tools": [
+                  "search_knowledge"
+                ],
+                "missing_fields": [
+                  "source",
+                  "section",
+                  "retrieval"
+                ],
+                "name": "控制计划与历史案例",
+                "present_fields": [
+                  "reference_id",
+                  "source_type"
+                ],
+                "required": true,
+                "row_count": 1,
+                "status": "partial",
+                "successful_calls": 1
+              }
+            ],
+            "observed_source_refs": [
+              "TOOL:S01",
+              "TOOL:S02",
+              "TOOL:S03",
+              "TOOL:S04",
+              "TOOL:get_process_capability",
+              "TOOL:get_recent_excursions",
+              "TOOL:get_sensor_summary",
+              "TOOL:search_knowledge"
+            ],
+            "plan_id": "plan-6022db1ec8a82d08",
+            "primary_scope_ids": [
+              "CMP-03"
+            ],
+            "primary_scope_labels": [
+              "CMP-03"
+            ],
+            "primary_scope_type": "equipment",
+            "reference_evidence": {
+              "TOOL:S01": {
+                "conflict_codes": [],
+                "critical_risk_codes": [],
+                "evidence_ids": [
+                  "CAP-01"
+                ],
+                "risk_codes": [],
+                "statuses": {
+                  "CAP-01": "partial"
+                }
+              },
+              "TOOL:S02": {
+                "conflict_codes": [],
+                "critical_risk_codes": [],
+                "evidence_ids": [
+                  "CAP-02"
+                ],
+                "risk_codes": [],
+                "statuses": {
+                  "CAP-02": "partial"
+                }
+              },
+              "TOOL:S03": {
+                "conflict_codes": [],
+                "critical_risk_codes": [],
+                "evidence_ids": [
+                  "CAP-03"
+                ],
+                "risk_codes": [],
+                "statuses": {
+                  "CAP-03": "partial"
+                }
+              },
+              "TOOL:S04": {
+                "conflict_codes": [],
+                "critical_risk_codes": [],
+                "evidence_ids": [
+                  "CAP-04"
+                ],
+                "risk_codes": [],
+                "statuses": {
+                  "CAP-04": "partial"
+                }
+              },
+              "TOOL:get_process_capability": {
+                "conflict_codes": [],
+                "critical_risk_codes": [],
+                "evidence_ids": [
+                  "CAP-01"
+                ],
+                "risk_codes": [],
+                "statuses": {
+                  "CAP-01": "partial"
+                }
+              },
+              "TOOL:get_recent_excursions": {
+                "conflict_codes": [],
+                "critical_risk_codes": [],
+                "evidence_ids": [
+                  "CAP-02"
+                ],
+                "risk_codes": [],
+                "statuses": {
+                  "CAP-02": "partial"
+                }
+              },
+              "TOOL:get_sensor_summary": {
+                "conflict_codes": [],
+                "critical_risk_codes": [],
+                "evidence_ids": [
+                  "CAP-03"
+                ],
+                "risk_codes": [],
+                "statuses": {
+                  "CAP-03": "partial"
+                }
+              },
+              "TOOL:search_knowledge": {
+                "conflict_codes": [],
+                "critical_risk_codes": [],
+                "evidence_ids": [
+                  "CAP-04"
+                ],
+                "risk_codes": [],
+                "statuses": {
+                  "CAP-04": "partial"
+                }
+              }
+            },
+            "risks": [],
+            "schema_version": "1.2",
+            "source_scope_roles": {
+              "TOOL:S01": "context_only",
+              "TOOL:S02": "primary",
+              "TOOL:S03": "primary",
+              "TOOL:S04": "primary",
+              "TOOL:get_process_capability": "context_only",
+              "TOOL:get_recent_excursions": "primary",
+              "TOOL:get_sensor_summary": "primary",
+              "TOOL:search_knowledge": "primary"
+            },
+            "source_semantics": {
+              "TOOL:S01": {
+                "end": "2026-10-21",
+                "filter_provenance": "planner",
+                "grain": "equipment_distribution",
+                "kind": "metric",
+                "scope": {
+                  "chambers": [],
+                  "equipment_ids": [],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [
+                    "CMP"
+                  ],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "scope_role": "context_only",
+                "semantic_id": "process_capability_cpk",
+                "start": "2026-10-15"
+              },
+              "TOOL:S02": {
+                "end": "2026-10-21",
+                "filter_provenance": "planner",
+                "grain": "event",
+                "kind": "event",
+                "scope": {
+                  "chambers": [],
+                  "equipment_ids": [
+                    "CMP-03"
+                  ],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "scope_role": "primary",
+                "semantic_id": "process_excursion",
+                "start": "2026-10-15"
+              },
+              "TOOL:S03": {
+                "end": "2026-10-21",
+                "filter_provenance": "planner",
+                "grain": "equipment_signal",
+                "kind": "metric",
+                "scope": {
+                  "chambers": [],
+                  "equipment_ids": [
+                    "CMP-03"
+                  ],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "scope_role": "primary",
+                "semantic_id": "sensor_summary",
+                "start": "2026-10-15"
+              },
+              "TOOL:S04": {
+                "end": null,
+                "filter_provenance": "planner",
+                "grain": "document",
+                "kind": "document",
+                "scope": {
+                  "chambers": [],
+                  "equipment_ids": [
+                    "CMP-03"
+                  ],
+                  "fab_ids": [],
+                  "lot_ids": [],
+                  "process_steps": [],
+                  "products": [],
+                  "recipes": [],
+                  "wafer_ids": []
+                },
+                "scope_role": "primary",
+                "semantic_id": "knowledge_document",
+                "start": null
+              }
+            },
+            "status": "validated",
+            "validator_version": "1.2.0"
+          }
+        },
+        {
+          "event": "stage",
+          "execution_mode": "synthesis_only",
+          "message": "计划工具已执行完毕，正在基于已验证证据生成结论",
+          "stage": "synthesis"
+        },
+        {
+          "delta": "## 待验证原文（未经结构化验证）\n\n离线合成结论。\n\n## 证据限制\n- 证据限制：以下原文仅保留其展示结构，未作为已确认生产事实。\n- CAP-01 设备级制程能力 为partial，缺少字段：equipment_id, samples",
+          "event": "answer_delta"
+        },
+        {
+          "delta": ", mean_value, sigma, cpk, metric_name, metric_unit, spec_lsl, spec_usl。\n- CAP-02 异常批次明细 为partial，缺少字段：run_time, lot_id, ",
+          "event": "answer_delta"
+        },
+        {
+          "delta": "process_step, equipment_id, excursion_code, measurement_name, measurement_value, measurement_unit, spec_lsl, spec_usl。\n-",
+          "event": "answer_delta"
+        },
+        {
+          "delta": " CAP-03 设备传感器上下文 为partial，缺少字段：process_step, equipment_id, signal_name, samples, missing_samples, flagged_outliers, mean",
+          "event": "answer_delta"
+        },
+        {
+          "delta": "_value, min_value, max_value。\n- CAP-04 控制计划与历史案例 为partial，缺少字段：source, section, retrieval。\n- 必需证据不足，不得给出诊断性或因果性结论；只能说明已知",
+          "event": "answer_delta"
+        },
+        {
+          "delta": "事实、证据缺口和补充查询要求。",
+          "event": "answer_delta"
+        }
+      ],
+      "sources": [],
+      "tool_trace": [
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "execution_mode": "deterministic",
+          "plan_step_id": "S01",
+          "raw_rows": 1,
+          "rows": 1,
+          "status": "ok",
+          "tool": "get_process_capability"
+        },
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "equipment_id": "CMP-03",
+            "limit": 100,
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "execution_mode": "deterministic",
+          "plan_step_id": "S02",
+          "raw_rows": 1,
+          "rows": 1,
+          "status": "ok",
+          "tool": "get_recent_excursions"
+        },
+        {
+          "arguments": {
+            "end": "2026-10-21",
+            "equipment_id": "CMP-03",
+            "process_step": "CMP",
+            "start": "2026-10-15"
+          },
+          "execution_mode": "deterministic",
+          "plan_step_id": "S03",
+          "raw_rows": 1,
+          "rows": 1,
+          "status": "ok",
+          "tool": "get_sensor_summary"
+        },
+        {
+          "arguments": {
+            "equipment_id": "CMP-03",
+            "limit": 10,
+            "process_step": "CMP",
+            "query": "分析 CMP-03 最近7天 Cpk 不合格",
+            "source_types": [
+              "personal",
+              "knowledge",
+              "case"
+            ]
+          },
+          "execution_mode": "deterministic",
+          "plan_step_id": "S04",
+          "raw_rows": 1,
+          "rows": 1,
+          "status": "ok",
+          "tool": "search_knowledge"
+        }
+      ]
+    }
+  },
+  "schema_version": "1.0"
+}

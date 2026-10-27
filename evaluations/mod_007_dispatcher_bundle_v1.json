@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "units": {
+    "dispatcher_pilot": {
+      "version": "1.0.0",
+      "external_dependencies": [],
+      "files": [
+        "app/__init__.py",
+        "app/agent_runtime/__init__.py",
+        "app/agent_runtime/contracts.py",
+        "app/agent_runtime/coordinator.py",
+        "app/agent_runtime/coordinator_state.py",
+        "app/agent_runtime/dependencies.py",
+        "app/agent_runtime/stages/__init__.py",
+        "app/agent_runtime/stages/availability.py",
+        "app/agent_runtime/stages/loop.py",
+        "app/agent_runtime/stages/model.py",
+        "app/agent_runtime/stages/prepare.py",
+        "app/agent_runtime/stages/ready.py",
+        "app/agent_runtime/tools/__init__.py",
+        "app/agent_runtime/tools/contracts.py",
+        "app/agent_runtime/tools/dispatch_contracts.py",
+        "app/agent_runtime/tools/definition.py",
+        "app/agent_runtime/tools/tool_registry.py",
+        "app/agent_runtime/tools/dispatch_policy.py",
+        "app/agent_runtime/tools/dispatcher.py",
+        "app/agent_runtime/execution/__init__.py",
+        "app/agent_runtime/execution/loop_guard.py",
+        "app/agent_runtime/execution/tool_budget.py",
+        "app/agent_runtime/execution/tool_result_bridge.py",
+        "app/planning_runtime/__init__.py",
+        "app/planning_runtime/contracts.py",
+        "app/manufacturing/__init__.py",
+        "app/manufacturing/processes.py",
+        "app/manufacturing/equipment_health/__init__.py",
+        "app/manufacturing/equipment_health/contracts.py",
+        "app/manufacturing/equipment_health/handler.py",
+        "app/manufacturing/equipment_health/binding.py",
+        "app/integrations/__init__.py",
+        "app/integrations/manufacturing/__init__.py",
+        "app/integrations/manufacturing/fake_equipment_health.py",
+        "app/integrations/manufacturing/sqlite_equipment_health.py",
+        "app/bootstrap/__init__.py",
+        "app/bootstrap/dispatcher_demo.py"
+      ]
+    }
+  }
+}

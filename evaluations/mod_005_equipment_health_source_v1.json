@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "purpose": "Explicit source-copy inventory for the MOD-005 pilot; not a wheel or an eighth portable unit.",
+  "files": [
+    "app/__init__.py",
+    "app/agent_runtime/__init__.py",
+    "app/agent_runtime/contracts.py",
+    "app/agent_runtime/coordinator.py",
+    "app/agent_runtime/coordinator_state.py",
+    "app/agent_runtime/dependencies.py",
+    "app/agent_runtime/stages/__init__.py",
+    "app/agent_runtime/stages/availability.py",
+    "app/agent_runtime/stages/loop.py",
+    "app/agent_runtime/stages/model.py",
+    "app/agent_runtime/stages/prepare.py",
+    "app/agent_runtime/stages/ready.py",
+    "app/agent_runtime/tools/__init__.py",
+    "app/agent_runtime/tools/contracts.py",
+    "app/agent_runtime/tools/dispatch_contracts.py",
+    "app/agent_runtime/tools/definition.py",
+    "app/manufacturing/__init__.py",
+    "app/manufacturing/processes.py",
+    "app/manufacturing/equipment_health/__init__.py",
+    "app/manufacturing/equipment_health/contracts.py",
+    "app/manufacturing/equipment_health/handler.py",
+    "app/manufacturing/equipment_health/binding.py",
+    "app/integrations/__init__.py",
+    "app/integrations/manufacturing/__init__.py",
+    "app/integrations/manufacturing/fake_equipment_health.py",
+    "app/integrations/manufacturing/sqlite_equipment_health.py",
+    "scripts/demo_equipment_health.py"
+  ],
+  "exclusions": [
+    "No .env, data, logs, real database, test fixture, provider credential, or legacy report/registry is copied.",
+    "The listed Runtime parent closure is copied as actual source; no stub package initializer or whole app copy is permitted."
+  ],
+  "acceptance": "Copy the listed actual source files plus the required Runtime parent closure into a temporary unit and run the demo only with explicitly supplied disposable fixture databases."
+}

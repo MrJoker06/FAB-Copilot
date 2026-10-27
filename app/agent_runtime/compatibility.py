@@ -12,20 +12,20 @@ from typing import Any
 
 import httpx
 
-from .tools.catalog import TOOLS
+from .tools.catalog import TOOLS  # noqa: F401 - legacy dynamic export
 from .tools.registry import TOOL_HANDLERS, search_agent_knowledge
 from .contracts import ProgressCallback
 from .dependencies import (
-    AvailabilityDependencies as CoordinatorAvailabilityDependencies,
+    AvailabilityDependencies as CoordinatorAvailabilityDependencies,  # noqa: F401 - legacy dynamic export
     CoordinatorDependencies,
-    LoopDependencies as CoordinatorLoopDependencies,
-    ModelDependencies as CoordinatorModelDependencies,
-    PreparationDependencies as CoordinatorPreparationDependencies,
-    ReadyDependencies as CoordinatorReadyDependencies,
+    LoopDependencies as CoordinatorLoopDependencies,  # noqa: F401 - legacy dynamic export
+    ModelDependencies as CoordinatorModelDependencies,  # noqa: F401 - legacy dynamic export
+    PreparationDependencies as CoordinatorPreparationDependencies,  # noqa: F401 - legacy dynamic export
+    ReadyDependencies as CoordinatorReadyDependencies,  # noqa: F401 - legacy dynamic export
 )
 from .preparation import (
     ContextProtocolError as _RuntimeContextProtocolError,
-    prepare_agent_run,
+    prepare_agent_run,  # noqa: F401 - legacy dynamic export
 )
 from .preparation.context import (
     ContextStageDependencies,
@@ -40,11 +40,12 @@ from .preparation.pipeline import PreparationDependencies
 from .preparation.planning import PlanningDependencies
 from .preparation.routing import RoutingDependencies
 from .execution import (
-    AgentLoopContext,
+    AgentLoopContext,  # noqa: F401 - legacy dynamic export
     execute_ready_plan as _execute_ready_plan_runtime,
     ready_step_order as _ready_step_order_runtime,
-    run_agent_loop as _run_agent_loop_runtime,
+    run_agent_loop as _run_agent_loop_runtime,  # noqa: F401 - legacy dynamic export
 )
+from .execution.ready_dispatch import ReadyDispatchBinding
 from .retrieval import (
     RetrievalDependencies,
     has_knowledge_fallback_disclosure as _has_knowledge_fallback_disclosure_runtime,
@@ -56,8 +57,8 @@ from .retrieval import (
 from .synthesis import (
     OfflineAnswerDependencies,
     ReadySynthesisDependencies,
-    build_ready_model_unavailable_result as _build_ready_model_unavailable_result_runtime,
-    build_result as _build_result_runtime,
+    build_ready_model_unavailable_result as _build_ready_model_unavailable_result_runtime,  # noqa: F401 - legacy dynamic export
+    build_result as _build_result_runtime,  # noqa: F401 - legacy dynamic export
     offline_answer as _offline_answer_runtime,
     ready_synthesis_fallback as _ready_synthesis_fallback_runtime,
     ready_synthesis_messages as _ready_synthesis_messages_runtime,
@@ -87,10 +88,10 @@ from ..evidence.answer_synthesizer import (
 )
 from .assistant_capabilities import build_meta_response
 from ..telemetry.audit import content_fingerprint, emit
-from ..core.settings import Settings, get_settings
+from ..core.settings import Settings, get_settings  # noqa: F401 - legacy dynamic export
 from ..memory_system.contracts import ContextResolution
 from ..memory_system.context.builder import (
-    context_system_message,
+    context_system_message,  # noqa: F401 - legacy dynamic export
     build_stage_memory_messages,
 )
 from ..memory_system.context.history import build_contextualizer_messages
@@ -103,22 +104,22 @@ from ..memory_system.context.resolver import (
 from ..conversation.decision_arbiter import arbitrate_decision, recover_active_flow
 from ..manufacturing.playbooks import (
     PlaybookSelection,
-    playbook_system_message,
+    playbook_system_message,  # noqa: F401 - legacy dynamic export
     select_playbook,
 )
 from ..evidence.validator import (
     EvidenceObservation,
     validate_evidence,
-    validator_system_message,
+    validator_system_message,  # noqa: F401 - legacy dynamic export
 )
 from ..intent_runtime.contracts import IntentRoute
-from ..intent_runtime.routing import route_question, routing_system_message
+from ..intent_runtime.routing import route_question, routing_system_message  # noqa: F401 - legacy dynamic export
 from ..intent_runtime.rules import INTENT_LABELS
 from ..knowledge.decision import (
     RetrievalDecision,
     assess_retrieval,
     required_scopes,
-    retrieval_system_message,
+    retrieval_system_message,  # noqa: F401 - legacy dynamic export
     rewrite_query,
     usable_result,
 )
@@ -130,7 +131,7 @@ from ..model_gateway.health import (
     record_model_failure,
     record_model_success,
 )
-from ..model_gateway.registry import effective_agent_settings, public_user_model_config
+from ..model_gateway.registry import effective_agent_settings, public_user_model_config  # noqa: F401 - legacy dynamic export
 from ..model_gateway.streaming import (
     audit_assistant,
     model_error_category,
@@ -138,8 +139,11 @@ from ..model_gateway.streaming import (
     retryable_model_error,
     stream_completion,
 )
+from ..bootstrap.legacy_agent_assembly import (
+    build_legacy_coordinator_dependencies as _build_legacy_coordinator_dependencies,
+)
 from ..planning_runtime.contracts import ExecutionPlan, PlanStep
-from ..planning_runtime.service import create_execution_plan, planner_system_message
+from ..planning_runtime.service import create_execution_plan, planner_system_message  # noqa: F401 - legacy dynamic export
 from ..manufacturing.processes import MANUFACTURING_STEPS
 from ..manufacturing.reports import equipment_health, fab_overview
 from ..conversation.turn_decision import TurnDecision, build_turn_decision
@@ -329,8 +333,19 @@ async def _execute_ready_plan(
     loop_guard: ToolLoopGuard,
     run_id: str,
     progress: ProgressCallback | None,
+    *,
+    dispatch_binding: ReadyDispatchBinding | None = None,
 ) -> tuple[list[dict[str, Any]], list[EvidenceObservation], dict[str, dict[str, Any]]]:
     """Compatibility facade using current module globals as live dependencies."""
+    if dispatch_binding is not None:
+        return await _execute_ready_plan_runtime(
+            plan, loop_guard, run_id, progress,
+            notify=_notify,
+            emit_event=emit,
+            execute_tool=None,
+            usable_knowledge_result=_usable_knowledge_result,
+            dispatch_binding=dispatch_binding,
+        )
     return await _execute_ready_plan_runtime(
         plan, loop_guard, run_id, progress,
         notify=_notify,
@@ -623,50 +638,7 @@ def _agent_preparation_dependencies() -> PreparationDependencies:
 
 def _coordinator_dependencies() -> CoordinatorDependencies:
     """Capture current module facades for one coordinator invocation."""
-    return CoordinatorDependencies(
-        preparation=CoordinatorPreparationDependencies(
-            system_prompt=SYSTEM_PROMPT, perf_counter=time.perf_counter, settings_type=Settings,
-            effective_agent_settings=effective_agent_settings, get_settings=get_settings,
-            prepare_agent_run=prepare_agent_run, agent_preparation_dependencies=_agent_preparation_dependencies,
-            tool_loop_guard_type=ToolLoopGuard, validate_evidence=validate_evidence,
-            create_answer_contract=create_answer_contract, emit=emit, notify=_notify,
-            offline_answer=_offline_answer, emit_evidence_validation=_emit_evidence_validation,
-            stream_answer=_stream_answer,
-        ),
-        availability=CoordinatorAvailabilityDependencies(
-            get_model_health=get_model_health, claim_model_call=claim_model_call,
-            execute_ready_plan=_execute_ready_plan, ready_synthesis_fallback=_ready_synthesis_fallback,
-            emit_answer_synthesis=_emit_answer_synthesis,
-            build_ready_model_unavailable_result=_build_ready_model_unavailable_result_runtime,
-        ),
-        model=CoordinatorModelDependencies(
-            context_system_message=context_system_message, routing_system_message=routing_system_message,
-            playbook_system_message=playbook_system_message, planner_system_message=planner_system_message,
-            validator_system_message=validator_system_message, synthesizer_system_message=synthesizer_system_message,
-            prefetch_general_knowledge=_prefetch_general_knowledge,
-            retrieval_system_message=retrieval_system_message, knowledge_fallback_state=_knowledge_fallback_state,
-            stage_memory_messages=build_stage_memory_messages,
-        ),
-        ready=CoordinatorReadyDependencies(
-            async_client=httpx.AsyncClient, ready_synthesis_messages=_ready_synthesis_messages,
-            request_ready_synthesis=_request_ready_synthesis, record_model_success=record_model_success,
-            synthesize_ready_assistant=_synthesize_ready_assistant, retryable_model_error=_retryable_model_error,
-            record_model_failure=record_model_failure, model_error_category=_model_error_category,
-        ),
-        loop=CoordinatorLoopDependencies(
-            build_result=_build_result_runtime, run_agent_loop=_run_agent_loop_runtime,
-            agent_loop_context_type=AgentLoopContext, tools=TOOLS, submit_analysis_tool=SUBMIT_ANALYSIS_TOOL,
-            parse_tool_arguments=_parse_tool_arguments, execute_registered_tool=_execute_registered_tool,
-            usable_knowledge_result=_usable_knowledge_result,
-            normalize_general_knowledge_answer=_normalize_general_knowledge_answer,
-            has_knowledge_fallback_disclosure=_has_knowledge_fallback_disclosure,
-            synthesize_legacy_answer=synthesize_legacy_answer, synthesize_submission=synthesize_submission,
-            provider_request_options=provider_request_options, evidence_observation_type=EvidenceObservation,
-            stream_completion=_stream_completion, model_failure_reason=_model_failure_reason,
-            model_retry_delay=_model_retry_delay, audit_assistant=_audit_assistant,
-            request_synthesis_correction=_request_synthesis_correction,
-        ),
-    )
+    return _build_legacy_coordinator_dependencies(globals())
 
 from types import FunctionType
 from collections.abc import Callable

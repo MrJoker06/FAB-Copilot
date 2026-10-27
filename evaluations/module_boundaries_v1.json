@@ -50,6 +50,11 @@
     "app.agent_runtime.execution.loop_guard": "agent_runtime.execution.loop_guard",
     "app.knowledge.rag": "knowledge.rag",
     "app.knowledge.decision": "knowledge.decision",
+    "app.knowledge.ranking": "knowledge.ranking",
+    "app.knowledge.search_contracts": "knowledge.search_contracts",
+    "app.knowledge.search_query": "knowledge.search_query",
+    "app.knowledge.search_registry": "knowledge.search_registry",
+    "app.knowledge.sqlite_backend": "knowledge.sqlite_backend",
     "app.knowledge.ocr": "knowledge.ocr",
     "app.knowledge.ocr_quality": "knowledge.ocr_quality",
     "app.evidence.semantics": "evidence.semantics",
@@ -57,6 +62,7 @@
     "app.evidence.answer_synthesizer": "evidence.answer_synthesizer",
     "app.core.settings": "configuration.settings",
     "app.core.identity": "identity.context",
+    "app.core.identity_contracts": "identity.contracts",
     "app.agent_runtime.service": "agent_runtime.service",
     "app.personal_knowledge_runtime.service": "personal_knowledge_runtime.service"
   },
@@ -91,6 +97,7 @@
       "personal_knowledge_runtime"
     ],
     "manufacturing": [
+      "agent_runtime",
       "manufacturing",
       "persistence"
     ],
@@ -142,17 +149,57 @@
       "app.main",
       "app.api.application",
       "app.api.runtime_dependencies",
-      "app.agent_runtime.compatibility"
+      "app.agent_runtime.compatibility",
+      "app.bootstrap.tool_catalog",
+      "app.bootstrap.tool_bindings",
+      "app.bootstrap.agent_assembly",
+      "app.bootstrap.legacy_agent_assembly",
+      "app.bootstrap.agent_demo",
+      "app.bootstrap.ready_assembly",
+      "app.bootstrap.ready_demo",
+      "app.bootstrap.loop_assembly",
+      "app.bootstrap.loop_demo",
+      "app.bootstrap.diagnostics_demo"
     ],
     "internal_facades": [],
     "pure_modules": [
+      "app.agent_runtime.tools.contracts",
+      "app.agent_runtime.tools.definition",
+      "app.agent_runtime.tools.tool_registry",
+      "app.agent_runtime.tools.dispatch_contracts",
+      "app.agent_runtime.tools.dispatch_policy",
+      "app.agent_runtime.tools.dispatcher",
+      "app.agent_runtime.execution.tool_budget",
+      "app.agent_runtime.execution.tool_result_bridge",
+      "app.agent_runtime.execution.ready_graph",
+      "app.agent_runtime.execution.ready_dispatch",
+      "app.agent_runtime.execution.ready_result_policy",
+      "app.agent_runtime.execution.loop_response",
+      "app.agent_runtime.execution.loop_dispatch",
+      "app.agent_runtime.execution.runtime_contracts",
+      "app.agent_runtime.execution.runtime_ports",
+      "app.agent_runtime.execution.pilot_stages",
+      "app.agent_runtime.definition",
+      "app.agent_runtime.application",
       "app.agent_runtime.assistant_capabilities",
       "app.persistence.department_schemas",
       "app.evidence.semantics",
+      "app.knowledge.decision",
+      "app.knowledge.ranking",
+      "app.knowledge.search_contracts",
+      "app.knowledge.search_query",
+      "app.core.identity_contracts",
       "app.intent_runtime.contracts",
       "app.intent_runtime.rules",
       "app.planning_runtime.contracts",
       "app.manufacturing.processes",
+      "app.manufacturing.equipment_health.contracts",
+      "app.manufacturing.equipment_health.handler",
+      "app.manufacturing.equipment_health.binding",
+      "app.manufacturing.process_diagnostics",
+      "app.manufacturing.process_diagnostics.contracts",
+      "app.manufacturing.process_diagnostics.handler",
+      "app.manufacturing.process_diagnostics.binding",
       "app.conversation.turn_decision",
       "app.memory_system",
       "app.memory_system.context",
@@ -201,6 +248,18 @@
   },
   "existing_edge_exceptions": [
     {
+      "source": "app.agent_runtime.tools.catalog",
+      "target": "app.bootstrap.tool_catalog",
+      "reason": "legacy catalog facade preserves the existing schema-list import surface while bootstrap owns concrete catalog assembly",
+      "exit_condition": "MOD-011 removes recorded legacy catalog consumers"
+    },
+    {
+      "source": "app.agent_runtime.tools.registry",
+      "target": "app.bootstrap.tool_bindings",
+      "reason": "legacy registry facade preserves live handler patch consumers while bootstrap owns concrete binding assembly",
+      "exit_condition": "MOD-008 completes explicit bulk legacy binding migration"
+    },
+    {
       "source": "app.manufacturing.playbooks",
       "target": "app.intent_runtime.contracts",
       "reason": "manufacturing playbook declarations retain the typed routing contract",
@@ -211,6 +270,12 @@
       "target": "app.agent_runtime.coordinator",
       "reason": "package initializer re-exports the coordinator as the runtime assembly public API",
       "exit_condition": "retain while the runtime package re-export remains the documented public assembly entry"
+    },
+    {
+      "source": "app.agent_runtime.compatibility",
+      "target": "app.bootstrap.legacy_agent_assembly",
+      "reason": "legacy coordinator dependency assembly is delegated with the per-call service namespace so live patch semantics remain intact",
+      "exit_condition": "MOD-015 migrates remaining compatibility preparation, offline synthesis and concrete alias consumers"
     },
     {
       "source": "app.agent_runtime.compatibility",

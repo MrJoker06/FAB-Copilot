@@ -10,6 +10,9 @@ from typing import Any, Awaitable, Callable
 import httpx
 
 from .failure import decide_model_failure
+from .loop_dispatch import LoopDispatchBinding, execute_dispatched_loop_round
+from .loop_response import classify_loop_response
+from .runtime_contracts import RuntimeContractError
 from ..synthesis.ready import SYNTHESIS_REPAIR_MAX_SECONDS, salvage_submit_analysis, valid_submit_analysis
 
 LOOP_SYNTHESIS_MAX_TOKENS = 8192
@@ -76,9 +79,12 @@ class AgentLoopContext:
     evidence_observation_type: Any
     provider_request_options: Callable[[str, bool], dict]
     request_synthesis_correction: Callable[..., Awaitable[tuple[dict[str, Any] | None, dict[str, Any], str | None, str]]]
+    dispatch_binding: LoopDispatchBinding | None = None
 
 
-async def run_agent_loop(context: AgentLoopContext) -> dict:
+async def run_agent_loop(
+    context: AgentLoopContext, *, dispatch_binding: LoopDispatchBinding | None = None
+) -> dict:
     """Run the non-ready model/tool loop with live dependencies injected by app.agent_runtime.service."""
     settings = context.settings
     connection = context.connection
@@ -139,10 +145,30 @@ async def run_agent_loop(context: AgentLoopContext) -> dict:
     EvidenceObservation = context.evidence_observation_type
     provider_request_options = context.provider_request_options
     request_synthesis_correction = context.request_synthesis_correction
+    if (
+        dispatch_binding is not None
+        and context.dispatch_binding is not None
+        and dispatch_binding is not context.dispatch_binding
+    ):
+        raise RuntimeContractError("Loop dispatch contract violated.")
+    if dispatch_binding is None:
+        dispatch_binding = context.dispatch_binding
+    if dispatch_binding is not None:
+        from .loop_dispatch import validate_loop_binding
+
+        if not validate_loop_binding(execution_plan, loop_guard, run_id, dispatch_binding):
+            raise RuntimeContractError("Loop dispatch contract violated.")
     endpoint = f"{connection.base_url}/chat/completions"
     thinking_answer_effective = False
 
     def _build_result(answer: str, report: Any) -> dict:
+        if dispatch_binding is not None:
+            context.evidence_validation = evidence_validation
+            context.answer_contract = answer_contract
+            context.knowledge_fallback = knowledge_fallback
+            context.fallback_announced = fallback_announced
+            context.applied_synthesis_reason = applied_synthesis_reason
+            context.health = health
         result = build_result(answer, report)
         result["thinking_policy"]["answer_effective"] = thinking_answer_effective
         return result
@@ -174,10 +200,19 @@ async def run_agent_loop(context: AgentLoopContext) -> dict:
                 **provider_request_options(connection.provider, thinking),
             }
             if intent_route.intent not in {"general_knowledge", "conversation"}:
+                loop_tools = TOOLS
+                if dispatch_binding is not None:
+                    try:
+                        bound_tools = json.loads(dispatch_binding.tools_json)
+                    except (TypeError, ValueError, json.JSONDecodeError):
+                        raise RuntimeContractError("Loop dispatch contract violated.") from None
+                    if not isinstance(bound_tools, list):
+                        raise RuntimeContractError("Loop dispatch contract violated.")
+                    loop_tools = [*bound_tools, SUBMIT_ANALYSIS_TOOL]
                 request_payload["tools"] = (
                     [SUBMIT_ANALYSIS_TOOL]
                     if synthesis_only and answer_contract.status == "required"
-                    else TOOLS
+                    else loop_tools
                 )
                 if not (connection.provider == "deepseek" and thinking):
                     request_payload["tool_choice"] = (
@@ -199,7 +234,11 @@ async def run_agent_loop(context: AgentLoopContext) -> dict:
                     thinking_requested=thinking,
                     thinking_effective=thinking,
                     reasoning_effort=request_payload.get("reasoning_effort"),
-                    full_content={"request": request_payload},
+                    full_content=(
+                        {"request": request_payload}
+                        if dispatch_binding is None
+                        else {"request": {"model": connection.model, "message_count": len(messages), "tool_count": len(request_payload.get("tools", []))}}
+                    ),
                 )
                 stream_state = {
                     "answer_emitted": False,
@@ -243,7 +282,11 @@ async def run_agent_loop(context: AgentLoopContext) -> dict:
                         thinking_effective=thinking,
                         reasoning_effort=request_payload.get("reasoning_effort"),
                         failure_reason=_model_failure_reason(exc),
-                        full_content={"error_message": str(exc), "traceback": traceback.format_exc()},
+                        full_content=(
+                            {"error_message": str(exc), "traceback": traceback.format_exc()}
+                            if dispatch_binding is None
+                            else {"error_type": type(exc).__name__}
+                        ),
                     )
                     if not will_retry:
                         if availability_failure and health_enabled:
@@ -253,7 +296,10 @@ async def run_agent_loop(context: AgentLoopContext) -> dict:
                                 cooldown_seconds=settings.model_circuit_cooldown_seconds,
                             )
                             emit("model_health_failure_recorded", run_id, model_id=selected_model_id, health=health, transition=transition)
-                        if failure_decision.fallback_before_first_body:
+                        if (
+                            failure_decision.fallback_before_first_body
+                            and dispatch_binding is None
+                        ):
                             emit("model_local_fallback_activated", run_id, model_id=selected_model_id, reason="upstream_unavailable", health=health)
                             result = _offline_answer(
                                 analysis_question, intent_route, playbook_selection, execution_plan, loop_guard,
@@ -315,7 +361,11 @@ async def run_agent_loop(context: AgentLoopContext) -> dict:
                     thinking_requested=thinking,
                     thinking_effective=thinking,
                     reasoning_effort=request_payload.get("reasoning_effort"),
-                    full_content={"response": _audit_assistant(assistant)},
+                    full_content=(
+                        {"response": _audit_assistant(assistant)}
+                        if dispatch_binding is None
+                        else {"response": {"has_content": bool(assistant.get("content")), "tool_call_count": len(assistant.get("tool_calls") or [])}}
+                    ),
                 )
                 thinking_answer_effective = thinking_answer_effective or thinking
                 if health_enabled:
@@ -325,8 +375,17 @@ async def run_agent_loop(context: AgentLoopContext) -> dict:
                 break
             for key in total_usage:
                 total_usage[key] += int(usage.get(key, 0) or 0)
+            classified_response = (
+                classify_loop_response(assistant)
+                if dispatch_binding is not None
+                else None
+            )
             messages.append(assistant)
-            tool_calls = assistant.get("tool_calls") or []
+            tool_calls = (
+                list(classified_response.tool_calls)
+                if classified_response is not None
+                else assistant.get("tool_calls") or []
+            )
             if not tool_calls:
                 raw_answer = assistant.get("content") or (
                     loop_guard.termination_answer()
@@ -356,8 +415,19 @@ async def run_agent_loop(context: AgentLoopContext) -> dict:
                     await _stream_answer(progress, synthesis.answer)
                 return _build_result(synthesis.answer, synthesis.report)
 
-            if len(tool_calls) == 1 and tool_calls[0].get("function", {}).get("name") == "submit_analysis":
-                raw_arguments = tool_calls[0].get("function", {}).get("arguments") or "{}"
+            if (
+                classified_response is not None
+                and classified_response.kind == "submission"
+            ) or (
+                classified_response is None
+                and len(tool_calls) == 1
+                and tool_calls[0].get("function", {}).get("name") == "submit_analysis"
+            ):
+                raw_arguments = (
+                    classified_response.tool_calls[0].arguments
+                    if classified_response is not None
+                    else tool_calls[0].get("function", {}).get("arguments") or "{}"
+                )
                 submission_error: str | None = None
                 try:
                     submission = json.loads(raw_arguments)
@@ -462,7 +532,23 @@ async def run_agent_loop(context: AgentLoopContext) -> dict:
                 await _stream_answer(progress, synthesis.answer)
                 return _build_result(synthesis.answer, synthesis.report)
 
-            loop_guard.begin_round()
+            if dispatch_binding is not None:
+                response = classified_response
+                if response.kind in {"tools", "mixed"}:
+                    outcome = await execute_dispatched_loop_round(
+                        execution_plan, loop_guard, run_id, iteration + 1, response,
+                        progress, binding=dispatch_binding, notify=_notify, emit_event=emit,
+                    )
+                    trace.extend(outcome.trace)
+                    evidence_observations.extend(
+                        EvidenceObservation(**item) for item in outcome.observation_payloads
+                    )
+                    sources.update(outcome.sources)
+                    messages.extend(outcome.tool_messages)
+                    tool_calls = []
+
+            if dispatch_binding is None:
+                loop_guard.begin_round()
             for call in tool_calls:
                 function = call.get("function", {})
                 name = function.get("name", "")
@@ -610,7 +696,8 @@ async def run_agent_loop(context: AgentLoopContext) -> dict:
                     content = json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
                 messages.append({"role": "tool", "tool_call_id": call.get("id") or decision.signature_hash, "content": content})
 
-            loop_guard.finish_round()
+            if dispatch_binding is None:
+                loop_guard.finish_round()
             evidence_validation = validate_evidence(execution_plan, selected_playbook, evidence_observations)
             coverage = evidence_validation.coverage
             if (
@@ -671,6 +758,13 @@ async def run_agent_loop(context: AgentLoopContext) -> dict:
                 force_synthesis=guard_summary["force_synthesis"],
                 stop_reason=guard_summary["stop_reason"],
             )
+            if dispatch_binding is not None:
+                context.evidence_validation = evidence_validation
+                context.answer_contract = answer_contract
+                context.knowledge_fallback = knowledge_fallback
+                context.fallback_announced = fallback_announced
+                context.applied_synthesis_reason = applied_synthesis_reason
+                context.health = health
 
     loop_guard.enter_synthesis(
         "model_iteration_limit",
