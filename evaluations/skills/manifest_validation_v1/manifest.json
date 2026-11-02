@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "skill_id": "manifest-validation",
+  "version": "1.0.0",
+  "title": "Manifest validation fixture",
+  "description": "A neutral package used only to validate Skill manifest handling.",
+  "status": "published",
+  "process_steps": ["validation"],
+  "required_inputs": ["request_id"],
+  "tools": [{"name": "get_equipment_health", "version": "==1.0.0"}],
+  "execution_modes": ["ready", "loop"],
+  "workflow": {"component_id": "fixture-workflow", "version": "1.0.0"},
+  "evidence_policy": {"component_id": "fixture-evidence-policy", "version": "1.0.0"},
+  "resources": [
+    {"path": "SKILL.md", "kind": "instructions"},
+    {"path": "references/notes.md", "kind": "reference"},
+    {"path": "scenarios/validation.json", "kind": "scenario"}
+  ]
+}

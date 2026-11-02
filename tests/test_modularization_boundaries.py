@@ -153,6 +153,33 @@ class ModularizationBoundaryTests(unittest.TestCase):
             )
         )
 
+    def test_skills_module_cannot_depend_on_runtime(self):
+        root = self._project()
+        (root / "app" / "skills.py").write_text(
+            "import app.runtime\n", encoding="utf-8"
+        )
+        (root / "app" / "runtime.py").write_text("", encoding="utf-8")
+        entries = self._manifest(root)["files"] + [
+            {
+                "path": "app/skills.py",
+                "primary_module": "skills",
+                "artifact_group": "x",
+            },
+            {
+                "path": "app/runtime.py",
+                "primary_module": "runtime",
+                "artifact_group": "x",
+            },
+        ]
+        manifest = self._manifest(root, entries)
+        manifest["allowed_dependencies"]["skills"] = ["skills"]
+        self.assertTrue(
+            any(
+                "new dependency debt" in item
+                for item in boundaries.dependency_errors(root, manifest)
+            )
+        )
+
     def test_stale_dependency_debt_is_rejected(self):
         root = self._project()
         manifest = self._manifest(root)

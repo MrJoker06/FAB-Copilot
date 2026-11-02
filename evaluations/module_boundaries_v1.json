@@ -18,6 +18,7 @@
     }
   },
   "canonical_modules": {
+    "app.skills": "skills",
     "app.manufacturing.processes": "manufacturing.processes",
     "app.manufacturing.playbooks": "manufacturing.playbooks",
     "app.manufacturing.reports": "manufacturing.reports",
@@ -67,6 +68,9 @@
     "app.personal_knowledge_runtime.service": "personal_knowledge_runtime.service"
   },
   "allowed_domain_dependencies": {
+    "skills": [
+      "skills"
+    ],
     "agent_runtime": [
       "agent_runtime",
       "conversation",
@@ -171,6 +175,12 @@
     ],
     "internal_facades": [],
     "pure_modules": [
+      "app.skills",
+      "app.skills.contracts",
+      "app.skills.manifest",
+      "app.skills.package",
+      "app.skills.resources",
+      "app.skills.versions",
       "app.agent_runtime.tools.contracts",
       "app.agent_runtime.tools.definition",
       "app.agent_runtime.tools.tool_registry",
@@ -263,6 +273,22 @@
       "app.agent_runtime.service"
     ],
     "domain_forbidden_imports": {
+      "skills": [
+        "app.api",
+        "app.agent_runtime",
+        "app.bootstrap",
+        "app.core",
+        "app.integrations",
+        "app.persistence",
+        "app.telemetry",
+        "httpx",
+        "importlib",
+        "requests",
+        "socket",
+        "sqlite3",
+        "subprocess",
+        "urllib"
+      ],
       "memory_system": [
         "app.api",
         "app.agent_runtime",

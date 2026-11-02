@@ -1311,6 +1311,36 @@
       "artifact_group": "application_bundle"
     },
     {
+      "path": "app/skills/__init__.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/contracts.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/manifest.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/package.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/resources.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/versions.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/static/thinking_control.js",
       "primary_module": "static_ui",
       "artifact_group": "application_bundle"
@@ -1421,6 +1451,9 @@
     ],
     "static_ui": [
       "static_ui"
+    ],
+    "skills": [
+      "skills"
     ],
     "application_bootstrap": [
       "application_bootstrap",

@@ -39,6 +39,7 @@ MODULES = {
     "application_bootstrap",
     "core_contracts_configuration",
     "static_ui",
+    "skills",
 }
 REQUIRED_COMPATIBILITY_FIELDS = {
     "entrypoint",
