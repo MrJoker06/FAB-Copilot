@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import argparse
-import fcntl
 import json
+import os
 import shutil
+import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.instance_lock import InstanceLock, is_locked, lock_path
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 
@@ -42,39 +47,24 @@ def directory_size(path: Path) -> int:
 
 
 def instance_active(path: Path) -> bool:
-    lock_path = path / "service.lock"
-    if not lock_path.is_file():
+    candidate = lock_path(path, path.parent)
+    if not candidate.is_file():
         return False
-    try:
-        with lock_path.open("r+") as lock_file:
-            try:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                return True
-            finally:
-                try:
-                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-                except OSError:
-                    pass
-    except OSError:
-        return True
-    return False
+    return is_locked(path, path.parent)
 
 
 def remove_inactive_instance(path: Path) -> bool:
-    lock_path = path / "service.lock"
-    if not lock_path.is_file():
+    candidate = lock_path(path, path.parent)
+    if not candidate.is_file():
+        return False
+    lock = InstanceLock(path, path.parent)
+    if not lock.acquire():
         return False
     try:
-        with lock_path.open("r+") as lock_file:
-            try:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                return False
-            shutil.rmtree(path)
-            return True
-    except OSError:
-        return False
+        shutil.rmtree(path)
+        return True
+    finally:
+        lock.release()
 
 
 def inspect_instance(path: Path) -> RuntimeInstance:
@@ -84,9 +74,14 @@ def inspect_instance(path: Path) -> RuntimeInstance:
     if manifest_path.is_file():
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if not isinstance(manifest, dict):
+                raise TypeError("manifest must be an object")
             valid_manifest = manifest.get("instance_id") == path.name
-        except (OSError, json.JSONDecodeError):
-            pass
+            platform = manifest.get("platform", "posix")
+            if platform != os.name:
+                valid_manifest = False
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            manifest = {}
     timestamp_path = manifest_path if manifest_path.exists() else path
     modified_at = datetime.fromtimestamp(timestamp_path.stat().st_mtime, timezone.utc)
     try:
@@ -110,7 +105,11 @@ def discover_instances(root: Path) -> list[RuntimeInstance]:
     if not root.exists():
         return []
     return sorted(
-        (inspect_instance(path) for path in root.iterdir() if path.is_dir() and not path.is_symlink()),
+        (
+            inspect_instance(path)
+            for path in root.iterdir()
+            if path.is_dir() and not path.is_symlink() and path.name != ".locks"
+        ),
         key=lambda item: item.modified_at,
         reverse=True,
     )
@@ -157,14 +156,18 @@ def apply_prune_plan(root: Path, plan: list[dict]) -> list[str]:
             or candidate.is_symlink()
             or candidate.parent.resolve() != root
         ):
-            raise RuntimeError(f"Refusing to delete path outside runtime root: {candidate}")
+            raise RuntimeError(
+                f"Refusing to delete path outside runtime root: {candidate}"
+            )
         path = candidate.resolve()
         if path.parent != root:
             raise RuntimeError(f"Refusing to delete path outside runtime root: {path}")
         try:
             current = inspect_instance(path)
         except (FileNotFoundError, OSError) as exc:
-            raise RuntimeError(f"Refusing to delete unavailable runtime instance: {path}") from exc
+            raise RuntimeError(
+                f"Refusing to delete unavailable runtime instance: {path}"
+            ) from exc
         expected_snapshot = {
             "instance_id": item.get("instance_id"),
             "git_commit": item.get("git_commit"),
@@ -177,14 +180,22 @@ def apply_prune_plan(root: Path, plan: list[dict]) -> list[str]:
             "port": current.port,
             "modified_at": current.modified_at.isoformat(timespec="seconds"),
         }
-        if not current.valid_manifest or current.active or current_snapshot != expected_snapshot:
-            raise RuntimeError(f"Refusing to delete changed or unsafe runtime instance: {path}")
+        if (
+            not current.valid_manifest
+            or current.active
+            or current_snapshot != expected_snapshot
+        ):
+            raise RuntimeError(
+                f"Refusing to delete changed or unsafe runtime instance: {path}"
+            )
         if remove_inactive_instance(path):
             removed.append(item["instance_id"])
     return removed
 
 
-def summary(root: Path, plan: list[dict], applied: bool, removed: list[str] | None = None) -> dict:
+def summary(
+    root: Path, plan: list[dict], applied: bool, removed: list[str] | None = None
+) -> dict:
     candidates = [item for item in plan if item["action"] == "delete"]
     return {
         "runtime_root": str(root.resolve()),
@@ -199,11 +210,15 @@ def summary(root: Path, plan: list[dict], applied: bool, removed: list[str] | No
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Inspect and prune isolated Fab runtime instances")
+    parser = argparse.ArgumentParser(
+        description="Inspect and prune isolated Fab runtime instances"
+    )
     parser.add_argument("--root", type=Path, default=PROJECT_DIR / "runtime")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("list", help="List runtime instances and lock state")
-    prune_parser = subparsers.add_parser("prune", help="Build a retention plan; deletion requires --apply")
+    prune_parser = subparsers.add_parser(
+        "prune", help="Build a retention plan; deletion requires --apply"
+    )
     prune_parser.add_argument("--keep", type=int, default=3)
     prune_parser.add_argument("--older-than-days", type=int, default=3)
     prune_parser.add_argument("--protect", action="append", default=[])
@@ -220,8 +235,12 @@ def main() -> None:
         }
     else:
         if args.keep < 1 or args.older_than_days < 0:
-            parser.error("--keep must be at least 1 and --older-than-days cannot be negative")
-        plan = build_prune_plan(instances, args.keep, args.older_than_days, set(args.protect))
+            parser.error(
+                "--keep must be at least 1 and --older-than-days cannot be negative"
+            )
+        plan = build_prune_plan(
+            instances, args.keep, args.older_than_days, set(args.protect)
+        )
         removed = apply_prune_plan(args.root, plan) if args.apply else []
         output = summary(args.root, plan, args.apply, removed)
     print(json.dumps(output, ensure_ascii=False, indent=2))

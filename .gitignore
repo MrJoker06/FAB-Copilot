@@ -4,6 +4,8 @@ __pycache__/
 .coverage
 .coverage.*
 .venv/
+.venv-win/
+.venv-linux/
 data/*.db
 data/*.db-*
 data/**/*.db

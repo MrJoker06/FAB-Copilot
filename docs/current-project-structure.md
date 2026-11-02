@@ -5,6 +5,14 @@
 本次实扫 `app/` 的受管源码为 **258 文件：230 个 Python、28 个静态文件**。数量与
 `evaluations/mod_003_boundaries_v1.json` 一致；测试、日志、缓存和运行期生成物不计入。
 
+## 平台启动入口
+
+根目录 `run.py` 统一处理启动检查、源码快照、隔离实例与子进程生命周期；`run.bat`
+直接运行原生 Windows Python，`run.sh` 用于 Linux / WSL，支持各自 venv 和既有 Conda。
+`scripts/instance_lock.py` 提供平台锁，`scripts/manage_runtime.py` 维护安全的实例检查/
+清理。以上均在 `app/` 之外，应用源码的 258 文件统计与模块边界不变。
+启动方式见 [README](../README.md#快速启动)，实际验证见 [跨平台启动报告](reports/cross-platform-startup.md)。
+
 ## 1. 当前物理树与逻辑边界
 
 ```text

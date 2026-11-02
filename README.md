@@ -61,7 +61,9 @@ SQLite 连接、部门 Schema 与执行记录位于 `app/persistence/`；数据�
 
 ## 快速启动
 
-项目会自动读取 `D:\modern_agents\.env`，至少需要：
+项目支持原生 Windows 和 Linux，WSL 也按 Linux 方式运行。需要 Python 3.11 或更高版本，依赖安装在各平台独立的虚拟环境中；无需为了启动 Windows 版本安装 WSL。
+
+模型配置读取项目根目录 `.env`，也兼容项目上两级目录的 `.env`；可用 `FAB_PROJECT_ENV_FILE` / `FAB_WORKSPACE_ENV_FILE` 指定。未配置模型密钥也能启动页面、报表和本地规则分析；需要调用模型时再配置密钥。例如：
 
 ```dotenv
 FAB_MODEL_PROVIDER=deepseek
@@ -104,37 +106,79 @@ FAB_ADMIN_API_TOKEN=replace-with-a-long-random-admin-token
 
 模型连接优先读取 `FAB_MODEL_PROVIDER`、`FAB_MODEL_API_KEY`、`FAB_MODEL_BASE_URL` 和 `FAB_MODEL_NAME`。现有部署可继续使用 `DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL` 和 `DEEPSEEK_MODEL` 作为兼容回退；新配置应使用统一变量。凭据仅由服务端托管，不写入模型目录，也不会通过设置 API 或日志暴露。
 
-在 WSL 中运行：
+Windows（PowerShell）首次安装并启动：
+
+```powershell
+cd D:\modern_agents\agents\experiment-parallel-platform
+py -3 -m venv .venv-win
+.\.venv-win\Scripts\python.exe -m pip install -r requirements.txt
+.\run.bat
+```
+
+如果已安装的 Python 没有 `py` 命令，第一条创建环境的命令也可以用 `python -m venv .venv-win`。
+后续直接执行 `run.bat`，会调用 Windows 本机 Python，不调用 WSL，也不需要激活脚本或修改 PowerShell 执行策略。
+
+Linux / WSL 首次安装并启动：
 
 ```bash
-cd /mnt/d/modern_agents/agents/fab-insight-agent
-conda create -n fab-insight-agent python=3.11 pip -y
-conda run -n fab-insight-agent python -m pip install -r requirements.txt
-./run.sh
+cd /path/to/experiment-parallel-platform
+python3 -m venv .venv-linux
+.venv-linux/bin/python -m pip install -r requirements.txt
+bash run.sh
 ```
 
-`run.sh` 默认始终通过 Conda 环境 `fab-insight-agent` 启动，不向 `base` 安装项目依赖。需要使用其他环境名时设置 `FAB_CONDA_ENV`。
+后续直接执行 `bash run.sh`。原有 `fab-insight-agent` Conda 环境仍可沿用；已激活的环境或
+`FAB_CONDA_ENV` 指定的环境也受支持。Conda 不是必需条件。Windows 的 `.venv-win` 和
+Linux 的 `.venv-linux` 不能互相使用，两个目录均已忽略，不进入 Git。
 
-`run.sh` 还会按 `worktree-Git提交-端口` 生成实例 ID。每个实例在 `runtime/<instance_id>/` 下保存独立的 Git 源码快照、制造数据库、AI 运营库、个人知识文件和日志，并持有独立进程锁；服务从实例源码快照启动，后续修改当前 worktree 不会改变已运行版本的后端或静态资源。不同提交或端口不会共享会话和运行状态。可通过 `FAB_INSTANCE_ID` 与 `FAB_INSTANCE_ROOT` 显式命名实例，但两个并行服务不得指向同一实例目录。实际运行目录和源码快照可在 `/api/health` 的 `instance.root` 与 `instance.source_root` 中核对。
-
-每次提交启动都会保留一份完整模拟数据库，因此应定期检查运行快照。以下命令默认只输出清理计划，不删除文件；`--apply` 会跳过仍持有进程锁的实例，保留最新 3 个实例，并只删除超过 3 天的其余有效实例：
+两个脚本都调用项目根目录的 `run.py`。也可使用选定环境中的 Python 直接执行：
 
 ```bash
-conda run -n fab-insight-agent python scripts/manage_runtime.py list
-conda run -n fab-insight-agent python scripts/manage_runtime.py prune --keep 3 --older-than-days 3
-conda run -n fab-insight-agent python scripts/manage_runtime.py prune --keep 3 --older-than-days 3 --apply
+python run.py --check
+python run.py --port 8890
+python run.py --source-mode worktree
 ```
 
-仓库通过 `.gitattributes` 和 `.editorconfig` 将文本文件统一为 LF。提交前若突然出现大量等量增删，应先用 `git diff -w` 判断是否只是换行符变化，禁止把整库换行改写混入业务提交。
+这里的 `python` 应来自已安装依赖的环境；不激活环境时使用 `.venv-linux/bin/python` 或
+`.venv-win\Scripts\python.exe` 的完整路径。`--check` 检查所选 Python、依赖和 SQLite
+FTS5 trigram，输出启动位置，不创建实例、生成数据库或启动服务。需要显式选择解释器时，
+在调用脚本前设置 `FAB_PYTHON` 为该 Python 可执行文件的路径。
 
-在 Windows 中运行：
+`--port` / `PORT` 默认 8888，监听地址默认 `127.0.0.1`。启动时输出解释器、运行目录、
+源码位置和访问地址。第一次正常启动生成 730 天合成演示数据；`--seed-days` 可用于独立
+验收环境，已有数据不会因重启而被重新生成。极小时间窗可能触发应用已有的数据完整性
+补齐，启动验证使用 14 天而非 1～2 天。
 
-```bat
-cd /d D:\modern_agents\agents\fab-insight-agent
-run.bat
+默认 `--source-mode snapshot`：在正常 Git 克隆中从当前提交创建固定源码副本，未提交
+改动不进入该副本。每个实例在 `runtime/<instance_id>/` 保存独立数据库、个人知识和日志；
+不同平台的默认实例 ID 不同。重复启动同一实例会被进程锁拒绝，不能覆盖正在运行的
+manifest。正常文件系统使用目录重命名发布快照；WSL 挂载盘拒绝重命名时，在持锁期间
+复制完整内容并最后写入完成标记，未完成副本不会启动服务。没有新增 SHA-256 校验。
+
+没有 Git 的源码导出目录也可以启动：仅复制应用、知识、案例、评估与脚本等源码白名单，
+不复制 `.env`、数据库、日志、虚拟环境或用户工作簿，并明确标为 `unversioned`。
+WSL 创建的 Git worktree 元数据可能无法被 Windows Git 识别，此时原生 Windows 使用
+同一导出副本方式，不改写 `.git`。需要固定提交来源时，使用本机 Git 可识别的克隆。
+
+开发中需要立即使用未提交修改时，显式使用 `--source-mode worktree`；这会直接读取当前
+源码与静态文件，不提供源码固定承诺，数据和日志仍按实例隔离。没有 Git 时默认生成新的
+实例 ID，避免修改后的源码静默复用旧副本；显式复用未版本化实例目录会继续使用原副本。
+
+可通过 `FAB_INSTANCE_ID` / `FAB_INSTANCE_ROOT` 指定实例。不要让 Windows 与 Linux / WSL
+共用同一个实例目录；启动器拒绝另一平台的既有实例，运行目录管理器也保护异平台实例。
+实际路径可在 `/api/health` 的 `instance.root` 与 `instance.source_root` 中核对。
+
+运行目录检查与清理命令两端相同，使用各自环境的 Python；默认仅输出计划，只有
+`--apply` 才删除符合条件、未运行且属于当前平台的实例：
+
+```bash
+python scripts/manage_runtime.py list
+python scripts/manage_runtime.py prune --keep 3 --older-than-days 3
+python scripts/manage_runtime.py prune --keep 3 --older-than-days 3 --apply
 ```
 
-`run.bat` 是 Windows 入口，会通过 `wsl.exe` 调用 `run.sh`，实际运行时仍使用 WSL 中的 `fab-insight-agent` Conda 环境；Windows 端不需要另外安装 Python 或项目依赖。
+文本文件继续统一为 UTF-8 / LF，Windows 批处理也保持 LF；不要在切换操作系统时改写
+整库换行符。数据库与虚拟环境不随 Git 同步，迁移时分别准备。
 
 本并行方案默认使用独立端口。用户端访问 <http://127.0.0.1:8888>，管理端访问 <http://127.0.0.1:8888/admin>，接口文档位于 <http://127.0.0.1:8888/docs>。
 

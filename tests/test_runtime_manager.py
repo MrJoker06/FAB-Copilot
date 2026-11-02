@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import fcntl
 import json
 import os
 import tempfile
@@ -8,6 +7,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from scripts.instance_lock import InstanceLock, lock_path
 from scripts.manage_runtime import (
     apply_prune_plan,
     build_prune_plan,
@@ -23,10 +23,18 @@ class RuntimeManagerTests(unittest.TestCase):
         path.mkdir()
         manifest = path / "instance.json"
         manifest.write_text(
-            json.dumps({"instance_id": name, "git_commit": name[-4:], "port": 8888}),
+            json.dumps(
+                {
+                    "instance_id": name,
+                    "git_commit": name[-4:],
+                    "port": 8888,
+                    "platform": os.name,
+                }
+            ),
             encoding="utf-8",
         )
-        (path / "service.lock").touch()
+        lock_path(path, root).parent.mkdir(parents=True, exist_ok=True)
+        lock_path(path, root).touch()
         (path / "data.bin").write_bytes(b"x" * 32)
         timestamp = (datetime.now(timezone.utc) - timedelta(days=age_days)).timestamp()
         os.utime(manifest, (timestamp, timestamp))
@@ -38,11 +46,15 @@ class RuntimeManagerTests(unittest.TestCase):
             newest = self.create_instance(root, "instance-new", 0)
             active = self.create_instance(root, "instance-active", 5)
             old = self.create_instance(root, "instance-old", 6)
-            with (active / "service.lock").open("r+") as lock_file:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            lock = InstanceLock(active, root)
+            with lock:
                 instances = discover_instances(root)
-                plan = build_prune_plan(instances, keep=1, older_than_days=3, protected_ids=set())
-            decisions = {item["instance_id"]: (item["action"], item["reason"]) for item in plan}
+                plan = build_prune_plan(
+                    instances, keep=1, older_than_days=3, protected_ids=set()
+                )
+            decisions = {
+                item["instance_id"]: (item["action"], item["reason"]) for item in plan
+            }
             self.assertEqual(decisions[newest.name], ("keep", "newest_retention"))
             self.assertEqual(decisions[active.name], ("keep", "active"))
             self.assertEqual(decisions[old.name], ("delete", "eligible"))
@@ -61,8 +73,8 @@ class RuntimeManagerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             active = self.create_instance(root, "instance-active", 6)
-            with (active / "service.lock").open("r+") as lock_file:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            lock = InstanceLock(active, root)
+            with lock:
                 self.assertFalse(remove_inactive_instance(active))
             self.assertTrue(active.exists())
 
@@ -74,11 +86,17 @@ class RuntimeManagerTests(unittest.TestCase):
             (invalid / "instance.json").write_text("{broken", encoding="utf-8")
             newest = self.create_instance(root, "newest", 0)
             boundary = self.create_instance(root, "boundary", 3)
-            (boundary / "service.lock").unlink()
+            lock_path(boundary, root).unlink()
             now = datetime.now(timezone.utc)
-            os.utime(boundary / "instance.json", ((now - timedelta(days=3)).timestamp(),) * 2)
-            plan = build_prune_plan(discover_instances(root), 1, 3, {"boundary"}, now=now)
-            decisions = {item["instance_id"]: (item["action"], item["reason"]) for item in plan}
+            os.utime(
+                boundary / "instance.json", ((now - timedelta(days=3)).timestamp(),) * 2
+            )
+            plan = build_prune_plan(
+                discover_instances(root), 1, 3, {"boundary"}, now=now
+            )
+            decisions = {
+                item["instance_id"]: (item["action"], item["reason"]) for item in plan
+            }
             self.assertEqual(decisions[invalid.name], ("keep", "invalid_manifest"))
             self.assertEqual(decisions[newest.name], ("keep", "newest_retention"))
             self.assertEqual(decisions[boundary.name], ("keep", "explicitly_protected"))
@@ -94,10 +112,16 @@ class RuntimeManagerTests(unittest.TestCase):
             link = root / "linked"
             link.symlink_to(outside, target_is_directory=True)
             with self.assertRaises(RuntimeError):
-                apply_prune_plan(root, [{"action": "delete", "path": str(link), "instance_id": "linked"}])
+                apply_prune_plan(
+                    root,
+                    [{"action": "delete", "path": str(link), "instance_id": "linked"}],
+                )
             child = self.create_instance(root, "child", 10)
             with self.assertRaises(RuntimeError):
-                apply_prune_plan(root, [{"action": "delete", "path": str(child), "instance_id": "other"}])
+                apply_prune_plan(
+                    root,
+                    [{"action": "delete", "path": str(child), "instance_id": "other"}],
+                )
             self.assertTrue(outside.exists())
             self.assertTrue(child.exists())
 
@@ -106,7 +130,7 @@ class RuntimeManagerTests(unittest.TestCase):
             root = Path(temporary)
             candidate = self.create_instance(root, "candidate", 10)
             plan = build_prune_plan(discover_instances(root), 0, 0, set())
-            (candidate / "service.lock").unlink()
+            lock_path(candidate, root).unlink()
             self.assertEqual(apply_prune_plan(root, plan), [])
             self.assertTrue(candidate.exists())
 
@@ -123,6 +147,29 @@ class RuntimeManagerTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "changed or unsafe"):
                 apply_prune_plan(root, plan)
             self.assertTrue(candidate.exists())
+
+    def test_foreign_platform_manifest_is_protected_and_locks_directory_is_not_instance(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            foreign = self.create_instance(root, "foreign", 10)
+            manifest_path = foreign / "instance.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["platform"] = "nt" if os.name != "nt" else "posix"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            (root / ".locks").mkdir(exist_ok=True)
+            instances = discover_instances(root)
+            self.assertEqual([item.instance_id for item in instances], ["foreign"])
+            plan = build_prune_plan(instances, 1, 0, set())
+            self.assertEqual(plan[0]["reason"], "invalid_manifest")
+
+    def test_scalar_manifest_is_invalid_and_safe_to_inspect(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "scalar"
+            path.mkdir()
+            (path / "instance.json").write_text("null", encoding="utf-8")
+            self.assertFalse(inspect_instance(path).valid_manifest)
 
 
 if __name__ == "__main__":
