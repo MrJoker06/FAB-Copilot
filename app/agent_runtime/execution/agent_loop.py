@@ -80,6 +80,7 @@ class AgentLoopContext:
     provider_request_options: Callable[[str, bool], dict]
     request_synthesis_correction: Callable[..., Awaitable[tuple[dict[str, Any] | None, dict[str, Any], str | None, str]]]
     dispatch_binding: LoopDispatchBinding | None = None
+    native_fallback: Callable[[], Awaitable[dict]] | None = None
 
 
 async def run_agent_loop(
@@ -142,6 +143,7 @@ async def run_agent_loop(
     _emit_answer_synthesis = context.emit_answer_synthesis
     _emit_evidence_validation = context.emit_evidence_validation
     _offline_answer = context.offline_answer
+    native_fallback = getattr(context, "native_fallback", None)
     EvidenceObservation = context.evidence_observation_type
     provider_request_options = context.provider_request_options
     request_synthesis_correction = context.request_synthesis_correction
@@ -298,21 +300,25 @@ async def run_agent_loop(
                             emit("model_health_failure_recorded", run_id, model_id=selected_model_id, health=health, transition=transition)
                         if (
                             failure_decision.fallback_before_first_body
-                            and dispatch_binding is None
+                            and (dispatch_binding is None or native_fallback is not None)
                         ):
                             emit("model_local_fallback_activated", run_id, model_id=selected_model_id, reason="upstream_unavailable", health=health)
-                            result = _offline_answer(
-                                analysis_question, intent_route, playbook_selection, execution_plan, loop_guard,
-                                context_resolution, fallback_reason="upstream_unavailable",
-                            )
+                            if native_fallback is not None:
+                                result = await native_fallback()
+                            else:
+                                result = _offline_answer(
+                                    analysis_question, intent_route, playbook_selection, execution_plan, loop_guard,
+                                    context_resolution, fallback_reason="upstream_unavailable",
+                                )
                             result.update({
                                 "model": "local-rules", "usage": total_usage,
                                 "context_resolution": context_resolution.to_dict(),
                                 "model_health": {"requested_model_id": selected_model_id, "fallback_reason": "upstream_unavailable", **health},
                             })
-                            for item in result["tool_trace"]:
-                                await _notify(progress, {"event": "tool_started", "tool": item["tool"], "arguments": {}})
-                                await _notify(progress, {"event": "tool_finished", **item})
+                            if native_fallback is None:
+                                for item in result["tool_trace"]:
+                                    await _notify(progress, {"event": "tool_started", "tool": item["tool"], "arguments": {}})
+                                    await _notify(progress, {"event": "tool_finished", **item})
                             await _stream_answer(progress, result["answer"])
                             return result
                         raise

@@ -103,10 +103,10 @@ def validate_loop_binding(
         return False
     try:
         ModelRequest("loop-binding-validation", (), binding.tools_json)
-        schema = json.loads(binding.tools_json)
     except (RecursionError, TypeError, ValueError, json.JSONDecodeError):
         return False
-    return isinstance(schema, list) and all(
+    # ModelRequest already verifies the immutable text is a finite JSON array.
+    return all(
         isinstance(step, PlanStep)
         and type(step.estimated_result_limit) is int
         and step.estimated_result_limit >= 0

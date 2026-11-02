@@ -16,6 +16,7 @@ async def execute_agent_loop(
 ) -> dict:
     """Build the legacy loop context while retaining state as the coordinator truth."""
     context: Any = None
+    offline_tool_runner = getattr(deps, "offline_tool_runner", None)
 
     def build_loop_result(answer: str, report: Any) -> dict:
         # The execution loop mutates the reference containers supplied below.  Copy
@@ -33,6 +34,14 @@ async def execute_agent_loop(
         state.applied_synthesis_reason = context.applied_synthesis_reason
         state.health = context.health
         return build_result(state, deps, answer, report)
+
+    async def native_fallback() -> dict:
+        precomputed = await offline_tool_runner(state)
+        return deps.offline_answer(
+            state.analysis_question, state.intent_route, state.playbook_selection,
+            state.execution_plan, state.loop_guard, state.context_resolution,
+            fallback_reason="upstream_unavailable", precomputed_tools=precomputed,
+        )
 
     context = deps.agent_loop_context_type(
         settings=state.settings, connection=state.connection, intent_route=state.intent_route,
@@ -70,5 +79,7 @@ async def execute_agent_loop(
         evidence_observation_type=deps.evidence_observation_type,
         provider_request_options=deps.provider_request_options,
         request_synthesis_correction=getattr(deps, "request_synthesis_correction", None),
+        dispatch_binding=getattr(getattr(state, "tool_run", None), "loop", None),
+        **({"native_fallback": native_fallback} if offline_tool_runner is not None else {}),
     )
     return await deps.run_agent_loop(context)

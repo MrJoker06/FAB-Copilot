@@ -56,8 +56,9 @@ def _slug(value: str) -> str:
 class SyntheticFabProvider:
     provider_id = "synthetic-fab-v1"
 
-    def __init__(self):
-        settings = get_settings()
+    def __init__(self, settings=None, today: date | None = None):
+        settings = get_settings() if settings is None else settings
+        self._today = today
         self.seed = settings.enterprise_mock_seed
         self.virtual_lots = settings.enterprise_mock_virtual_lots
         self.secret = settings.enterprise_mock_cursor_secret.encode("utf-8")
@@ -90,7 +91,7 @@ class SyntheticFabProvider:
     def summary(self, principal: Principal, filters: dict | None = None) -> dict:
         normalized = _canonical_filters(filters or {})
         self._validate_filters("process-runs", normalized)
-        today = date.today()
+        today = self._today or date.today()
         requested_start = self._parse_date(normalized.get("start"), "start")
         requested_end = self._parse_date(normalized.get("end"), "end")
         effective_start = max(requested_start or today - timedelta(days=89), today - timedelta(days=729))
@@ -264,7 +265,7 @@ class SyntheticFabProvider:
         start = self._parse_date(filters.get("start"), "start")
         end = self._parse_date(filters.get("end"), "end")
         if start or end:
-            today = date.today()
+            today = self._today or date.today()
             lower = max(start or today - timedelta(days=729), today - timedelta(days=729))
             upper = min(end or today, today)
             covered_days = max(0, (upper - lower).days + 1)
@@ -313,7 +314,7 @@ class SyntheticFabProvider:
         return self._sensor_record(principal, filters, sequence)
 
     def _event_time(self, sequence: int, filters: dict) -> datetime:
-        today = date.today()
+        today = self._today or date.today()
         start = self._parse_date(filters.get("start"), "start") or today - timedelta(days=729)
         end = self._parse_date(filters.get("end"), "end") or today
         start = max(start, today - timedelta(days=729))
@@ -454,11 +455,11 @@ def _provider_from_factory(name: str, factory: Callable[[], EnterpriseDataProvid
     return provider
 
 
-def get_enterprise_provider() -> EnterpriseDataProvider:
-    settings = get_settings()
+def get_enterprise_provider(settings=None, today: date | None = None) -> EnterpriseDataProvider:
+    settings = get_settings() if settings is None else settings
     name = settings.enterprise_data_provider
     if name == "synthetic":
-        return SyntheticFabProvider()
+        return SyntheticFabProvider(settings=settings, today=today)
     factory = _ENTERPRISE_PROVIDER_FACTORIES.get(name)
     if factory is None:
         raise _configured_provider_error(name)

@@ -5,6 +5,7 @@ from __future__ import annotations
 from ..agent_runtime.tools.tool_registry import DEFAULT_TOOL_REGISTRY
 from ..evidence.answer_synthesizer import SUBMIT_ANALYSIS_TOOL
 from ..manufacturing.processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS
+from .tool_definitions import BUSINESS_TOOL_DEFINITIONS
 
 
 def _schema(properties: dict, required: list[str] | None = None) -> dict:
@@ -20,7 +21,7 @@ DATE_PROPERTIES = {
     "start": {"type": "string", "description": "开始日期 YYYY-MM-DD，默认最近90天"},
     "end": {"type": "string", "description": "结束日期 YYYY-MM-DD，默认今天"},
 }
-TOOLS = [
+LEGACY_TOOLS = [
     {
         "type": "function",
         "function": {
@@ -260,6 +261,21 @@ TOOLS = [
     SUBMIT_ANALYSIS_TOOL,
 ]
 
+def _native_projection(definition: object) -> dict[str, object]:
+    return {
+        "type": "function",
+        "function": {
+            "name": definition.name,
+            "description": definition.description,
+            "parameters": definition.json_schema(),
+        },
+    }
+
+
+TOOLS = [_native_projection(definition) for definition in BUSINESS_TOOL_DEFINITIONS] + [
+    SUBMIT_ANALYSIS_TOOL
+]
+
 DEFAULT_TOOL_REGISTRY.initialize_legacy_catalog(
     TOOLS, protocol_names={"submit_analysis"}
 )
@@ -268,6 +284,7 @@ TOOLS = DEFAULT_TOOL_REGISTRY.model_tools
 __all__ = [
     "ANALYSIS_SCOPES",
     "DATE_PROPERTIES",
+    "LEGACY_TOOLS",
     "MANUFACTURING_STEPS",
     "SUBMIT_ANALYSIS_TOOL",
     "TOOLS",

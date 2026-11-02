@@ -11,7 +11,7 @@
 | `MOD-005` | P1 | 已验证（2026-10-24） | `MOD-004` | 设备健康输入/Definition/Binding/Data Port、Fake/双库只读 SQLite；26 文件仓库外真运行、旧新结果/生命周期、130 定向项、冻结行为 v2 与守卫通过，181 文件/0 错误；见 [试点报告](../reports/mod-005-equipment-health.md) | `MOD-006` |
 | `MOD-006` | P1 | 已验证（2026-10-24） | `MOD-005` | 单一 Registry、原生兼容容器/live patch、bootstrap 与 LegacyBindingAdapter；27 文件隔离、163 定向项、冻结行为/守卫及一次 1000×2 正式配对性能/独立重算通过；185 文件/27 依赖债务，见 [Registry 报告](../reports/mod-006-tool-registry.md) | `MOD-007` |
 | `MOD-007` | P1 | 已验证（2026-10-24） | `MOD-006` | 最小 Dispatcher、Scope/能力 Policy、同实例 LoopGuard、结果桥接；204 项必要定向、37 文件真实 venv 隔离安装/Fake/双库 SQLite、取消/超时/安装包拒绝及冻结行为/守卫通过；191 文件/27 债务，见 [验收报告](../reports/mod-007-tool-dispatcher.md) | `MOD-010` |
-| `MOD-008` | P1 | 整体进行中；首批已验证（2026-10-27） | `MOD-014` | Cpk / sensor 原生工具、Data Port、Fake/单库只读 Adapter；281 必要项、60 文件隔离、旧安装/冻结行为/守卫通过；215 文件/28 债务。旧全局入口与 SQL 退出待后续，见 [首批报告](../reports/mod-008-tools-rollout.md) | 继续其余工具、具名查询与 SQL 能力版本迁移 |
+| `MOD-008` | P1 | 已验证（2026-11-02，F2b 收口） | `MOD-014` | 默认 v2 / 原生工具及模型 SQL 退出、阶段全量质量分段通过；续作 205 项必要回归通过，第五轮 1000×2 全部墙钟 median/p95 及 12,000 原始样本独立重算通过，r1～r4 失败保留；258 文件/零边界错误，见 [报告](../reports/mod-008-tools-rollout.md) | `MOD-009` |
 | `MOD-009` | P1 | 计划中 | `MOD-008` | 批量工具的来源替换与新增能力验收 | 依总方案顺序执行 |
 | `MOD-010` | P2 | 已验证（2026-10-24） | `MOD-007` | 三个最小 Ports、类型化上下文/阶段结果、安全摘要事件；171 项必要定向、40 文件仓库外实际链路、原 37 文件安装回归与冻结行为/守卫通过；194 文件/27 债务，见 [验收报告](../reports/mod-010-runtime-ports.md) | `MOD-011` |
 | `MOD-011` | P2 | 已验证（2026-10-25） | `MOD-010` | 显式 AgentDefinition/Run 装配、真实旧快照组装迁移；185 定向、44 文件仓库外链路、原安装/冻结行为/守卫及一次 1000×2 正式配对/独立审计通过；199 文件/28 兼容债务，见 [验收报告](../reports/mod-011-agent-assembly.md) | `MOD-013` |

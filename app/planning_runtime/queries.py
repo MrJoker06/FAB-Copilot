@@ -22,6 +22,17 @@ _DATE_TOOLS = {
     "get_recent_excursions",
     "get_sensor_summary",
     "get_process_pass_rate",
+    "get_product_yield_breakdown",
+    "get_equipment_event_timeline",
+    "get_equipment_excursion_history",
+}
+
+_NAMED_LOT_TOOLS = {
+    "get_lot_identity",
+    "get_lot_process_history",
+    "get_lot_excursion_history",
+    "get_lot_defect_history",
+    "get_lot_wafer_map_patterns",
 }
 
 
@@ -148,12 +159,35 @@ def _base_parameters(
     question: str,
     route: IntentRoute,
     evidence: EvidenceRequirement,
+    resolved: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     parameters: dict[str, Any] = {}
     sources: dict[str, str] = {}
     if tool in _DATE_TOOLS:
         parameters.update({"start": route.time_range.start, "end": route.time_range.end})
         sources.update({"start": "intent_route.time_range", "end": "intent_route.time_range"})
+    if (
+        tool == "get_product_yield_breakdown"
+        and route.scope_resolution.scope_type == "product"
+        and route.scope_resolution.resolved_ids
+    ):
+        parameters["product"] = route.scope_resolution.resolved_ids[0]
+        sources["product"] = "intent_route.scope_resolution"
+    if tool == "get_equipment_event_timeline" and route.equipment_ids:
+        parameters["equipment_id"] = route.equipment_ids[0]
+        sources["equipment_id"] = "intent_route.equipment_ids[0]"
+    if tool == "get_equipment_excursion_history":
+        if route.process_steps:
+            parameters["process_step"] = route.process_steps[0]
+            sources["process_step"] = "intent_route.process_steps[0]"
+        if route.equipment_ids:
+            parameters["equipment_id"] = route.equipment_ids[0]
+            sources["equipment_id"] = "intent_route.equipment_ids[0]"
+    if tool in _NAMED_LOT_TOOLS:
+        lot_id = (resolved or {}).get("lot_id")
+        if lot_id:
+            parameters["lot_id"] = lot_id
+            sources["lot_id"] = "resolved_input.lot_id"
     if tool in {
         "get_process_pass_rate",
         "get_process_capability",

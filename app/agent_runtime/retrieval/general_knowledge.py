@@ -11,6 +11,10 @@ from typing import Any
 from ...evidence.validator import EvidenceObservation
 from ...knowledge.decision import RetrievalDecision
 from ..execution.loop_guard import ToolLoopGuard
+from ..execution.loop_dispatch import validate_loop_binding
+from ..execution.runtime_contracts import RuntimeContractError
+from ..execution.tool_result_bridge import project_tool_result
+from ..tools.contracts import ToolResult
 
 
 @dataclass(slots=True)
@@ -109,7 +113,13 @@ async def prefetch_general_knowledge(
     progress: Any,
     *,
     deps: RetrievalDependencies,
+    dispatch_binding: Any = None,
 ) -> RetrievalDecision:
+    if dispatch_binding is not None:
+        return await _prefetch_with_dispatcher(
+            question, run_id, loop_guard, observations, trace, sources, progress,
+            deps=deps, binding=dispatch_binding,
+        )
     retrieval_started = deps.perf_counter()
     attempts: list[dict[str, Any]] = []
     scopes = deps.required_scopes(question)
@@ -221,4 +231,94 @@ async def prefetch_general_knowledge(
         ),
         "retrieval_decision": decision_payload,
     })
+    return decision
+
+
+async def _prefetch_with_dispatcher(
+    question: str, run_id: str, loop_guard: ToolLoopGuard,
+    observations: list[EvidenceObservation], trace: list[dict[str, Any]],
+    sources: dict[str, dict[str, Any]], progress: Any, *,
+    deps: RetrievalDependencies, binding: Any,
+) -> RetrievalDecision:
+    """Run retrieval through the per-run dispatcher; it owns guard accounting."""
+    if not validate_loop_binding(loop_guard.plan, loop_guard, run_id, binding):
+        raise RuntimeContractError("native retrieval binding is invalid")
+    retrieval_started = deps.perf_counter()
+    attempts: list[dict[str, Any]] = []
+    rewrite = deps.rewrite_query(question)
+    queries = [("original", question)]
+    if rewrite.changed:
+        queries.append(("rewritten", rewrite.query))
+    for query_variant, query in queries:
+        loop_guard.begin_round()
+        try:
+            for scope in deps.required_scopes(question):
+                arguments = {"query": query, "limit": 10, "source_types": [scope]}
+                call_id = f"prefetch-{query_variant}-{scope}"
+                started = deps.perf_counter()
+                await deps.notify(progress, {
+                    "event": "tool_started", "tool": "search_knowledge", "arguments": arguments,
+                    "scope": scope, "query_variant": query_variant,
+                })
+                deps.emit("tool_call_started", run_id, tool="search_knowledge", tool_call_id=call_id,
+                          retrieval_scope=scope, query_variant=query_variant,
+                          full_content={"arguments": arguments})
+                try:
+                    result = await binding.dispatcher.dispatch(
+                        "search_knowledge", json.dumps(arguments, ensure_ascii=False),
+                        binding.context.for_tool_call(call_id),
+                    )
+                    if not isinstance(result, ToolResult) or result.call_id != call_id or result.tool_name != "search_knowledge":
+                        raise RuntimeContractError("native retrieval result is invalid")
+                    projection = project_tool_result(result, arguments=arguments, step_id=call_id)
+                    raw_count = binding.raw_rows_for(call_id)
+                    if raw_count is None:
+                        raw_count = result.row_count
+                    extracted = (
+                        binding.extract_sources(result)
+                        if projection.observation["status"] == "success"
+                        else ()
+                    )
+                except RuntimeContractError:
+                    raise
+                except Exception as exc:
+                    raise RuntimeContractError("native retrieval dispatch failed") from exc
+                finally:
+                    binding.cleanup()
+                for source in extracted:
+                    if isinstance(source, dict) and source.get("reference_id"):
+                        sources[str(source["reference_id"])] = dict(source)
+                observation = projection.observation
+                observations.append(EvidenceObservation(**observation))
+                adopted = observation["result"] if observation["status"] == "success" else []
+                adopted_rows = adopted if isinstance(adopted, list) else []
+                item = dict(projection.trace)
+                item.update({"raw_rows": raw_count, "rows": len(adopted_rows), "retrieval_scope": scope,
+                             "query_variant": query_variant})
+                trace.append(item)
+                attempts.append({
+                    "scope": scope, "query_variant": query_variant, "query": query,
+                    "status": observation["status"], "raw_count": raw_count or 0,
+                    "usable_count": len(adopted_rows),
+                    "reference_ids": [str(row.get("reference_id")) for row in adopted_rows if isinstance(row, dict)],
+                    **({"error_code": result.error.code} if result.error else {}),
+                })
+                await deps.notify(progress, {**projection.event, **item})
+                deps.emit("tool_call_finished", run_id, status="success" if observation["status"] == "success" else observation["status"],
+                          tool="search_knowledge", tool_call_id=call_id,
+                          duration_ms=round((deps.perf_counter() - started) * 1000, 1),
+                          retrieval_scope=scope, query_variant=query_variant, raw_rows=raw_count,
+                          rows=len(adopted_rows), error_code=result.error.code if result.error else None)
+        finally:
+            loop_guard.finish_round()
+    decision = deps.assess_retrieval(attempts, list(sources.values()), rewrite)
+    payload = decision.to_dict()
+    deps.emit("knowledge_retrieval_decided", run_id, state=decision.state, reason=decision.reason,
+              attempted_scopes=list(decision.attempted_scopes), source_counts=decision.source_counts,
+              rewritten=bool(decision.rewritten_query), model_knowledge_allowed=decision.model_knowledge_allowed,
+              duration_ms=round((deps.perf_counter() - retrieval_started) * 1000, 1),
+              full_content={"retrieval_decision": payload})
+    await deps.notify(progress, {"event": "stage", "stage": "knowledge_retrieval",
+                                 "message": f"知识检索完成 · 个人 {decision.source_counts['personal']} · 工厂 {decision.source_counts['knowledge']} · 案例 {decision.source_counts['case']}",
+                                 "retrieval_decision": payload})
     return decision

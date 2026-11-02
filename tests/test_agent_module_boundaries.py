@@ -8,15 +8,17 @@ from app.agent_runtime import tools as agent_tools
 
 
 class AgentModuleBoundaryTests(unittest.IsolatedAsyncioTestCase):
-    def test_agent_keeps_legacy_tool_catalog_exports(self):
+    def test_agent_keeps_v2_catalog_and_legacy_bridge_exports(self):
         self.assertIs(agent.TOOLS, agent_tools.TOOLS)
         self.assertIs(agent.TOOL_HANDLERS, agent_tools.TOOL_HANDLERS)
         self.assertIs(agent.search_agent_knowledge, agent_tools.search_agent_knowledge)
         tool_names = [item["function"]["name"] for item in agent.TOOLS]
         self.assertEqual(len(tool_names), len(set(tool_names)))
-        self.assertEqual(
-            set(agent.TOOL_HANDLERS), set(tool_names) - {"submit_analysis"}
-        )
+        self.assertEqual(len(tool_names), 22)
+        self.assertEqual(len(agent.TOOL_HANDLERS), 13)
+        self.assertTrue(set(agent.TOOL_HANDLERS) < set(tool_names))
+        self.assertNotIn("query_manufacturing_data", tool_names)
+        self.assertNotIn("query_manufacturing_data", agent.TOOL_HANDLERS)
 
     async def test_stream_compatibility_wrapper_injects_live_agent_callbacks(self):
         expected = (

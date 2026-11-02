@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, fields
+from functools import lru_cache
 from typing import Any
+
+
+@lru_cache(maxsize=32)
+def _dependency_field_names(group_type: type[object]) -> frozenset[str]:
+    """Return immutable structural metadata without retaining a run's values."""
+    return frozenset(item.name for item in fields(group_type))
 
 
 @dataclass(frozen=True)
@@ -93,11 +100,13 @@ class CoordinatorDependencies:
     model: ModelDependencies
     ready: ReadyDependencies
     loop: LoopDependencies
+    tool_run_factory: Any = None
+    offline_tool_runner: Any = None
 
     def __getattr__(self, name: str) -> Any:
         """Keep existing ``deps.name`` consumers and patch tests source-compatible."""
         for group in (self.preparation, self.availability, self.model, self.ready, self.loop):
-            if name in {item.name for item in fields(group)}:
+            if name in _dependency_field_names(type(group)):
                 return getattr(group, name)
         raise AttributeError(name)
 

@@ -3,13 +3,16 @@ from __future__ import annotations
 import inspect
 import sys
 import unittest
+from dataclasses import dataclass, replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.agent_runtime import service as agent
 from app.agent_runtime.contracts import AgentRunLifecycle, AgentRunRequest
 from app.agent_runtime.coordinator import CoordinatorDependencies, coordinate_agent_run
-from app.agent_runtime.coordinator_availability import handle_model_availability as legacy_availability
+from app.agent_runtime.coordinator_availability import (
+    handle_model_availability as legacy_availability,
+)
 from app.agent_runtime.coordinator_loop import execute_agent_loop as legacy_loop
 from app.agent_runtime.coordinator_model import prepare_model_stage as legacy_model
 from app.agent_runtime.coordinator_prepare import prepare_immediate as legacy_prepare
@@ -22,14 +25,20 @@ from app.agent_runtime.dependencies import (
     PreparationDependencies,
     ReadyDependencies,
 )
+from app.agent_runtime.execution.agent_loop import AgentLoopContext
 from app.agent_runtime.stages import (
     execute_agent_loop,
     handle_model_availability,
     prepare_immediate,
     prepare_model_stage,
 )
-from app.agent_runtime.execution.agent_loop import AgentLoopContext
 from app.agent_runtime.telemetry import notify
+
+
+@dataclass(frozen=True)
+class _ExtendedPreparationDependencies(PreparationDependencies):
+    get_model_health: object = None
+    extension_marker: object = None
 
 
 class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
@@ -95,6 +104,52 @@ class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(deps.loop, LoopDependencies)
         self.assertIs(deps.prepare_agent_run, deps.preparation.prepare_agent_run)
         self.assertIs(deps.stream_answer, deps.preparation.stream_answer)
+
+    def test_dependency_lookup_cache_retains_live_values_and_group_order(self):
+        deps = agent._coordinator_dependencies()
+        original_prompt = deps.system_prompt
+        replacement_prompt = object()
+        first_notify = lambda *_args, **_kwargs: None
+        second_notify = lambda *_args, **_kwargs: None
+        warmed = replace(
+            deps,
+            preparation=replace(
+                deps.preparation,
+                system_prompt=original_prompt,
+                notify=first_notify,
+            ),
+        )
+        self.assertIs(warmed.system_prompt, original_prompt)
+        self.assertIs(warmed.notify, first_notify)
+
+        replacement = replace(
+            deps,
+            preparation=replace(
+                deps.preparation,
+                system_prompt=replacement_prompt,
+                notify=second_notify,
+            ),
+        )
+        self.assertIs(replacement.system_prompt, replacement_prompt)
+        self.assertIs(replacement.notify, second_notify)
+        self.assertIs(warmed.system_prompt, original_prompt)
+        self.assertIs(warmed.notify, first_notify)
+
+        extension_marker = object()
+        extended_preparation = _ExtendedPreparationDependencies(
+            **vars(deps.preparation),
+            get_model_health=extension_marker,
+            extension_marker=extension_marker,
+        )
+        extended = replace(deps, preparation=extended_preparation)
+        self.assertIs(extended.extension_marker, extension_marker)
+        self.assertIs(extended.get_model_health, extension_marker)
+        with self.assertRaises(AttributeError):
+            _ = extended.not_a_dependency
+        with self.assertRaisesRegex(
+            RuntimeError, "Coordinator dependencies must be read locally"
+        ):
+            extended.bind_compatibility_globals()
 
     async def test_ready_stage_skips_non_ready_plan(self):
         state = CoordinatorRunState("问题", None, "run-1", None, False)
@@ -181,7 +236,10 @@ class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
         request = AgentRunRequest("问题", None, "run-1")
         preparation = AsyncMock(side_effect=RuntimeError("dependency failure"))
 
-        with patch("app.agent_runtime.service.prepare_agent_run", new=preparation):
+        with (
+            patch("app.agent_runtime.service.prepare_agent_run", new=preparation),
+            patch("app.agent_runtime.service.get_settings", return_value=SimpleNamespace()),
+        ):
             deps = agent._coordinator_dependencies()
             with self.assertRaisesRegex(RuntimeError, "dependency failure"):
                 await coordinate_agent_run(request, None, deps=deps)

@@ -17,10 +17,10 @@ from ..manufacturing.reports import (
     process_capability,
     process_pass_rate,
     recent_excursions,
-    safe_select,
     sensor_summary,
     yield_trend,
 )
+from ..manufacturing.reports import safe_select
 from . import tool_catalog
 
 if tool_catalog.TOOLS is not DEFAULT_TOOL_REGISTRY.model_tools:
@@ -40,10 +40,10 @@ _LEGACY_BINDINGS = {
     "get_recent_excursions": recent_excursions,
     "get_sensor_summary": sensor_summary,
     "search_knowledge": search_agent_knowledge,
-    "query_manufacturing_data": safe_select,
 }
 
-DEFAULT_TOOL_REGISTRY.initialize_legacy_handlers(_LEGACY_BINDINGS)
+for _name, _handler in _LEGACY_BINDINGS.items():
+    DEFAULT_TOOL_REGISTRY.register_legacy(_name, _handler)
 
 
 __all__ = [

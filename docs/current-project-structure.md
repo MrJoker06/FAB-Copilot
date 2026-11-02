@@ -1,8 +1,8 @@
 # 当前项目精细结构快照
 
-快照日期：2026-10-27。依据为 experiment/parallel-platform 分支的 WSL 源码（基线提交 `0c93cf6` 之后的模块化改造及 MOD-008 首批）。MOD-014 已验收，MOD-008 首批已验证，整个 MOD-008 仍进行中；验收证据以对应报告为准，当前提交与远程同步状态以 Git 记录为准。
+快照日期：2026-11-02。依据为 experiment/parallel-platform 分支的 WSL 源码（基线提交 `db4cee6` 加 MOD-008 第二至第五批、第六批 F1/F2a/F2b 工作树）。MOD-008 已验收：默认能力切换、功能/阶段质量分段复核及 r5 正式性能/独立重算通过，历史失败保留；下一项 MOD-009。验收证据以对应报告为准，当前提交与远程同步状态以 Git 记录为准。
 
-本次实扫 `app/` 的受管源码为 **215 文件：187 个 Python、28 个静态文件**。数量与
+本次实扫 `app/` 的受管源码为 **258 文件：230 个 Python、28 个静态文件**。数量与
 `evaluations/mod_003_boundaries_v1.json` 一致；测试、日志、缓存和运行期生成物不计入。
 
 ## 1. 当前物理树与逻辑边界
@@ -15,9 +15,10 @@ app/
 ├── agent_runtime/                 协调器、执行、工具、综合与兼容入口
 ├── planning_runtime/              Router 输入后的 Plan/步骤生成
 ├── intent_runtime/                规则路由、时间与范围解析
-├── manufacturing/                 Playbook、旧报告、设备健康及 Cpk/传感器纯工具
-├── integrations/manufacturing/    设备健康、过程诊断的 Fake/只读 SQLite Adapter
-├── knowledge/                     RAG、检索决策、搜索契约与 SQLite 后端
+├── manufacturing/                 Playbook、旧报告及六组业务工具的纯契约与处理器
+├── integrations/manufacturing/    Fake/只读 SQLite/显式企业 Provider Adapter
+├── knowledge/                     RAG、纯知识工具、检索决策/规则/契约与旧 SQLite 后端
+├── integrations/knowledge/        精确 Fake 与显式工厂/个人搜索后端 Adapter
 ├── evidence/                      证据描述、校验、答案综合和序列化
 ├── memory_system/                 当前上下文记忆的规则、Port 与服务
 ├── conversation/                  会话决策、上下文兼容、会话存取
@@ -35,19 +36,24 @@ app/
 
 ## 2. 实际调用链
 
-### 旧应用链（仍是默认应用入口）
+### 当前默认应用链（F2b 已验证）
 
 ```text
 HTTP app.main / api
   → agent_runtime.service.run_agent
-  → compatibility 的 live namespace + CoordinatorDependencies
+  → compatibility 的 live namespace → bootstrap.default_coordinator_assembly
+  → v2 Playbook / named_planner → schema 1.2 Plan
+  → bootstrap.default_tool_assembly：业务运行 21 项；通识运行仅知识检索
   → coordinator / stages.prepare / availability / ready / loop
-  → Ready: ready_plan 的旧回调 或 Loop: agent_loop 的旧 Handler 回调
-  → tools.catalog / tools.registry 的兼容对象
-  → bootstrap.tool_bindings → manufacturing.reports / knowledge.rag / enterprise_data
-  → persistence.database 或具体后端
+  → Ready / Loop / 知识预取 / 必要的无模型降级 → 同一 Dispatcher 与 Guard
+  → ToolBinding → 消费方 Data Port → 按需构造的来源 Adapter
+  → 相关只读 SQLite / 企业 Provider / 工厂和个人知识后端
   → evidence.validator / answer_synthesizer → 流式回答与审计
 ```
+
+默认模型清单是 21 项业务工具加独立的 `submit_analysis` 协议。默认执行不接受
+`query_manufacturing_data`，提示不再暴露数据库字段目录。13 项旧 kwargs 函数只保留
+受信 Python 调用方的实时 patch 兼容桥，替换时以 `legacy-v1` 标记；未替换时解析为原生绑定。
 
 该链仍保留 `agent_loop.py` 内的 `httpx.AsyncClient` 生命周期、Provider 请求和重试；这正是
 MOD-012 的目标，不能把当前 Loop 接缝称作完整 ModelGateway 解耦。
@@ -61,12 +67,30 @@ AgentDefinition + bootstrap.agent_assembly
   → Ready: bind_ready_run → execute_dispatched_ready_plan
        或 Loop: bind_loop_run → classify_loop_response → execute_dispatched_loop_round
   → ToolBinding → EquipmentHealthPort / ProcessDiagnosticsPort
-  → 各自的 Fake Adapter 或显式只读 SQLite Adapter
+                    / ProductionReportsPort / OperationalReportsPort / EnterpriseDataPort
+                    / KnowledgeSearchPort / NamedQueryPort
+   → 各自的 Fake、只读 SQLite、企业 Provider 或工厂/个人搜索后端 Adapter
   → ToolResult / Scope / Source → tool_result_bridge → EvidenceObservation
 ```
 
-这一链只验证单个设备健康工具及显式 legacy 适配的共同 Dispatcher 语义。它并未把所有旧工具、
-所有数据源、HTTP 生命周期、会话存储或 Skill 迁入新装配。
+这一链覆盖设备健康、Cpk、传感器，第二批总览/良率趋势/制程通过率，以及第三批生产率/
+缺陷 Pareto/最近异常的显式绑定；第四批企业目录/汇总/样本绑定也已验证。另保留
+经明确许可的 legacy 适配。各批验收状态分别记录；它并未把所有旧工具、所有数据源、
+HTTP 生命周期、会话存储或 Skill 迁入新装配。
+
+第五批联合检索的显式绑定已验收。工厂/案例和个人知识通过数据 Port 组合，
+旧 RAG facade 为历史直接调用保留设置、身份与后端选择；默认工具改由 bootstrap 注入。
+这些工作不迁移知识上传、
+目录管理、个人索引写入或检索失败后的整体回答策略。
+
+第六批 F1 的八条旧 Planner 固定 SQL 具名替代工具已验收。产品/设备查询声明实际
+日期与联合过滤，批次五工具保留全历史、日期 Scope 为空。F2a 新增显式版本化消费入口：
+`select_named_playbook(route)` → `create_named_execution_plan(question, route, selection)`，
+由六类 v2 Playbook 生成具名调用，再接现有原生绑定和 Ready/Loop；476 项必要回归和
+12 路独立功能核验通过，包含完整批次计划与日期型证据子计划，详见 MOD-008 报告。
+旧 `select_playbook` / `create_execution_plan` 保留 v1 显式历史入口。F2b 已将默认消费链
+接到 v2，并从默认清单和执行绑定移除 SQL 能力；功能、拒绝路径、完整质量门与独立性能
+比较的实际结果见报告。仍保留的历史 SQL 模板与内部 `safe_select` 不应注册到默认模型链。
 
 ### 仓库根目录与交付资产
 
@@ -83,7 +107,7 @@ AgentDefinition + bootstrap.agent_assembly
 | `knowledge/`、`cases/` | 知识与历史案例内容资产，独立于检索算法实现。 |
 | `data/`、`backups/` | 本地合成/应用自有数据库及备份；不是纯工具模块源码。 |
 | `runtime/` | run.sh 的实例源码快照、实例数据，以及 quality/portable 验收产物；与 app/agent_runtime 的执行源码不同。 |
-| `tests/`、`logs/`、缓存与 node_modules | 验证、日志和生成依赖；本说明不逐文件展开，不计入 215 源码文件。 |
+| `tests/`、`logs/`、缓存与 node_modules | 验证、日志和生成依赖；本说明不逐文件展开，不计入 258 源码文件。 |
 | `fab_litho_agent_gantt_boss.xlsx` | 用户的规划参考资产，不是运行时依赖。 |
 
 ### 关键接口与状态归属
@@ -92,8 +116,10 @@ AgentDefinition + bootstrap.agent_assembly
 | --- | --- |
 | Runtime → 模型 | ModelResponsePort.complete(ModelRequest, RuntimeContext) → ModelResponse；旧默认 Loop 的 httpx 生命周期仍待 MOD-012。 |
 | Runtime → 工具 | ToolDispatcherPort.dispatch(name, raw_arguments, ToolExecutionContext) → ToolResult；真实 Dispatcher 管输入、能力/Scope、期限/取消和唯一记账。 |
-| 工具 → 业务数据 | EquipmentHealthPort.fetch / ProcessDiagnosticsPort.fetch(query, principal) → Snapshot；输入是固定业务查询，SQL 不进入新增原生模型参数。 |
-| Adapter → 来源 | Fake 精确夹具或显式只读 SQLite。诊断的 capability 只用制造库，sensors 只用设备库；不附挂其余数据库。 |
+| 工具 → 业务数据 | EquipmentHealthPort / ProcessDiagnosticsPort / ProductionReportsPort / OperationalReportsPort / EnterpriseDataPort / KnowledgeSearchPort / NamedQueryPort 的 fetch(query, principal) → Snapshot；输入是固定业务查询，SQL 不进入新增原生模型参数。 |
+| Adapter → 来源 | Fake 精确夹具或显式只读 SQLite。生产报表、capability 和 excursions 只用制造库；sensors/productivity 只用设备库，defects 只用质量库；不附挂其余数据库。设备健康保留自身获验收的显式双库读取。 |
+| 企业来源接缝 | EnterpriseDataPort 接入精确 Fake 或显式注入的 EnterpriseDataProvider Protocol Adapter；EnterpriseWindow 固定 as_of/保留期/汇总默认窗口。演示 Provider 是内存夹具，真实只读账号或报表 API 尚未接入。 |
+| 知识来源接缝 | KnowledgeSearchPort 组合工厂搜索 Protocol 与个人搜索 Port；owner 由可信 tenant/user/default-tenant 配置决定。Scope 仅声明租户/检索粒度，设备等参数是重排焦点，不能当作 ACL。 |
 | 结果采用 | ToolResultPolicy 在预算记账前过滤/截断；Source Scope 同时含过程与设备时，桥接保留两项真实过滤。 |
 | 运行状态 | AgentDefinition 保存声明，RuntimeContext 保存可信上下文，Guard 是预算/进展权威；旧应用仍由 CoordinatorRunState 管阶段状态。 |
 | Memory / 内部存储 | ContextService 消费 ContextModel/Rules/Events 等 Port；会话和执行记录尚有直接 SQLite 依赖，后续走 Store/Repository，不要求模型调用业务 Tool 来读写内部会话。 |
@@ -129,17 +155,25 @@ AgentDefinition + bootstrap.agent_assembly
 | `app/api/services/history.py` | API/存储 | 会话历史 API 适配。 |
 | `app/api/services/personal_job_events.py` | API | 个人知识后台任务事件转换。 |
 | `app/bootstrap/__init__.py` | 包 | bootstrap 包锚点。 |
-| `app/bootstrap/tool_catalog.py` | 装配 | 旧模型可见工具 Schema 的实际集合和 `SUBMIT_ANALYSIS_TOOL`。 |
-| `app/bootstrap/tool_bindings.py` | 装配 | 旧 Handler 到默认 Registry 的实际绑定。 |
+| `app/bootstrap/tool_catalog.py` | 装配/兼容 | 默认 21 项原生 Schema 加 `SUBMIT_ANALYSIS_TOOL`，保持全局列表身份；另保存显式历史回放的 `LEGACY_TOOLS`。 |
+| `app/bootstrap/tool_definitions.py` | 纯 | 默认能力版本与 21 项原生 ToolDefinition 的唯一清单；不创建来源或执行器。 |
+| `app/bootstrap/tool_bindings.py` | 装配/兼容 | 13 项非 SQL kwargs Handler 的全局兼容绑定；保留 Python 导出，不注册旧 SQL 工具。 |
+| `app/bootstrap/default_coordinator_assembly.py` | 装配 | 从 live namespace 构造默认协调器依赖，注入 v2 规划、每次运行的工具装配及受控原生离线降级。 |
+| `app/bootstrap/default_tool_assembly.py` | 装配 | 业务运行组合 21 项原生绑定，通识仅授权知识检索；组合延迟来源、可信身份 Policy、同一 Guard 和结果策略。未暴露目录时使用不可变 Schema 快照；公开访问后的可变清单按运行独立物化，后续绑定反映实际修改。 |
 | `app/bootstrap/legacy_agent_assembly.py` | 装配/兼容 | 从一次 service globals 快照构建旧 CoordinatorDependencies。 |
 | `app/bootstrap/agent_assembly.py` | 装配 | 校验 Definition/Binding/能力并建立 AgentApplication。 |
 | `app/bootstrap/agent_demo.py` | 装配 | Fake 模型、Fake/SQLite 设备健康的新 AgentRun 演示。 |
 | `app/bootstrap/dispatcher_demo.py` | 装配 | Dispatcher 试点 CLI 的 Fake/计划辅助。 |
 | `app/bootstrap/ready_assembly.py` | 装配 | Ready 的 Guard/Dispatcher/结果策略同实例绑定。 |
 | `app/bootstrap/ready_demo.py` | 装配 | 确定性 Ready 设备健康 CLI 演示。 |
-| `app/bootstrap/loop_assembly.py` | 装配 | Loop 的能力过滤 Schema 与同实例绑定。 |
+| `app/bootstrap/loop_assembly.py` | 装配 | Loop 能力过滤与同实例绑定；验证不可变 Schema 快照，兼容没有快照接口的 Registry。 |
 | `app/bootstrap/loop_demo.py` | 装配 | 两次 Fake 模型响应实际驱动 Loop round 的 CLI 演示。 |
 | `app/bootstrap/diagnostics_demo.py` | 装配 | Cpk/传感器的 Ready/Loop、Fake/单库只读 SQLite 演示；实际装配两项原生绑定。 |
+| `app/bootstrap/production_reports_demo.py` | 装配 | 总览、周良率和制程通过率的 Ready/Loop 演示；本地绑定三项工具、Fake 模型与显式数据来源。 |
+| `app/bootstrap/operational_reports_demo.py` | 装配 | 生产率、Pareto 与最近异常的 Ready/Loop 演示；按工具只绑定所需数据路径。 |
+| `app/bootstrap/enterprise_tools_demo.py` | 装配 | 企业目录、汇总与样本的 Ready/Loop 演示；显式选择 Fake 或内存夹具 Provider，不接真实公司来源。 |
+| `app/bootstrap/knowledge_search_demo.py` | 装配 | 联合个人/工厂/案例检索的 Ready/Loop 演示；显式 Fake 或内存搜索后端和当前用户策略。 |
+| `app/bootstrap/named_queries_demo.py` | 装配 | 八项具名制造查询的 Ready/Loop 演示；显式 Fake 或单次读取相关一库的只读 SQLite。 |
 
 ### Agent Runtime：协调、准备、综合与兼容
 
@@ -158,7 +192,7 @@ AgentDefinition + bootstrap.agent_assembly
 | `app/agent_runtime/coordinator_state.py` | 业务 | `CoordinatorRunState` 和阶段受限状态视图。 |
 | `app/agent_runtime/definition.py` | 纯 | 冻结 `AgentDefinition`、`ComponentReference`。 |
 | `app/agent_runtime/application.py` | 纯 | `AgentRun` 对 Model/Tool/Event ports 的小门面。 |
-| `app/agent_runtime/dependencies.py` | 装配契约 | 分阶段 CoordinatorDependencies 数据结构。 |
+| `app/agent_runtime/dependencies.py` | 装配契约 | 分阶段 CoordinatorDependencies 与类型字段名缓存；依赖值、回调仍按当前运行读取。 |
 | `app/agent_runtime/service.py` | 兼容/装配 | 默认 `run_agent`、运行生命周期与全局兼容对象。 |
 | `app/agent_runtime/telemetry.py` | 业务 | Runtime 事件和审计辅助。 |
 | `app/agent_runtime/preparation/__init__.py` | 包 | 准备阶段包锚点。 |
@@ -227,12 +261,14 @@ AgentDefinition + bootstrap.agent_assembly
 | `app/planning_runtime/__init__.py` | 包 | 计划运行包锚点。 |
 | `app/planning_runtime/contracts.py` | 纯 | ExecutionPlan、PlanStep、PlanBudget。 |
 | `app/planning_runtime/service.py` | 业务 | 从 route/playbook 建立 ExecutionPlan。 |
-| `app/planning_runtime/steps.py` | 业务/过渡 | 计划步骤、预算、SQL 模板步骤与证据元数据。 |
-| `app/planning_runtime/queries.py` | 业务/过渡 | 基于证据模板构造制造 SQL 字符串。 |
-| `app/planning_runtime/scope.py` | 业务/过渡 | 从参数/SQL 推导计划范围与语义。 |
+| `app/planning_runtime/named_planner.py` | 纯/版本化业务 | 默认 v2 规划入口；核对路由和声明 Playbook，生成 schema 1.2 / planner 2.0.0 计划，拒绝 SQL 步骤。 |
+| `app/planning_runtime/steps.py` | 业务/过渡 | 新旧版本共享的步骤、预算及证据元数据；具名批次不附加日期，旧 SQL 模板步骤待退役。 |
+| `app/planning_runtime/queries.py` | 业务/过渡 | 新工具结构化参数及来源构造；仍保留旧版本制造 SQL 模板。 |
+| `app/planning_runtime/scope.py` | 业务/过渡 | 具名工具参数的范围/语义映射，以及旧参数/SQL 兼容推导。 |
 | `app/manufacturing/__init__.py` | 包 | 制造领域包锚点。 |
 | `app/manufacturing/processes.py` | 纯 | 制程常量与分类。 |
 | `app/manufacturing/playbooks.py` | 业务 | DomainPlaybook、证据需求与固定业务规则。 |
+| `app/manufacturing/named_playbooks.py` | 纯/版本化业务 | 六类 v2 Playbook 和选择器；保留证据要求，仅把固定 SQL 能力替换为八项具名工具。 |
 | `app/manufacturing/reports.py` | 业务/存储 | 旧 SQLite 制造报告；含 `safe_select(sql)`。 |
 | `app/manufacturing/seed.py` | 存储 | 合成 FAB/部门库建模与种子数据。 |
 | `app/manufacturing/data_contracts.py` | 纯 | EnterpriseDataProvider 和主体 Protocol。 |
@@ -245,27 +281,60 @@ AgentDefinition + bootstrap.agent_assembly
 | `app/manufacturing/process_diagnostics/contracts.py` | 纯 | 两种输入、冻结 Query、Snapshot、消费方 Port 和完整结果字段/范围校验。 |
 | `app/manufacturing/process_diagnostics/handler.py` | 纯 | Cpk/传感器处理器，核对查询、来源 Scope 与行级过滤，生成 ToolResult。 |
 | `app/manufacturing/process_diagnostics/binding.py` | 纯 | 两个 ToolDefinition 及显式绑定工厂，注入 today 并冻结有效查询。 |
+| `app/manufacturing/production_reports/__init__.py` | 包 | 生产报表包锚点，无默认注册副作用。 |
+| `app/manufacturing/production_reports/contracts.py` | 纯 | 三种结构化输入、固定 Query/Snapshot、消费方 Port、错误与结果字段契约。 |
+| `app/manufacturing/production_reports/handler.py` | 纯 | 调用 Port、核对查询和实际范围，生成对象或列表形式的 ToolResult；不执行 SQL。 |
+| `app/manufacturing/production_reports/binding.py` | 纯 | 三个 1.0.0 Definition/Binding 工厂；冻结日期和有效过滤条件。 |
+| `app/manufacturing/operational_reports/__init__.py` | 包 | 运行报表包锚点，无默认注册副作用。 |
+| `app/manufacturing/operational_reports/contracts.py` | 纯 | 三项业务输入、固定 Query/Snapshot、消费方 Port、有效范围与输出契约；不接受自由 SQL。 |
+| `app/manufacturing/operational_reports/handler.py` | 纯 | 核对来源与行级范围，区分生产率设备优先和异常联合筛选，产生 ToolResult。 |
+| `app/manufacturing/operational_reports/binding.py` | 纯 | 三个 1.0.0 Definition/Binding，准备实际日期、过滤条件和 limit 后再授权执行。 |
+| `app/manufacturing/enterprise_tools/__init__.py` | 包 | 企业工具包锚点，无默认注册副作用。 |
+| `app/manufacturing/enterprise_tools/contracts.py` | 纯 | 三项输入、可信时间窗口、固定 Query/Snapshot、消费方 EnterpriseDataPort 与完整业务结果校验。 |
+| `app/manufacturing/enterprise_tools/handler.py` | 纯 | 核对查询、租户、实际范围、模拟标记与记录，保留统计和样本口径，生成对象 ToolResult。 |
+| `app/manufacturing/enterprise_tools/binding.py` | 纯 | 三个 1.0.0 Definition/Binding 工厂；注入固定时间窗口，按有效 Scope 准备授权。 |
+| `app/manufacturing/named_queries/__init__.py` | 包 | 固定具名制造查询包锚点，无默认注册副作用。 |
+| `app/manufacturing/named_queries/contracts.py` | 纯 | 四类封闭输入、八种内部 Query、Snapshot/消费方 Port、完整列集和数值/时间契约；模型不能指定 SQL 或 kind。 |
+| `app/manufacturing/named_queries/handler.py` | 纯 | 核对查询、来源及实际行范围，保留批次全历史、列表结果和原投影，不在核心聚合或构造 SQL。 |
+| `app/manufacturing/named_queries/binding.py` | 纯 | 八个未注册 1.0.0 定义及固定 kind 绑定工厂；冻结 as_of、准备日期或批次 Scope。 |
 | `app/integrations/__init__.py` | 包 | 技术集成包锚点。 |
 | `app/integrations/manufacturing/__init__.py` | 包 | 制造 Adapter 包锚点。 |
 | `app/integrations/manufacturing/fake_equipment_health.py` | Adapter | 内存 FakeEquipmentHealthAdapter。 |
 | `app/integrations/manufacturing/sqlite_equipment_health.py` | Adapter | 两个显式只读 SQLite 源的设备健康 Adapter。 |
 | `app/integrations/manufacturing/fake_process_diagnostics.py` | Adapter | 精确 DiagnosticsQuery 夹具、租户隔离与快照复制。 |
 | `app/integrations/manufacturing/sqlite_process_diagnostics.py` | Adapter | 两条固定参数化报表查询，按工具只开一个相关库，处理只读/期限/关闭及错误脱敏。 |
+| `app/integrations/manufacturing/fake_production_reports.py` | Adapter | 精确生产查询夹具、租户核对与返回值复制，来源明确标记 FAKE。 |
+| `app/integrations/manufacturing/sqlite_production_reports.py` | Adapter | 三类固定参数化生产报表，只访问显式制造库；只读、超时、连接释放和公开错误脱敏。 |
+| `app/integrations/manufacturing/fake_operational_reports.py` | Adapter | 运行报表的精确 Query 夹具、租户核对和独立复制结果；无隐式来源回退。 |
+| `app/integrations/manufacturing/sqlite_operational_reports.py` | Adapter | 固定生产率/Pareto/异常 SQL；每次只开一个相关设备/质量/制造库，保持窗口分母、舍入和过滤口径。 |
+| `app/integrations/manufacturing/fake_enterprise_tools.py` | Adapter | 按完整企业 Query 返回深复制的精确夹具，核对租户并明确标记 FAKE。 |
+| `app/integrations/manufacturing/provider_enterprise_tools.py` | Adapter | 固定调用注入的 EnterpriseDataProvider，核对来源头部、脱敏错误；不使用全局选择或故障回退。 |
+| `app/integrations/manufacturing/fake_named_queries.py` | Adapter | 精确 Query 的具名查询夹具、深复制及租户核对，无查询或来源回退。 |
+| `app/integrations/manufacturing/sqlite_named_queries.py` | Adapter | 八条固定参数化查询；按操作只打开制造/设备/质量一个相关只读库，保留列集/排序/上限和全历史语义。 |
 | `app/knowledge/__init__.py` | 包 | 知识包锚点。 |
 | `app/knowledge/decision.py` | 业务 | 检索需求、质量和回退决策。 |
 | `app/knowledge/rag.py` | 兼容/装配 | 旧 RAG facade、后端/身份选择和兼容搜索入口。 |
 | `app/knowledge/ranking.py` | 纯 | 检索排序/去重规则。 |
 | `app/knowledge/search_contracts.py` | 纯 | 工厂搜索、目录和主体 Backend 契约。 |
 | `app/knowledge/search_query.py` | 纯 | 查询规范化与过滤。 |
+| `app/knowledge/search_policy.py` | 纯 | 从旧 RAG 复用的过程/设备/缺陷推断与个人查询扩展规则；不读取设置或来源。 |
+| `app/knowledge/search_tool/__init__.py` | 包 | 原生联合检索包锚点，无全局工具注册。 |
+| `app/knowledge/search_tool/contracts.py` | 纯 | 输入、查询、候选快照、消费方/个人搜索 Port、owner 映射、检索准备与输出契约。 |
+| `app/knowledge/search_tool/handler.py` | 纯 | 核对主体、owner、来源和候选，复用既有重排，保留引用及来源多样性，产生列表 ToolResult。 |
+| `app/knowledge/search_tool/binding.py` | 纯 | 原生 search_knowledge 1.0.0；准备租户 Scope，空查询不咨询来源。 |
 | `app/knowledge/search_registry.py` | 装配/过渡 | 搜索/目录后端注册和选择。 |
 | `app/knowledge/sqlite_backend.py` | Adapter | 工厂知识/目录 SQLite 后端。 |
+| `app/integrations/knowledge/__init__.py` | 包 | 知识来源集成包锚点。 |
+| `app/integrations/knowledge/fake_search.py` | Adapter | 按完整查询/租户/用户读取深复制的精确候选夹具，来源明确为 FAKE。 |
+| `app/integrations/knowledge/backend_search.py` | Adapter | 显式组合 FactorySearchBackend 与个人搜索 Port，核对 owner envelope、固定请求及错误/超时脱敏；无全局选择或故障回退。 |
+| `app/integrations/knowledge/runtime_search.py` | Adapter/装配 | 默认知识工具的延迟来源组合；显式只读知识库会话及质量库别名查询，按可信身份读取个人知识，保留可替换工厂后端。 |
 | `app/knowledge/ocr.py` | 业务 | OCR 调用与文本处理。 |
 | `app/knowledge/ocr_quality.py` | 纯 | OCR 质量评价规则。 |
 | `app/evidence/__init__.py` | 包 | 证据包锚点。 |
-| `app/evidence/semantics.py` | 纯/过渡 | 工具结果的证据语义与范围描述；仍识别旧 SQL 工具。 |
-| `app/evidence/validator.py` | 业务 | 计划/Playbook 证据覆盖与结论限制。 |
+| `app/evidence/semantics.py` | 纯/过渡 | 原报告和八项具名工具的证据语义与范围描述；仍识别旧 SQL 工具。 |
+| `app/evidence/validator.py` | 业务 | 计划/Playbook 证据覆盖与结论限制；新具名查询精确匹配产品、设备、制程、批次及日期参数。 |
 | `app/evidence/answer_synthesizer.py` | 业务 | 证据约束答案结构和渲染。 |
-| `app/evidence/serialization.py` | 纯 | 证据/报告的安全序列化。 |
+| `app/evidence/serialization.py` | 纯 | 证据/报告递归复制及 JSON 规范化；精确内置容器和字段名元数据优化，保留子类/deepcopy/错误语义。 |
 
 ### Memory、会话、模型、存储与可观测性
 
@@ -363,32 +432,33 @@ AgentDefinition + bootstrap.agent_assembly
 
 ## 5. 当前耦合与迁移事实
 
-边界清单记录 **28 条精确依赖债务、21 个 DB 调用候选文件、13 个兼容入口、85 个静态消费者**。
+边界清单记录 **29 条精确依赖债务、25 个 DB 调用候选文件、13 个兼容入口、97 个静态消费者**。
 兼容消费者扫描只覆盖 app/scripts/tests 内的静态 import、字面动态 import 与常见 mock patch；
 外部调用方和计算出的动态引用仍需人工审查。
 
-28 条债务的实际来源可归纳为：
+29 条债务的实际来源可归纳为：
 
-- `app/agent_runtime/compatibility.py` 仍直接装配 manufacturing 与 legacy bootstrap（3 条，MOD-015）。
-- `app/agent_runtime/tools/catalog.py` 与 `registry.py` 仍反向看 bootstrap（2 条，分别至 MOD-015/MOD-008）。
+- `app/agent_runtime/compatibility.py` 仍直接装配 manufacturing、legacy 与 default bootstrap（4 条，MOD-015）；本批只新增一条精确默认装配边，不扩大 Runtime 的全局允许依赖。
+- `app/agent_runtime/tools/catalog.py` 与 `registry.py` 仍反向看 bootstrap（2 条，MOD-015）。
 - `app/conversation/decision_arbiter.py` 仍直接引用 `memory_system.contracts`（1 条，MOD-015）。
-- `app/conversation/sessions.py`、`app/knowledge/rag.py`/`search_registry.py`、`enterprise_data.py`/`reports.py` 仍直接接身份或 SQLite（9 条，MOD-008/015）。
+- `app/conversation/sessions.py`、`app/knowledge/rag.py`/`search_registry.py`、`enterprise_data.py`/`reports.py` 仍直接接身份或 SQLite（9 条，MOD-009/015）；默认原生工具已避开旧业务查询路径，API 和直接 Python 消费者继续跟踪。
 - `app/evidence/validator.py` 仍接 Playbook/Plan 实现（2 条，MOD-015）。
 - `app/model_gateway` 与 `app/persistence` 仍互相涉及配置、身份、记忆或数据库（7 条，MOD-012/015）。
 - 个人知识和 telemetry 仍直接接审计/身份/SQLite（4 条，MOD-015）。
 
-21 个 DB 候选是 `api/application.py`、`api/routers/admin.py`、`api/routers/system.py`、
-`api/runtime_dependencies.py`、`conversation/sessions.py`、SQLite 设备 Adapter、新过程诊断 SQLite Adapter、知识 SQLite 后端、
+25 个 DB 候选是 `api/application.py`、`api/routers/admin.py`、`api/routers/system.py`、
+`api/runtime_dependencies.py`、`conversation/sessions.py`、设备/过程诊断/生产报表/运行报表/具名查询五个 SQLite Adapter、知识 SQLite 后端、默认知识运行时的显式知识库/质量库只读来源、
 `main.py`、`manufacturing/reports.py`、`manufacturing/seed.py`、模型 health/registry、
 `persistence/database.py`、`persistence/execution_store.py`、个人知识的 documents/ingestion/jobs/search/service，
 以及 `telemetry/runtime_status.py`。它们并不都是公司业务数据库：其中很多是应用自有会话、
 索引、审计或合成 FAB 数据。
 
-最重要的未退出能力是旧 SQL：`planning_runtime/queries.py` 生成 SQL 模板，`steps.py` 把它写为
-`query_manufacturing_data` 的计划参数，`scope.py`/`evidence.semantics.py` 仍解析其语义，
-`bootstrap.tool_catalog.py` 全局暴露该工具，`bootstrap.tool_bindings.py` 把它绑定到
-`manufacturing.reports.safe_select(sql)`。它当前仍是默认旧路径的一部分。MOD-008 首批只迁移
-两个原生工具；默认模型 SQL 退出仍待后续批次，不能声称全局模型无 SQL 或工具层已全部解耦。
+F2b 从默认清单、提示和 Dispatcher 移除旧 SQL 能力，但历史代码仍保留：
+`planning_runtime/queries.py` 的旧模板、`steps.py` 的 v1 步骤、
+`scope.py` / `evidence.semantics.py` 的兼容语义，以及 `manufacturing.reports.safe_select(sql)`。
+只有显式历史回放与内部 Python 消费者可以使用这些保留入口，不能据此恢复默认模型执行。
+默认业务读取已改走具名原生工具；API 报表、应用自有存储和历史 facade 的残余依赖
+仍须在 MOD-009/012/015 中逐项验证，不能声称整个项目的数据库访问已全部解耦。
 
 ## 6. 可搬迁范围与尚不可独立搬迁部分
 
@@ -401,9 +471,17 @@ MOD-007 的安装回归，并不自动包含后续源码。MOD-013 的 Ready 证
 MOD-014 的 Loop round 已验证 **53 文件**（37 + 3 runtime ports + 4 Agent 装配 + 5 Ready +
 4 Loop）。MOD-008 首批在此基础上增加七个真实文件，形成 **60 文件**源码切片；以 -I -S、
 空环境、无关 cwd 和持续网络/SQLite/配置/旧模块守卫实际执行 Fake Ready/Loop。
+第二批再加入七个生产报表真实文件，**67 文件**源码切片已在上述隔离条件下实际执行三个工具的 Fake Ready/Loop 六条路径，验收结果见 MOD-008 报告。
+第三批新增七个运行报表文件，**74 文件**源码切片已实际通过三工具的 Fake Ready/Loop 六条路径；验收证据单列于同一报告。
+第四批增加七个企业工具文件及既有纯 data_contracts.py，**82 文件**源码切片已通过三工具 Fake Ready/Loop 及 Provider 夹具样本执行；持续守卫、负向控制、模块来源与空默认 Registry 均通过。Provider 夹具仍为 FAKE，不代表真实公司接入。
+第五批知识工具使用单列的 **66 文件**切片（原 Loop 53、本批九文件和既有四个知识文件），
+不在企业切片后继续累加制造模块。该切片已实际执行 Fake/Backend 各 Ready/Loop 四条路径，持续守卫、负向控制、模块来源和空默认 Registry 均通过。
+第六批 F1 单列 **60 文件**具名查询切片（原 Loop 53 + named_queries 七文件），八工具各
+Fake Ready/Loop 共 16 条路径已通过持续守卫、负向控制、来源和空默认 Registry 验证；它与
+首批诊断的 60 文件清单不同，不依赖第二至第五批新工具。
 这些都是源码切片或试点制品，不是可与整个应用任意组合安装的正式 Wheel。
 
-只读 SQLite 的两工具/两路径数值与 Scope 对照在显式临时库上另行验证。公司账号、公司
+只读 SQLite 各批工具的双路径数值与 Scope 对照在显式临时库上另行验证。公司账号、公司
 数据库方言或报表 API Adapter 尚未接入；迁入时复用工具与 Data Port，具体来源适配另验收。
 
 在 WSL 仓库根目录、既有 Python 环境可查看首批效果（Fake，无真实模型或网络请求）：
@@ -411,19 +489,33 @@ MOD-014 的 Loop round 已验证 **53 文件**（37 + 3 runtime ports + 4 Agent 
 ```bash
 python -m app.bootstrap.diagnostics_demo --mode ready --tool get_process_capability --arguments '{"process_step":"CMP"}'
 python -m app.bootstrap.diagnostics_demo --mode loop --tool get_sensor_summary --arguments '{"process_step":"CMP","equipment_id":"CMP-01","signal_name":"pressure"}'
+python -m app.bootstrap.production_reports_demo --mode ready --tool get_fab_overview
+python -m app.bootstrap.production_reports_demo --mode loop --tool get_process_pass_rate --arguments '{"process_step":"CMP"}'
+python -m app.bootstrap.operational_reports_demo --mode ready --tool get_defect_pareto --arguments '{"process_step":"CMP","limit":1}'
+python -m app.bootstrap.operational_reports_demo --mode loop --tool get_recent_excursions --arguments '{"process_step":"CMP","equipment_id":"CMP-01"}'
+python -m app.bootstrap.enterprise_tools_demo --mode ready --tool get_enterprise_fab_summary --arguments '{"process_step":"CMP","equipment_id":"CMP-01"}'
+python -m app.bootstrap.enterprise_tools_demo --mode loop --adapter provider --tool query_enterprise_data --arguments '{"entity":"sensor-events","process_step":"CMP","equipment_id":"CMP-01","signal_name":"RF power"}'
+python -m app.bootstrap.knowledge_search_demo --mode ready
+python -m app.bootstrap.knowledge_search_demo --mode loop --adapter backend --arguments '{"query":"LITHO 颗粒"}'
+python -m app.bootstrap.named_queries_demo --mode ready --tool get_product_yield_breakdown
+python -m app.bootstrap.named_queries_demo --mode loop --tool get_lot_excursion_history --arguments '{"lot_id":"LOT-001"}'
 ```
 
 Loop 的模型响应由固定 Fake Port 提供；输出包含实际结果、Source Scope、TOOL 引用与同一
-Guard 的计数。工具版本均为 1.0.0；首批没有改变默认全局 TOOLS/TOOL_HANDLERS。
+Guard 的计数。原生工具版本均为 1.0.0；F2b 统一迁移默认能力清单为 2.0.0，保留全局
+TOOLS/TOOL_HANDLERS 的容器身份，但有意改变清单内容及默认解析行为。
+周良率的产品过滤由完整 Query 核对；当前通用 ToolScope 没有 product 维度，不能将其解释为新增了产品级授权。
 
 当前不能独立搬迁的部分包括：默认 HTTP/API 应用、旧 service/coordinator 链、默认 Loop 的
-httpx/Provider 生命周期、完整旧工具集合/SQL 入口、会话与个人知识的 SQLite 组合、模型健康
-存储、RAG 后端选择，以及前端与 API 的整体装配。企业内网迁移应只把已验收切片与明确 Adapter
+httpx/Provider 生命周期、历史 Python 兼容入口、会话与个人知识写入的 SQLite 组合、模型健康
+存储、知识管理的旧后端选择，以及前端与 API 的整体装配。企业内网迁移应只把已验收切片与明确 Adapter
 接口先行带入，不能把该工作树视为所有模块已独立部署。
 
 ## 7. 读取本快照的限制
 
 本文件是实际目录与责任地图。MOD-014 的最终 217 项必要定向、3 项旧故障回退系统回归与
 修订后预声明 r2 正式性能/独立审计通过，r1 证据保留。MOD-008 首批的 281 项必要回归、
-60 文件隔离、旧安装/源码闭包/冻结行为/守卫通过；整个 MOD-008 仍进行中。此后变化须随
+60 文件隔离、旧安装/源码闭包/冻结行为/守卫通过。第二批的 305 项必要回归、67 文件隔离、
+旧安装/源码闭包/冻结行为/守卫也通过。第三批最终 328 项必要回归、74 文件隔离及上述兼容门
+通过。第四批最终 354 项必要回归、82 文件隔离及上述兼容门也通过；第五批最终 413 项必要回归、RAG 15/15、66 文件知识切片及兼容门通过，首轮仓库边界失败记录保留。第六批 F1 的 431 项必要回归、32 主路径、60 文件具名切片及上述兼容门也通过。F2a 版本化消费映射已验收；F2b 默认切换及 SQL 退出已通过功能/质量复核和 r5 正式性能及原始墙钟独立重算，整个 MOD-008 已验证，下一项 MOD-009。此后变化须随
 工作树重新核对。文档为 UTF-8/LF，源码表不展开测试、日志、runtime 产物或工作簿内容。

@@ -5,6 +5,7 @@ import math
 import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import ContextVar
 from dataclasses import dataclass
 
 from app.agent_runtime.execution.loop_guard import ToolLoopGuard
@@ -112,6 +113,35 @@ class SignallingBudget(Budget):
 
 
 class DispatcherTests(unittest.IsolatedAsyncioTestCase):
+    async def test_parallel_executor_calls_preserve_independent_context_variables(self):
+        marker = ContextVar("dispatcher-test-identity", default="missing")
+
+        def handler(_value, context):
+            return ToolResult(
+                context.call_id,
+                "native",
+                "v1",
+                ToolStatus.SUCCEEDED,
+                ToolExecutionState.COMPLETED,
+                data=[marker.get()],
+                row_count=1,
+            )
+
+        async def invoke(value):
+            token = marker.set(value)
+            try:
+                return await self.dispatcher(self.binding(handler)).dispatch(
+                    "native",
+                    {"value": value},
+                    self.context(),
+                )
+            finally:
+                marker.reset(token)
+
+        results = await asyncio.gather(invoke("alpha"), invoke("beta"))
+        self.assertEqual([result.data for result in results], [["alpha"], ["beta"]])
+        self.assertEqual(marker.get(), "missing")
+
     def context(self, **changes):
         values = {
             "principal": Principal(),

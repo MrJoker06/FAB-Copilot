@@ -43,6 +43,14 @@ def _step_semantics(tool: str, parameters: dict[str, Any], evidence_ids: tuple[s
         "get_recent_excursions": ("event", "process_excursion", "event"),
         "get_sensor_summary": ("metric", "sensor_summary", "equipment_signal"),
         "search_knowledge": ("document", "knowledge_document", "document"),
+        "get_product_yield_breakdown": ("metric", "final_wafer_yield", "product"),
+        "get_equipment_event_timeline": ("event", "equipment_event", "event"),
+        "get_equipment_excursion_history": ("event", "process_excursion_record", "event"),
+        "get_lot_identity": ("record", "lot_identity", "lot"),
+        "get_lot_process_history": ("record", "lot_process_history", "process_run"),
+        "get_lot_excursion_history": ("event", "process_excursion_record", "event"),
+        "get_lot_defect_history": ("event", "defect_record", "defect_event"),
+        "get_lot_wafer_map_patterns": ("record", "wafer_map_pattern", "wafer"),
     }
     if tool == "query_manufacturing_data":
         sql = str(parameters.get("sql", "")).lower()
@@ -75,6 +83,8 @@ def _step_scope(tool: str, parameters: dict[str, Any], evidence_ids: tuple[str, 
         values["fab_ids"] = ("FAB",)
     if tool == "get_yield_trend" and not parameters.get("product"):
         values["fab_ids"] = ("FAB",)
+    if tool == "get_product_yield_breakdown" and not parameters.get("product"):
+        values["fab_ids"] = ("FAB",)
     # Equipment handlers select equipment first, so do not imply a second
     # process filter merely because the planner also knows the route process.
     if parameters.get("equipment_id"):
@@ -83,6 +93,8 @@ def _step_scope(tool: str, parameters: dict[str, Any], evidence_ids: tuple[str, 
         values["process_steps"] = (str(parameters["process_step"]).upper(),)
     if parameters.get("product"): values["products"] = (str(parameters["product"]).upper(),)
     if parameters.get("lot_id"): values["lot_ids"] = (str(parameters["lot_id"]).upper(),)
+    if tool == "get_equipment_excursion_history" and parameters.get("process_step"):
+        values["process_steps"] = (str(parameters["process_step"]).upper(),)
     if tool == "query_manufacturing_data":
         sql = str(parameters.get("sql", ""))
         lot = re.search(r"\blot_id\s*=\s*'([^']+)'", sql, re.I)

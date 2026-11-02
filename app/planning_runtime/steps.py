@@ -25,6 +25,8 @@ class _StepBuilder:
 
 
 def _result_limit(tool: str, parameters: dict[str, Any]) -> int:
+    if tool == "get_lot_identity":
+        return 10
     if tool == "search_knowledge":
         return int(parameters.get("limit", 10))
     if tool == "get_defect_pareto":
@@ -55,7 +57,9 @@ def _tool_invocations(
                     {"sql": f"planner.template.{evidence.evidence_id}"},
                 ))
             continue
-        parameters, sources = _base_parameters(tool, question, route, evidence)
+        parameters, sources = _base_parameters(
+            tool, question, route, evidence, resolved
+        )
         if tool == "get_yield_trend" and route.scope_resolution.scope_type == "product" and route.scope_resolution.resolved_ids:
             parameters["product"] = route.scope_resolution.resolved_ids[0]
             sources["product"] = "intent_route.scope_resolution"
@@ -125,11 +129,37 @@ def _ready_steps(
             semantic_id=_step_semantics(builder.tool, builder.parameters, tuple(builder.evidence_ids))[1],
             grain=_step_semantics(builder.tool, builder.parameters, tuple(builder.evidence_ids))[2],
             evidence_scope=_step_scope(builder.tool, builder.parameters, tuple(builder.evidence_ids)),
-            evidence_start=route.time_range.start if (builder.tool != "query_manufacturing_data" or " >= '" in str(builder.parameters.get("sql", ""))) and builder.tool not in {"search_knowledge"} else None,
-            evidence_end=route.time_range.end if (builder.tool != "query_manufacturing_data" or " < '" in str(builder.parameters.get("sql", ""))) and builder.tool not in {"search_knowledge"} else None,
+            evidence_start=route.time_range.start if _has_date_start(builder) else None,
+            evidence_end=route.time_range.end if _has_date_end(builder) else None,
         )
         for key, builder in builders.items()
     )
+
+
+def _named_lot_tool(tool: str) -> bool:
+    return tool in {
+        "get_lot_identity",
+        "get_lot_process_history",
+        "get_lot_excursion_history",
+        "get_lot_defect_history",
+        "get_lot_wafer_map_patterns",
+    }
+
+
+def _has_date_start(builder: _StepBuilder) -> bool:
+    if _named_lot_tool(builder.tool) or builder.tool == "search_knowledge":
+        return False
+    if builder.tool != "query_manufacturing_data":
+        return True
+    return " >= '" in str(builder.parameters.get("sql", ""))
+
+
+def _has_date_end(builder: _StepBuilder) -> bool:
+    if _named_lot_tool(builder.tool) or builder.tool == "search_knowledge":
+        return False
+    if builder.tool != "query_manufacturing_data":
+        return True
+    return " < '" in str(builder.parameters.get("sql", ""))
 
 
 def _empty_budget() -> PlanBudget:

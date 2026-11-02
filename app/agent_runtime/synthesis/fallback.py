@@ -17,6 +17,15 @@ class OfflineAnswerDependencies:
     evidence_observation_type: Any
 
 
+@dataclass(frozen=True, slots=True)
+class PrecomputedTools:
+    """Native dispatcher evidence consumed by deterministic offline formatting."""
+
+    trace: list[dict]
+    observations: list[Any]
+    results: dict[str, Any]
+
+
 def _result(
     mode: str,
     intent_route: Any,
@@ -56,6 +65,7 @@ def offline_answer(
     fallback_reason: str = "missing_api_key",
     *,
     deps: OfflineAnswerDependencies,
+    precomputed_tools: PrecomputedTools | None = None,
 ) -> dict:
     if intent_route.intent == "conversation":
         advertised_ids: tuple[str, ...] = ()
@@ -253,22 +263,40 @@ def offline_answer(
         trace.append({"tool": name, "status": "local"})
         return value
 
-    loop_guard.begin_round()
-    overview = call("get_fab_overview", deps.fab_overview)
-    equipment = call("get_equipment_health", deps.equipment_health)
-    loop_guard.finish_round()
+    if precomputed_tools is None:
+        loop_guard.begin_round()
+        overview = call("get_fab_overview", deps.fab_overview)
+        equipment = call("get_equipment_health", deps.equipment_health)
+        loop_guard.finish_round()
+    else:
+        trace = list(precomputed_tools.trace)
+        observations = list(precomputed_tools.observations)
+        overview = precomputed_tools.results.get("get_fab_overview")
+        equipment = precomputed_tools.results.get("get_equipment_health")
     unavailable = fallback_reason != "missing_api_key"
     lines = [
         "模型暂时不可用，已启用本地规则分析。"
         if unavailable
         else "当前未配置可用的模型 API，因此返回本地规则分析。"
     ]
-    lines.append(
-        f"最近90天共完成 {overview['lots']} 个批次，综合良率 {overview['yield_pct']}%，平均周期 {overview['avg_cycle_hours']} 小时。"
-        if overview is not None
-        else "运行时预算未允许查询工厂总览，因此当前没有可用于汇总的制造数据。"
-    )
-    risky = (equipment or [])[:3]
+    if precomputed_tools is None:
+        # The explicit legacy replay route retains the historical formatter
+        # byte-for-byte in behavior.  Native dispatch has its own failure-safe
+        # wording below because a source error can leave these values absent.
+        lines.append(
+            f"最近90天共完成 {overview['lots']} 个批次，综合良率 {overview['yield_pct']}%，平均周期 {overview['avg_cycle_hours']} 小时。"
+            if overview is not None
+            else "运行时预算未允许查询工厂总览，因此当前没有可用于汇总的制造数据。"
+        )
+        risky = (equipment or [])[:3]
+    else:
+        if isinstance(overview, dict):
+            lines.append(
+                f"最近90天共完成 {overview.get('lots', '未知')} 个批次，综合良率 {overview.get('yield_pct', '未知')}%，平均周期 {overview.get('avg_cycle_hours', '未知')} 小时。"
+            )
+        else:
+            lines.append("具名制造数据当前不可用，因此不提供未经证据支持的工厂汇总。")
+        risky = equipment[:3] if isinstance(equipment, list) else []
     if risky:
         lines.append(
             "优先关注设备："

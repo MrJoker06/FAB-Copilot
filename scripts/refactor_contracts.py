@@ -17,11 +17,12 @@ PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONTRACT = PROJECT_DIR / "evaluations" / "refactor_contract_v1.json"
 sys.path.insert(0, str(PROJECT_DIR))
 
-from fastapi.routing import APIRoute  # noqa: E402
+from fastapi.routing import APIRoute
 
-from app.agent_runtime.service import TOOLS  # noqa: E402
-from app.main import app  # noqa: E402
-from scripts.evaluate_trace_replay import load_dataset, replay_case  # noqa: E402
+from app.agent_runtime.service import TOOLS
+from app.bootstrap.tool_catalog import LEGACY_TOOLS
+from app.main import app
+from scripts.evaluate_trace_replay import load_dataset, replay_case
 
 
 def _canonical_json(value: Any, *, indent: int | None = None) -> str:
@@ -52,10 +53,16 @@ class _PageContractParser(HTMLParser):
             self.script_sources.append(str(attributes["src"]))
 
 
-def collect_tool_contract() -> dict[str, Any]:
+TOOL_PROFILES = frozenset({"current-v2", "legacy-v1"})
+
+
+def collect_tool_contract(tool_profile: str = "current-v2") -> dict[str, Any]:
+    if tool_profile not in TOOL_PROFILES:
+        raise ValueError(f"unknown tool profile: {tool_profile}")
+    tools = LEGACY_TOOLS if tool_profile == "legacy-v1" else TOOLS
     return {
-        "names": [item["function"]["name"] for item in TOOLS],
-        "schema_sha256": _sha256(TOOLS),
+        "names": [item["function"]["name"] for item in tools],
+        "schema_sha256": _sha256(tools),
     }
 
 
@@ -128,7 +135,7 @@ def collect_agent_contract() -> dict[str, Any]:
     return {"cases": cases}
 
 
-def collect_contract() -> dict[str, Any]:
+def collect_contract(tool_profile: str = "current-v2") -> dict[str, Any]:
     return {
         "api": collect_api_contract(),
         "agent": collect_agent_contract(),
@@ -139,7 +146,7 @@ def collect_contract() -> dict[str, Any]:
             "real_model_calls": 0,
         },
         "frontend": collect_frontend_contract(),
-        "tools": collect_tool_contract(),
+        "tools": collect_tool_contract(tool_profile),
     }
 
 
@@ -170,9 +177,19 @@ def main() -> int:
         action="store_true",
         help="Print the current normalized contract without writing the baseline.",
     )
+    parser.add_argument(
+        "--tool-profile",
+        choices=sorted(TOOL_PROFILES),
+        default="legacy-v1",
+        help=(
+            "Tool projection for the historical frozen contract. legacy-v1 is "
+            "a replay projection, not validation of the current default v2 tools."
+        ),
+    )
     arguments = parser.parse_args()
-    actual = collect_contract()
+    actual = collect_contract(arguments.tool_profile)
     if arguments.print_current:
+        print(f"Refactor tool profile: {arguments.tool_profile}")
         print(_canonical_json(actual, indent=2))
         return 0
     expected = load_contract()
@@ -180,7 +197,10 @@ def main() -> int:
     if difference:
         print(difference)
         return 1
-    print("Refactor compatibility contract passed.")
+    print(
+        "Refactor compatibility contract passed "
+        f"(historical tool profile: {arguments.tool_profile})."
+    )
     return 0
 
 

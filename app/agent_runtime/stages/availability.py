@@ -51,10 +51,19 @@ async def handle_model_availability(
         )
     if state.execution_plan.status == "ready":
         return AvailabilityOutcome(state, await _ready_fallback(state, deps, reason))
-    result = deps.offline_answer(
-        state.analysis_question, state.intent_route, state.playbook_selection,
-        state.execution_plan, state.loop_guard, fallback_reason=reason,
-    )
+    offline_tool_runner = getattr(deps, "offline_tool_runner", None)
+    precomputed_tools = await offline_tool_runner(state) if offline_tool_runner is not None else None
+    if precomputed_tools is None:
+        result = deps.offline_answer(
+            state.analysis_question, state.intent_route, state.playbook_selection,
+            state.execution_plan, state.loop_guard, fallback_reason=reason,
+        )
+    else:
+        result = deps.offline_answer(
+            state.analysis_question, state.intent_route, state.playbook_selection,
+            state.execution_plan, state.loop_guard, fallback_reason=reason,
+            precomputed_tools=precomputed_tools,
+        )
     deps.emit_evidence_validation(state.run_id, 1, result["evidence_validation"])
     deps.emit(
         "answer_synthesis_completed", state.run_id,
@@ -65,9 +74,12 @@ async def handle_model_availability(
         moved_claims=result["answer_synthesis"]["moved_claims"],
         wording_adjustment_count=len(result["answer_synthesis"]["wording_adjustments"]),
     )
-    for item in result["tool_trace"]:
-        await deps.notify(state.progress, {"event": "tool_started", "tool": item["tool"], "arguments": {}})
-        await deps.notify(state.progress, {"event": "tool_finished", **item})
+    # Native dispatch has already emitted one start/finish pair while executing
+    # the precomputed bundle.  The historical fallback still needs replay.
+    if getattr(getattr(state, "tool_run", None), "loop", None) is None:
+        for item in result["tool_trace"]:
+            await deps.notify(state.progress, {"event": "tool_started", "tool": item["tool"], "arguments": {}})
+            await deps.notify(state.progress, {"event": "tool_finished", **item})
     await deps.notify(state.progress, {
         "event": "stage", "stage": "validation",
         "message": "证据校验完成 · 必需证据 %s/%s · 结论强度 %s" % (
@@ -92,9 +104,16 @@ async def _ready_fallback(state: CoordinatorRunState, deps: "CoordinatorDependen
         "message": f"正在按依赖顺序执行 {len(state.execution_plan.steps)} 个已批准步骤",
         "execution_mode": "deterministic",
     })
-    trace, observations, sources = await deps.execute_ready_plan(
-        state.execution_plan, state.loop_guard, state.run_id, state.progress,
-    )
+    ready_binding = getattr(getattr(state, "tool_run", None), "ready", None)
+    if ready_binding is None:
+        trace, observations, sources = await deps.execute_ready_plan(
+            state.execution_plan, state.loop_guard, state.run_id, state.progress,
+        )
+    else:
+        trace, observations, sources = await deps.execute_ready_plan(
+            state.execution_plan, state.loop_guard, state.run_id, state.progress,
+            dispatch_binding=ready_binding,
+        )
     validation = deps.validate_evidence(state.execution_plan, state.selected_playbook, observations)
     contract = deps.create_answer_contract(
         validation, list(sources.values()), question=state.question,

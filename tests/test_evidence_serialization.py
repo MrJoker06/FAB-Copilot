@@ -72,6 +72,11 @@ class MutablePayload:
     payload: dict[str, object]
 
 
+@dataclass
+class MutablePayloadSubclass(MutablePayload):
+    extra: list[object]
+
+
 class EvidenceSerializationTests(unittest.TestCase):
     def test_matches_stdlib_oracle_for_nested_and_json_edge_values(self):
         value = NestedPayload(
@@ -157,6 +162,40 @@ class EvidenceSerializationTests(unittest.TestCase):
         value.payload["nested"][0]["value"] = 42
         self.assertEqual(first["payload"]["nested"][0]["value"], 99)
         self.assertEqual(second["payload"]["nested"][0]["value"], 1)
+
+    def test_exact_containers_match_oracle_for_json_normalized_edges(self):
+        value = NestedPayload(
+            {
+                1: "numeric key",
+                "1": "string key wins after JSON normalization",
+                "nested": [({"tuple": (float("nan"), 10**100)},)],
+            }
+        )
+        self.assertEqual(
+            json.dumps(json_dataclass_payload(value), ensure_ascii=False),
+            json.dumps(_oracle(value), ensure_ascii=False),
+        )
+
+    def test_dataclass_subclass_fields_are_fresh_on_each_call(self):
+        value = MutablePayloadSubclass(
+            {"nested": [{"value": 1}]}, [{"extra": ["first"]}]
+        )
+        first = json_dataclass_payload(value)
+        value.payload["nested"][0]["value"] = 2
+        value.extra[0]["extra"].append("second")
+        second = json_dataclass_payload(value)
+
+        self.assertEqual(
+            first,
+            _oracle(
+                MutablePayloadSubclass(
+                    {"nested": [{"value": 1}]}, [{"extra": ["first"]}]
+                )
+            ),
+        )
+        self.assertEqual(second, _oracle(value))
+        self.assertEqual(first["payload"]["nested"][0]["value"], 1)
+        self.assertEqual(first["extra"][0]["extra"], ["first"])
 
     def test_exact_primitives_skip_deepcopy_but_subclasses_do_not(self):
         CopyTracked.copies = 0

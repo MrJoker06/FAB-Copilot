@@ -42,6 +42,8 @@ from app.agent_runtime.tools.dispatch_policy import DemoToolPolicy
 from app.agent_runtime.tools.dispatcher import ToolDispatcher
 from app.agent_runtime.tools.tool_registry import ToolRegistry
 from app.bootstrap import loop_demo, ready_demo
+from app.bootstrap.agent_assembly import AssemblyError
+from app.bootstrap.loop_assembly import bind_loop_dispatcher
 from app.planning_runtime.contracts import (
     AnalysisScopeContract,
     ExecutionPlan,
@@ -238,6 +240,25 @@ class LoopResponseTests(unittest.TestCase):
 
 
 class LoopDispatcherTests(unittest.TestCase):
+    def test_loop_binding_uses_generic_catalog_without_snapshot_hook(self):
+        plan = _plan()
+        projector = ReadyResultPolicy()
+        dispatcher = _dispatcher(plan, [{"row": 1}], projector)
+        context = RuntimeContext(
+            Principal(), "run", ToolExecutionLimits(remaining_calls=2, max_result_rows=1)
+        )
+
+        binding = bind_loop_dispatcher(
+            plan, dispatcher.budget.guard, context, dispatcher, projector
+        )
+        self.assertEqual(json.loads(binding.tools_json)[0]["function"]["name"], "native")
+
+        dispatcher.registry.try_model_tools_json = lambda *_args: "not-json"
+        with self.assertRaises(AssemblyError):
+            bind_loop_dispatcher(
+                plan, dispatcher.budget.guard, context, dispatcher, projector
+            )
+
     def test_loop_and_ready_sqlite_health_have_matching_scope_and_tool_reference(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)

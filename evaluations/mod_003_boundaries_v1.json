@@ -12,6 +12,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/agent_runtime/application.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/agent_runtime/assistant_capabilities.py",
       "primary_module": "runtime",
       "artifact_group": "platform_core"
@@ -69,17 +74,12 @@
       "artifact_group": "platform_core"
     },
     {
-      "path": "app/agent_runtime/dependencies.py",
-      "primary_module": "runtime",
-      "artifact_group": "platform_core"
-    },
-    {
       "path": "app/agent_runtime/definition.py",
       "primary_module": "runtime",
       "artifact_group": "platform_core"
     },
     {
-      "path": "app/agent_runtime/application.py",
+      "path": "app/agent_runtime/dependencies.py",
       "primary_module": "runtime",
       "artifact_group": "platform_core"
     },
@@ -99,6 +99,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/agent_runtime/execution/loop_dispatch.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/agent_runtime/execution/loop_guard.py",
       "primary_module": "runtime",
       "artifact_group": "platform_core"
@@ -109,12 +114,27 @@
       "artifact_group": "platform_core"
     },
     {
-      "path": "app/agent_runtime/execution/loop_dispatch.py",
+      "path": "app/agent_runtime/execution/pilot_stages.py",
       "primary_module": "runtime",
       "artifact_group": "platform_core"
     },
     {
-      "path": "app/agent_runtime/execution/pilot_stages.py",
+      "path": "app/agent_runtime/execution/ready_dispatch.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/ready_graph.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/ready_plan.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/ready_result_policy.py",
       "primary_module": "runtime",
       "artifact_group": "platform_core"
     },
@@ -135,26 +155,6 @@
     },
     {
       "path": "app/agent_runtime/execution/tool_result_bridge.py",
-      "primary_module": "runtime",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/agent_runtime/execution/ready_plan.py",
-      "primary_module": "runtime",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/agent_runtime/execution/ready_graph.py",
-      "primary_module": "runtime",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/agent_runtime/execution/ready_dispatch.py",
-      "primary_module": "runtime",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/agent_runtime/execution/ready_result_policy.py",
       "primary_module": "runtime",
       "artifact_group": "platform_core"
     },
@@ -259,17 +259,24 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/agent_runtime/tools/catalog.py",
+      "primary_module": "tool_system",
+      "artifact_group": "platform_core",
+      "status": "transitional",
+      "split_targets": [
+        "tool_system",
+        "application_bootstrap"
+      ],
+      "reason": "legacy catalog facade re-exports the bootstrap-installed schema list for remaining schema compatibility consumers",
+      "exit_task": "MOD-015"
+    },
+    {
       "path": "app/agent_runtime/tools/contracts.py",
       "primary_module": "tool_system",
       "artifact_group": "platform_core"
     },
     {
       "path": "app/agent_runtime/tools/definition.py",
-      "primary_module": "tool_system",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/agent_runtime/tools/tool_registry.py",
       "primary_module": "tool_system",
       "artifact_group": "platform_core"
     },
@@ -289,15 +296,6 @@
       "artifact_group": "platform_core"
     },
     {
-      "path": "app/agent_runtime/tools/catalog.py",
-      "primary_module": "tool_system",
-      "artifact_group": "platform_core",
-      "status": "transitional",
-      "split_targets": ["tool_system", "application_bootstrap"],
-      "reason": "legacy catalog facade re-exports the bootstrap-installed schema list for remaining schema compatibility consumers",
-      "exit_task": "MOD-015"
-    },
-    {
       "path": "app/agent_runtime/tools/executor.py",
       "primary_module": "tool_system",
       "artifact_group": "platform_core"
@@ -315,64 +313,9 @@
       "exit_task": "MOD-008"
     },
     {
-      "path": "app/bootstrap/__init__.py",
-      "primary_module": "application_bootstrap",
-      "artifact_group": "application_bundle"
-    },
-    {
-      "path": "app/bootstrap/dispatcher_demo.py",
-      "primary_module": "application_bootstrap",
-      "artifact_group": "application_bundle"
-    },
-    {
-      "path": "app/bootstrap/agent_assembly.py",
-      "primary_module": "application_bootstrap",
-      "artifact_group": "application_bundle"
-    },
-    {
-      "path": "app/bootstrap/ready_assembly.py",
-      "primary_module": "application_bootstrap",
-      "artifact_group": "application_bundle"
-    },
-    {
-      "path": "app/bootstrap/loop_assembly.py",
-      "primary_module": "application_bootstrap",
-      "artifact_group": "application_bundle"
-    },
-    {
-      "path": "app/bootstrap/legacy_agent_assembly.py",
-      "primary_module": "application_bootstrap",
-      "artifact_group": "application_bundle"
-    },
-    {
-      "path": "app/bootstrap/agent_demo.py",
-      "primary_module": "application_bootstrap",
-      "artifact_group": "application_bundle"
-    },
-    {
-      "path": "app/bootstrap/ready_demo.py",
-      "primary_module": "application_bootstrap",
-      "artifact_group": "application_bundle"
-    },
-    {
-      "path": "app/bootstrap/loop_demo.py",
-      "primary_module": "application_bootstrap",
-      "artifact_group": "application_bundle"
-    },
-    {
-      "path": "app/bootstrap/diagnostics_demo.py",
-      "primary_module": "application_bootstrap",
-      "artifact_group": "application_bundle"
-    },
-    {
-      "path": "app/bootstrap/tool_catalog.py",
-      "primary_module": "application_bootstrap",
-      "artifact_group": "application_bundle"
-    },
-    {
-      "path": "app/bootstrap/tool_bindings.py",
-      "primary_module": "application_bootstrap",
-      "artifact_group": "application_bundle"
+      "path": "app/agent_runtime/tools/tool_registry.py",
+      "primary_module": "tool_system",
+      "artifact_group": "platform_core"
     },
     {
       "path": "app/api/__init__.py",
@@ -485,6 +428,106 @@
       "artifact_group": "application_bundle"
     },
     {
+      "path": "app/bootstrap/__init__.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/agent_assembly.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/agent_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/default_coordinator_assembly.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/default_tool_assembly.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/diagnostics_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/dispatcher_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/enterprise_tools_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/knowledge_search_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/legacy_agent_assembly.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/loop_assembly.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/loop_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/named_queries_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/operational_reports_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/production_reports_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/ready_assembly.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/ready_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/tool_bindings.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/tool_catalog.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/tool_definitions.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
       "path": "app/conversation/__init__.py",
       "primary_module": "orchestration",
       "artifact_group": "platform_core"
@@ -562,6 +605,96 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/integrations/__init__.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/knowledge/__init__.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/knowledge/backend_search.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/knowledge/fake_search.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/knowledge/runtime_search.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/__init__.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/fake_enterprise_tools.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/fake_equipment_health.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/fake_named_queries.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/fake_operational_reports.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/fake_process_diagnostics.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/fake_production_reports.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/provider_enterprise_tools.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/sqlite_equipment_health.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/sqlite_named_queries.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/sqlite_operational_reports.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/sqlite_process_diagnostics.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/integrations/manufacturing/sqlite_production_reports.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
       "path": "app/intent_runtime/__init__.py",
       "primary_module": "orchestration",
       "artifact_group": "platform_core"
@@ -627,6 +760,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/knowledge/search_policy.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/knowledge/search_query.py",
       "primary_module": "knowledge",
       "artifact_group": "platform_core"
@@ -634,6 +772,26 @@
     {
       "path": "app/knowledge/search_registry.py",
       "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/knowledge/search_tool/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/knowledge/search_tool/binding.py",
+      "primary_module": "business_tools",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/knowledge/search_tool/contracts.py",
+      "primary_module": "business_tools",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/knowledge/search_tool/handler.py",
+      "primary_module": "business_tools",
       "artifact_group": "platform_core"
     },
     {
@@ -650,76 +808,6 @@
       "path": "app/manufacturing/__init__.py",
       "primary_module": "orchestration",
       "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/manufacturing/equipment_health/__init__.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/equipment_health/contracts.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/equipment_health/handler.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/equipment_health/binding.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/process_diagnostics/__init__.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/process_diagnostics/contracts.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/process_diagnostics/handler.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/process_diagnostics/binding.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/integrations/__init__.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
-      "path": "app/integrations/manufacturing/__init__.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
-      "path": "app/integrations/manufacturing/fake_equipment_health.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
-      "path": "app/integrations/manufacturing/sqlite_equipment_health.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
-      "path": "app/integrations/manufacturing/fake_process_diagnostics.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
-      "path": "app/integrations/manufacturing/sqlite_process_diagnostics.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
     },
     {
       "path": "app/manufacturing/data_contracts.py",
@@ -740,14 +828,139 @@
       "exit_task": "MOD-008"
     },
     {
+      "path": "app/manufacturing/enterprise_tools/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/enterprise_tools/binding.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/enterprise_tools/contracts.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/enterprise_tools/handler.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/equipment_health/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/equipment_health/binding.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/equipment_health/contracts.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/equipment_health/handler.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/named_playbooks.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/manufacturing/named_queries/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/named_queries/binding.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/named_queries/contracts.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/named_queries/handler.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/operational_reports/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/operational_reports/binding.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/operational_reports/contracts.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/operational_reports/handler.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
       "path": "app/manufacturing/playbooks.py",
       "primary_module": "orchestration",
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/manufacturing/process_diagnostics/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/process_diagnostics/binding.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/process_diagnostics/contracts.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/process_diagnostics/handler.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
       "path": "app/manufacturing/processes.py",
       "primary_module": "manufacturing_domain",
       "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/manufacturing/production_reports/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/production_reports/binding.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/production_reports/contracts.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/production_reports/handler.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
     },
     {
       "path": "app/manufacturing/reports.py",
@@ -938,6 +1151,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/planning_runtime/named_planner.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/planning_runtime/queries.py",
       "primary_module": "orchestration",
       "artifact_group": "platform_core"
@@ -969,6 +1187,11 @@
     },
     {
       "path": "app/static/admin.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/app.js",
       "primary_module": "static_ui",
       "artifact_group": "application_bundle"
     },
@@ -1034,11 +1257,6 @@
     },
     {
       "path": "app/static/app/sessions/controller.js",
-      "primary_module": "static_ui",
-      "artifact_group": "application_bundle"
-    },
-    {
-      "path": "app/static/app.js",
       "primary_module": "static_ui",
       "artifact_group": "application_bundle"
     },
@@ -1160,6 +1378,7 @@
     "business_tools": [
       "business_tools",
       "core_contracts_configuration",
+      "knowledge",
       "manufacturing_domain",
       "tool_system"
     ],
@@ -1242,6 +1461,12 @@
       "exit_task": "MOD-015"
     },
     {
+      "source": "app.agent_runtime.compatibility",
+      "target": "app.bootstrap.default_coordinator_assembly",
+      "reason": "Default runtime facade delegates v2 named-plan and per-run native-tool assembly while preserving its public live-patch seam.",
+      "exit_task": "MOD-015"
+    },
+    {
       "source": "app.agent_runtime.tools.catalog",
       "target": "app.bootstrap.tool_catalog",
       "reason": "Legacy catalog facade retains stable schema identity for remaining compatibility consumers while bootstrap owns assembly.",
@@ -1251,7 +1476,7 @@
       "source": "app.agent_runtime.tools.registry",
       "target": "app.bootstrap.tool_bindings",
       "reason": "Legacy registry facade retains live patch consumers while application bootstrap owns concrete binding assembly.",
-      "exit_task": "MOD-008"
+      "exit_task": "MOD-015"
     },
     {
       "source": "app.conversation.decision_arbiter",
@@ -1317,13 +1542,13 @@
       "source": "app.manufacturing.enterprise_data",
       "target": "app.core.identity",
       "reason": "Business tool directly binds identity or SQL persistence; replace with consumer-owned business Data Port.",
-      "exit_task": "MOD-008"
+      "exit_task": "MOD-009"
     },
     {
       "source": "app.manufacturing.reports",
       "target": "app.persistence.database",
       "reason": "Business tool directly binds identity or SQL persistence; replace with consumer-owned business Data Port.",
-      "exit_task": "MOD-008"
+      "exit_task": "MOD-009"
     },
     {
       "source": "app.model_gateway.compatibility",
@@ -1563,6 +1788,11 @@
       "kind": "import"
     },
     {
+      "file": "scripts/check_default_tool_migration.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
       "file": "scripts/evaluate_ready_execution.py",
       "symbol": "app.agent_runtime.service",
       "kind": "import"
@@ -1571,6 +1801,26 @@
       "file": "scripts/evaluate_ready_execution.py",
       "symbol": "app.agent_runtime.service.TOOLS",
       "kind": "import"
+    },
+    {
+      "file": "scripts/mod_008_default_performance.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/mod_008_default_performance.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "scripts/mod_008_default_performance.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.object"
+    },
+    {
+      "file": "scripts/mod_008_default_performance.py",
+      "symbol": "app.agent_runtime.service.TOOL_HANDLERS",
+      "kind": "patch.dict"
     },
     {
       "file": "scripts/modularization_baseline.py",
@@ -1589,13 +1839,18 @@
     },
     {
       "file": "scripts/modularization_baseline.py",
-      "symbol": "app.agent_runtime.service.TOOLS",
-      "kind": "import"
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.object"
     },
     {
       "file": "scripts/modularization_baseline.py",
       "symbol": "app.agent_runtime.service.TOOL_HANDLERS",
       "kind": "patch.dict"
+    },
+    {
+      "file": "scripts/modularization_baseline.py",
+      "symbol": "app.agent_runtime.service._coordinator_dependencies",
+      "kind": "patch.object"
     },
     {
       "file": "scripts/modularization_fixture_clock.py",
@@ -1666,6 +1921,16 @@
       "file": "tests/test_agent_preparation_boundaries.py",
       "symbol": "app.agent_runtime.service",
       "kind": "patch"
+    },
+    {
+      "file": "tests/test_agent_preparation_boundaries.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.object"
+    },
+    {
+      "file": "tests/test_agent_preparation_boundaries.py",
+      "symbol": "app.agent_runtime.service._coordinator_dependencies",
+      "kind": "patch.object"
     },
     {
       "file": "tests/test_agent_retrieval_boundaries.py",
@@ -1811,6 +2076,26 @@
       "file": "tests/test_conversation_runtime_module_boundaries.py",
       "symbol": "app.conversation.context_resolver",
       "kind": "import"
+    },
+    {
+      "file": "tests/test_default_native_runtime.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_default_native_runtime.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/test_default_native_runtime.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_default_native_runtime.py",
+      "symbol": "app.agent_runtime.service.TOOL_HANDLERS",
+      "kind": "patch.dict"
     },
     {
       "file": "tests/test_domain_playbooks.py",
@@ -2049,7 +2334,45 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
+      "source_file": "app/integrations/knowledge/runtime_search.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "connection.execute",
+        "sqlite3.connect"
+      ],
+      "table_hints": [
+        "defect_types"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
       "source_file": "app/integrations/manufacturing/sqlite_equipment_health.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "connection.execute",
+        "sqlite3.connect"
+      ],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/integrations/manufacturing/sqlite_named_queries.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "connection.execute",
+        "sqlite3.connect"
+      ],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/integrations/manufacturing/sqlite_operational_reports.py",
       "imports": [
         "sqlite3"
       ],
@@ -2070,6 +2393,20 @@
         "sqlite3.connect"
       ],
       "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/integrations/manufacturing/sqlite_production_reports.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "connection.execute",
+        "sqlite3.connect"
+      ],
+      "table_hints": [
+        "process_runs"
+      ],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
@@ -2312,10 +2649,10 @@
   "database_ledger": {
     "legacy_sql_tool": {
       "definition": "query_manufacturing_data(sql)",
-      "registry_binding": "app.agent_runtime.tools.registry.TOOL_HANDLERS['query_manufacturing_data'] -> app.manufacturing.reports.safe_select",
+      "registry_binding": "retired from the default registry and 13-name compatibility handler map; app.manufacturing.reports.safe_select remains an explicit Python-only historical/internal callable",
       "report_implementation": "app.manufacturing.reports.safe_select",
-      "prompt_exposure": "app.agent_runtime.compatibility.SYSTEM_PROMPT",
-      "status": "enabled pending capability reduction",
+      "prompt_exposure": "retired from default SYSTEM_PROMPT; LEGACY_SYSTEM_PROMPT remains only for explicit historical replay",
+      "status": "retired from default model catalog, executable binding and prompt; historical replay callable retained",
       "exit_tasks": [
         "MOD-003",
         "MOD-004",
@@ -2326,8 +2663,8 @@
         "MOD-009",
         "MOD-015"
       ],
-      "catalog_definition": "app.agent_runtime.tools.catalog.TOOLS: query_manufacturing_data parameters.sql",
-      "replacement": "Use named business tools with structured parameters; SQL construction remains server-controlled in Adapter/Repository. Remove legacy exposure/binding in MOD-008; verify Ready/Loop and consumer exit in MOD-009/015."
+      "catalog_definition": "absent from default app.bootstrap.tool_catalog.TOOLS; app.bootstrap.tool_catalog.LEGACY_TOOLS remains replay-only",
+      "replacement": "Default Agent uses 21 named business tools with structured parameters; SQL construction remains server-controlled in Adapter/Repository. MOD-008 default cutover is verified separately; retained Python/API consumers require MOD-009 and legacy-facade cleanup MOD-015."
     },
     "scope_note": "Static candidates and incomplete table hints only; no data-flow/permissions proof. Separate company business reads from application-owned sessions/models/knowledge stores and demo initialization. No real enterprise integration accepted.",
     "sources": [
@@ -2372,6 +2709,14 @@
         "exit_task": "MOD-015"
       },
       {
+        "source_file": "app/integrations/knowledge/runtime_search.py",
+        "owner": "integrations",
+        "classification": "knowledge-read",
+        "stores": "knowledge.knowledge_documents, knowledge.knowledge_chunks, knowledge.knowledge_trigram_fts, knowledge.personal_knowledge_documents, knowledge.personal_knowledge_chunks, knowledge.personal_knowledge_fts, quality.defect_types, quality.defect_type_aliases",
+        "init_effects": "Default knowledge composition opens an in-memory SQLite connection only to attach the explicitly configured knowledge file read-only, and opens the explicit quality file read-only for aliases. It sets query_only, bounded busy/progress deadlines and closes both; it never initializes, seeds, attaches the global main database or falls back.",
+        "exit_task": "MOD-009 conformance (retain adapter)"
+      },
+      {
         "source_file": "app/integrations/manufacturing/sqlite_equipment_health.py",
         "owner": "integrations",
         "classification": "business-read",
@@ -2380,11 +2725,35 @@
         "exit_task": "MOD-009 conformance (retain adapter)"
       },
       {
+        "source_file": "app/integrations/manufacturing/sqlite_named_queries.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "lots, process_runs, equipment_events, defect_records, wafer_maps",
+        "init_effects": "Eight fixed bound queries; selects only the explicit related manufacturing/equipment/quality SQLite file per kind. URI mode=ro/query_only; bounded busy/progress deadlines and finally close; no initialization, migration, seed, attachment or source fallback.",
+        "exit_task": "MOD-009 conformance (retain adapter)"
+      },
+      {
+        "source_file": "app/integrations/manufacturing/sqlite_operational_reports.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "equipment_state_intervals, defect_records, process_runs",
+        "init_effects": "Selects only the explicit related equipment/quality/manufacturing SQLite store per fixed query; URI mode=ro/query_only; no initialization, migration, seeding, attachment, or source fallback.",
+        "exit_task": "MOD-009 conformance (retain adapter)"
+      },
+      {
         "source_file": "app/integrations/manufacturing/sqlite_process_diagnostics.py",
         "owner": "integrations",
         "classification": "business-read",
         "stores": "process_runs, sensor_readings",
         "init_effects": "Explicit per-kind SQLite URI mode=ro adapter; opens only the selected supplied store, sets query_only, and never initializes, migrates, seeds, attaches, or falls back.",
+        "exit_task": "MOD-009 conformance (retain adapter)"
+      },
+      {
+        "source_file": "app/integrations/manufacturing/sqlite_production_reports.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "lots, process_runs",
+        "init_effects": "Explicit supplied manufacturing SQLite URI mode=ro adapter; sets query_only and never initializes, migrates, seeds, attaches, or falls back.",
         "exit_task": "MOD-009 conformance (retain adapter)"
       },
       {
@@ -2409,7 +2778,7 @@
         "classification": "business-read",
         "stores": "lots, process_runs",
         "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
-        "exit_task": "MOD-008"
+        "exit_task": "MOD-009"
       },
       {
         "source_file": "app/manufacturing/seed.py",
@@ -2417,7 +2786,7 @@
         "classification": "demo-init",
         "stores": "lots, process_runs",
         "init_effects": "Demo initializer and seed writes; not a company-source prerequisite",
-        "exit_task": "MOD-008"
+        "exit_task": "MOD-009"
       },
       {
         "source_file": "app/model_gateway/health.py",

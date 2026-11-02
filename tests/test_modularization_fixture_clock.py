@@ -71,8 +71,8 @@ class FixtureClockTests(unittest.TestCase):
 
     def test_collect_behavior_retains_non_date_prompt_drift(self):
         expected = baseline.collect_behavior()
-        prompt = self.service.SYSTEM_PROMPT.replace("规则：", "规则（已漂移）：", 1)
-        with patch.object(self.service, "SYSTEM_PROMPT", prompt):
+        prompt = self.service.LEGACY_SYSTEM_PROMPT.replace("规则：", "规则（已漂移）：", 1)
+        with patch.object(self.service, "LEGACY_SYSTEM_PROMPT", prompt):
             actual = baseline.collect_behavior()
         self.assertIn(
             "规则（已漂移）：", baseline.diff(expected, actual, "behavior.json")

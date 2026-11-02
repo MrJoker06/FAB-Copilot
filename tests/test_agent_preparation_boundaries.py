@@ -12,6 +12,8 @@ from app.agent_runtime.preparation.context import (
     ResolverDependencies,
     resolve_conversation_turn,
 )
+from app.bootstrap.legacy_agent_assembly import build_legacy_coordinator_dependencies
+from app.bootstrap.tool_catalog import LEGACY_TOOLS
 from app.memory_system.context.resolver import unresolved_context
 
 
@@ -29,7 +31,7 @@ class AgentPreparationBoundaryTests(unittest.TestCase):
         self.assertIsInstance(normalized, ContextProtocolError)
         self.assertEqual(normalized.code, "context_budget_exhausted")
 
-    def test_run_impl_uses_live_context_and_planner_facades(self):
+    def test_legacy_v1_run_uses_live_context_and_planner_facades(self):
         resolved = unresolved_context("介绍一下你自己", "deterministic")
         resolve_turn = AsyncMock(return_value=(resolved, {}))
         real_create_plan = agent.create_execution_plan
@@ -40,9 +42,18 @@ class AgentPreparationBoundaryTests(unittest.TestCase):
             created.append(plan)
             return plan
 
+        def legacy_dependencies():
+            namespace = dict(agent.__dict__)
+            namespace["SYSTEM_PROMPT"] = agent.LEGACY_SYSTEM_PROMPT
+            namespace["TOOLS"] = LEGACY_TOOLS
+            return build_legacy_coordinator_dependencies(namespace)
+
         with (
             patch("app.agent_runtime.service._resolve_conversation_turn", new=resolve_turn),
             patch("app.agent_runtime.service.create_execution_plan", new=capture_plan),
+            patch.object(
+                agent, "_coordinator_dependencies", new=legacy_dependencies
+            ),
         ):
             result = asyncio.run(
                 agent._run_agent_impl("介绍一下你自己", [], "prep-live-facade")

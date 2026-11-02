@@ -33,6 +33,13 @@ async def coordinate_agent_run(
     if prepared.result is not None:
         await deps.stream_answer(progress, prepared.result["answer"])
         return prepared.result
+    if deps.tool_run_factory is not None:
+        state.tool_run = deps.tool_run_factory(
+            settings=state.settings,
+            plan=state.execution_plan,
+            guard=state.loop_guard,
+            run_id=state.run_id,
+        )
     availability = await handle_model_availability(state, deps=deps)
     if availability.result is not None:
         return availability.result

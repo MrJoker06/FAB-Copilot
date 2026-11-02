@@ -252,6 +252,19 @@ class RuntimeContractTests(unittest.IsolatedAsyncioTestCase):
                 factory()
         self.assertEqual(ModelToolCall("id", "x" * 128, "{}").name, "x" * 128)
 
+    def test_schema_reuse_preserves_validation_and_unhashable_string_support(
+        self,
+    ) -> None:
+        class UnhashableText(str):
+            __hash__ = None
+
+        valid = '[{"type":"function","function":{"name":"health"}}]'
+        for text in (valid, valid, UnhashableText(valid)):
+            self.assertEqual(ModelRequest("schema", (), text).tools_json, valid)
+        for text in ('["health"]', '[{"value":NaN}]', UnhashableText("{}"), {}):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                ModelRequest("schema", (), text)
+
     def test_protocol_signatures_and_hints_are_explicit_async_contracts(self) -> None:
         for protocol, method, expected, expected_hints in (
             (

@@ -50,6 +50,7 @@ class CoordinatorRunState:
     plan_payload: dict[str, Any] = field(default_factory=dict)
     thinking_answer_effective: bool = False
     loop_guard: Any = None
+    tool_run: Any = None
     evidence_observations: list[Any] = field(default_factory=list)
     evidence_validation: Any = None
     answer_contract: Any = None

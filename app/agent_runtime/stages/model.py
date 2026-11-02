@@ -42,10 +42,17 @@ async def prepare_model_stage(
         "rewritten_query": None, "assumptions": [], "model_knowledge_allowed": False, "disclosure": None,
     }
     if state.intent_route.intent == "general_knowledge":
-        decision = await deps.prefetch_general_knowledge(
+        prefetch_args = (
             state.analysis_question, state.run_id, state.loop_guard, state.evidence_observations,
             state.trace, state.sources, state.progress,
         )
+        loop_binding = getattr(getattr(state, "tool_run", None), "loop", None)
+        if loop_binding is None:
+            decision = await deps.prefetch_general_knowledge(*prefetch_args)
+        else:
+            decision = await deps.prefetch_general_knowledge(
+                *prefetch_args, dispatch_binding=loop_binding,
+            )
         state.retrieval_decision_payload = decision.to_dict()
         state.knowledge_fallback = {
             "used": decision.model_knowledge_allowed,

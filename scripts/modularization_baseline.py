@@ -10,6 +10,7 @@ import json
 import math
 import os
 import platform
+import re
 import statistics
 import sys
 import time
@@ -49,15 +50,20 @@ FORMAL_CLI_SAMPLES_PER_BATCH = 1000
 FORMAL_CLI_BATCHES = 2
 SCENES = ("ready_success", "loop_success", "knowledge_retrieval_success")
 FIXTURE_DATE = date(2026, 8, 7)
+REPLAY_PROFILE = "LEGACY_V1_REPLAY"
 sys.path.insert(0, str(PROJECT_DIR))
 # These imports intentionally follow the project-root path insertion.
 from fastapi.routing import APIRoute
 
 from app.agent_runtime import service as agent
-from app.agent_runtime.service import TOOLS
+from app.bootstrap.legacy_agent_assembly import build_legacy_coordinator_dependencies
+from app.bootstrap.tool_catalog import LEGACY_TOOLS
 from app.main import app
 from scripts.evaluate_trace_replay import load_dataset, replay_case
-from scripts.modularization_fixture_clock import fixed_capture_clock
+from scripts.modularization_fixture_clock import (
+    CAPTURE_ENVIRONMENT_DATE,
+    fixed_capture_clock,
+)
 from scripts.refactor_contracts import collect_frontend_contract
 
 
@@ -204,6 +210,19 @@ def _ready_handlers(fail_first=False, empty_knowledge=False):
     return d
 
 
+def _legacy_v1_dependencies():
+    """Build frozen MOD-002 dependencies without changing production defaults."""
+    namespace = dict(agent.__dict__)
+    namespace["SYSTEM_PROMPT"] = re.sub(
+        r"(?<=当前日期是 )\d{4}-\d{2}-\d{2}(?=。用户说)",
+        CAPTURE_ENVIRONMENT_DATE.isoformat(),
+        agent.LEGACY_SYSTEM_PROMPT,
+        count=1,
+    )
+    namespace["TOOLS"] = LEGACY_TOOLS
+    return build_legacy_coordinator_dependencies(namespace)
+
+
 async def _capture_ready(
     *,
     failure=False,
@@ -245,6 +264,9 @@ async def _capture_ready(
         s.enter_context(patch("app.agent_runtime.service.emit"))
         s.enter_context(patch("app.intent_runtime.routing.date", new=_FixtureDate))
         s.enter_context(patch.dict(agent.TOOL_HANDLERS, h, clear=True))
+        s.enter_context(
+            patch.object(agent, "_coordinator_dependencies", new=_legacy_v1_dependencies)
+        )
         with fixture_proxy_environment(), fixture_guard():
             started = time.perf_counter_ns()
             result = await agent._run_agent_impl(question, [], "mod002-run", progress)
@@ -347,6 +369,9 @@ async def _capture_loop(
         s.enter_context(patch("app.agent_runtime.service.emit"))
         s.enter_context(patch("app.intent_runtime.routing.date", new=_FixtureDate))
         s.enter_context(patch.dict(agent.TOOL_HANDLERS, h, clear=True))
+        s.enter_context(
+            patch.object(agent, "_coordinator_dependencies", new=_legacy_v1_dependencies)
+        )
         with fixture_proxy_environment(), fixture_guard():
             started = time.perf_counter_ns()
             result = await agent._run_agent_impl(q, [], "mod002-loop", progress)
@@ -455,7 +480,7 @@ def collect_behavior():
                 "rule": "Only direct Runtime trace/event lifecycle fields are removed. In model_messages, only system-message legal JSON objects after the exact newline answer_contract marker are key-sorted; nested business fields, user messages, arrays, malformed JSON, and other message content are retained.",
             },
             "contracts": {
-                "tools": copy.deepcopy(TOOLS),
+                "tools": copy.deepcopy(LEGACY_TOOLS),
                 "api": _api_snapshot(),
                 "frontend": collect_frontend_contract(),
                 "policy_replay": _policy_snapshot(),
@@ -710,7 +735,12 @@ def _write_new(p, v, replace=False):
 
 
 def main():
-    q = argparse.ArgumentParser()
+    q = argparse.ArgumentParser(
+        description=(
+            "Replay the historical MOD-002 LEGACY_V1_REPLAY fixture. "
+            "It is not acceptance for the current default native capability set."
+        )
+    )
     q.add_argument("--mode", choices=("compare", "capture"), default="compare")
     q.add_argument("--behavior", type=Path, default=DEFAULT_BEHAVIOR)
     q.add_argument("--performance", type=Path, default=DEFAULT_PERFORMANCE)
@@ -721,6 +751,10 @@ def main():
     q.add_argument("--replace-behavior", action="store_true")
     q.add_argument("--skip-performance", action="store_true")
     a = q.parse_args()
+    print(
+        f"MOD-002 profile: {REPLAY_PROFILE} "
+        "(historical replay; not current default acceptance)."
+    )
     if a.mode == "capture":
         bad = [
             p

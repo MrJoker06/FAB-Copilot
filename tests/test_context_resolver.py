@@ -125,7 +125,7 @@ class ContextResolverTests(unittest.TestCase):
             },
         )
         captured: dict[str, str] = {}
-        original_create_plan = agent_module.create_execution_plan
+        original_create_plan = agent_module._coordinator_dependencies().agent_preparation_dependencies().planning.create_execution_plan
 
         async def resolved_context(*_args, **_kwargs):
             return context, {}
@@ -139,7 +139,7 @@ class ContextResolverTests(unittest.TestCase):
         with (
             patch("app.agent_runtime.service.get_settings", return_value=settings),
             patch("app.agent_runtime.service._resolve_conversation_turn", new=resolved_context),
-            patch("app.agent_runtime.service.create_execution_plan", new=capture_plan),
+            patch("app.bootstrap.default_coordinator_assembly.create_named_execution_plan", new=capture_plan),
         ):
             result = asyncio.run(agent_module._run_agent_impl(
                 "分析昨天良率，但优先参考知识库",

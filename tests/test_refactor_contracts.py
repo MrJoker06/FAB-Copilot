@@ -35,8 +35,8 @@ class RefactorContractTests(unittest.TestCase):
         for forbidden in ("authorization", "api_key", "password", "reasoning_content"):
             self.assertNotIn(forbidden, serialized)
 
-    def test_tool_names_and_complete_schemas_match_baseline(self):
-        self.assert_contract_section("tools", collect_tool_contract())
+    def test_historical_tool_names_and_schemas_match_legacy_v1_baseline(self):
+        self.assert_contract_section("tools", collect_tool_contract("legacy-v1"))
 
     def test_openapi_routes_statuses_and_schema_match_baseline(self):
         self.assert_contract_section("api", collect_api_contract())

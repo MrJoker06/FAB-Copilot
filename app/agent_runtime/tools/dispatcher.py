@@ -10,6 +10,7 @@ import threading
 import time
 from collections.abc import Mapping
 from dataclasses import replace
+from contextvars import copy_context
 from typing import Any
 
 from .contracts import (
@@ -564,16 +565,48 @@ class ToolDispatcher:
                 return binding.invoke(arguments)
             return binding.handler(prepared, narrow_context)
 
-        task = asyncio.create_task(asyncio.to_thread(invoke))
-
-        def consume_late(done: asyncio.Task[object]) -> None:
+        def consume_late(done: asyncio.Future[object]) -> None:
             try:
                 done.exception()
             except (asyncio.CancelledError, Exception):  # noqa: BLE001
                 return
 
         claimed = True
+        task = None
         try:
+            # A budget callback may have changed cancellation/deadline state.
+            # Check before submitting, so a stopped queued call cannot begin.
+            if self._cancelled(context):
+                return self._finish_error(
+                    context,
+                    name,
+                    version,
+                    started_at,
+                    ToolStatus.CANCELLED,
+                    ToolErrorKind.CANCELLATION,
+                    "CANCELLED",
+                    "The tool call was cancelled.",
+                    ToolExecutionState.NOT_STARTED,
+                )
+            if deadline is not None and float(self.clock()) >= deadline:
+                return self._finish_error(
+                    context,
+                    name,
+                    version,
+                    started_at,
+                    ToolStatus.TIMED_OUT,
+                    ToolErrorKind.TIMEOUT,
+                    "DEADLINE_EXCEEDED",
+                    "The tool deadline was exceeded.",
+                    ToolExecutionState.NOT_STARTED,
+                )
+            worker_context = copy_context()
+            task = asyncio.get_running_loop().run_in_executor(
+                None, worker_context.run, invoke
+            )
+            if context.cancellation is None and deadline is None:
+                # Shielding preserves late-result handling on outer cancellation.
+                value = await asyncio.shield(task)
             while not task.done():
                 if self._cancelled(context):
                     with lock:
@@ -624,7 +657,8 @@ class ToolDispatcher:
         except asyncio.CancelledError:
             with lock:
                 token["stopped"] = True
-            task.add_done_callback(consume_late)
+            if task is not None:
+                task.add_done_callback(consume_late)
             if claimed:
                 self._record(name, None, False)
             raise

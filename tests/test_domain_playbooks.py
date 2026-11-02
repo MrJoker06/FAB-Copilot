@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from app.agent_runtime import service as agent_module
 from app.manufacturing.playbooks import DOMAIN_PLAYBOOKS, playbook_system_message, select_playbook
+from app.manufacturing.named_playbooks import NAMED_DOMAIN_PLAYBOOKS
 from app.intent_runtime.routing import route_question
 
 
@@ -33,10 +34,10 @@ class DomainPlaybookTests(unittest.TestCase):
                 self.assertTrue(playbook.safety_constraints)
 
     def test_evidence_templates_are_complete_and_only_reference_available_tools(self):
-        available_tools = set(agent_module.TOOL_HANDLERS)
+        available_tools = {item["function"]["name"] for item in agent_module.TOOLS}
         evidence_ids: set[str] = set()
 
-        for playbook in DOMAIN_PLAYBOOKS.values():
+        for playbook in NAMED_DOMAIN_PLAYBOOKS.values():
             required_count = 0
             for evidence in playbook.evidence_requirements:
                 with self.subTest(playbook=playbook.playbook_id, evidence=evidence.evidence_id):
@@ -135,12 +136,12 @@ class DomainPlaybookTests(unittest.TestCase):
 
         selected = result["domain_playbook"]["selected_playbook"]
         self.assertEqual(selected["playbook_id"], "PB-CAPABILITY-001")
-        self.assertEqual(selected["playbook_version"], "1.0.0")
+        self.assertEqual(selected["playbook_version"], "2.0.0")
         self.assertTrue(any(item.get("stage") == "playbook" for item in progress_events))
 
         payload = json.loads(captured["messages"][-1]["content"])
         self.assertEqual(payload["playbook_id"], "PB-CAPABILITY-001")
-        self.assertEqual(payload["playbook_version"], "1.0.0")
+        self.assertEqual(payload["playbook_version"], "2.0.0")
         required_evidence = {
             item["evidence_id"]
             for item in result["domain_playbook"]["selected_playbook"]["evidence_requirements"]

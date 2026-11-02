@@ -169,6 +169,14 @@ _TOOL_SEMANTICS: dict[str, tuple[str, str, str, str]] = {
     "get_sensor_summary": ("metric", "sensor_summary", "equipment_signal", "fixed_report"),
     "query_enterprise_data": ("sample", "enterprise_sample", "record", "fixed_report"),
     "search_knowledge": ("document", "knowledge_document", "document", "fixed_report"),
+    "get_product_yield_breakdown": ("metric", "final_wafer_yield", "product", "fixed_report"),
+    "get_equipment_event_timeline": ("event", "equipment_event", "event", "fixed_report"),
+    "get_equipment_excursion_history": ("event", "process_excursion_record", "event", "fixed_report"),
+    "get_lot_identity": ("record", "lot_identity", "lot", "fixed_report"),
+    "get_lot_process_history": ("record", "lot_process_history", "process_run", "fixed_report"),
+    "get_lot_excursion_history": ("event", "process_excursion_record", "event", "fixed_report"),
+    "get_lot_defect_history": ("event", "defect_record", "defect_event", "fixed_report"),
+    "get_lot_wafer_map_patterns": ("record", "wafer_map_pattern", "wafer", "fixed_report"),
 }
 
 

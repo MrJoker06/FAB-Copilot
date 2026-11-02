@@ -1,4 +1,5 @@
 """SQLite demonstration adapter for governed factory knowledge retrieval."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -16,9 +17,21 @@ def sqlite_fts_query(text: str) -> str:
 class SqliteFactorySearchBackend:
     """Current local demo source; it deliberately has no production ACL claim."""
 
-    def defect_aliases(self, principal: FactorySearchPrincipal) -> Mapping[str, Sequence[str]]:
-        del principal
-        return get_active_defect_aliases()
+    def __init__(self, *, session_factory=None, alias_reader=None) -> None:
+        # Lambdas intentionally defer legacy globals, preserving existing live patching.
+        self._session = (
+            session_factory if session_factory is not None else (lambda: db_session())
+        )
+        self._aliases = (
+            alias_reader
+            if alias_reader is not None
+            else (lambda _principal: get_active_defect_aliases())
+        )
+
+    def defect_aliases(
+        self, principal: FactorySearchPrincipal
+    ) -> Mapping[str, Sequence[str]]:
+        return self._aliases(principal)
 
     def search(
         self,
@@ -31,7 +44,7 @@ class SqliteFactorySearchBackend:
         if not terms:
             return []
         candidate_limit = request.candidate_limit
-        with db_session() as connection:
+        with self._session() as connection:
             if fts_query:
                 knowledge_rows = connection.execute(
                     """SELECT 'knowledge' AS source_type,
@@ -96,7 +109,9 @@ class SqliteFactorySearchBackend:
                 ).fetchall()
         combined = rows_to_dicts(knowledge_rows) + rows_to_dicts(case_rows)
         combined.sort(key=lambda item: item.get("score", 0))
-        return [item for item in combined if item["source_type"] in request.source_types]
+        return [
+            item for item in combined if item["source_type"] in request.source_types
+        ]
 
     def list_knowledge_documents(self, principal: FactorySearchPrincipal) -> list[dict]:
         del principal
@@ -134,7 +149,11 @@ class SqliteFactorySearchBackend:
                    FROM knowledge_chunks WHERE source = ? ORDER BY chunk_id""",
                 (selected["source"],),
             ).fetchall()
-        return {"selected_chunk_id": chunk_id, "document": dict(selected), "chunks": rows_to_dicts(rows)}
+        return {
+            "selected_chunk_id": chunk_id,
+            "document": dict(selected),
+            "chunks": rows_to_dicts(rows),
+        }
 
     def list_historical_cases(self, principal: FactorySearchPrincipal) -> list[dict]:
         del principal

@@ -294,7 +294,7 @@ from app.bootstrap import tool_catalog
 from app.agent_runtime.tools.catalog import DATE_PROPERTIES, SUBMIT_ANALYSIS_TOOL, _schema
 assert TOOLS is package_tools is tool_catalog.TOOLS is DEFAULT_TOOL_REGISTRY.model_tools
 assert TOOL_HANDLERS is package_handlers is DEFAULT_TOOL_REGISTRY.legacy_handlers
-assert len(TOOLS) == 15 and len(TOOL_HANDLERS) == 14
+assert len(TOOLS) == 22 and len(TOOL_HANDLERS) == 13
 assert SUBMIT_ANALYSIS_TOOL is tool_catalog.SUBMIT_ANALYSIS_TOOL
 assert DATE_PROPERTIES is tool_catalog.DATE_PROPERTIES and _schema is tool_catalog._schema
 assert events == [], events

@@ -142,13 +142,14 @@ from ..model_gateway.streaming import (
 from ..bootstrap.legacy_agent_assembly import (
     build_legacy_coordinator_dependencies as _build_legacy_coordinator_dependencies,
 )
+from ..bootstrap.default_coordinator_assembly import build_default_coordinator_dependencies
 from ..planning_runtime.contracts import ExecutionPlan, PlanStep
 from ..planning_runtime.service import create_execution_plan, planner_system_message  # noqa: F401 - legacy dynamic export
 from ..manufacturing.processes import MANUFACTURING_STEPS
 from ..manufacturing.reports import equipment_health, fab_overview
 from ..conversation.turn_decision import TurnDecision, build_turn_decision
 
-SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的职责是基于工具返回的真实数据回答问题。
+LEGACY_SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的职责是基于工具返回的真实数据回答问题。
 
 当前日期是 {date.today().isoformat()}。用户说“最近N天”时，以这个日期为结束日期准确计算起始日期；未指定时间范围时使用最近90天。
 
@@ -185,6 +186,16 @@ SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的�
 - wafer_maps: lot_id, wafer_no, detected_time, process_step, equipment_id, pattern_class, tested_dies, failed_dies
 
 simulation_scenarios 为评测真值表，Agent 无权访问，不得尝试查询。
+"""
+
+_DEFAULT_PROMPT_PREFIX = LEGACY_SYSTEM_PROMPT.split("\n数据库字段提示：", 1)[0]
+_DEFAULT_PROMPT_PREFIX = _DEFAULT_PROMPT_PREFIX.replace(
+    "simulation_scenarios 为评测真值表，Agent 无权访问，不得尝试查询。",
+    "评测真值数据仅供系统使用，Agent 无权访问，不得尝试查询。",
+)
+SYSTEM_PROMPT = _DEFAULT_PROMPT_PREFIX + """
+
+22. 只能调用服务端提供的具名结构化工具及其已声明参数；不得生成或请求 SQL、表名、字段目录、查询文本或其他未声明的数据访问方式。
 """
 
 
@@ -227,6 +238,8 @@ def _offline_answer(
     runtime_context: dict | None = None,
     run_id: str | None = None,
     fallback_reason: str = "missing_api_key",
+    *,
+    precomputed_tools: Any = None,
 ) -> dict:
     return _offline_answer_runtime(
         question, intent_route, playbook_selection, execution_plan, loop_guard,
@@ -237,6 +250,7 @@ def _offline_answer(
             fab_overview=fab_overview, equipment_health=equipment_health, emit=emit,
             evidence_observation_type=EvidenceObservation,
         ),
+        precomputed_tools=precomputed_tools,
     )
 
 
@@ -465,6 +479,8 @@ async def _prefetch_general_knowledge(
     trace: list[dict[str, Any]],
     sources: dict[str, dict[str, Any]],
     progress: ProgressCallback | None,
+    *,
+    dispatch_binding: Any = None,
 ) -> RetrievalDecision:
     return await _prefetch_general_knowledge_runtime(
         question,
@@ -484,6 +500,7 @@ async def _prefetch_general_knowledge(
             emit=emit,
             perf_counter=time.perf_counter,
         ),
+        dispatch_binding=dispatch_binding,
     )
 
 
@@ -638,7 +655,7 @@ def _agent_preparation_dependencies() -> PreparationDependencies:
 
 def _coordinator_dependencies() -> CoordinatorDependencies:
     """Capture current module facades for one coordinator invocation."""
-    return _build_legacy_coordinator_dependencies(globals())
+    return build_default_coordinator_dependencies(globals())
 
 from types import FunctionType
 from collections.abc import Callable

@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "1.0",
+  "capabilityVersion": "2.0.0",
+  "planner": {
+    "executionPlanSchemaVersion": "1.2",
+    "playbookSchemaVersion": "2.0",
+    "plannerVersion": "2.0.0"
+  },
+  "nativeBusinessTools": [
+    "get_enterprise_data_manifest",
+    "get_enterprise_fab_summary",
+    "query_enterprise_data",
+    "get_fab_overview",
+    "get_yield_trend",
+    "get_process_pass_rate",
+    "get_equipment_health",
+    "get_equipment_productivity",
+    "get_process_capability",
+    "get_defect_pareto",
+    "get_recent_excursions",
+    "get_sensor_summary",
+    "search_knowledge",
+    "get_product_yield_breakdown",
+    "get_equipment_event_timeline",
+    "get_equipment_excursion_history",
+    "get_lot_identity",
+    "get_lot_process_history",
+    "get_lot_excursion_history",
+    "get_lot_defect_history",
+    "get_lot_wafer_map_patterns"
+  ],
+  "protocolTools": [
+    "submit_analysis"
+  ],
+  "retiredTools": [
+    "query_manufacturing_data"
+  ],
+  "namedQueryMappings": {
+    "YLD-02": [
+      "get_product_yield_breakdown"
+    ],
+    "EQP-03": [
+      "get_equipment_event_timeline"
+    ],
+    "EQP-04": [
+      "get_equipment_excursion_history"
+    ],
+    "LOT-01": [
+      "get_lot_identity"
+    ],
+    "LOT-02": [
+      "get_lot_process_history"
+    ],
+    "LOT-03": [
+      "get_lot_excursion_history",
+      "get_lot_defect_history",
+      "get_lot_wafer_map_patterns"
+    ]
+  },
+  "namedToolMappings": {
+    "get_product_yield_breakdown": "YLD-02",
+    "get_equipment_event_timeline": "EQP-03",
+    "get_equipment_excursion_history": "EQP-04",
+    "get_lot_identity": "LOT-01",
+    "get_lot_process_history": "LOT-02",
+    "get_lot_excursion_history": "LOT-03",
+    "get_lot_defect_history": "LOT-03",
+    "get_lot_wafer_map_patterns": "LOT-03"
+  },
+  "intentionalDifferences": [
+    "The default model catalog exposes 21 typed native business capabilities plus submit_analysis.",
+    "query_manufacturing_data and its SQL parameter are retired from the default model-visible catalog.",
+    "TOOL_HANDLERS remains a stable 13-handler legacy compatibility bridge, not the default executable set.",
+    "Each default run assembles isolated native bindings and permits explicit live patches only for the 13 historical safe handlers.",
+    "Historical MOD-002 and refactor tool checks replay the legacy-v1 catalog separately and do not accept the default v2 catalog.",
+    "General-knowledge plans authorize only search_knowledge; business runs retain the 21 declared native capabilities."
+  ]
+}

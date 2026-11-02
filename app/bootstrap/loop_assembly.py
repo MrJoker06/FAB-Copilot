@@ -38,24 +38,31 @@ def bind_loop_dispatcher(
     ):
         raise AssemblyError()
     try:
-        schema = []
-        for item in dispatcher.registry.model_tools:
-            if not isinstance(item, dict) or not isinstance(item.get("function"), dict):
-                continue
-            name = item["function"].get("name")
-            if not isinstance(name, str) or name not in dispatcher.allowed_tools:
-                continue
-            binding = dispatcher.registry.resolve(name)
-            if (
-                isinstance(binding, LegacyBindingAdapter)
-                and name not in dispatcher.legacy_tools
-            ):
-                continue
-            if name != "submit_analysis":
-                schema.append(item)
+        snapshot = getattr(dispatcher.registry, "try_model_tools_json", None)
+        tools_json = (
+            snapshot(dispatcher.allowed_tools, dispatcher.legacy_tools)
+            if callable(snapshot)
+            else None
+        )
+        if tools_json is None:
+            schema = []
+            for item in dispatcher.registry.model_tools:
+                if not isinstance(item, dict) or not isinstance(item.get("function"), dict):
+                    continue
+                name = item["function"].get("name")
+                if not isinstance(name, str) or name not in dispatcher.allowed_tools:
+                    continue
+                binding = dispatcher.registry.resolve(name)
+                if (
+                    isinstance(binding, LegacyBindingAdapter)
+                    and name not in dispatcher.legacy_tools
+                ):
+                    continue
+                if name != "submit_analysis":
+                    schema.append(item)
+            tools_json = json.dumps(schema, ensure_ascii=False, separators=(",", ":"))
         if "submit_analysis" in dispatcher.allowed_tools:
             raise ValueError
-        tools_json = json.dumps(schema, ensure_ascii=False, separators=(",", ":"))
         ModelRequest("loop-binding-validation", (), tools_json)
     except (AttributeError, TypeError, ValueError, json.JSONDecodeError):
         raise AssemblyError() from None

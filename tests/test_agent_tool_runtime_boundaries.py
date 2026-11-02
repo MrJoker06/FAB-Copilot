@@ -7,14 +7,14 @@ from unittest.mock import patch
 
 from app.agent_runtime import service as agent
 from app.agent_runtime import tools as agent_tools
+from app.agent_runtime.execution.loop_guard import ToolLoopGuard
 from app.agent_runtime.tools import catalog, registry
 from app.agent_runtime.tools.executor import (
     execute_registered_tool,
     parse_tool_arguments,
 )
-from app.manufacturing.playbooks import select_playbook
 from app.intent_runtime.routing import route_question
-from app.agent_runtime.execution.loop_guard import ToolLoopGuard
+from app.manufacturing.playbooks import select_playbook
 from app.planning_runtime.service import create_execution_plan
 
 
@@ -28,10 +28,14 @@ class AgentToolRuntimeBoundaryTests(unittest.TestCase):
         self.assertIs(agent_tools._schema, catalog._schema)
         self.assertIs(agent_tools.DATE_PROPERTIES, catalog.DATE_PROPERTIES)
 
-    def test_catalog_handlers_match_all_non_synthesis_tool_names(self):
+    def test_catalog_exposes_v2_tools_while_handlers_remain_legacy_bridge(self):
         names = [tool["function"]["name"] for tool in catalog.TOOLS]
         self.assertEqual(names[-1], "submit_analysis")
-        self.assertEqual(set(registry.TOOL_HANDLERS), set(names[:-1]))
+        self.assertEqual(len(names), 22)
+        self.assertEqual(len(registry.TOOL_HANDLERS), 13)
+        self.assertTrue(set(registry.TOOL_HANDLERS) < set(names))
+        self.assertNotIn("query_manufacturing_data", names)
+        self.assertNotIn("query_manufacturing_data", registry.TOOL_HANDLERS)
 
     def test_parser_retains_legacy_default_and_error_semantics(self):
         valid = parse_tool_arguments('{"limit": 3}')

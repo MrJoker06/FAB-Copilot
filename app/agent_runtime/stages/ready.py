@@ -26,9 +26,16 @@ async def execute_ready_synthesis(
         "message": f"正在按依赖顺序执行 {len(state.execution_plan.steps)} 个已批准步骤",
         "execution_mode": "deterministic",
     })
-    state.trace, state.evidence_observations, state.sources = await deps.execute_ready_plan(
-        state.execution_plan, state.loop_guard, state.run_id, state.progress,
-    )
+    ready_binding = getattr(getattr(state, "tool_run", None), "ready", None)
+    if ready_binding is None:
+        state.trace, state.evidence_observations, state.sources = await deps.execute_ready_plan(
+            state.execution_plan, state.loop_guard, state.run_id, state.progress,
+        )
+    else:
+        state.trace, state.evidence_observations, state.sources = await deps.execute_ready_plan(
+            state.execution_plan, state.loop_guard, state.run_id, state.progress,
+            dispatch_binding=ready_binding,
+        )
     state.evidence_validation = deps.validate_evidence(
         state.execution_plan, state.selected_playbook, state.evidence_observations,
     )

@@ -150,8 +150,11 @@
       "app.api.application",
       "app.api.runtime_dependencies",
       "app.agent_runtime.compatibility",
+      "app.bootstrap.default_coordinator_assembly",
+      "app.bootstrap.default_tool_assembly",
       "app.bootstrap.tool_catalog",
       "app.bootstrap.tool_bindings",
+      "app.bootstrap.tool_definitions",
       "app.bootstrap.agent_assembly",
       "app.bootstrap.legacy_agent_assembly",
       "app.bootstrap.agent_demo",
@@ -159,7 +162,12 @@
       "app.bootstrap.ready_demo",
       "app.bootstrap.loop_assembly",
       "app.bootstrap.loop_demo",
-      "app.bootstrap.diagnostics_demo"
+      "app.bootstrap.diagnostics_demo",
+      "app.bootstrap.enterprise_tools_demo",
+      "app.bootstrap.operational_reports_demo",
+      "app.bootstrap.production_reports_demo",
+      "app.bootstrap.knowledge_search_demo",
+      "app.bootstrap.named_queries_demo"
     ],
     "internal_facades": [],
     "pure_modules": [
@@ -200,6 +208,18 @@
       "app.manufacturing.process_diagnostics.contracts",
       "app.manufacturing.process_diagnostics.handler",
       "app.manufacturing.process_diagnostics.binding",
+      "app.manufacturing.enterprise_tools",
+      "app.manufacturing.operational_reports",
+      "app.manufacturing.production_reports",
+      "app.manufacturing.enterprise_tools.contracts",
+      "app.manufacturing.operational_reports.contracts",
+      "app.manufacturing.production_reports.contracts",
+      "app.manufacturing.enterprise_tools.handler",
+      "app.manufacturing.operational_reports.handler",
+      "app.manufacturing.production_reports.handler",
+      "app.manufacturing.enterprise_tools.binding",
+      "app.manufacturing.operational_reports.binding",
+      "app.manufacturing.production_reports.binding",
       "app.conversation.turn_decision",
       "app.memory_system",
       "app.memory_system.context",
@@ -209,13 +229,28 @@
       "app.memory_system.context.protocol",
       "app.memory_system.context.history",
       "app.memory_system.context.resolver",
-      "app.memory_system.context.builder"
+      "app.memory_system.context.builder",
+      "app.knowledge.search_policy",
+      "app.knowledge.search_tool",
+      "app.knowledge.search_tool.contracts",
+      "app.knowledge.search_tool.handler",
+      "app.knowledge.search_tool.binding",
+      "app.manufacturing.named_queries",
+      "app.manufacturing.named_queries.contracts",
+      "app.manufacturing.named_queries.handler",
+      "app.manufacturing.named_queries.binding",
+      "app.manufacturing.named_playbooks",
+      "app.planning_runtime.named_planner"
     ],
     "pure_forbidden_targets": [
       "app.persistence.database",
       "app.main",
       "app.agent_runtime.coordinator",
-      "app.agent_runtime.service"
+      "app.agent_runtime.service",
+      "app.knowledge.rag",
+      "app.knowledge.search_registry",
+      "app.knowledge.sqlite_backend",
+      "app.personal_knowledge_runtime.service"
     ],
     "pure_forbidden_prefixes": [
       "sqlite3",
@@ -276,6 +311,12 @@
       "target": "app.bootstrap.legacy_agent_assembly",
       "reason": "legacy coordinator dependency assembly is delegated with the per-call service namespace so live patch semantics remain intact",
       "exit_condition": "MOD-015 migrates remaining compatibility preparation, offline synthesis and concrete alias consumers"
+    },
+    {
+      "source": "app.agent_runtime.compatibility",
+      "target": "app.bootstrap.default_coordinator_assembly",
+      "reason": "default coordinator assembly selects v2 named planning and per-run native tools while the compatibility facade retains its public live-patch surface",
+      "exit_condition": "MOD-015 removes the compatibility facade after recorded consumers have migrated"
     },
     {
       "source": "app.agent_runtime.compatibility",
@@ -432,6 +473,36 @@
       "target": "app.core.identity",
       "reason": "canonical session lifecycle reads the public identity principal context",
       "exit_condition": "replace only if sessions receive an equivalent identity context contract"
+    },
+    {
+      "source": "app.knowledge.search_tool.binding",
+      "target": "app.agent_runtime.tools.contracts",
+      "reason": "Native knowledge tool consumes the portable ToolSystem contract or definition only; this does not permit concrete Runtime, global registries or backend assembly.",
+      "exit_condition": "Retain this exact contract edge while shared ToolSystem contracts use the current canonical package; relocate together if contract ownership changes."
+    },
+    {
+      "source": "app.knowledge.search_tool.binding",
+      "target": "app.agent_runtime.tools.definition",
+      "reason": "Native knowledge tool consumes the portable ToolSystem contract or definition only; this does not permit concrete Runtime, global registries or backend assembly.",
+      "exit_condition": "Retain this exact contract edge while shared ToolSystem contracts use the current canonical package; relocate together if contract ownership changes."
+    },
+    {
+      "source": "app.knowledge.search_tool.contracts",
+      "target": "app.agent_runtime.tools.contracts",
+      "reason": "Native knowledge tool consumes the portable ToolSystem contract or definition only; this does not permit concrete Runtime, global registries or backend assembly.",
+      "exit_condition": "Retain this exact contract edge while shared ToolSystem contracts use the current canonical package; relocate together if contract ownership changes."
+    },
+    {
+      "source": "app.knowledge.search_tool.contracts",
+      "target": "app.agent_runtime.tools.dispatch_contracts",
+      "reason": "Native knowledge tool consumes the portable ToolSystem contract or definition only; this does not permit concrete Runtime, global registries or backend assembly.",
+      "exit_condition": "Retain this exact contract edge while shared ToolSystem contracts use the current canonical package; relocate together if contract ownership changes."
+    },
+    {
+      "source": "app.knowledge.search_tool.handler",
+      "target": "app.agent_runtime.tools.contracts",
+      "reason": "Native knowledge tool consumes the portable ToolSystem contract or definition only; this does not permit concrete Runtime, global registries or backend assembly.",
+      "exit_condition": "Retain this exact contract edge while shared ToolSystem contracts use the current canonical package; relocate together if contract ownership changes."
     }
   ],
   "root_modules": {

@@ -29,6 +29,16 @@ _SCOPE_PARAMETERS = (
     "source_types",
     "sql",
 )
+_NAMED_QUERY_TOOLS = frozenset({
+    "get_product_yield_breakdown",
+    "get_equipment_event_timeline",
+    "get_equipment_excursion_history",
+    "get_lot_identity",
+    "get_lot_process_history",
+    "get_lot_excursion_history",
+    "get_lot_defect_history",
+    "get_lot_wafer_map_patterns",
+})
 _SAMPLE_FIELDS = ("samples", "lots", "wafers", "runs", "tested_dies", "recorded_minutes")
 _SPEC_FIELDS = ("spec_lsl", "spec_usl")
 
@@ -136,6 +146,13 @@ def _source_semantics(plan: ExecutionPlan) -> dict[str, dict[str, Any]]:
 def _step_matches(step: PlanStep, observation: EvidenceObservation) -> bool:
     if step.tool != observation.tool:
         return False
+    if step.tool in _NAMED_QUERY_TOOLS:
+        keys = ("start", "end", "product", "process_step", "equipment_id", "lot_id")
+        return all(
+            step.parameters.get(key) == observation.arguments.get(key)
+            for key in keys
+            if key in step.parameters or key in observation.arguments
+        )
     for key in _SCOPE_PARAMETERS:
         if key not in step.parameters:
             continue

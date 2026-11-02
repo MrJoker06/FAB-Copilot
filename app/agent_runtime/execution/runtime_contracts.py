@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Generic, Literal, TypeVar
 
 from ..tools.contracts import (
@@ -52,6 +53,21 @@ def _finite_json_tree(value: object) -> bool:
 def _validate_tools_json(value: object) -> None:
     if not isinstance(value, str):
         raise ValueError("tools_json must be a string")  # noqa: TRY004
+    if type(value) is str:
+        _validate_tools_json_text(value)
+    else:
+        # Preserve the existing contract for str subclasses, including those
+        # which intentionally do not define a hash.
+        _validate_tools_json_text.__wrapped__(value)
+
+
+@lru_cache(maxsize=16)
+def _validate_tools_json_text(value: str) -> None:
+    """Memoize only successful validation of immutable schema text.
+
+    This cache contains no execution data or authorization decisions.  Different
+    text is validated independently and validation failures are never retained.
+    """
     try:
         if len(value.encode("utf-8")) > _MAX_TOOLS_JSON_BYTES:
             raise ValueError
