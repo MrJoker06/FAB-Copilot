@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "skill_id": "catalog-validation",
+  "version": "1.0.0",
+  "title": "Catalog validation fixture",
+  "description": "A neutral package for deterministic catalog and loader checks.",
+  "status": "published",
+  "process_steps": ["LITHO"],
+  "required_inputs": ["lot_id"],
+  "tools": [{"name": "get_equipment_health", "version": "==1.0.0"}],
+  "execution_modes": ["ready", "loop"],
+  "workflow": {"component_id": "fixture-workflow", "version": "1.0.0"},
+  "evidence_policy": {"component_id": "fixture-evidence-policy", "version": "1.0.0"},
+  "resources": [
+    {"path": "SKILL.md", "kind": "instructions"},
+    {"path": "references/catalog.md", "kind": "reference"},
+    {"path": "scenarios/catalog.json", "kind": "scenario"}
+  ]
+}

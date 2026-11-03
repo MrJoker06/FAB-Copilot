@@ -1341,6 +1341,21 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/skills/catalog.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/discovery.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/loader.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/static/thinking_control.js",
       "primary_module": "static_ui",
       "artifact_group": "application_bundle"

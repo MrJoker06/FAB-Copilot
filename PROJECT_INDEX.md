@@ -11,4 +11,4 @@
 
 - 启动方式：原生 Windows 使用 `run.bat` + `.venv-win`，Linux/WSL 使用 `bash run.sh` + `.venv-linux` 或既有 Conda；共享 Python 入口 `run.py`，`--check` 为无启动副作用诊断，默认固定源码 snapshot，开发可显式使用 worktree。
 
-- Skill 状态：MOD-016 已验证，`app/skills/` 独立处理 Manifest、依赖版本与安全文本资源读取；尚未接默认执行链。下一项 MOD-017（Catalog/发现/渐进 Loader），见 [验收报告](docs/reports/mod-016-skill-manifest.md)。
+- Skill 状态：MOD-016～017 已验证，`app/skills/` 独立处理 Manifest、依赖、安全资源、显式 Catalog、确定性发现和渐进加载；尚未接默认执行链。下一项 MOD-018（实际装配与光刻 Cpk），见 [Catalog/Loader 报告](docs/reports/mod-017-skill-catalog.md)。

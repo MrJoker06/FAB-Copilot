@@ -1,0 +1,7 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "skill_dependency_inventory",
+  "tools": {"get_equipment_health": "1.0.0"},
+  "workflows": {"fixture-workflow": "1.0.0"},
+  "evidence_policies": {"fixture-evidence-policy": "1.0.0"}
+}
