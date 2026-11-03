@@ -37,13 +37,28 @@ param(
     # Disable MTP speculative decoding (requires qwen35.nextn_predict_layers > 0).
     [switch]$NoMtp,
 
+    # Keep the Qwen thinking pass.  Disabled by default: with 27B on an A10 the
+    # reasoning trace costs ~6-7k extra output tokens per answer (~3x latency).
+    [switch]$Thinking,
+
+    # Workspace that contains models/ and runtimes/. Defaults to this repo, or its parent
+    # when the repo is a nested checkout inside the deployment workspace.
+    [string]$DeploymentRoot,
+
     [int]$ReadyTimeoutSeconds = 180
 )
 
 $ErrorActionPreference = 'Stop'
 
 $repo = Split-Path -Parent $PSScriptRoot
-$server = Join-Path $repo 'runtimes\llama-cpp\llama-server.exe'
+$deployRoot = if ($DeploymentRoot) {
+    (Resolve-Path -LiteralPath $DeploymentRoot).Path
+} elseif (Test-Path -LiteralPath (Join-Path $repo 'models')) {
+    $repo
+} else {
+    Split-Path -Parent $repo
+}
+$server = Join-Path $deployRoot 'runtimes\llama-cpp\llama-server.exe'
 if (-not (Test-Path -LiteralPath $server)) {
     throw "llama-server not found: $server"
 }
@@ -67,8 +82,8 @@ $profiles = @{
 }
 
 $selected = $models[$Model]
-$modelPath = Join-Path $repo ('models\' + $selected.File)
-$mmprojPath = Join-Path $repo ('models\' + $selected.Mmproj)
+$modelPath = Join-Path $deployRoot ('models\' + $selected.File)
+$mmprojPath = Join-Path $deployRoot ('models\' + $selected.Mmproj)
 if (-not (Test-Path -LiteralPath $modelPath)) {
     throw "model file not found: $modelPath"
 }
@@ -98,6 +113,7 @@ $arguments = @(
 )
 if ($Vision) { $arguments += @('--mmproj', $mmprojPath) }
 if (-not $NoMtp) { $arguments += @('--spec-type', 'draft-mtp', '--spec-draft-n-max', '2') }
+if (-not $Thinking) { $arguments += @('--reasoning', 'off') }
 
 $logDir = Join-Path $repo 'runtime\local-model'
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -140,3 +156,5 @@ Write-Host "  FAB_MODEL_PROVIDER=openai-compatible"
 Write-Host "  FAB_MODEL_BASE_URL=http://${BindHost}:$Port/v1"
 Write-Host "  FAB_MODEL_NAME=$served"
 Write-Host "  FAB_MODEL_API_KEY=local   # any non-empty value"
+
+
