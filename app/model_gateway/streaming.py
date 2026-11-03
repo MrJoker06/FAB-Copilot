@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
+
+from .message_compat import chat_template_compat_enabled, flatten_system_messages
 
 ProgressCallback = Callable[[dict], Any]
 NotifyCallback = Callable[[ProgressCallback | None, dict], Awaitable[None]]
@@ -33,6 +36,10 @@ async def stream_completion(
         "stream": True,
         "stream_options": {"include_usage": True},
     }
+    if chat_template_compat_enabled(os.getenv("FAB_CHAT_TEMPLATE_COMPAT")):
+        messages = payload.get("messages")
+        if isinstance(messages, list):
+            payload["messages"] = flatten_system_messages(messages)
     content_parts: list[str] = []
     reasoning_parts: list[str] = []
     pending_answer_parts: list[str] = []

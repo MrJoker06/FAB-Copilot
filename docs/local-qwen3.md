@@ -37,6 +37,9 @@ KV/token ≈ 2 × 17 × 4 × 256 × (q8 ≈ 1 B) ≈ 34 KB
 
 脚本会等待 `/v1/models` 就绪后打印模型 id，并给出需要写进 `.env` 的四行配置。
 
+默认关闭 Qwen 的 thinking（`--reasoning off`）：在本机实测，开启时单次回答会多出约
+6–7k 输出 token、耗时从约 60 秒涨到约 200 秒。需要推理过程时加 `-Thinking`。
+
 等价的手工命令（与 `records.txt` 中的配置一致）：
 
 ```powershell
@@ -46,7 +49,8 @@ KV/token ≈ 2 × 17 × 4 × 256 × (q8 ≈ 1 B) ≈ 34 KB
     --host 127.0.0.1 --port 8080 --gpu-layers all `
     --ctx-size 81920 --parallel 2 --batch-size 1024 --ubatch-size 256 `
     --cache-type-k q8_0 --cache-type-v q8_0 --flash-attn on --jinja `
-    --no-context-shift --fit off --spec-type draft-mtp --spec-draft-n-max 2
+    --no-context-shift --fit off --spec-type draft-mtp --spec-draft-n-max 2 `
+    --reasoning off
 ```
 
 `--jinja` 不能省：没有它，Qwen3 的 chat template 不会套用，工具调用直接失效。
@@ -63,6 +67,8 @@ FAB_MODEL_API_KEY=local
 FAB_ADMIN_API_TOKEN=local-admin-token
 API_TIMEOUT_MS=120000
 MODEL_CONTEXT_TIMEOUT_MS=30000
+# Qwen 模板要求 system 消息在最前（llama.cpp --jinja）
+FAB_CHAT_TEMPLATE_COMPAT=merge-system
 ```
 
 注意：**`base_url` 与模型名以数据库 `model_catalog` 为准**，`.env` 只提供 api_key。
@@ -124,6 +130,7 @@ $env:AGENT_RUN_LOG_DIR = "D:\Fab_Insight\FAB-Copilot\runtime\local\logs\agent"
 | 始终返回规则分析 | `FAB_MODEL_API_KEY` 为空 → `agent_configured=false` |
 | 请求打到 `api.deepseek.com` | `model_catalog.base_url` 未更新（见「方式一/二」） |
 | 工具从不被调用 | `llama-server` 缺 `--jinja` |
+| 500 / `System message must be at the beginning` | Qwen 模板约束；设置 `FAB_CHAT_TEMPLATE_COMPAT=merge-system`（Agent 会在历史与证据之后追加 system 指令） |
 | 长会话被硬截断 | `--no-context-shift` 生效中，需要在客户端压缩历史 |
 | 首 token 超时 | 80K 上下文 prefill 较慢，调大 `API_TIMEOUT_MS` |
 | `/api/reports/capability` 返回 500（`no such function: SQRT`） | 本地 SQLite 构建未启用数学函数，见 issue 草稿 `fab-copilot-issue-sqrt.md` |
