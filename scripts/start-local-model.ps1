@@ -24,6 +24,12 @@ param(
     [ValidateSet('32k', '80k')]
     [string]$Profile = '80k',
 
+    # llama.cpp divides --ctx-size across parallel slots.  A single slot keeps the
+    # whole window for one request, which long evidence bundles need; 2 slots halve
+    # the per-request limit.  Defaults follow the profile.
+    [ValidateSet(0, 1, 2)]
+    [int]$Parallel = 0,
+
     [int]$Port = 8080,
 
     [string]$BindHost = '127.0.0.1',
@@ -78,7 +84,7 @@ $models = @{
 
 $profiles = @{
     '32k' = @{ Ctx = 32768; Parallel = 1 }
-    '80k' = @{ Ctx = 81920; Parallel = 2 }
+    '80k' = @{ Ctx = 81920; Parallel = 1 }
 }
 
 $selected = $models[$Model]
@@ -92,7 +98,8 @@ if ($Vision -and -not (Test-Path -LiteralPath $mmprojPath)) {
 }
 
 $modelId = if ($Alias) { $Alias } else { $selected.DefaultAlias }
-$profileSpec = $profiles[$Profile]
+$profileSpec = @{} + $profiles[$Profile]
+if ($Parallel -gt 0) { $profileSpec.Parallel = $Parallel }
 
 $arguments = @(
     '--model', $modelPath,
@@ -123,7 +130,7 @@ $stderr = Join-Path $logDir "server-$Model-$Profile-$Port-$stamp.err.log"
 
 Write-Host "llama-server: $server"
 Write-Host "model       : $modelPath"
-Write-Host "context     : $($profileSpec.Ctx) (parallel $($profileSpec.Parallel))"
+Write-Host "context     : $($profileSpec.Ctx) per slot (parallel $($profileSpec.Parallel))"
 Write-Host "endpoint    : http://${BindHost}:$Port/v1"
 Write-Host "logs        : $stderr"
 
@@ -156,5 +163,6 @@ Write-Host "  FAB_MODEL_PROVIDER=openai-compatible"
 Write-Host "  FAB_MODEL_BASE_URL=http://${BindHost}:$Port/v1"
 Write-Host "  FAB_MODEL_NAME=$served"
 Write-Host "  FAB_MODEL_API_KEY=local   # any non-empty value"
+
 
 

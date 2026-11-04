@@ -25,7 +25,7 @@ KV/token ≈ 2 × 17 × 4 × 256 × (q8 ≈ 1 B) ≈ 34 KB
 ## 启动
 
 ```powershell
-# 默认：Q4_K_M + 80K 上下文 + 2 并发槽
+# 默认：Q4_K_M + 80K 单槽（一个请求可用满 80K）
 .\scripts\start-local-model.ps1
 
 # 备选：Ridge 3.7bpw + 32K 单槽，显存更宽松
@@ -33,6 +33,9 @@ KV/token ≈ 2 × 17 × 4 × 256 × (q8 ≈ 1 B) ≈ 34 KB
 
 # 需要图片输入时加载 mmproj
 .\scripts\start-local-model.ps1 -Vision
+
+# 显式指定槽位（-Parallel 2 会把 81920 平分给两个请求）
+.\scripts\start-local-model.ps1 -Parallel 2
 ```
 
 脚本会等待 `/v1/models` 就绪后打印模型 id，并给出需要写进 `.env` 的四行配置。
@@ -148,15 +151,20 @@ MODEL_COMPATIBILITY_CONTEXT_CHARS=32768
 | 请求打到 `api.deepseek.com` | `model_catalog.base_url` 未更新（见「方式一/二」） |
 | 工具从不被调用 | `llama-server` 缺 `--jinja` |
 | 500 / `System message must be at the beginning` | Qwen 模板约束；设置 `FAB_CHAT_TEMPLATE_COMPAT=merge-system`（Agent 会在历史与证据之后追加 system 指令） |
+| 500 / `request (N tokens) exceeds the available context size (M tokens)` | `--ctx-size` 会被 `--parallel` 平分：81920 + 2 槽 = 每请求 40960。多工具证据包容易超过 40K，改用单槽（`-Parallel 1`，现为默认）或减少工具返回行数 |
 | 长会话被硬截断 | `--no-context-shift` 生效中，需要在客户端压缩历史 |
 | 首 token 超时 | 80K 上下文 prefill 较慢，调大 `API_TIMEOUT_MS` |
 | `/api/reports/capability` 返回 500（`no such function: SQRT`） | 本地 SQLite 构建未启用数学函数，见 issue 草稿 `fab-copilot-issue-sqrt.md` |
 
 ## 显存档位参考
 
-| Profile | ctx | parallel | KV（q8） | 权重 | 估算总计 |
-| --- | --- | --- | --- | --- | --- |
-| `80k` | 81920 | 2 | ~2.8 GB | 15.7 GB | ~20–21 GB |
-| `32k` | 32768 | 1 | ~1.1 GB | 15.7 GB | ~18–19 GB |
+| Profile | ctx | parallel | 每请求可用 | KV（q8） | 权重 | 估算总计 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `80k` | 81920 | 1 | 81920 | ~2.8 GB | 15.7 GB | ~20–21 GB |
+| `80k`（并发 2） | 81920 | 2 | 40960 | ~2.8 GB | 15.7 GB | ~20–21 GB |
+| `32k` | 32768 | 1 | 32768 | ~1.1 GB | 15.7 GB | ~18–19 GB |
+
+> `--ctx-size` 是**所有槽位共享的总量**，不是每个请求的额度。单用户场景用 1 个槽位即可，
+> 并发 2 会让每个请求只有一半窗口；多工具证据包（7 个工具、每个上百行）实测可达 4 万 token。
 
 如果出现 OOM，先降 `-Profile 32k`，再考虑换 Ridge 3.7bpw。
