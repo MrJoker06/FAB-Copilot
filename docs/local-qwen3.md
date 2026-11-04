@@ -122,6 +122,23 @@ $env:AGENT_RUN_LOG_DIR = "D:\Fab_Insight\FAB-Copilot\runtime\local\logs\agent"
 | 发一句「今天良率多少」 | 流式输出，执行路径中出现 `get_yield_trend` 等工具 |
 | `logs/agent_events.jsonl` | 有 `model_call_started` / `tool_call_started`，无 `error_type` |
 
+## 兼容性探针
+
+管理端「模型管理 → 兼容性检查」会对每个模型跑 5 项有界探针：连通性与流式、工具调用契约、
+上下文负载、结构化上下文、限额。默认超时 12 秒；本机 27B 实测合计约 **17.6 秒**，因此需要放宽：
+
+```ini
+MODEL_COMPATIBILITY_TIMEOUT_SECONDS=60     # 上限 60
+MODEL_COMPATIBILITY_CONTEXT_CHARS=32768
+```
+
+探针要求模型空闲：如果两个 llama-server 槽位正被长问答占用，子探针会排队到超时。
+探针结果只做记录，不影响发布与使用；`compatibility.status` 为 `passed` 表示当前配置可用。
+
+> 内置的 `deepseekv4-flash` / `deepseekv4-pro` 共用全局 `FAB_MODEL_API_KEY`，本地部署下该值为
+> `local`，因此探针会得到 **401**。不需要云端模型时在管理端把它们「停用」即可；需要时把
+> `FAB_MODEL_API_KEY` 换成真实 DeepSeek Key（llama-server 不校验该头，两边可共用）。
+
 ## 已知问题
 
 | 现象 | 原因与处理 |
