@@ -19,6 +19,7 @@ from .litho_cpk_workflow import LithoCpkWorkflow, LithoCpkWorkflowError
 if TYPE_CHECKING:
     from ..manufacturing.playbooks import PlaybookSelection
     from ..planning_runtime.contracts import ExecutionPlan
+    from ..skills.releases import SkillReleaseStore
 
 
 class SkillAssemblyError(ValueError):
@@ -51,16 +52,24 @@ class SkillExecutionRequest:
 class SkillAssemblyConfiguration:
     package_roots: tuple[Path | str, ...]
     workflows: tuple[LithoCpkWorkflow, ...]
+    release_store: SkillReleaseStore | None = None
 
     def __post_init__(self) -> None:
         if (
             not isinstance(self.package_roots, tuple)
-            or not self.package_roots
             or not isinstance(self.workflows, tuple)
+            or (bool(self.package_roots) == (self.release_store is not None))
             or not self.workflows
             or any(not isinstance(item, LithoCpkWorkflow) for item in self.workflows)
         ):
             raise SkillAssemblyError("invalid skill configuration")
+        if self.release_store is not None:
+            # This stays local so historic source slices with file-backed
+            # configuration do not need the publication module.
+            from ..skills.releases import SkillReleaseStore
+
+            if not isinstance(self.release_store, SkillReleaseStore):
+                raise SkillAssemblyError("invalid skill configuration")
         identities = [(item.workflow_id, item.version) for item in self.workflows]
         if len(identities) != len(set(identities)):
             raise SkillAssemblyError("duplicate controlled workflow")
@@ -75,9 +84,19 @@ class SkillBinding:
     plan: ExecutionPlan
     selection: PlaybookSelection
     metadata: tuple[tuple[str, str], ...]
+    release_store: SkillReleaseStore | None = None
 
     def revalidate(self) -> None:
         try:
+            if self.release_store is not None:
+                current_release = self.release_store.require_enabled(
+                    self.snapshot.reference
+                )
+                if (
+                    current_release.reference != self.snapshot.reference
+                    or current_release.manifest != self.snapshot.manifest
+                ):
+                    raise SkillAssemblyError("skill declaration is unavailable")
             current = self.catalog.current_entry(self.snapshot.reference)
         except SkillPackageError as error:
             raise SkillAssemblyError("skill declaration is unavailable") from error
@@ -127,7 +146,12 @@ def resolve_skill_binding(
         requested = definition.skill_refs[0]
         reference = SkillReference(requested.component_id, requested.version)
         inventory = _inventory(bindings, configuration.workflows)
-        catalog = SkillCatalog.build(configuration.package_roots, inventory)
+        if configuration.release_store is None:
+            catalog = SkillCatalog.build(configuration.package_roots, inventory)
+            loader = SkillLoader(catalog)
+        else:
+            loader = configuration.release_store.loader(reference, inventory)
+            catalog = loader.catalog
         entry = catalog.find(reference)
         if not entry.available:
             raise SkillAssemblyError("skill is unavailable")
@@ -156,7 +180,6 @@ def resolve_skill_binding(
         result = discover(catalog, query)
         if reference not in tuple(item.reference for item in result.candidates):
             raise SkillAssemblyError("skill does not match confirmed request")
-        loader = SkillLoader(catalog)
         snapshot = loader.load(reference)
         if request.resource_paths:
             snapshot = loader.expand(snapshot, request.resource_paths)
@@ -193,7 +216,14 @@ def resolve_skill_binding(
             ("loaded_resources", ",".join(resource_metadata)),
         )
         return SkillBinding(
-            catalog, loader, snapshot, workflow, plan, selection, metadata
+            catalog,
+            loader,
+            snapshot,
+            workflow,
+            plan,
+            selection,
+            metadata,
+            configuration.release_store,
         )
     except (
         SkillPackageError,

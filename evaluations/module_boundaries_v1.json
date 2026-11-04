@@ -187,6 +187,7 @@
       "app.skills.catalog",
       "app.skills.discovery",
       "app.skills.loader",
+      "app.skills.releases",
       "app.agent_runtime.tools.contracts",
       "app.agent_runtime.tools.definition",
       "app.agent_runtime.tools.tool_registry",

@@ -11,4 +11,4 @@
 
 - 启动方式：原生 Windows 使用 `run.bat` + `.venv-win`，Linux/WSL 使用 `bash run.sh` + `.venv-linux` 或既有 Conda；共享 Python 入口 `run.py`，`--check` 为无启动副作用诊断，默认固定源码 snapshot，开发可显式使用 worktree。
 
-- Skill 状态：MOD-016～018 已验证。`app/skills/` 处理声明、依赖、Catalog 和渐进加载；`app/bootstrap/skill_assembly.py` 显式接入单个精确 skill_refs，光刻包复用原 Playbook/Planner 与 Ready/Fake Loop/Dispatcher。默认 HTTP 未启用，下一项 MOD-019（发布/禁用/回退与完整 Run 内容固定），见 [光刻试点报告](docs/reports/mod-018-litho-cpk-skill.md)。
+- Skill 状态：MOD-016～019 已验证。`app/skills/` 处理声明、依赖、Catalog、渐进加载与进程内不可变发布；`app/bootstrap/skill_assembly.py` 显式装配精确 skill_refs，光刻包复用原 Playbook/Planner 与 Ready/Fake Loop/Dispatcher。完整资源固定、显式激活/禁用/回退已验收，默认 HTTP 未启用。下一项 MOD-009，见 [发布验收报告](docs/reports/mod-019-skill-releases.md)。
