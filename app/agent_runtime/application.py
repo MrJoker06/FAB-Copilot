@@ -32,6 +32,8 @@ class AgentRun:
     dispatcher: ToolDispatcherPort
     events: EventSink
     tools_json: str
+    skill_context: tuple[ModelMessage, ...] = ()
+    skill_metadata: tuple[tuple[str, str], ...] = ()
 
     async def model_stage(
         self, *, call_id: str, messages: tuple[ModelMessage, ...]
@@ -42,7 +44,11 @@ class AgentRun:
             raise RuntimeContractError("messages must be a tuple of ModelMessage")
         request = ModelRequest(
             call_id=call_id,
-            messages=(ModelMessage("system", self.definition.instructions), *messages),
+            messages=(
+                ModelMessage("system", self.definition.instructions),
+                *self.skill_context,
+                *messages,
+            ),
             tools_json=self.tools_json,
         )
         return await execute_model_stage(self.context, request, model=self.model)
