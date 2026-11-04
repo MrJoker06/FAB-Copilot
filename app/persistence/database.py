@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import math
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -10,6 +9,7 @@ from pathlib import Path
 from typing import Iterable, Iterator
 
 from ..core.settings import get_settings
+from ..core.sqlite_support import install_sqlite_functions
 from .department_schemas import (
     DEPARTMENT_SCHEMAS,
     MIGRATION_ORDER,
@@ -617,14 +617,7 @@ def _connect_single(db_path: Path) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys=ON")
     connection.execute("PRAGMA busy_timeout=20000")
-    # SQLite's built-in math functions require SQLITE_ENABLE_MATH_FUNCTIONS, which
-    # some Windows builds (Anaconda) omit; capability SQL relies on SQRT.
-    connection.create_function(
-        "SQRT",
-        1,
-        lambda value: None if value is None or value < 0 else math.sqrt(value),
-        deterministic=True,
-    )
+    install_sqlite_functions(connection)
     return connection
 
 
@@ -1023,3 +1016,4 @@ def replace_defect_type_aliases(
         connection.commit()
     finally:
         connection.close()
+
