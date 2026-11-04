@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -616,6 +617,14 @@ def _connect_single(db_path: Path) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys=ON")
     connection.execute("PRAGMA busy_timeout=20000")
+    # SQLite's built-in math functions require SQLITE_ENABLE_MATH_FUNCTIONS, which
+    # some Windows builds (Anaconda) omit; capability SQL relies on SQRT.
+    connection.create_function(
+        "SQRT",
+        1,
+        lambda value: None if value is None or value < 0 else math.sqrt(value),
+        deterministic=True,
+    )
     return connection
 
 
