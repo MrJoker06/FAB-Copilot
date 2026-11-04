@@ -173,6 +173,12 @@ def _matching_step(connection, run_id: str, tool: str, arguments: dict, statuses
     for row in rows:
         if _matches(row["tool_name"], _load(row["parameters_json"], {}), tool, arguments):
             return row
+    if not arguments:
+        # Deterministic plan execution may report a tool without echoing the
+        # planned parameters; fall back to the earliest step for that tool.
+        for row in rows:
+            if row["tool_name"] == tool:
+                return row
     return None
 
 
@@ -238,6 +244,19 @@ def finish_tool_event(run_id: str, tool: str, arguments: dict, event: dict) -> s
                     tool_event["tool_event_id"],
                 ),
             )
+        if step_id is None and tool_event is not None:
+            # The plan may have been persisted after the tool started, so match
+            # again on completion; otherwise the step stays pending and is later
+            # finalized as "skipped" even though the tool actually ran.
+            late_step = _matching_step(
+                connection, run_id, tool or "unknown", arguments, ("pending", "running")
+            )
+            if late_step is not None:
+                step_id = str(late_step["step_id"])
+                connection.execute(
+                    "UPDATE agent.agent_tool_events SET plan_step_id = ? WHERE tool_event_id = ?",
+                    (step_id, tool_event["tool_event_id"]),
+                )
         if step_id:
             step_status = "succeeded" if status in {"ok", "success"} else "blocked" if status == "blocked" else "failed"
             connection.execute(
@@ -256,6 +275,70 @@ def finish_tool_event(run_id: str, tool: str, arguments: dict, event: dict) -> s
             )
         connection.commit()
     return step_id
+
+
+def reconcile_plan_steps(run_id: str, trace: list[dict], *, connection=None) -> int:
+    """Apply a completed tool trace to plan steps that never matched live events.
+
+    The chat service rewrites ``agent_tool_events`` from the final trace.  Steps
+    left ``pending`` at that point mean the live recorder did not see the call
+    (plan persisted after the tool started), not that the tool was skipped, so
+    replay the trace onto the plan before the run is finalized.
+
+    Pass ``connection`` when the caller already holds the write transaction;
+    SQLite allows a single writer, so opening a second session would block.
+    """
+    if not run_id or not trace:
+        return 0
+    if connection is not None:
+        return _apply_trace(connection, run_id, trace)
+    with db_session() as owned:
+        updated = _apply_trace(owned, run_id, trace)
+        owned.commit()
+    return updated
+
+
+def _apply_trace(connection, run_id: str, trace: list[dict]) -> int:
+    timestamp = _now()
+    updated = 0
+    for item in trace:
+        if not isinstance(item, dict):
+            continue
+        tool = str(item.get("tool") or "unknown")
+        arguments = item.get("arguments")
+        if not isinstance(arguments, dict):
+            arguments = {}
+        # The run may already be finalized (steps marked "skipped") before the
+        # trace is persisted, so a trace item is authoritative regardless.
+        step = _matching_step(
+            connection, run_id, tool, arguments, ("pending", "running", "skipped")
+        )
+        if step is None:
+            continue
+        status = str(item.get("status") or "unknown")
+        step_status = "succeeded" if status in {"ok", "success"} else "blocked" if status == "blocked" else "failed"
+        connection.execute(
+            """UPDATE agent.agent_plan_steps
+               SET status = ?, row_count = ?, duration_ms = ?, error_message = ?,
+                   completed_at = ?, attempt_count = attempt_count + 1
+               WHERE run_id = ? AND step_id = ?""",
+            (
+                step_status,
+                item.get("rows"),
+                item.get("duration_ms"),
+                item.get("error"),
+                timestamp,
+                run_id,
+                str(step["step_id"]),
+            ),
+        )
+        updated += 1
+    if updated:
+        connection.execute(
+            "UPDATE agent.agent_execution_plans SET updated_at = ? WHERE run_id = ?",
+            (timestamp, run_id),
+        )
+    return updated
 
 
 def finalize_execution(run_id: str, status: str, reason: str = "") -> None:
