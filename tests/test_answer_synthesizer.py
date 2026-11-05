@@ -451,6 +451,27 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertEqual(fact["support"], "unsupported")
         self.assertIn("empty_result", "".join(fact["reasons"]))
 
+        # A limited fact caused by truncation must not be disclosed as an empty
+        # result, even when its wording happens to be an absence statement.
+        warned_contract = replace(contract, reference_evidence={
+            "TOOL:S05": {
+                "statuses": {"YLD-03": "covered"}, "risk_codes": ("result_truncated",),
+                "critical_risk_codes": (), "conflict_codes": (),
+            },
+        })
+        warned = synthesize_submission({
+            "analysis_protocol_version": "2.0", "conclusion": "",
+            "conclusion_evidence_refs": [], "conclusion_claim": {},
+            "facts": [{
+                "statement": "最近四周内未检索到任何工艺异常事件。",
+                "evidence_refs": ["TOOL:S05"],
+            }], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }, warned_contract)
+        fact = next(item for item in warned.report.claim_support if item["category"] == "fact")
+        self.assertEqual(fact["support"], "limited")
+        self.assertNotIn("空结果仅表示", warned.answer)
+
     def test_adopted_conclusion_is_labelled_when_hedged_or_limited(self):
         contract, _ = _supported_yield_contract()
         reference = next(

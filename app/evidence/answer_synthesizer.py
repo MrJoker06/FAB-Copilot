@@ -1273,7 +1273,11 @@ def synthesize_submission(
             if support != "unsupported" and _fact_wording_mismatch(resolved_claim.statement):
                 support, reasons = "unsupported", (*reasons, "直接事实不能使用因果、确定性、疑问或假设性措辞。")
             record_support("fact", resolved_claim, support, reasons)
-            if support == "limited" and _absence_statement(resolved_claim.statement):
+            if (
+                support == "limited"
+                and _absence_statement(resolved_claim.statement)
+                and any("未检索到记录" in reason for reason in reasons)
+            ):
                 absence_facts += 1
             if support == "unsupported":
                 hypotheses.append(_Claim(
@@ -1339,7 +1343,7 @@ def synthesize_submission(
             ):
                 support, reasons = "unsupported", (*reasons, "疑问或假设性因果表述必须归入待验证内容。")
             record_support("inference", composite_claim, support, reasons)
-            if support == "limited":
+            if support == "limited" and any("单条事实" in reason for reason in reasons):
                 limited_inferences += 1
             if support == "unsupported":
                 hypotheses.append(_Claim(
