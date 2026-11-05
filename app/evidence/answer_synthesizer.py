@@ -838,11 +838,16 @@ def _render_populated_sections(items: list[tuple[str, list[str]]]) -> tuple[str,
 
 
 def _clip_brief(value: str, limit: int) -> str:
-    """Collapse whitespace and cap one brief-mode line."""
+    """Collapse whitespace and cap one brief-mode line at a sentence boundary."""
     text = " ".join(str(value).split())
     if len(text) <= limit:
         return text
-    return text[: limit - 1].rstrip() + "…"
+    window = text[:limit]
+    for separator in ("。", "；", "，", " "):
+        index = window.rfind(separator)
+        if index >= limit // 2:
+            return window[: index + 1].rstrip()
+    return window[: limit - 1].rstrip() + "…"
 
 
 def _render_presentation(
@@ -867,7 +872,7 @@ def _render_presentation(
             if brief_hypotheses:
                 parts.append("待验证：" + "；".join(brief_hypotheses))
         if limitation_lines:
-            parts.append("证据限制：" + "；".join(_clip_brief(line, 60) for line in limitation_lines[:3]))
+            parts.append("证据限制：" + "；".join(_clip_brief(line, 120) for line in limitation_lines[:3]))
         sections = ("结论",) + (("事实",) if brief_facts else ("待验证",) if hypothesis_lines else ())
         if limitation_lines:
             sections = sections + ("证据限制",)
@@ -1419,4 +1424,5 @@ def synthesize_legacy_answer(
         synthesized.report,
         sections=("待验证原文（未经结构化验证）", "证据限制"),
     ))
+
 
