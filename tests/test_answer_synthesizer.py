@@ -817,6 +817,33 @@ class AnswerSynthesizerTests(unittest.TestCase):
         facts = [item for item in result.report.claim_support if item["category"] == "fact"]
         self.assertTrue(facts)
         self.assertEqual(facts[0]["support"], "supported")
+    def test_single_fact_inference_is_limited_and_reaches_the_conclusion(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        payload["inferences"][0]["fact_indices"] = [0]
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        inferences = [item for item in result.report.claim_support if item["category"] == "inference"]
+        self.assertEqual(inferences[0]["support"], "limited")
+        self.assertIn("单条事实", "".join(inferences[0]["reasons"]))
+        conclusions = [item for item in result.report.claim_support if item["category"] == "conclusion"]
+        self.assertIn(conclusions[0]["support"], {"limited", "supported"})
+        self.assertNotIn("当前证据未能验证模型提交的结论。", result.answer)
+
+    def test_duplicate_fact_indices_stay_unsupported(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        payload["inferences"][0]["fact_indices"] = [0, 0]
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        inferences = [item for item in result.report.claim_support if item["category"] == "inference"]
+        self.assertEqual(inferences[0]["support"], "unsupported")
+
+    def test_empty_fact_indices_stay_unsupported(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        payload["inferences"][0]["fact_indices"] = []
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        inferences = [item for item in result.report.claim_support if item["category"] == "inference"]
+        self.assertEqual(inferences[0]["support"], "unsupported")
     def test_compact_renders_one_bullet_per_item(self):
         contract, sources = _supported_yield_contract()
         payload = {
@@ -1300,6 +1327,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 
