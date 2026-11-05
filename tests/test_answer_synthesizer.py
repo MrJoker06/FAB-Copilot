@@ -844,6 +844,33 @@ class AnswerSynthesizerTests(unittest.TestCase):
         result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
         inferences = [item for item in result.report.claim_support if item["category"] == "inference"]
         self.assertEqual(inferences[0]["support"], "unsupported")
+    def test_conclusion_uses_the_verified_subset_when_some_references_fail(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        payload["inferences"][0]["fact_indices"] = [0]
+        payload["inferences"].append({
+            "statement": "第二条推断依赖重复事实。",
+            "fact_indices": [0, 0],
+            "basis": "依据。",
+            "uncertainty": "不确定性。",
+        })
+        payload["conclusion_claim"] = {"inference_indices": [0, 1]}
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        conclusions = [item for item in result.report.claim_support if item["category"] == "conclusion"]
+        self.assertIn(conclusions[0]["support"], {"limited", "supported"})
+        self.assertNotIn("当前证据未能验证模型提交的结论。", result.answer)
+        self.assertIn("未通过校验的推断", result.answer)
+
+    def test_conclusion_with_only_rejected_inferences_is_replaced_and_explained(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        payload["inferences"][0]["fact_indices"] = [0, 0]
+        payload["conclusion_claim"] = {"inference_indices": [0]}
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        conclusions = [item for item in result.report.claim_support if item["category"] == "conclusion"]
+        self.assertEqual(conclusions[0]["support"], "unsupported")
+        self.assertIn("当前证据未能验证模型提交的结论。", result.answer)
+        self.assertIn("结论未被采纳", result.answer)
     def test_compact_renders_one_bullet_per_item(self):
         contract, sources = _supported_yield_contract()
         payload = {
@@ -1327,6 +1354,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

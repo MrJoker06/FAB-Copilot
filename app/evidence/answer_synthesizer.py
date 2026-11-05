@@ -1337,6 +1337,7 @@ def synthesize_submission(
         claim_role=_clean_text(conclusion_claim_payload.get("claim_role"), 20) or "primary",
         invalid_refs=tuple(sorted(invalid_conclusion_refs)),
     )
+    conclusion_notes: list[str] = []
     if unsupported_protocol:
         conclusion_support, conclusion_reasons = "unsupported", (f"不支持的 analysis_protocol_version：{protocol_version}。",)
     elif v2_protocol:
@@ -1348,10 +1349,20 @@ def synthesize_submission(
             or len(set(indices)) != len(indices)
         )
         dependencies = [] if invalid_indices else [verified_inference_indices.get(index) for index in indices]
-        if invalid_indices or any(item is None for item in dependencies):
+        resolved_dependencies = [item for item in dependencies if item is not None]
+        dropped_dependencies = len(dependencies) - len(resolved_dependencies)
+        if invalid_indices:
             conclusion_support, conclusion_reasons = "unsupported", ("v2 结论必须引用已验证综合推断的 inference_indices。",)
+        elif not resolved_dependencies:
+            conclusion_support, conclusion_reasons = "unsupported", ("v2 结论引用的综合推断均未通过校验。",)
         else:
-            resolved_dependencies = [item for item in dependencies if item is not None]
+            if dropped_dependencies:
+                # The model cannot know which inference the server will accept.
+                # Keep the verified subset instead of discarding the conclusion.
+                conclusion_notes.append(
+                    f"结论引用了 {dropped_dependencies} 条未通过校验的推断，"
+                    f"已按其余 {len(resolved_dependencies)} 条已验证推断重新限定依据。"
+                )
             conclusion_claim, derivation_reasons = _v2_conclusion_claim(
                 conclusion_claim, conclusion_claim_payload, resolved_dependencies
             )
@@ -1361,7 +1372,7 @@ def synthesize_submission(
                 conclusion_support, conclusion_reasons = "unsupported", ("v2 结论含未许可引用。",)
             else:
                 derived_refs = tuple(dict.fromkeys(ref for item in resolved_dependencies for ref in item.evidence_refs))
-                if conclusion_refs and set(conclusion_refs) != set(derived_refs):
+                if not dropped_dependencies and conclusion_refs and set(conclusion_refs) != set(derived_refs):
                     conclusion_support, conclusion_reasons = "unsupported", ("v2 结论引用必须由已验证综合推断服务端推导。",)
                 else:
                     conclusion_claim = _Claim(**{**conclusion_claim.__dict__, "evidence_refs": derived_refs})
@@ -1413,6 +1424,8 @@ def synthesize_submission(
             adjustments.append("将范围证据不匹配或未获声明级证据支持的结论降级为待验证假设。")
     elif conclusion_scope_mismatch or conclusion_support == "unsupported":
         conclusion = "当前证据未能验证模型提交的结论。"
+        if conclusion_reasons:
+            conclusion_notes.append("结论未被采纳：" + "；".join(conclusion_reasons))
         if submitted_conclusion:
             hypotheses.append(_Claim(
                 submitted_conclusion,
@@ -1446,7 +1459,7 @@ def synthesize_submission(
         if isinstance(payload.get("limitations"), list)
         else []
     )
-    limitations = list(dict.fromkeys([*contract.mandatory_limitations, *submitted_limitations]))
+    limitations = list(dict.fromkeys([*contract.mandatory_limitations, *submitted_limitations, *conclusion_notes]))
     supplied_sources = payload.get("source_refs") if isinstance(payload.get("source_refs"), list) else []
     used_refs = {
         reference
@@ -1682,6 +1695,8 @@ def synthesize_legacy_answer(
         synthesized.report,
         sections=("待验证原文（未经结构化验证）", "证据限制"),
     ))
+
+
 
 
 
