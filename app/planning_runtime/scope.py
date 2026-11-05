@@ -124,4 +124,9 @@ def _target_scope(route: IntentRoute, resolved: dict[str, Any]) -> dict[str, tup
 
 
 def _scope_role(actual: dict[str, tuple[str, ...]], target: dict[str, tuple[str, ...]]) -> ScopeRole:
+    # No narrower scope was requested: the question is about the fab as a whole,
+    # so nothing can be "broader than the target" and every step is primary.
+    if not any(target.values()):
+        return "primary"
     return "primary" if actual == target else "context_only"
+
