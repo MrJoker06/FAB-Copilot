@@ -194,3 +194,29 @@ MODEL_COMPATIBILITY_CONTEXT_CHARS=32768
 | `32k` | 32768 | 1 | ~1.1 GB | 15.7 GB | ~18–19 GB |
 
 如果出现 OOM，先降 `-Profile 32k`，再考虑换 Ridge 3.7bpw。
+
+## 回答格式由模型选择
+
+`submit_analysis` 新增可选字段 `presentation`，取值为 `brief` / `compact` / `report` / `table`；
+模型按问题意图与证据量自行选择，服务端按该模式渲染。
+
+```ini
+FAB_PRESENTATION_MODE=model   # 默认；rule 表示使用关键词启发式（旧行为）
+```
+
+即使模型选择，服务端仍按模式裁剪条目，避免一次“report”渲染成小作文：
+
+| 模式 | 事实/推断/待验证/建议 | 单条 | 限制 |
+| --- | --- | --- | --- |
+| `brief` | 事实 2、限制 3 | 事实 90 字、限制 120 字 | 保留（截断） |
+| `compact` | 8 / 5 / 5 / 4 | 240 字 | 全部保留，截断 |
+| `report` | 各 8 | 240 字 | 全部保留，截断 |
+| `table` | 各 8 | 200 字 | 全部保留，截断 |
+
+被裁掉的条目会在「证据限制」里提示“已省略 N 条声明”。
+
+选择指引写在 system prompt 中 `answer_contract=` 之前，使角色说明、协议与指引构成稳定的
+前缀，便于 llama.cpp 的 slot 级 prompt cache 命中；每次请求变化的部分只留在最后。
+
+`answer_synthesis.presentation` 与 `answer_synthesis.presentation_source`
+（`model` / `rule` / `fallback`）会随 API 返回，便于核对实际渲染模式。
