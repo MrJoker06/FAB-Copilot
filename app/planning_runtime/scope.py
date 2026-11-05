@@ -76,8 +76,23 @@ def _step_semantics(tool: str, parameters: dict[str, Any], evidence_ids: tuple[s
     return semantics.get(tool, ("unknown", "unknown", "unknown"))
 
 
-def _step_scope(tool: str, parameters: dict[str, Any], evidence_ids: tuple[str, ...]) -> dict[str, tuple[str, ...]]:
-    """Actual result scope derived from handler parameters/template filters only."""
+def _scope_values(value: Any) -> tuple[str, ...]:
+    """Normalize one scope filter, accepting a scalar or a list of values."""
+    raw = value
+    if raw in (None, ""):
+        return ()
+    if not isinstance(raw, (list, tuple, set)):
+        raw = (raw,)
+    return tuple(sorted({str(item).strip().upper() for item in raw if str(item).strip()}))
+
+
+def call_scope(tool: str, parameters: dict[str, Any], evidence_ids: tuple[str, ...] = ()) -> dict[str, tuple[str, ...]]:
+    """Result scope implied by one tool call's effective parameters.
+
+    The planner uses this to declare a step's evidence scope; the evidence
+    validator reuses it on the executed call's arguments so that both sides
+    apply the same rules (fab default, equipment-before-process, SQL filters).
+    """
     values = {"fab_ids": (), "process_steps": (), "equipment_ids": (), "products": (), "lot_ids": (), "wafer_ids": (), "chambers": (), "recipes": ()}
     if tool in {"get_fab_overview", "get_process_capability", "get_equipment_health", "get_equipment_productivity", "get_defect_pareto", "get_recent_excursions", "get_sensor_summary"} and not parameters.get("process_step") and not parameters.get("equipment_id"):
         values["fab_ids"] = ("FAB",)
@@ -87,14 +102,16 @@ def _step_scope(tool: str, parameters: dict[str, Any], evidence_ids: tuple[str, 
         values["fab_ids"] = ("FAB",)
     # Equipment handlers select equipment first, so do not imply a second
     # process filter merely because the planner also knows the route process.
-    if parameters.get("equipment_id"):
-        values["equipment_ids"] = (str(parameters["equipment_id"]).upper(),)
-    elif parameters.get("process_step"):
-        values["process_steps"] = (str(parameters["process_step"]).upper(),)
-    if parameters.get("product"): values["products"] = (str(parameters["product"]).upper(),)
-    if parameters.get("lot_id"): values["lot_ids"] = (str(parameters["lot_id"]).upper(),)
-    if tool == "get_equipment_excursion_history" and parameters.get("process_step"):
-        values["process_steps"] = (str(parameters["process_step"]).upper(),)
+    equipment = _scope_values(parameters.get("equipment_id") or parameters.get("equipment_ids"))
+    process = _scope_values(parameters.get("process_step") or parameters.get("process_steps"))
+    if equipment:
+        values["equipment_ids"] = equipment
+    elif process:
+        values["process_steps"] = process
+    values["products"] = _scope_values(parameters.get("product") or parameters.get("products"))
+    values["lot_ids"] = _scope_values(parameters.get("lot_id") or parameters.get("lot_ids"))
+    if tool == "get_equipment_excursion_history" and process:
+        values["process_steps"] = process
     if tool == "query_manufacturing_data":
         sql = str(parameters.get("sql", ""))
         lot = re.search(r"\blot_id\s*=\s*'([^']+)'", sql, re.I)
@@ -110,6 +127,10 @@ def _step_scope(tool: str, parameters: dict[str, Any], evidence_ids: tuple[str, 
         if not any((lot, process, equipment, product)) and "FROM lots" in sql:
             values["fab_ids"] = ("FAB",)
     return values
+
+
+# Backwards-compatible private alias for internal planner callers.
+_step_scope = call_scope
 
 
 def _target_scope(route: IntentRoute, resolved: dict[str, Any]) -> dict[str, tuple[str, ...]]:

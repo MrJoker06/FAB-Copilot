@@ -191,6 +191,63 @@ class EvidenceValidatorTests(unittest.TestCase):
         self.assertEqual(observed["TOOL:S04"]["statuses"]["YLD-03"], "partial")
         self.assertEqual(observed["TOOL:S04"]["evidence_ids"], ("YLD-03",))
 
+    def test_native_normalized_arguments_still_match_the_declared_step_scope(self):
+        selection, plan = _context("检查 ETCH-04 故障报警")
+        health_step = next(step for step in plan.steps if step.tool == "get_equipment_health")
+        window = {"start": health_step.parameters["start"], "end": health_step.parameters["end"]}
+        health = EvidenceObservation(
+            "get_equipment_health",
+            {**window, "equipment_id": "ETCH-04"},
+            "success",
+            [{
+                "equipment_id": "ETCH-04", "runs": 894, "excursions": 36,
+                "avg_defect_density": 0.08, "pass_pct": 95.9, "events": 0,
+                "downtime_minutes": 0, "health": "Critical",
+            }],
+        )
+        productivity = EvidenceObservation(
+            "get_equipment_productivity",
+            {**window, "equipment_id": "ETCH-04"},
+            "success",
+            [{
+                "equipment_id": "ETCH-04", "recorded_minutes": 129600,
+                "productive_minutes": 103896, "productive_pct": 80.2,
+                "unscheduled_down_minutes": 918, "scheduled_down_minutes": 6757,
+            }],
+        )
+
+        validation = validate_evidence(plan, selection.selected_playbook, [health, productivity])
+
+        scope_risks = [
+            issue for issue in validation.risks
+            if issue.code == "scope_mismatch" and issue.source_ref in {
+                "TOOL:get_equipment_health", "TOOL:get_equipment_productivity",
+            }
+        ]
+        self.assertEqual(scope_risks, [])
+        self.assertIn("TOOL:S01", validation.reference_evidence)
+        self.assertIn("TOOL:S02", validation.reference_evidence)
+        self.assertEqual(validation.reference_evidence["TOOL:S01"]["critical_risk_codes"], ())
+        self.assertEqual(
+            {item.evidence_id: item.status for item in validation.evidence_checks}["EQP-01"],
+            "covered",
+        )
+
+    def test_empty_result_risk_does_not_leak_to_a_sibling_call(self):
+        selection, plan = _context("最近四周良率下降")
+        pareto = _observation(plan, "get_defect_pareto", [{
+            "defect_type": "Particle", "process_steps": "CLEAN,CVD",
+            "defect_count": 120, "affected_lots": 44, "share_pct": 24.0,
+        }])
+        no_excursions = _observation(plan, "get_recent_excursions", [])
+
+        validation = validate_evidence(plan, selection.selected_playbook, [pareto, no_excursions])
+
+        self.assertEqual(validation.reference_evidence["TOOL:S04"]["critical_risk_codes"], ())
+        self.assertEqual(
+            validation.reference_evidence["TOOL:S05"]["critical_risk_codes"], ("empty_result",)
+        )
+
     def test_unsupported_plan_is_not_applicable_and_prompt_is_serializable(self):
         selection, plan = _context("介绍下光刻工艺")
 
