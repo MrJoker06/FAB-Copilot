@@ -135,6 +135,40 @@ MODEL_COMPATIBILITY_CONTEXT_CHARS=32768
 探针要求模型空闲：如果两个 llama-server 槽位正被长问答占用，子探针会排队到超时。
 探针结果只做记录，不影响发布与使用；`compatibility.status` 为 `passed` 表示当前配置可用。
 
+## 证据裁剪（上下文保护）
+
+诊断类计划会一次执行 7 个工具，其中 `get_sensor_summary`、`get_recent_excursions`、
+`get_equipment_excursion_history` 各返回 100 行。完整 JSON 约 10.7 万字符（≈41.7k token），
+超过双槽配置下每请求 40960 的上限，llama-server 会直接 500，表现为「模型综合服务不可用」。
+
+因此合成前会按工具裁剪**提示词视图**（`app/evidence/evidence_truncation.py`）：
+
+| 工具 | 保留 | 排序 |
+| --- | ---: | --- |
+| `get_sensor_summary` | 15 | 异常点从多到少 |
+| `get_recent_excursions` | 20 | 按发生时间倒序 |
+| `get_equipment_excursion_history` | 20 | 按发生时间倒序 |
+| `get_equipment_event_timeline` | 20 | 按事件时间倒序 |
+| `get_equipment_health` | 10 | Critical 优先 |
+| `get_equipment_productivity` | 10 | 利用率从低到高 |
+| `search_knowledge` | 3 | 检索得分顺序（仅保留关键字段） |
+
+裁剪只影响提示词：`agent_tool_events`、运行记录、API 返回仍然是完整行数，证据校验
+（样本量、覆盖率）也不受影响。
+
+**提示信息**会在两处出现：
+
+- 每条被裁剪的证据带 `truncation: {total_rows, shown_rows, sort, note}`，模型据此知道是部分视图；
+- 最终答案的「证据限制」里追加一行，例如
+  `为控制上下文，以下工具结果已裁剪：get_sensor_summary 15/100、get_recent_excursions 20/100；完整结果保留在运行记录中。`
+
+本机实测（同一个七步设备诊断问题）：
+
+| | 输入 token | 耗时 |
+| --- | ---: | ---: |
+| 裁剪前 | 41,756 | 166 s（双槽下 500） |
+| 裁剪后 | **12,635** | **85 s** |
+
 > 内置的 `deepseekv4-flash` / `deepseekv4-pro` 共用全局 `FAB_MODEL_API_KEY`，本地部署下该值为
 > `local`，因此探针会得到 **401**。不需要云端模型时在管理端把它们「停用」即可；需要时把
 > `FAB_MODEL_API_KEY` 换成真实 DeepSeek Key（llama-server 不校验该头，两边可共用）。
