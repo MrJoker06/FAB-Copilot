@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
@@ -18,6 +19,40 @@ from .validator import EvidenceValidation
 
 SynthesisStatus = Literal["structured", "repaired", "not_applicable"]
 PresentationMode = Literal["brief", "table", "report", "compact"]
+
+PRESENTATION_MODES = ("brief", "compact", "report", "table")
+
+# Server-side caps per mode.  The model chooses the mode; the server still bounds
+# how much a mode may render, so a wrong "report" choice cannot produce a novel.
+_MODE_BUDGETS: dict[str, dict[str, int]] = {
+    "compact": {
+        "facts": 8, "inferences": 5, "hypotheses": 5, "recommendations": 4,
+        "limitations": 6, "item_chars": 240,
+    },
+    "report": {
+        "facts": 8, "inferences": 8, "hypotheses": 8, "recommendations": 8,
+        "limitations": 8, "item_chars": 240,
+    },
+    "table": {
+        "facts": 8, "inferences": 8, "hypotheses": 8, "recommendations": 8,
+        "limitations": 8, "item_chars": 200,
+    },
+}
+
+
+def presentation_mode() -> str:
+    """Deployment switch: ``model`` lets submit_analysis choose, ``rule`` keeps heuristics."""
+    return (os.getenv("FAB_PRESENTATION_MODE", "model").strip().lower() or "model")
+
+
+def resolve_presentation(payload: dict[str, Any], contract: "AnswerContract") -> tuple[str, str]:
+    """Return ``(mode, source)`` where source is ``model``, ``rule`` or ``fallback``."""
+    if presentation_mode() != "model":
+        return contract.presentation, "rule"
+    value = payload.get("presentation") if isinstance(payload, dict) else None
+    if isinstance(value, str) and value.strip().lower() in PRESENTATION_MODES:
+        return value.strip().lower(), "model"
+    return contract.presentation, "fallback"
 
 REQUIRED_SECTIONS = (
     "结论",
@@ -48,6 +83,14 @@ SUBMIT_ANALYSIS_TOOL = {
                     "type": "string",
                     "enum": [ANALYSIS_PROTOCOL_VERSION],
                     "description": "可选。2.0 采用调用级直接事实和基于事实索引的综合推断；省略时按旧协议兼容处理。",
+                },
+                "presentation": {
+                    "type": "string",
+                    "enum": ["brief", "compact", "report", "table"],
+                    "description": (
+                        "可选。输出格式：brief=只给结论；compact=默认分条；"
+                        "table=横向对比表；report=完整分节报告。按用户意图与证据量选择。"
+                    ),
                 },
                 "conclusion": {"type": "string", "maxLength": 600},
                 "conclusion_evidence_refs": {"type": "array", "maxItems": 8, "items": {"type": "string"}},
@@ -220,6 +263,9 @@ class AnswerSynthesisReport:
     # Public, auditable repair metadata.  This deliberately describes only
     # parser/service actions, never model reasoning.
     repair_events: tuple[dict[str, Any], ...] = ()
+    # Which layout was actually rendered and who chose it (model/rule/fallback).
+    presentation: str = "compact"
+    presentation_source: str = "rule"
 
     def to_dict(self) -> dict[str, Any]:
         return json_dataclass_payload(self)
@@ -432,6 +478,11 @@ def synthesizer_system_message(contract: AnswerContract) -> str:
         "conclusion_evidence_refs 必须列出结论依据；仅由 context_only 来源支持的整厂背景不得表述为主范围自身指标。"
         "allowed_conclusion_strength 约束任务级诊断和根因；逐声明验证的直接观测可保留。"
         "causal_claims_allowed=false 时不得声称已证明因果。\n"
+        # Fixed guidance sits before the per-request contract so the shared prompt
+        # prefix (role, protocol, guidance) stays stable for slot-level caching.
+        "输出格式：在 submit_analysis 的 presentation 字段选择 brief（只给结论）、"
+        "compact（默认分条）、table（横向对比）、report（完整分节）；"
+        "按用户意图与证据量选择，服务端会按所选模式裁剪条目。\n"
         f"answer_contract={contract.to_prompt()}"
     )
 
@@ -850,6 +901,37 @@ def _clip_brief(value: str, limit: int) -> str:
     return window[: limit - 1].rstrip() + "…"
 
 
+_BUDGET_GROUP_KEYS = {
+    "fact_lines": "facts",
+    "inference_lines": "inferences",
+    "hypothesis_lines": "hypotheses",
+    "recommendation_lines": "recommendations",
+    "limitation_lines": "limitations",
+}
+
+
+def _apply_mode_budget(mode: str, **groups: list[str]) -> tuple[dict[str, list[str]], int]:
+    """Clip every claim group to the mode budget; returns (groups, dropped count)."""
+    budget = _MODE_BUDGETS.get(mode)
+    if budget is None:
+        return {key: list(value) for key, value in groups.items()}, 0
+    bounded: dict[str, list[str]] = {}
+    dropped = 0
+    for key, lines in groups.items():
+        values = list(lines)
+        if key == "limitation_lines":
+            # Limitations carry compliance disclosures; clip but never drop them.
+            bounded[key] = [_clip_brief(line, budget["item_chars"]) for line in values]
+            continue
+        cap = budget.get(_BUDGET_GROUP_KEYS.get(key, key))
+        if cap is None:
+            bounded[key] = values
+            continue
+        bounded[key] = [_clip_brief(line, budget["item_chars"]) for line in values[:cap]]
+        dropped += max(0, len(values) - cap)
+    return bounded, dropped
+
+
 def _render_presentation(
     contract: AnswerContract, conclusion: str, fact_lines: list[str], inference_lines: list[str],
     hypothesis_lines: list[str], recommendation_lines: list[str], limitations: list[str],
@@ -939,6 +1021,8 @@ def synthesize_submission(
         ))
 
     allowed = {item.upper(): item for item in contract.permitted_source_refs}
+    presentation, presentation_source = resolve_presentation(payload, contract)
+    contract = replace(contract, presentation=presentation)
     protocol_version = payload.get("analysis_protocol_version")
     v2_protocol = protocol_version == ANALYSIS_PROTOCOL_VERSION
     unsupported_protocol = protocol_version is not None and not v2_protocol
@@ -1245,6 +1329,17 @@ def synthesize_submission(
     ]
     if contract.model_knowledge_fallback:
         model_limitations = limitations or [MODEL_KNOWLEDGE_DISCLOSURE]
+        bounded, _truncated_model = _apply_mode_budget(
+            contract.presentation,
+            inference_lines=inference_lines,
+            hypothesis_lines=hypothesis_lines,
+            recommendation_lines=recommendation_lines,
+            limitation_lines=model_limitations,
+        )
+        inference_lines = bounded.get("inference_lines", inference_lines)
+        hypothesis_lines = bounded.get("hypothesis_lines", hypothesis_lines)
+        recommendation_lines = bounded.get("recommendation_lines", recommendation_lines)
+        model_limitations = bounded.get("limitation_lines", model_limitations)
         if contract.presentation == "brief":
             # Model-knowledge answers keep every retained category: dropping a
             # disclosure or a verification step would hide that the answer is not
@@ -1296,6 +1391,21 @@ def synthesize_submission(
                 ("使用限制", model_limitations),
             ])
     else:
+        bounded, truncated_items = _apply_mode_budget(
+            contract.presentation,
+            fact_lines=fact_lines,
+            inference_lines=inference_lines,
+            hypothesis_lines=hypothesis_lines,
+            recommendation_lines=recommendation_lines,
+            limitation_lines=limitations,
+        )
+        fact_lines = bounded.get("fact_lines", fact_lines)
+        inference_lines = bounded.get("inference_lines", inference_lines)
+        hypothesis_lines = bounded.get("hypothesis_lines", hypothesis_lines)
+        recommendation_lines = bounded.get("recommendation_lines", recommendation_lines)
+        limitations = bounded.get("limitation_lines", limitations)
+        if truncated_items:
+            limitations = limitations + [f"为控制篇幅，已省略 {truncated_items} 条声明。"]
         answer, sections = _render_presentation(
             contract, conclusion, fact_lines, inference_lines, hypothesis_lines,
             recommendation_lines, limitations,
@@ -1314,6 +1424,8 @@ def synthesize_submission(
         claim_support=tuple(claim_support),
         analysis_protocol_version=(ANALYSIS_PROTOCOL_VERSION if v2_protocol else "1.1"),
         repair_events=tuple(repair_events),
+        presentation=contract.presentation,
+        presentation_source=presentation_source,
     )
     return SynthesizedAnswer(answer, report)
 

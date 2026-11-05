@@ -608,6 +608,70 @@ class AnswerSynthesizerTests(unittest.TestCase):
         message = synthesizer_system_message(replace(contract, presentation="brief"))
         self.assertIn("presentation=brief", message)
         self.assertIn("最多 2 条", message)
+    def test_submit_schema_exposes_presentation_enum(self):
+        props = SUBMIT_ANALYSIS_TOOL["function"]["parameters"]["properties"]
+        self.assertEqual(props["presentation"]["enum"], ["brief", "compact", "report", "table"])
+        self.assertNotIn("presentation", SUBMIT_ANALYSIS_TOOL["function"]["parameters"]["required"])
+
+    def test_model_presentation_is_honoured_and_budgeted(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "presentation": "table",
+            "conclusion": "当前证据支持方向性判断。",
+            "conclusion_evidence_refs": [],
+            "facts": [
+                {"statement": f"条目{index}。", "evidence_refs": []} for index in range(12)
+            ],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="brief"), sources)
+        self.assertEqual(result.report.presentation, "table")
+        self.assertEqual(result.report.presentation_source, "model")
+
+    def test_invalid_presentation_falls_back_to_contract(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "presentation": "novel",
+            "conclusion": "结论", "conclusion_evidence_refs": [],
+            "facts": [], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        self.assertEqual(result.report.presentation, "compact")
+        self.assertEqual(result.report.presentation_source, "fallback")
+
+    def test_rule_mode_ignores_the_model_choice(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "presentation": "report",
+            "conclusion": "结论", "conclusion_evidence_refs": [],
+            "facts": [], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        with patch.dict("os.environ", {"FAB_PRESENTATION_MODE": "rule"}):
+            result = synthesize_submission(payload, replace(contract, presentation="brief"), sources)
+        self.assertEqual(result.report.presentation, "brief")
+        self.assertEqual(result.report.presentation_source, "rule")
+
+    def test_compact_budget_drops_excess_claims_and_reports_it(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "conclusion": "结论", "conclusion_evidence_refs": [],
+            "facts": [
+                {"statement": f"条目{index}。", "evidence_refs": []} for index in range(12)
+            ],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        self.assertIn("已省略", result.answer)
+        self.assertLessEqual(result.answer.count("条目"), 8)
+
+    def test_presentation_guidance_is_appended_last(self):
+        contract, _ = _supported_yield_contract()
+        message = synthesizer_system_message(contract)
+        self.assertLess(message.index("presentation 字段"), message.index("answer_contract="))
     def test_compact_renders_one_bullet_per_item(self):
         contract, sources = _supported_yield_contract()
         payload = {
@@ -1091,6 +1155,8 @@ class AnswerSynthesizerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
 
 
 
