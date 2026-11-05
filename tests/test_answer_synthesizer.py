@@ -525,7 +525,8 @@ class AnswerSynthesizerTests(unittest.TestCase):
         production_result = synthesize_submission(production_payload, knowledge_contract)
         production = next(item for item in production_result.report.claim_support if item["category"] == "inference")
         self.assertEqual(production["support"], "unsupported")
-        self.assertIn("待验证内容：一般而言，当前 CMP-03 漂移导致良率下降。 [模型通用知识]", production_result.answer)
+        self.assertIn("**待验证内容**", production_result.answer)
+        self.assertIn("一般而言，当前 CMP-03 漂移导致良率下降。 [模型通用知识]", production_result.answer)
         self.assertNotIn("模型通用知识：一般而言，当前 CMP-03 漂移导致良率下降。", production_result.answer)
 
     def test_presentation_selection_obeys_current_request(self):
@@ -580,6 +581,25 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertIn("| 类型 | 内容 |", table.answer)
         self.assertEqual(brief.report.source_refs, table.report.source_refs)
 
+    def test_compact_renders_one_bullet_per_item(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "conclusion": "当前证据支持方向性判断。",
+            "conclusion_evidence_refs": ["TOOL:get_fab_overview"],
+            "facts": [
+                {"statement": "第一条证据。", "evidence_refs": ["TOOL:get_fab_overview"]},
+                {"statement": "第二条证据。", "evidence_refs": ["TOOL:get_yield_trend"]},
+            ],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": ["比较范围需要进一步复核。"], "source_refs": ["KB-1"],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        self.assertIn("**结论**", result.answer)
+        self.assertTrue(any(f"**{title}**" in result.answer for title in ("事实", "待验证")))
+        self.assertIn("\n- 第一条证据", result.answer)
+        self.assertIn("\n- 第二条证据", result.answer)
+        # Long lists must not collapse into one semicolon-joined paragraph.
+        self.assertNotIn("；第二条证据", result.answer)
     def test_compact_has_no_empty_placeholders_or_report_headings(self):
         contract, sources = _supported_yield_contract()
         payload = {
@@ -697,7 +717,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         result = synthesize_submission(payload, contract)
 
         self.assertIn("不能形成诊断性结论", result.answer)
-        self.assertIn("待验证：", result.answer)
+        self.assertIn("**待验证**", result.answer)
         self.assertNotIn("## 已确认事实\n- CMP-03", result.answer)
         self.assertGreaterEqual(result.report.moved_claims, 1)
         self.assertTrue(result.report.wording_adjustments)
@@ -728,7 +748,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertTrue(contract.model_knowledge_fallback)
         self.assertIn(MODEL_KNOWLEDGE_DISCLOSURE, result.answer)
         self.assertIn("GaN 的宽禁带", result.answer)
-        self.assertIn("模型通用知识：", result.answer)
+        self.assertIn("**模型通用知识**", result.answer)
         self.assertIn("[模型通用知识]", result.answer)
         self.assertNotIn("## 来源", result.answer)
         self.assertNotIn("不能形成诊断性结论", result.answer)
@@ -908,7 +928,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         streamed = "".join(event.get("delta", "") for event in events if event.get("event") == "answer_delta")
         self.assertEqual(streamed, result["answer"])
         self.assertEqual(result["answer_synthesis"]["status"], "structured")
-        self.assertIn("待验证：", result["answer"])
+        self.assertIn("**待验证**", result["answer"])
         self.assertIn("submit_analysis", {tool["function"]["name"] for tool in requests[0]["tools"]})
         prompt_contract = next(
             json.loads(item["content"].split("answer_contract=", 1)[1])
@@ -1044,3 +1064,6 @@ class AnswerSynthesizerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+

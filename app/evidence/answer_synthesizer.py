@@ -859,9 +859,12 @@ def _render_presentation(
             return table + "\n\n## 证据限制\n" + "\n".join(f"- {line}" for line in limitation_lines), ("表格", "证据限制")
         return table, ("表格",)
     if contract.presentation == "compact":
-        lines = [conclusion]
-        lines.extend(f"{title}：{'；'.join(values)}" for title, values in labeled if values)
-        return "\n\n".join(lines), ("结论", *(title for title, values in labeled if values))
+        blocks = [f"**结论**\n{conclusion}"]
+        for title, values in labeled:
+            if not values:
+                continue
+            blocks.append("\n".join([f"**{title}**", *(f"- {line}" for line in values)]))
+        return "\n\n".join(blocks), ("结论", *(title for title, values in labeled if values))
     body, sections = _render_populated_sections([
         ("结论", [conclusion]), ("已确认事实", fact_lines), ("分析推断", inference_lines),
         ("待验证假设", hypothesis_lines), ("建议", recommendation_lines), ("证据限制", limitation_lines),
@@ -1237,15 +1240,16 @@ def synthesize_submission(
             answer = table
             sections = ("表格",)
         elif contract.presentation == "compact":
-            parts = [conclusion]
-            if inference_lines:
-                parts.append("模型通用知识：" + "；".join(inference_lines))
-            if hypothesis_lines:
-                parts.append("待验证内容：" + "；".join(hypothesis_lines))
-            if recommendation_lines:
-                parts.append("建议：" + "；".join(recommendation_lines))
-            parts.append("使用限制：" + "；".join(model_limitations))
-            answer = "\n\n".join(parts)
+            blocks = [f"**结论**\n{conclusion}"]
+            for title, values in (
+                ("模型通用知识", inference_lines),
+                ("待验证内容", hypothesis_lines),
+                ("建议", recommendation_lines),
+                ("使用限制", model_limitations),
+            ):
+                if values:
+                    blocks.append("\n".join([f"**{title}**", *(f"- {line}" for line in values)]))
+            answer = "\n\n".join(blocks)
             sections = ("结论", "模型通用知识", "待验证内容", "建议", "使用限制")
             sections = tuple(title for title in sections if title == "结论" or {
                 "模型通用知识": inference_lines, "待验证内容": hypothesis_lines,
