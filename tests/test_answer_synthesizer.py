@@ -796,6 +796,27 @@ class AnswerSynthesizerTests(unittest.TestCase):
         result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
         conclusions = [item for item in result.report.claim_support if item["category"] == "conclusion"]
         self.assertEqual(conclusions[0]["support"], "unsupported")
+    def test_knowledge_fact_ignores_a_time_range_the_source_lacks(self):
+        contract, sources = _supported_yield_contract()
+        reference = next(
+            ref for ref, meta in contract.source_semantics.items() if meta["kind"] == "document"
+        )
+        payload = {
+            "analysis_protocol_version": "2.0",
+            "conclusion": "知识库给出良率分析的常见方向。",
+            "conclusion_evidence_refs": [],
+            "facts": [{
+                "statement": "知识库提示良率分析应先分层到产品和制程。",
+                "evidence_refs": [reference],
+                "time_range": {"start": "2026-06-21", "end": "2026-07-18"},
+            }],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        facts = [item for item in result.report.claim_support if item["category"] == "fact"]
+        self.assertTrue(facts)
+        self.assertEqual(facts[0]["support"], "supported")
     def test_compact_renders_one_bullet_per_item(self):
         contract, sources = _supported_yield_contract()
         payload = {
@@ -1279,6 +1300,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

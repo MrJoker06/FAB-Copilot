@@ -681,7 +681,7 @@ def _structured_claim_mismatch(claim: _Claim, contract: AnswerContract) -> bool:
         return True
     if not (claim.claim_kind or claim.semantic_id or claim.scope or claim.time_range or claim.grain):
         return manufacturing
-    if not claim.claim_kind or not claim.semantic_id or not claim.scope or not claim.grain or claim.time_range is None or not claim.evidence_refs:
+    if not claim.claim_kind or not claim.semantic_id or claim.scope is None or not claim.grain or claim.time_range is None or not claim.evidence_refs:
         return True
     claim_scope = _claim_scope(claim)
     if claim_scope is None:
@@ -807,13 +807,17 @@ def _v2_direct_fact(claim: _Claim, contract: AnswerContract) -> tuple[_Claim, tu
             return claim, ("直接事实的调用级来源范围不一致。",)
         scope = _scope_payload(shared_scope)
 
+    shared_start = _agree([item.start for item in resolved])
+    shared_end = _agree([item.end for item in resolved])
     time_range = claim.time_range if claim.time_range else None
     if time_range is None:
-        start = _agree([item.start for item in resolved])
-        end = _agree([item.end for item in resolved])
-        if (start is None) != (end is None):
+        if (shared_start is None) != (shared_end is None):
             return claim, ("直接事实的调用级来源时间范围不一致。",)
-        time_range = {"start": start, "end": end} if start and end else {}
+        time_range = {"start": shared_start, "end": shared_end} if shared_start and shared_end else {}
+    elif shared_start is None and shared_end is None:
+        # Some sources have no time dimension at all (knowledge documents).  A
+        # time range supplied for those is unverifiable, not a contradiction.
+        time_range = {}
 
     if "claim_role" in claim.explicit_fields:
         claim_role = claim.claim_role
@@ -1666,6 +1670,7 @@ def synthesize_legacy_answer(
         synthesized.report,
         sections=("待验证原文（未经结构化验证）", "证据限制"),
     ))
+
 
 
 
