@@ -215,6 +215,13 @@ _PRODUCTION_SCOPE_PATTERN = re.compile(
 )
 _DIAGNOSTIC_TARGET_PATTERN = re.compile(r"原因|根因|问题|失效|故障")
 _HIGH_RISK_PATTERN = re.compile(r"停机|报废|放行|返工|配方(?:修改|变更)|恢复量产")
+# A claim may legitimately report that a scoped query returned no records.  The
+# wording must stay an absence assertion; anything else cannot use empty results.
+_ABSENCE_PATTERN = re.compile(
+    r"未检索到|未返回|未发现|未检出|未出现|未命中|无(?:任何)?(?:异常|事件|记录|数据|超规)"
+    r"|没有(?:检索到|发现|检出|记录|异常|事件)"
+    r"|返回空|为空|空结果"
+)
 
 
 @dataclass(frozen=True)
@@ -365,6 +372,11 @@ def create_answer_contract(
     }
     permitted_items = {*(f"TOOL:{tool}" for tool in matched_tools), *source_refs}
     permitted_items.update(validation.observed_source_refs)
+    # Every call-level reference the contract advertises as a source semantic is
+    # also citable.  Otherwise the model is shown a valid step reference and then
+    # rejected for using it.  Unmatched calls still fail at evidence support with
+    # an explicit "no traceable evidence" reason.
+    permitted_items.update(validation.source_semantics)
     if allow_model_knowledge_fallback:
         permitted_items.add(MODEL_KNOWLEDGE_REF)
     permitted = tuple(sorted(permitted_items))
@@ -624,6 +636,11 @@ def _fact_wording_mismatch(statement: str) -> bool:
     return asserted_causal or asserted_definitive or non_assertive_risk or generic_mechanism
 
 
+def _absence_statement(statement: str) -> bool:
+    """True when the claim only asserts that its scoped query found no records."""
+    return bool(_ABSENCE_PATTERN.search(statement))
+
+
 def _inference_wording_mismatch(statement: str, *, model_knowledge: bool) -> bool:
     """Questions and hypotheses belong in the verification bucket, not inferences."""
     _, _, non_assertive_risk, generic_mechanism = _speech_act(statement)
@@ -781,6 +798,11 @@ def _v2_direct_fact(claim: _Claim, contract: AnswerContract) -> tuple[_Claim, tu
     call-level sources when every reference agrees.  Values the model does
     supply are still validated, so an explicit contradiction stays unsupported.
     """
+    if claim.invalid_refs:
+        # Report the real cause first: a reference the contract did not permit is
+        # not a formatting problem, and v2 used to hide this behind the TOOL:Sxx
+        # guard (the legacy path reported the invalid reference directly).
+        return claim, (f"含未许可引用：{', '.join(claim.invalid_refs)}。",)
     if not claim.evidence_refs or any(not ref.startswith("TOOL:S") for ref in claim.evidence_refs):
         return claim, ("直接事实只能引用调用级 TOOL:Sxx 证据。",)
     descriptors = [_descriptor_for_reference(ref, contract) for ref in claim.evidence_refs]
@@ -857,7 +879,7 @@ def _v2_direct_fact_status(claim: _Claim, contract: AnswerContract) -> tuple[str
             claim_role=resolved.claim_role,
         ):
             return "unsupported", ("直接事实的调用级来源不支持其声明范围、时间或语义。",)
-    return _final_claim_status(resolved, contract)
+    return _final_claim_status(resolved, contract, allow_absence=True)
 
 
 def _v2_composite_inference(
@@ -953,8 +975,14 @@ def _v2_composite_status(claim: _Claim, contract: AnswerContract) -> tuple[str, 
     return support, reasons
 
 
-def _claim_support(claim: _Claim, contract: AnswerContract) -> tuple[str, tuple[str, ...]]:
-    """Return fail-closed support status for one submitted declaration."""
+def _claim_support(
+    claim: _Claim, contract: AnswerContract, *, allow_absence: bool = False,
+) -> tuple[str, tuple[str, ...]]:
+    """Return fail-closed support status for one submitted declaration.
+
+    ``allow_absence`` is used only for v2 direct facts: a call that returned no
+    rows can support an explicit "未检索到" statement, never a positive claim.
+    """
     if claim.invalid_refs:
         return "unsupported", (f"含未许可引用：{', '.join(claim.invalid_refs)}。",)
     if contract.model_knowledge_fallback and (
@@ -967,6 +995,8 @@ def _claim_support(claim: _Claim, contract: AnswerContract) -> tuple[str, tuple[
     evidence = contract.reference_evidence or {}
     reasons: list[str] = []
     limited = False
+    absence_only = allow_absence and _absence_statement(claim.statement)
+    saw_empty = saw_data = False
     for reference in claim.evidence_refs:
         item = evidence.get(reference)
         if not item:
@@ -980,21 +1010,34 @@ def _claim_support(claim: _Claim, contract: AnswerContract) -> tuple[str, tuple[
         critical = tuple(item.get("critical_risk_codes") or ())
         conflicts = tuple(item.get("conflict_codes") or ())
         if critical or conflicts:
+            if absence_only and not conflicts and set(critical) <= {"empty_result"}:
+                saw_empty = True
+                limited = True
+                reasons.append(f"引用 {reference} 仅能说明该查询范围内未检索到记录。")
+                continue
             codes = ", ".join((*critical, *conflicts))
             return "unsupported", (f"引用 {reference} 存在关键风险或冲突：{codes}。",)
         partial = [evidence_id for evidence_id, state in statuses.items() if state == "partial"]
         if partial:
+            if absence_only and saw_empty:
+                limited = True
+                continue
             return "unsupported", (f"引用 {reference} 关联证据字段不完整：{', '.join(partial)}。",)
         warning_codes = tuple(item.get("risk_codes") or ())
         if warning_codes:
             limited = True
             reasons.append(f"引用 {reference} 存在限制：{', '.join(warning_codes)}。")
+        saw_data = True
+    if absence_only and saw_empty and saw_data:
+        return "unsupported", ("空结果陈述不能同时引用有数据的结果。",)
     return ("limited", tuple(dict.fromkeys(reasons))) if limited else ("supported", ())
 
 
-def _final_claim_status(claim: _Claim, contract: AnswerContract) -> tuple[str, tuple[str, ...]]:
+def _final_claim_status(
+    claim: _Claim, contract: AnswerContract, *, allow_absence: bool = False,
+) -> tuple[str, tuple[str, ...]]:
     """Combine evidence support with semantic, scope, and wording guards."""
-    support, reasons = _claim_support(claim, contract)
+    support, reasons = _claim_support(claim, contract, allow_absence=allow_absence)
     if _structured_claim_mismatch(claim, contract):
         return "unsupported", (*reasons, "结构化语义、范围、时间或粒度与引用不一致。")
     if _scope_mismatch(claim.statement, claim.evidence_refs, contract):
@@ -1197,6 +1240,8 @@ def synthesize_submission(
 
     verified_facts: list[_Claim] = []
     verified_fact_indices: dict[int, _Claim] = {}
+    absence_facts = 0
+    limited_inferences = 0
     for fact_index, claim in enumerate(facts):
         uses_model_knowledge = not claim.invalid_refs and contract.model_knowledge_fallback and (
             not claim.evidence_refs or set(claim.evidence_refs) == {MODEL_KNOWLEDGE_REF}
@@ -1228,6 +1273,8 @@ def synthesize_submission(
             if support != "unsupported" and _fact_wording_mismatch(resolved_claim.statement):
                 support, reasons = "unsupported", (*reasons, "直接事实不能使用因果、确定性、疑问或假设性措辞。")
             record_support("fact", resolved_claim, support, reasons)
+            if support == "limited" and _absence_statement(resolved_claim.statement):
+                absence_facts += 1
             if support == "unsupported":
                 hypotheses.append(_Claim(
                     resolved_claim.statement, resolved_claim.evidence_refs,
@@ -1292,6 +1339,8 @@ def synthesize_submission(
             ):
                 support, reasons = "unsupported", (*reasons, "疑问或假设性因果表述必须归入待验证内容。")
             record_support("inference", composite_claim, support, reasons)
+            if support == "limited":
+                limited_inferences += 1
             if support == "unsupported":
                 hypotheses.append(_Claim(
                     composite_claim.statement, composite_claim.evidence_refs,
@@ -1449,6 +1498,18 @@ def synthesize_submission(
             moved += 1
             adjustments.append("移除结论中的因果性措辞并转入待验证假设。")
 
+    # A conclusion the server adopts must never read as confirmed when it is
+    # hedged or only backed by limited evidence.  The same text feeds every
+    # presentation mode, so the marker survives brief/compact/report/table.
+    if submitted_conclusion and conclusion == submitted_conclusion:
+        if _speech_act(conclusion)[2]:
+            conclusion = f"推测（未经证实）：{conclusion}"
+            conclusion_notes.append("结论含推测性表述，已明确标注，不能视为已确认结论。")
+            adjustments.append("将模型提交的推测性结论明确标注为未经证实。")
+        elif conclusion_support == "limited":
+            conclusion = f"证据有限：{conclusion}"
+            conclusion_notes.append("结论受证据限制，已按有限结论呈现。")
+
     submitted_limitations = (
         []
         if contract.model_knowledge_fallback
@@ -1460,6 +1521,10 @@ def synthesize_submission(
         else []
     )
     limitations = list(dict.fromkeys([*contract.mandatory_limitations, *submitted_limitations, *conclusion_notes]))
+    if absence_facts:
+        limitations.append("空结果仅表示该查询范围内未检索到记录，不代表该现象绝对不存在。")
+    if limited_inferences:
+        limitations.append("部分推断仅有单条事实支撑，已按受限口径呈现。")
     supplied_sources = payload.get("source_refs") if isinstance(payload.get("source_refs"), list) else []
     used_refs = {
         reference

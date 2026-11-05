@@ -359,6 +359,126 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertEqual(support["support"], "unsupported")
         self.assertIn("未验证", "".join(support["reasons"]))
 
+    def test_contract_permits_every_advertised_step_reference(self):
+        contract, _ = _supported_yield_contract()
+
+        self.assertTrue(set(contract.source_semantics) <= set(contract.permitted_source_refs))
+
+    def test_v2_fact_reports_unpermitted_and_untraced_references(self):
+        contract, _ = _supported_yield_contract()
+        unpermitted = synthesize_submission({
+            "analysis_protocol_version": "2.0", "conclusion": "", "conclusion_evidence_refs": [],
+            "conclusion_claim": {}, "facts": [{
+                "statement": "总体良率为 91.2%。", "evidence_refs": ["TOOL:S99"],
+            }], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }, contract)
+        fact = next(item for item in unpermitted.report.claim_support if item["category"] == "fact")
+        self.assertEqual(fact["support"], "unsupported")
+        self.assertIn("含未许可引用", "".join(fact["reasons"]))
+
+        semantics = {
+            "TOOL:S09": {
+                "kind": "metric", "semantic_id": "final_wafer_yield", "grain": "fab",
+                "scope": {"fab_ids": ("FAB",)}, "start": "2026-06-21", "end": "2026-07-18",
+                "filter_provenance": "fixed_report", "scope_role": "primary",
+            },
+        }
+        untraced = replace(
+            contract, permitted_source_refs=("TOOL:S09",), source_semantics=semantics,
+            reference_evidence={},
+        )
+        result = synthesize_submission({
+            "analysis_protocol_version": "2.0", "conclusion": "", "conclusion_evidence_refs": [],
+            "conclusion_claim": {}, "facts": [{
+                "statement": "总体良率为 91.2%。", "evidence_refs": ["TOOL:S09"],
+            }], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }, untraced)
+        fact = next(item for item in result.report.claim_support if item["category"] == "fact")
+        self.assertEqual(fact["support"], "unsupported")
+        self.assertIn("没有可追溯的证据检查", "".join(fact["reasons"]))
+
+    def _empty_result_contract(self):
+        contract, _ = _supported_yield_contract()
+        semantics = {
+            "TOOL:S05": {
+                "kind": "event", "semantic_id": "process_excursion", "grain": "event",
+                "scope": {"fab_ids": ("FAB",)}, "start": "2026-06-21", "end": "2026-07-18",
+                "filter_provenance": "fixed_report", "scope_role": "primary",
+            },
+        }
+        evidence = {"TOOL:S05": {
+            "statuses": {"YLD-03": "partial"}, "risk_codes": (),
+            "critical_risk_codes": ("empty_result",), "conflict_codes": (),
+        }}
+        return replace(
+            contract, permitted_source_refs=("TOOL:S05",), source_semantics=semantics,
+            source_scope_roles={"TOOL:S05": "primary"}, reference_evidence=evidence,
+            allowed_conclusion_strength="hypothesis_only",
+        )
+
+    def test_v2_absence_fact_from_empty_result_is_limited_not_rejected(self):
+        contract = self._empty_result_contract()
+        for statement in (
+            "最近四周内未检索到任何工艺异常事件。",
+            "同期该设备未返回任何过程异常事件记录。",
+        ):
+            with self.subTest(statement=statement):
+                result = synthesize_submission({
+                    "analysis_protocol_version": "2.0", "conclusion": statement,
+                    "conclusion_evidence_refs": [], "conclusion_claim": {"inference_indices": []},
+                    "facts": [{"statement": statement, "evidence_refs": ["TOOL:S05"]}],
+                    "inferences": [], "hypotheses": [], "recommendations": [],
+                    "limitations": [], "source_refs": [],
+                }, contract)
+
+                fact = next(item for item in result.report.claim_support if item["category"] == "fact")
+                self.assertEqual(fact["support"], "limited")
+                self.assertIn("**事实**", result.answer)
+                self.assertIn(statement, result.answer)
+                self.assertIn("空结果仅表示该查询范围内未检索到记录", result.answer)
+
+        positive = synthesize_submission({
+            "analysis_protocol_version": "2.0", "conclusion": "",
+            "conclusion_evidence_refs": [], "conclusion_claim": {},
+            "facts": [{
+                "statement": "同期发生 3 次工艺异常事件。", "evidence_refs": ["TOOL:S05"],
+            }], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }, contract)
+        fact = next(item for item in positive.report.claim_support if item["category"] == "fact")
+        self.assertEqual(fact["support"], "unsupported")
+        self.assertIn("empty_result", "".join(fact["reasons"]))
+
+    def test_adopted_conclusion_is_labelled_when_hedged_or_limited(self):
+        contract, _ = _supported_yield_contract()
+        reference = next(
+            ref for ref, item in (contract.reference_evidence or {}).items()
+            if ref.startswith("TOOL:S") and not item.get("critical_risk_codes")
+        )
+        hedged = synthesize_submission({
+            "conclusion": "可能仍需检查设备稳定性。",
+            "conclusion_evidence_refs": [reference],
+            "conclusion_claim": _structured_claim(contract, reference, "可能仍需检查设备稳定性。"),
+            "facts": [], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }, contract)
+        self.assertIn("推测（未经证实）：", hedged.answer)
+
+        limited_contract = replace(contract, reference_evidence={
+            **contract.reference_evidence,
+            reference: {**contract.reference_evidence[reference], "risk_codes": ("small_sample",)},
+        })
+        limited = synthesize_submission({
+            "conclusion": "设备稳定性需要进一步检查。",
+            "conclusion_evidence_refs": [reference],
+            "conclusion_claim": _structured_claim(contract, reference, "设备稳定性需要进一步检查。"),
+            "facts": [], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }, limited_contract)
+        self.assertIn("证据有限：", limited.answer)
+
     def test_clause_level_causal_assessment_preserves_caution_and_rejects_assertions(self):
         contract, _ = _supported_yield_contract()
         contract = replace(contract, causal_claims_allowed=False)
