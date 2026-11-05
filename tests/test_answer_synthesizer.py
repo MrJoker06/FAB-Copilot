@@ -90,7 +90,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertEqual(properties["analysis_protocol_version"]["enum"], ["2.0"])
         self.assertNotIn("required", properties["conclusion_claim"])
         fact_required = properties["facts"]["items"]["required"]
-        self.assertEqual(fact_required, ["statement", "evidence_refs", "semantic_id", "scope", "time_range", "claim_role"])
+        self.assertEqual(fact_required, ["statement", "evidence_refs"])
         inference = properties["inferences"]["items"]
         self.assertEqual(inference["required"], ["statement"])
         self.assertTrue({"fact_indices", "basis", "uncertainty", "scope", "time_range", "claim_role"} <= set(inference["properties"]))
@@ -672,6 +672,46 @@ class AnswerSynthesizerTests(unittest.TestCase):
         contract, _ = _supported_yield_contract()
         message = synthesizer_system_message(contract)
         self.assertLess(message.index("presentation 字段"), message.index("answer_contract="))
+    def test_fact_metadata_is_derived_from_evidence(self):
+        contract, sources = _supported_yield_contract()
+        reference = next(ref for ref in contract.permitted_source_refs if ref.startswith("TOOL:S"))
+        payload = {
+            "analysis_protocol_version": "2.0",
+            "conclusion": "整体良率约为 91.2%。",
+            "conclusion_evidence_refs": [reference],
+            "facts": [{"statement": "整体良率为 91.2%。", "evidence_refs": [reference]}],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        fact_support = [item for item in result.report.claim_support if item["category"] == "fact"]
+        self.assertTrue(fact_support)
+        self.assertEqual(fact_support[0]["support"], "supported")
+        self.assertIn("**事实**", result.answer)
+
+    def test_fact_scope_contradiction_stays_unsupported(self):
+        contract, sources = _supported_yield_contract()
+        reference = next(ref for ref in contract.permitted_source_refs if ref.startswith("TOOL:S"))
+        payload = {
+            "analysis_protocol_version": "2.0",
+            "conclusion": "整体良率约为 91.2%。",
+            "conclusion_evidence_refs": [reference],
+            "facts": [{
+                "statement": "ETCH-04 的良率为 91.2%。",
+                "evidence_refs": [reference],
+                "scope": {"equipment_ids": ["ETCH-04"]},
+            }],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        fact_support = [item for item in result.report.claim_support if item["category"] == "fact"]
+        self.assertTrue(fact_support)
+        self.assertNotEqual(fact_support[0]["support"], "supported")
+
+    def test_fact_schema_only_requires_statement_and_refs(self):
+        facts = SUBMIT_ANALYSIS_TOOL["function"]["parameters"]["properties"]["facts"]
+        self.assertEqual(facts["items"]["required"], ["statement", "evidence_refs"])
     def test_compact_renders_one_bullet_per_item(self):
         contract, sources = _supported_yield_contract()
         payload = {
@@ -933,7 +973,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertEqual(repaired.report.status, "repaired")
         self.assertIn("证据限制：", repaired.answer)
 
-        selection, plan = _context("分析 CMP 划伤缺陷 Pareto")
+        selection, plan = _context("你好")
         validation = validate_evidence(plan, selection.selected_playbook, [])
         generic = synthesize_legacy_answer("保持原样", create_answer_contract(validation))
         self.assertEqual(generic.answer, "保持原样")
@@ -1155,6 +1195,8 @@ class AnswerSynthesizerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
 
 
 

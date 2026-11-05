@@ -110,7 +110,7 @@ SUBMIT_ANALYSIS_TOOL = {
                             "grain": {"type": "string"},
                             "claim_role": {"type": "string", "enum": ["primary", "background"]},
                         },
-                        "required": ["statement", "evidence_refs", "semantic_id", "scope", "time_range", "claim_role"],
+                        "required": ["statement", "evidence_refs"],
                         "additionalProperties": False,
                     },
                 },
@@ -441,7 +441,9 @@ def synthesizer_system_message(contract: AnswerContract) -> str:
         f"使用 {MODEL_KNOWLEDGE_REF} 并遵循既有模型通用知识提交约定。"
         if contract.model_knowledge_fallback
         else (
-            f"使用 analysis_protocol_version={ANALYSIS_PROTOCOL_VERSION}：facts 是调用级直接事实，必须使用 TOOL:Sxx 引用并声明 semantic_id、scope、time_range、claim_role；服务端只补全已知的 kind 和 grain。"
+            f"使用 analysis_protocol_version={ANALYSIS_PROTOCOL_VERSION}：facts 是调用级直接事实，只写 statement 与 TOOL:Sxx 引用即可；"
+            "claim_kind、semantic_id、scope、time_range、grain、claim_role 由服务端从被引用证据推导，"
+            "如果你显式填写则必须与证据一致，否则该声明会被判为不支持。"
             "inferences 必须用至少两个已验证 facts 的从零开始 fact_indices，填写简短 basis 和 uncertainty；其引用由服务端从事实推导，不要重复填报来源元数据。"
             "conclusion_claim 必须引用已验证综合推断的 inference_indices，并声明目标 scope、time_range、claim_role；不得把综合结论伪装成某一个原始指标。"
             "不得把背景来源混入综合推断，范围或时间不兼容时改为 hypotheses。"
@@ -702,31 +704,80 @@ def _structured_claim_mismatch(claim: _Claim, contract: AnswerContract) -> bool:
     return True
 
 
-def _v2_direct_fact(claim: _Claim, contract: AnswerContract) -> tuple[_Claim, tuple[str, ...]]:
-    """Fill only known descriptor fields for a v2 direct observation.
+def _agree(values: list[Any]) -> Any | None:
+    """Return the single shared value, or None when the references disagree."""
+    distinct = {value for value in values}
+    return next(iter(distinct)) if len(distinct) == 1 else None
 
-    The model still declares the meaning, scope, time range and role.  Kind and
-    grain are copied only when every call-level reference agrees, so a supplied
-    contradiction or mixed source metadata cannot alter a user's declaration.
+
+def _scope_payload(scope: EvidenceScope) -> dict[str, list[str]]:
+    return {
+        name: list(getattr(scope, name))
+        for name in EvidenceScope.__dataclass_fields__
+        if getattr(scope, name)
+    }
+
+
+def _v2_direct_fact(claim: _Claim, contract: AnswerContract) -> tuple[_Claim, tuple[str, ...]]:
+    """Derive the semantic metadata of a v2 direct observation from its sources.
+
+    The model only writes the statement and the references: kind, grain,
+    semantic id, scope, time range and role are copied from the referenced
+    call-level sources when every reference agrees.  Values the model does
+    supply are still validated, so an explicit contradiction stays unsupported.
     """
-    required = {"semantic_id", "scope", "time_range", "claim_role"}
-    if not required <= claim.explicit_fields:
-        return claim, ("直接事实必须声明 semantic_id、scope、time_range 和 claim_role。",)
     if not claim.evidence_refs or any(not ref.startswith("TOOL:S") for ref in claim.evidence_refs):
         return claim, ("直接事实只能引用调用级 TOOL:Sxx 证据。",)
     descriptors = [_descriptor_for_reference(ref, contract) for ref in claim.evidence_refs]
     if any(item is None for item in descriptors):
         return claim, ("直接事实引用缺少可用来源描述。",)
     resolved = [item for item in descriptors if item is not None]
-    kinds = {item.kind for item in resolved}
-    grains = {item.grain for item in resolved}
-    if len(kinds) != 1 or len(grains) != 1 or "unknown" in kinds or "unknown" in grains:
+    kind = _agree([item.kind for item in resolved])
+    grain = _agree([item.grain for item in resolved])
+    if kind in (None, "unknown") or grain in (None, "unknown"):
         return claim, ("直接事实的调用级来源元数据不一致或未知。",)
-    kind, grain = next(iter(kinds)), next(iter(grains))
-    if (claim.claim_kind and claim.claim_kind != kind) or (claim.grain and claim.grain != grain):
-        return claim, ("模型提供的 kind 或 grain 与调用级来源描述矛盾。",)
+    if claim.claim_kind and claim.claim_kind != kind:
+        return claim, ("模型提供的 kind 与调用级来源描述矛盾。",)
+    if claim.grain and claim.grain != grain:
+        return claim, ("模型提供的 grain 与调用级来源描述矛盾。",)
+
+    semantic_id = claim.semantic_id or _agree([item.semantic_id for item in resolved])
+    if not semantic_id:
+        return claim, ("直接事实的调用级来源语义不一致。",)
+
+    scope = claim.scope if claim.scope else None
+    if scope is None:
+        shared_scope = _agree([item.scope for item in resolved])
+        if shared_scope is None:
+            return claim, ("直接事实的调用级来源范围不一致。",)
+        scope = _scope_payload(shared_scope)
+
+    time_range = claim.time_range if claim.time_range else None
+    if time_range is None:
+        start = _agree([item.start for item in resolved])
+        end = _agree([item.end for item in resolved])
+        if (start is None) != (end is None):
+            return claim, ("直接事实的调用级来源时间范围不一致。",)
+        time_range = {"start": start, "end": end} if start and end else {}
+
+    if "claim_role" in claim.explicit_fields:
+        claim_role = claim.claim_role
+    else:
+        shared_role = _agree([item.scope_role for item in resolved])
+        if shared_role is None:
+            return claim, ("直接事实的调用级来源角色不一致。",)
+        claim_role = "background" if shared_role == "context_only" else "primary"
+
     return _Claim(
-        **{**claim.__dict__, "claim_kind": kind, "grain": grain}
+        **{
+            **claim.__dict__,
+            "claim_kind": kind,
+            "grain": grain,
+            "semantic_id": semantic_id,
+            "scope": scope,
+            "time_range": time_range,
+            "claim_role": claim_role,
+        }
     ), ()
 
 
