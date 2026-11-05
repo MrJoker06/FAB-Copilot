@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import unittest
+from dataclasses import replace
 from datetime import date
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -19,7 +20,7 @@ def _plan(question: str, current_date: date = date(2026, 7, 18)):
 
 
 class StructuredPlannerTests(unittest.TestCase):
-    def test_six_playbooks_create_ready_serializable_plans(self):
+    def test_every_playbook_creates_ready_serializable_plans(self):
         cases = (
             ("分析 CMP-03 最近7天 Cpk 不合格", "PB-CAPABILITY-001", {"CAP-01", "CAP-02", "CAP-04"}),
             ("最近四周良率下降", "PB-YIELD-001", {"YLD-01", "YLD-02", "YLD-03"}),
@@ -274,7 +275,9 @@ class StructuredPlannerTests(unittest.TestCase):
                 self.assertTrue(plan.clarification_questions)
 
     def test_unsupported_intent_keeps_generic_path_without_domain_steps(self):
-        plan = _plan("分析 CMP 划伤缺陷 Pareto")
+        question = "分析 CMP 划伤缺陷 Pareto"
+        route = replace(route_question(question), intent="unmapped_intent")
+        plan = create_execution_plan(question, route, select_playbook(route))
 
         self.assertEqual(plan.status, "unsupported")
         self.assertEqual(plan.steps, ())
@@ -282,6 +285,18 @@ class StructuredPlannerTests(unittest.TestCase):
         self.assertEqual(plan.budget.max_tool_calls, 10)
         self.assertEqual(plan.budget.per_tool_limits["*"], 3)
 
+    def test_defect_question_gets_a_ready_plan(self):
+        plan = _plan("最近缺陷类型占比最高的是哪些，和哪些设备相关？")
+
+        self.assertEqual(plan.status, "ready")
+        self.assertEqual(plan.playbook_id, "PB-DEFECT-001")
+        tools = {step.tool for step in plan.steps}
+        self.assertLessEqual(
+            {"get_defect_pareto", "get_recent_excursions", "get_equipment_health"}, tools
+        )
+        self.assertEqual(
+            set(plan.required_evidence_ids), {"DEF-01", "DEF-02", "DEF-03"}
+        )
     def test_ready_plan_is_returned_but_model_receives_only_compact_synthesis_contract(self):
         captured: dict = {}
         progress_events: list[dict] = []
@@ -336,3 +351,5 @@ class StructuredPlannerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

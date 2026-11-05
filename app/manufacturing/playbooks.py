@@ -14,6 +14,7 @@ PlaybookIntent = Literal[
     "lot_trace",
     "sop_lookup",
     "fab_diagnostic",
+    "defect_analysis",
 ]
 SelectionStatus = Literal["selected", "clarification_required", "unsupported"]
 
@@ -532,6 +533,82 @@ SOP_LOOKUP_PLAYBOOK = DomainPlaybook(
 )
 
 
+DEFECT_ANALYSIS_PLAYBOOK = DomainPlaybook(
+    playbook_id="PB-DEFECT-001",
+    schema_version="1.0",
+    playbook_version="1.0.0",
+    released_at="2026-11-05",
+    intent="defect_analysis",
+    title="缺陷分布与设备关联分析",
+    objective=(
+        "确认缺陷类型构成、主要缺陷的同期异常与设备分布，判断哪些设备或工序可能"
+        "贡献了主要缺陷；设备级归因只能作为待验证假设。"
+    ),
+    required_inputs=("time_range",),
+    evidence_requirements=(
+        EvidenceRequirement(
+            evidence_id="DEF-01",
+            name="缺陷类型分布",
+            purpose="确认各缺陷类型的数量、占比和影响批次，定位主要缺陷。",
+            source_tools=("get_defect_pareto",),
+            required_fields=("defect_type", "defect_count", "affected_lots", "share_pct"),
+            acceptance_criteria=(
+                "至少返回一种缺陷类型及其数量与占比。",
+                "结论中的首要缺陷必须能对应到 pareto 中的具体类型。",
+            ),
+        ),
+        EvidenceRequirement(
+            evidence_id="DEF-02",
+            name="缺陷相关异常记录",
+            purpose=(
+                "查看同期异常记录中的缺陷代码、量测值和规格边界，判断缺陷是否集中在"
+                "特定设备或量测项。"
+            ),
+            source_tools=("get_recent_excursions",),
+            required_fields=(
+                "run_time", "equipment_id", "excursion_code", "measurement_name",
+                "measurement_value", "spec_lsl", "spec_usl",
+            ),
+            acceptance_criteria=(
+                "异常记录包含设备、缺陷代码与规格对比字段。",
+                "仅凭时间重合不得直接断言因果。",
+            ),
+        ),
+        EvidenceRequirement(
+            evidence_id="DEF-03",
+            name="设备健康与异常频次",
+            purpose="对比各设备的健康状态、异常次数与通过率，识别缺陷高发设备。",
+            source_tools=("get_equipment_health",),
+            required_fields=("equipment_id", "health", "excursions", "pass_pct"),
+            acceptance_criteria=(
+                "返回设备级异常次数与健康状态。",
+                "不得把相关性表述为已证明的设备根因。",
+            ),
+        ),
+        EvidenceRequirement(
+            evidence_id="DEF-04",
+            name="缺陷处置知识",
+            purpose="检索缺陷类型对应的处置经验、验收标准与历史案例。",
+            source_tools=("search_knowledge",),
+            required_fields=("reference_id", "title", "excerpt"),
+            acceptance_criteria=(
+                "返回可引用的知识条目；为空时必须明确说明。",
+                "历史案例只能作为参考，不替代厂内规范。",
+            ),
+            required=False,
+        ),
+    ),
+    analysis_questions=(
+        "缺陷类型的构成与占比如何，哪一类最值得优先处理？",
+        "主要缺陷是否集中在特定设备或工序？",
+        "异常记录与缺陷类型是否存在时间与设备上的重合？",
+        "现有证据是否足以支持设备级根因判断，还缺哪些证据？",
+    ),
+    answer_sections=("缺陷构成", "设备关联", "待验证假设", "证据限制", "建议"),
+    safety_constraints=_COMMON_SAFETY_CONSTRAINTS,
+)
+
+
 DOMAIN_PLAYBOOKS: dict[str, DomainPlaybook] = {
     playbook.intent: playbook
     for playbook in (
@@ -541,6 +618,7 @@ DOMAIN_PLAYBOOKS: dict[str, DomainPlaybook] = {
         FAB_DIAGNOSTIC_PLAYBOOK,
         LOT_TRACE_PLAYBOOK,
         SOP_LOOKUP_PLAYBOOK,
+        DEFECT_ANALYSIS_PLAYBOOK,
     )
 }
 
