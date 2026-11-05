@@ -413,6 +413,12 @@ def synthesizer_system_message(contract: AnswerContract) -> str:
         "inferences 是基于事实的解释，hypotheses 必须包含验证方法，recommendations 必须说明依据与复核要求。"
         "保持精炼：只保留对决策最重要的条目，不要逐行复述工具结果或穷举全部设备。"
         + (
+            "presentation=brief 时必须极简：conclusion 不超过 60 字；facts 最多 2 条且每条不超过 80 字；"
+            "不要提交 inferences、hypotheses、recommendations；limitations 最多 3 条。"
+            if contract.presentation == "brief"
+            else ""
+        )
+        + (
             f"知识库检索没有返回可用内容，允许使用 {MODEL_KNOWLEDGE_REF} 作为模型通用知识标识。"
             "应直接回答用户的一般性技术问题，将通用知识放入 inferences；"
             "conclusion 直接概括技术回答，不要重复知识库无结果声明，服务端会统一添加；"
@@ -831,6 +837,14 @@ def _render_populated_sections(items: list[tuple[str, list[str]]]) -> tuple[str,
     ), tuple(title for title, _ in rendered)
 
 
+def _clip_brief(value: str, limit: int) -> str:
+    """Collapse whitespace and cap one brief-mode line."""
+    text = " ".join(str(value).split())
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "…"
+
+
 def _render_presentation(
     contract: AnswerContract, conclusion: str, fact_lines: list[str], inference_lines: list[str],
     hypothesis_lines: list[str], recommendation_lines: list[str], limitations: list[str],
@@ -841,11 +855,23 @@ def _render_presentation(
         ("建议", recommendation_lines), ("证据限制", limitation_lines),
     ]
     if contract.presentation == "brief":
-        parts = [conclusion]
-        parts.extend(f"{title}：{'；'.join(lines)}" for title, lines in labeled if lines)
-        # One paragraph per category: a single joined line turns long multi-claim
-        # answers into an unreadable block.
-        return "\n\n".join(parts), ("结论", *(title for title, lines in labeled if lines))
+        # Brief means brief: one short conclusion, at most two facts and three
+        # limitations.  Long category joins were the reason "一句话总结" answers
+        # still ran to thousands of characters.
+        parts = [_clip_brief(conclusion, 160)]
+        brief_facts = [_clip_brief(line, 90) for line in fact_lines[:2]]
+        if brief_facts:
+            parts.append("事实：" + "；".join(brief_facts))
+        else:
+            brief_hypotheses = [_clip_brief(line, 90) for line in hypothesis_lines[:2]]
+            if brief_hypotheses:
+                parts.append("待验证：" + "；".join(brief_hypotheses))
+        if limitation_lines:
+            parts.append("证据限制：" + "；".join(_clip_brief(line, 60) for line in limitation_lines[:3]))
+        sections = ("结论",) + (("事实",) if brief_facts else ("待验证",) if hypothesis_lines else ())
+        if limitation_lines:
+            sections = sections + ("证据限制",)
+        return "\n\n".join(parts), sections
     if contract.presentation == "table":
         rows = [("结论", conclusion)]
         rows.extend(("事实", line) for line in fact_lines)
@@ -1215,6 +1241,9 @@ def synthesize_submission(
     if contract.model_knowledge_fallback:
         model_limitations = limitations or [MODEL_KNOWLEDGE_DISCLOSURE]
         if contract.presentation == "brief":
+            # Model-knowledge answers keep every retained category: dropping a
+            # disclosure or a verification step would hide that the answer is not
+            # plant evidence.
             parts = [conclusion]
             for title, lines in (
                 ("模型通用知识", inference_lines), ("待验证内容", hypothesis_lines),

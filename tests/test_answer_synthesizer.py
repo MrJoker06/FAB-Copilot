@@ -581,6 +581,33 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertIn("| 类型 | 内容 |", table.answer)
         self.assertEqual(brief.report.source_refs, table.report.source_refs)
 
+    def test_brief_caps_items_and_limitations(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "conclusion": "整体良率约 92%。",
+            "conclusion_evidence_refs": [],
+            "facts": [
+                {"statement": f"条目{index}。", "evidence_refs": []}
+                for index in range(6)
+            ],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [f"限制{index}。" for index in range(9)],
+            "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="brief"), sources)
+        self.assertIn("条目0", result.answer)
+        self.assertIn("条目1", result.answer)
+        self.assertNotIn("条目2", result.answer)
+        self.assertIn("限制0", result.answer)
+        self.assertIn("限制2", result.answer)
+        self.assertNotIn("限制3", result.answer)
+        self.assertLess(len(result.answer), 900)
+
+    def test_brief_prompt_states_the_short_budget(self):
+        contract, _ = _supported_yield_contract()
+        message = synthesizer_system_message(replace(contract, presentation="brief"))
+        self.assertIn("presentation=brief", message)
+        self.assertIn("最多 2 条", message)
     def test_compact_renders_one_bullet_per_item(self):
         contract, sources = _supported_yield_contract()
         payload = {
@@ -1064,6 +1091,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 
