@@ -766,6 +766,36 @@ class AnswerSynthesizerTests(unittest.TestCase):
         result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
         conclusions = [item for item in result.report.claim_support if item["category"] == "conclusion"]
         self.assertEqual(conclusions[0]["support"], "unsupported")
+    def test_fact_kind_contradiction_stays_unsupported(self):
+        contract, sources = _supported_yield_contract()
+        reference = next(ref for ref in contract.permitted_source_refs if ref.startswith("TOOL:S"))
+        payload = {
+            "analysis_protocol_version": "2.0",
+            "conclusion": "整体良率约为 91.2%。",
+            "conclusion_evidence_refs": [],
+            "facts": [{
+                "statement": "整体良率为 91.2%。",
+                "evidence_refs": [reference],
+                "claim_kind": "event",
+            }],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        facts = [item for item in result.report.claim_support if item["category"] == "fact"]
+        self.assertEqual(facts[0]["support"], "unsupported")
+        self.assertIn("矛盾", "".join(facts[0]["reasons"]))
+
+    def test_conclusion_scope_contradiction_stays_unsupported(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        payload["conclusion_claim"] = {
+            "inference_indices": [0],
+            "scope": {"equipment_ids": ["ETCH-04"]},
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        conclusions = [item for item in result.report.claim_support if item["category"] == "conclusion"]
+        self.assertEqual(conclusions[0]["support"], "unsupported")
     def test_compact_renders_one_bullet_per_item(self):
         contract, sources = _supported_yield_contract()
         payload = {
@@ -1249,6 +1279,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 
