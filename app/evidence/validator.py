@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -163,11 +164,12 @@ def _step_matches(step: PlanStep, observation: EvidenceObservation) -> bool:
     return True
 
 
-def _matching_evidence_ids(plan: ExecutionPlan, observation: EvidenceObservation) -> set[str]:
+def _matching_evidence_ids(plan: ExecutionPlan, observation: EvidenceObservation, step_matcher: Callable[[PlanStep, EvidenceObservation], bool] | None = None) -> set[str]:
+    matcher = step_matcher or _step_matches
     return {
         evidence_id
         for step in plan.steps
-        if _step_matches(step, observation)
+        if matcher(step, observation)
         for evidence_id in step.evidence_ids
     }
 
@@ -196,6 +198,7 @@ def _scope_risks(
     plan: ExecutionPlan,
     playbook: DomainPlaybook,
     observations: list[EvidenceObservation],
+    step_matcher: Callable[[PlanStep, EvidenceObservation], bool] | None = None,
 ) -> list[ValidationIssue]:
     risks: list[ValidationIssue] = []
     for observation in observations:
@@ -206,7 +209,7 @@ def _scope_risks(
             for item in playbook.evidence_requirements
             if observation.tool in item.source_tools
         )
-        if not source_ids or _matching_evidence_ids(plan, observation):
+        if not source_ids or _matching_evidence_ids(plan, observation, step_matcher):
             continue
         risks.append(ValidationIssue(
             code="scope_mismatch",
@@ -351,6 +354,7 @@ def _reference_evidence(
     checks: list[EvidenceCheck],
     risks: tuple[ValidationIssue, ...],
     conflicts: tuple[ValidationIssue, ...],
+    step_matcher: Callable[[PlanStep, EvidenceObservation], bool] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Map each observed call reference to its concrete evidence obligations."""
     status_by_id = {item.evidence_id: item.status for item in checks}
@@ -358,7 +362,7 @@ def _reference_evidence(
     for observation, evidence_ids in matched:
         targets = {f"TOOL:{observation.tool}"}
         targets.update(
-            f"TOOL:{step.step_id}" for step in plan.steps if _step_matches(step, observation)
+            f"TOOL:{step.step_id}" for step in plan.steps if (step_matcher or _step_matches)(step, observation)
         )
         if observation.source_ref:
             targets.add(observation.source_ref)
@@ -418,6 +422,8 @@ def validate_evidence(
     plan: ExecutionPlan,
     playbook: DomainPlaybook | None,
     observations: list[EvidenceObservation],
+    *,
+    step_matcher: Callable[[PlanStep, EvidenceObservation], bool] | None = None,
 ) -> EvidenceValidation:
     if plan.status != "ready" or playbook is None:
         strength: ConclusionStrength = "not_applicable"
@@ -446,7 +452,7 @@ def validate_evidence(
         )
 
     matched = [
-        (observation, _matching_evidence_ids(plan, observation))
+        (observation, _matching_evidence_ids(plan, observation, step_matcher))
         for observation in observations
         if observation.status == "success"
     ]
@@ -487,7 +493,7 @@ def validate_evidence(
     required_checks = [item for item in checks if item.required]
     required_covered = sum(item.status == "covered" for item in required_checks)
     risks = _deduplicate_issues(
-        _scope_risks(plan, playbook, observations)
+        _scope_risks(plan, playbook, observations, step_matcher)
         + _execution_risks(plan, playbook, observations)
         + _sample_and_source_risks(matched)
     )
@@ -499,9 +505,9 @@ def validate_evidence(
     }
     for observation, _ in matched:
         observed_refs.add(observation.source_ref or "")
-        observed_refs.update(f"TOOL:{step.step_id}" for step in plan.steps if _step_matches(step, observation))
+        observed_refs.update(f"TOOL:{step.step_id}" for step in plan.steps if (step_matcher or _step_matches)(step, observation))
     observed_refs.discard("")
-    reference_evidence = _reference_evidence(plan, matched, checks, risks, conflicts)
+    reference_evidence = _reference_evidence(plan, matched, checks, risks, conflicts, step_matcher)
     return EvidenceValidation(
         schema_version="1.2",
         validator_version="1.2.0",

@@ -6,7 +6,7 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from inspect import isawaitable, iscoroutinefunction
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..agent_runtime.application import AgentRun
 from ..agent_runtime.definition import AgentDefinition, ComponentReference
@@ -20,6 +20,13 @@ from ..agent_runtime.tools.dispatch_contracts import (
 )
 from ..agent_runtime.tools.dispatcher import ToolDispatcher
 from ..agent_runtime.tools.tool_registry import ToolRegistry
+
+if TYPE_CHECKING:
+    from .skill_assembly import (
+        SkillAssemblyConfiguration,
+        SkillBinding,
+        SkillExecutionRequest,
+    )
 
 _PUBLIC_ERROR = "Agent assembly is invalid."
 
@@ -83,6 +90,7 @@ class AgentApplication:
     model_policy_ref: ComponentReference
     policy_ref: ComponentReference
     effective_capabilities: frozenset[str]
+    skill_binding: SkillBinding | None = None
 
     def new_run(
         self, context: RuntimeContext, *, result_policy: ToolResultPolicy | None = None
@@ -90,6 +98,12 @@ class AgentApplication:
         if not isinstance(context, RuntimeContext):
             raise AssemblyError()
         try:
+            skill_context = ()
+            skill_metadata = ()
+            if self.skill_binding is not None:
+                self.skill_binding.revalidate()
+                skill_context = self.skill_binding.model_context
+                skill_metadata = self.skill_binding.metadata
             registry, tools_json = _tools_json(
                 self.bindings, self.effective_capabilities
             )
@@ -122,6 +136,8 @@ class AgentApplication:
             dispatcher,
             self.events,
             tools_json,
+            skill_context,
+            skill_metadata,
         )
 
 
@@ -136,11 +152,21 @@ def assemble_agent(
     server_capabilities: frozenset[str],
     model_policy_ref: ComponentReference,
     policy_ref: ComponentReference,
+    skill_configuration: SkillAssemblyConfiguration | None = None,
+    skill_request: SkillExecutionRequest | None = None,
 ) -> AgentApplication:
     try:
+        skill_binding = None
         if (
             not isinstance(definition, AgentDefinition)
-            or definition.skill_refs
+            or (
+                definition.skill_refs
+                and (skill_configuration is None or skill_request is None)
+            )
+            or (
+                not definition.skill_refs
+                and (skill_configuration is not None or skill_request is not None)
+            )
             or not _valid_port(model, "complete", asynchronous=True)
             or not _valid_port(events, "emit", asynchronous=True)
             or not isinstance(bindings, tuple)
@@ -166,7 +192,35 @@ def assemble_agent(
             for binding in bindings
         ):
             raise AssemblyError()
-        _tools_json(bindings, definition.allowed_tools & server_capabilities)
+        effective_capabilities = definition.allowed_tools & server_capabilities
+        if definition.skill_refs:
+            # Keep this import opt-in: historical source slices deliberately do
+            # not copy the new Skill composition modules.
+            from .skill_assembly import (
+                SkillAssemblyConfiguration,
+                SkillAssemblyError,
+                SkillExecutionRequest,
+                resolve_skill_binding,
+            )
+
+            if not isinstance(
+                skill_configuration, SkillAssemblyConfiguration
+            ) or not isinstance(skill_request, SkillExecutionRequest):
+                raise AssemblyError()
+            try:
+                skill_binding = resolve_skill_binding(
+                    definition,
+                    skill_configuration,
+                    skill_request,
+                    bindings,
+                    server_capabilities,
+                )
+            except SkillAssemblyError:
+                raise AssemblyError() from None
+            effective_capabilities &= frozenset(
+                step.tool for step in skill_binding.plan.steps
+            )
+        _tools_json(bindings, effective_capabilities)
     except AssemblyError:
         raise
     except Exception:  # noqa: BLE001 - assembly errors are deliberately opaque
@@ -181,5 +235,6 @@ def assemble_agent(
         server_capabilities,
         model_policy_ref,
         policy_ref,
-        definition.allowed_tools & server_capabilities,
+        effective_capabilities,
+        skill_binding,
     )

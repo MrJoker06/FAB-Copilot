@@ -1,8 +1,8 @@
 # 当前项目精细结构快照
 
-快照日期：2026-11-03。依据为 experiment/parallel-platform 的 `e9c0191` 基线及本轮 MOD-017 改造。MOD-008、跨平台启动和 MOD-016～017 已验收，历史失败保留；下一项为 MOD-018，随后 019 → 009 → 012 → 015。Skill 清单、安全资源、显式 Catalog、确定性发现与渐进加载已实现；业务装配和版本发布仍待后续工作包。验收证据以对应报告为准，提交与远程状态以 Git 记录为准。
+快照日期：2026-11-04。依据为 experiment/parallel-platform 的 `86f6c96` 基线及本轮 MOD-019 改造。MOD-008、跨平台启动和 MOD-016～019 已验收，历史失败保留；下一项为 MOD-009，随后 012 → 015。Skill 清单、Catalog、渐进加载、显式光刻装配及进程内发布/禁用/回退与资源固定已实现；默认 HTTP 未启用。验收证据以对应报告为准，提交与远程状态以 Git 记录为准。
 
-本次实扫 `app/` 的受管源码为 **267 文件：239 个 Python、28 个静态文件**。数量与
+本次实扫 `app/` 的受管源码为 **272 文件：244 个 Python、28 个静态文件**。数量与
 `evaluations/mod_003_boundaries_v1.json` 一致；测试、日志、缓存和运行期生成物不计入。
 
 ## 平台启动入口
@@ -10,7 +10,7 @@
 根目录 `run.py` 统一处理启动检查、源码快照、隔离实例与子进程生命周期；`run.bat`
 直接运行原生 Windows Python，`run.sh` 用于 Linux / WSL，支持各自 venv 和既有 Conda。
 `scripts/instance_lock.py` 提供平台锁，`scripts/manage_runtime.py` 维护安全的实例检查/
-清理。以上均在 `app/` 之外。MOD-016 之前应用源码为 258 文件，016/017 累计新增九个 Skill 文件；启动入口不计入应用源码统计。
+清理。以上均在 `app/` 之外。MOD-016 之前应用源码为 258 文件，016/017 累计新增九个 Skill 文件，018 另增三个 bootstrap 和一个 evidence 文件，019 再增一个 releases 模块；四个光刻 Skill 文本资产另计。启动入口不计入应用源码统计。
 启动方式见 [README](../README.md#快速启动)，实际验证见 [跨平台启动报告](reports/cross-platform-startup.md)。
 
 ## 1. 当前物理树与逻辑边界
@@ -28,7 +28,7 @@ app/
 ├── knowledge/                     RAG、纯知识工具、检索决策/规则/契约与旧 SQLite 后端
 ├── integrations/knowledge/        精确 Fake 与显式工厂/个人搜索后端 Adapter
 ├── evidence/                      证据描述、校验、答案综合和序列化
-├── skills/                        清单/依赖、安全资源、Catalog/发现与渐进加载
+├── skills/                        清单/资源、Catalog/渐进加载、不可变发布与版本状态
 ├── memory_system/                 当前上下文记忆的规则、Port 与服务
 ├── conversation/                  会话决策、上下文兼容、会话存取
 ├── model_gateway/                 Provider 配置、健康与 SSE 流式协议
@@ -85,7 +85,7 @@ AgentDefinition + bootstrap.agent_assembly
 这一链覆盖设备健康、Cpk、传感器，第二批总览/良率趋势/制程通过率，以及第三批生产率/
 缺陷 Pareto/最近异常的显式绑定；第四批企业目录/汇总/样本绑定也已验证。另保留
 经明确许可的 legacy 适配。各批验收状态分别记录；它并未把所有旧工具、所有数据源、
-HTTP 生命周期、会话存储或 Skill 迁入新装配。
+HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配置复用这条试点链，默认 HTTP 不自动启用。
 
 第五批联合检索的显式绑定已验收。工厂/案例和个人知识通过数据 Port 组合，
 旧 RAG facade 为历史直接调用保留设置、身份与后端选择；默认工具改由 bootstrap 注入。
@@ -116,7 +116,7 @@ HTTP 生命周期、会话存储或 Skill 迁入新装配。
 | `knowledge/`、`cases/` | 知识与历史案例内容资产，独立于检索算法实现。 |
 | `data/`、`backups/` | 本地合成/应用自有数据库及备份；不是纯工具模块源码。 |
 | `runtime/` | run.sh 的实例源码快照、实例数据，以及 quality/portable 验收产物；与 app/agent_runtime 的执行源码不同。 |
-| `tests/`、`logs/`、缓存与 node_modules | 验证、日志和生成依赖；本说明不逐文件展开，不计入 267 源码文件。 |
+| `tests/`、`logs/`、缓存与 node_modules | 验证、日志和生成依赖；本说明不逐文件展开，不计入 272 源码文件。 |
 | `fab_litho_agent_gantt_boss.xlsx` | 用户的规划参考资产，不是运行时依赖。 |
 
 ### 关键接口与状态归属
@@ -170,7 +170,10 @@ HTTP 生命周期、会话存储或 Skill 迁入新装配。
 | `app/bootstrap/default_coordinator_assembly.py` | 装配 | 从 live namespace 构造默认协调器依赖，注入 v2 规划、每次运行的工具装配及受控原生离线降级。 |
 | `app/bootstrap/default_tool_assembly.py` | 装配 | 业务运行组合 21 项原生绑定，通识仅授权知识检索；组合延迟来源、可信身份 Policy、同一 Guard 和结果策略。未暴露目录时使用不可变 Schema 快照；公开访问后的可变清单按运行独立物化，后续绑定反映实际修改。 |
 | `app/bootstrap/legacy_agent_assembly.py` | 装配/兼容 | 从一次 service globals 快照构建旧 CoordinatorDependencies。 |
-| `app/bootstrap/agent_assembly.py` | 装配 | 校验 Definition/Binding/能力并建立 AgentApplication。 |
+| `app/bootstrap/agent_assembly.py` | 装配 | 校验 Definition/Binding/能力并建立 AgentApplication；非空 skill_refs 必须显式配置，未启用路径保持兼容。 |
+| `app/bootstrap/skill_assembly.py` | 装配 | 根据实际绑定校验 Skill，连接文件目录或显式发布对象；新 Run 前检查声明或发布准入，将固定文本和基础元数据交给 Runtime。 |
+| `app/bootstrap/litho_cpk_workflow.py` | 装配 | 固定光刻 Workflow 与证据策略引用，复用现有 v2 Playbook/Planner，不复制业务步骤。 |
+| `app/bootstrap/litho_cpk_demo.py` | 装配 | 显式 Skill Ready/Fake Loop 演示，使用原生工具、同一 Dispatcher/Guard 与精确 Fake 来源。 |
 | `app/bootstrap/agent_demo.py` | 装配 | Fake 模型、Fake/SQLite 设备健康的新 AgentRun 演示。 |
 | `app/bootstrap/dispatcher_demo.py` | 装配 | Dispatcher 试点 CLI 的 Fake/计划辅助。 |
 | `app/bootstrap/ready_assembly.py` | 装配 | Ready 的 Guard/Dispatcher/结果策略同实例绑定。 |
@@ -200,7 +203,7 @@ HTTP 生命周期、会话存储或 Skill 迁入新装配。
 | `app/agent_runtime/coordinator_ready.py` | 兼容 | ready stage 的保留转发入口。 |
 | `app/agent_runtime/coordinator_state.py` | 业务 | `CoordinatorRunState` 和阶段受限状态视图。 |
 | `app/agent_runtime/definition.py` | 纯 | 冻结 `AgentDefinition`、`ComponentReference`。 |
-| `app/agent_runtime/application.py` | 纯 | `AgentRun` 对 Model/Tool/Event ports 的小门面。 |
+| `app/agent_runtime/application.py` | 纯 | `AgentRun` 对 Model/Tool/Event ports 的小门面；可携带装配层传入的 Skill 文本消息与基础元数据，自身不依赖 Skill/业务模块。 |
 | `app/agent_runtime/dependencies.py` | 装配契约 | 分阶段 CoordinatorDependencies 与类型字段名缓存；依赖值、回调仍按当前运行读取。 |
 | `app/agent_runtime/service.py` | 兼容/装配 | 默认 `run_agent`、运行生命周期与全局兼容对象。 |
 | `app/agent_runtime/telemetry.py` | 业务 | Runtime 事件和审计辅助。 |
@@ -342,10 +345,11 @@ HTTP 生命周期、会话存储或 Skill 迁入新装配。
 | `app/evidence/__init__.py` | 包 | 证据包锚点。 |
 | `app/evidence/semantics.py` | 纯/过渡 | 原报告和八项具名工具的证据语义与范围描述；仍识别旧 SQL 工具。 |
 | `app/evidence/validator.py` | 业务 | 计划/Playbook 证据覆盖与结论限制；新具名查询精确匹配产品、设备、制程、批次及日期参数。 |
+| `app/evidence/skill_policy.py` | 纯 | 显式 1.3.0 证据策略：核对知识结果原生检索焦点，复用原覆盖/风险校验；默认 1.2.0 不变。 |
 | `app/evidence/answer_synthesizer.py` | 业务 | 证据约束答案结构和渲染。 |
 | `app/evidence/serialization.py` | 纯 | 证据/报告递归复制及 JSON 规范化；精确内置容器和字段名元数据优化，保留子类/deepcopy/错误语义。 |
 
-### Skill（MOD-016～017 已验证，尚未接入默认 Runtime）
+### Skill（显式试点装配，默认 HTTP 未启用）
 
 | 文件 | 标签 | 职责 / 关键入口 |
 | --- | --- | --- |
@@ -358,11 +362,19 @@ HTTP 生命周期、会话存储或 Skill 迁入新装配。
 | `app/skills/catalog.py` | 声明/文件边界 | 由明确包根建立不可变目录，仅读 Manifest；稳定精确版本与可用性元信息，加载前拒绝声明漂移。 |
 | `app/skills/discovery.py` | 纯 | 按可信 Workflow/制程/执行模式/输入名称确定性筛选，返回精确候选及拒绝原因，不自动取最新版。 |
 | `app/skills/loader.py` | 渐进加载 | 精确选择后先读 SKILL.md，再按显式路径返回新内容快照；保持已读文本及累计预算，不授予执行权限。 |
+| `app/skills/releases.py` | 发布/文件边界 | 冻结完整声明资源，管理精确版本启用/激活/禁用/回退；内存 Catalog/Loader 复用原渐进加载，已发布正文不再读作者目录。 |
 
 该模块只依赖标准库和自身。`scripts/check_skill_package.py` 是独立验收入口；
 `evaluations/skills/manifest_validation_v1/` 是 MOD-016 验证夹具。MOD-017 的
 `scripts/demo_skill_loading.py` 和 `evaluations/skills/catalog_discovery_v1/` 展示三阶段加载；
 两组夹具均不是光刻业务 Skill。演示和 API 用法见 [Catalog 报告](reports/mod-017-skill-catalog.md)。
+
+`app/skills/lithography/cpk_diagnostic/` 为 MOD-018 的光刻包，含 `manifest.json`、
+`SKILL.md`、`references/cpk_context.md`、`scenarios/acceptance.json` 四个文本资产。
+它们不计入 Python/静态源码数，不执行代码、不授予权限；实际装配位于 bootstrap，
+复用既有 Playbook/Planner。见 [试点报告](reports/mod-018-litho-cpk-skill.md)。
+
+`scripts/demo_skill_releases.py` 以 `evaluations/skills/release_lifecycle_v1/` 的两版中性夹具展示发布、禁用与回退；实际 Run、权限和版本固定验收见 [发布报告](reports/mod-019-skill-releases.md)。
 
 ### Memory、会话、模型、存储与可观测性
 
@@ -453,7 +465,7 @@ HTTP 生命周期、会话存储或 Skill 迁入新装配。
 模型协议和可替换 Port；`conversation.sessions` 仍管理持久会话历史。知识库、案例和个人知识
 检索是检索数据，不是自动沉淀的长期 Agent Memory。
 
-MOD-016～017 已实现独立 Manifest、依赖校验、安全资源、显式 Catalog/Discovery/渐进 Loader；尚未接入实际 skill_refs/业务执行或版本发布；`manufacturing.playbooks` 是现有业务
+MOD-016～018 已实现独立 Manifest、依赖校验、安全资源、显式 Catalog/Discovery/渐进 Loader，以及实际 skill_refs 的显式光刻业务试点；MOD-019 的进程内发布与完整声明资源固定已验收，跨进程交付不在本项范围；`manufacturing.playbooks` 是现有业务
 规则与证据计划，不能等同 Skill。`persistence.execution_store` 已保存运行记录，但尚未提供
 可安全重放的 Checkpoint/恢复协议。长期记忆仍是 OPTIONAL，未启用；因此不存在已完成的
 语义/情景/程序三层长期记忆实现。
@@ -509,6 +521,8 @@ Fake Ready/Loop 共 16 条路径已通过持续守卫、负向控制、来源和
 首批诊断的 60 文件清单不同，不依赖第二至第五批新工具。
 MOD-016 另有 **7 文件**独立源码验证切片（六个 app/skills 文件 + 未改写的 app 包锚点），两端均以 -I -S、无关 cwd 和持续负控完成真实包解析/资源读取；不扩写冻结的七个 portable units 或旧 37 文件清单。
 MOD-017 另以 **10 文件**切片（九个 Skill 文件 + 原 app 锚点）在两端完成 Catalog → 发现 → 说明 → 显式参考资料的隔离真链路，持续负控、精确模块来源及无效声明/依赖反例通过；旧七文件 MOD-016 隔离仍通过。
+MOD-018 另有 **95 文件 + 4 文本资产**的完整光刻试点切片，在两端以 -I -S、无关 cwd 执行真实装配 → Ready/Fake Loop → Dispatcher → Fake 来源 → 证据策略；未改写包锚点，保留现有 runtime 包锚点带入的 Coordinator/stages 依赖，不能据此宣称旧协调器已完全退出。
+MOD-019 以原 95 文件清单加 `app/skills/releases.py` 的 **96 文件**切片，在两端验证旧 Run 跨越发布后仍使用原资源、新版本 Loop 与禁用准入；原 95 文件切片不扩容，文件配置通过延迟导入保持可用。
 这些都是源码切片或试点制品，不是可与整个应用任意组合安装的正式 Wheel。
 
 只读 SQLite 各批工具的双路径数值与 Scope 对照在显式临时库上另行验证。公司账号、公司

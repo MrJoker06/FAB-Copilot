@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0.0",
+  "skill_id": "release-validation",
+  "version": "1.0.0",
+  "title": "Release lifecycle fixture v1",
+  "description": "A neutral declarative package for release lifecycle checks.",
+  "status": "draft",
+  "process_steps": ["LITHO"],
+  "required_inputs": ["lot_id"],
+  "tools": [{"name": "get_equipment_health", "version": "==1.0.0"}],
+  "execution_modes": ["ready", "loop"],
+  "workflow": {"component_id": "fixture-workflow", "version": "1.0.0"},
+  "evidence_policy": {"component_id": "fixture-evidence-policy", "version": "1.0.0"},
+  "resources": [
+    {"path": "SKILL.md", "kind": "instructions"},
+    {"path": "references/release.md", "kind": "reference"}
+  ]
+}
