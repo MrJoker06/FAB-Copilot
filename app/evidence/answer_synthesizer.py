@@ -445,7 +445,7 @@ def synthesizer_system_message(contract: AnswerContract) -> str:
             "claim_kind、semantic_id、scope、time_range、grain、claim_role 由服务端从被引用证据推导，"
             "如果你显式填写则必须与证据一致，否则该声明会被判为不支持。"
             "inferences 必须用至少两个已验证 facts 的从零开始 fact_indices，填写简短 basis 和 uncertainty；其引用由服务端从事实推导，不要重复填报来源元数据。"
-            "conclusion_claim 必须引用已验证综合推断的 inference_indices，并声明目标 scope、time_range、claim_role；不得把综合结论伪装成某一个原始指标。"
+            "conclusion_claim 必须引用已验证综合推断的 inference_indices；其目标 scope、time_range、claim_role 由服务端从所引用的推断推导，不得把综合结论伪装成某一个原始指标。"
             "不得把背景来源混入综合推断，范围或时间不兼容时改为 hypotheses。"
         )
     )
@@ -718,6 +718,61 @@ def _scope_payload(scope: EvidenceScope) -> dict[str, list[str]]:
     }
 
 
+def _shared_time_range(claims: list[_Claim]) -> dict[str, Any] | None:
+    """Return the single time range shared by every claim, or None."""
+    serialized = {
+        json.dumps(claim.time_range or {}, sort_keys=True, ensure_ascii=False)
+        for claim in claims
+    }
+    if len(serialized) != 1:
+        return None
+    return json.loads(next(iter(serialized)))
+
+
+def _v2_conclusion_claim(
+    claim: _Claim, payload: dict[str, Any], dependencies: list[_Claim],
+) -> tuple[_Claim, tuple[str, ...]]:
+    """Derive a v2 conclusion's target metadata from its verified inferences.
+
+    Scope, time range and role default to the inferences the conclusion cites;
+    an explicitly supplied value must agree with them.
+    """
+    scope = _claim_scope(claim) if claim.scope else None
+    if scope is None:
+        shared_scope = _agree([_claim_scope(item) for item in dependencies if item.scope])
+        if shared_scope is None:
+            return claim, ("v2 结论的依赖推断范围不一致。",)
+        scope = shared_scope
+    time_range = claim.time_range if claim.time_range else _shared_time_range(dependencies)
+    if time_range is None:
+        return claim, ("v2 结论的依赖推断时间范围不一致。",)
+    if "claim_role" in payload:
+        claim_role = claim.claim_role
+    else:
+        claim_role = (
+            "background"
+            if all(item.claim_role == "background" for item in dependencies)
+            else "primary"
+        )
+    if claim_role not in {"primary", "background"}:
+        return claim, ("v2 结论的角色无效。",)
+    for item in dependencies:
+        if (
+            _claim_scope(item) != scope
+            or (item.time_range or {}) != (time_range or {})
+            or (claim_role == "primary" and item.claim_role != "primary")
+        ):
+            return claim, ("v2 结论声明的范围、时间或角色与综合推断不一致。",)
+    return _Claim(
+        **{
+            **claim.__dict__,
+            "scope": _scope_payload(scope),
+            "time_range": time_range,
+            "claim_role": claim_role,
+        }
+    ), ()
+
+
 def _v2_direct_fact(claim: _Claim, contract: AnswerContract) -> tuple[_Claim, tuple[str, ...]]:
     """Derive the semantic metadata of a v2 direct observation from its sources.
 
@@ -810,11 +865,6 @@ def _v2_composite_inference(
         return claim, ("综合推断必须关联至少两个不同的已验证事实索引。",)
     if not claim.basis or not claim.uncertainty:
         return claim, ("综合推断必须提供面向用户的依据和不确定性说明。",)
-    if not {"scope", "time_range", "claim_role"} <= claim.explicit_fields:
-        return claim, ("综合推断必须声明目标 scope、time_range 和 claim_role。",)
-    target_scope = _claim_scope(claim)
-    if target_scope is None or claim.claim_role not in {"primary", "background"}:
-        return claim, ("综合推断的目标范围或角色无效。",)
     dependencies = [facts.get(index) for index in claim.fact_indices]
     if any(item is None for item in dependencies):
         return claim, ("综合推断引用了未验证或不存在的事实索引。",)
@@ -827,17 +877,51 @@ def _v2_composite_inference(
         [item for item in descriptors if item is not None]
     ):
         return claim, ("综合推断的依赖事实存在不兼容的范围、时间或背景来源。",)
-    target_start = str((claim.time_range or {}).get("start") or "") or None
-    target_end = str((claim.time_range or {}).get("end") or "") or None
+
+    # Target scope, time range and role default to the dependency facts; an
+    # explicitly supplied value is still checked against them below.
+    target_scope = _claim_scope(claim) if claim.scope else None
+    if target_scope is None:
+        shared_scope = _agree([_claim_scope(item) for item in resolved_dependencies if item.scope])
+        if shared_scope is None:
+            return claim, ("综合推断的依赖事实范围不一致。",)
+        target_scope = shared_scope
+    if claim.time_range:
+        target_range = claim.time_range
+    else:
+        target_range = _shared_time_range(resolved_dependencies)
+        if target_range is None:
+            return claim, ("综合推断的依赖事实时间范围不一致。",)
+    if "claim_role" in claim.explicit_fields:
+        claim_role = claim.claim_role
+    else:
+        claim_role = (
+            "background"
+            if all(item.claim_role == "background" for item in resolved_dependencies)
+            else "primary"
+        )
+    if claim_role not in {"primary", "background"}:
+        return claim, ("综合推断的目标范围或角色无效。",)
+
+    target_start = str((target_range or {}).get("start") or "") or None
+    target_end = str((target_range or {}).get("end") or "") or None
     for descriptor in (item for item in descriptors if item is not None):
         if (
             descriptor.scope != target_scope
             or descriptor.start != target_start
             or descriptor.end != target_end
-            or (claim.claim_role == "primary" and descriptor.scope_role != "primary")
+            or (claim_role == "primary" and descriptor.scope_role != "primary")
         ):
             return claim, ("综合推断声明的目标范围、时间或角色与依赖事实不一致。",)
-    return _Claim(**{**claim.__dict__, "evidence_refs": refs}), ()
+    return _Claim(
+        **{
+            **claim.__dict__,
+            "scope": _scope_payload(target_scope),
+            "time_range": target_range,
+            "claim_role": claim_role,
+            "evidence_refs": refs,
+        }
+    ), ()
 
 
 def _v2_composite_status(claim: _Claim, contract: AnswerContract) -> tuple[str, tuple[str, ...]]:
@@ -1248,36 +1332,31 @@ def synthesize_submission(
             or len(set(indices)) != len(indices)
         )
         dependencies = [] if invalid_indices else [verified_inference_indices.get(index) for index in indices]
-        required_conclusion_fields = {"scope", "time_range", "claim_role"}
-        conclusion_scope = _claim_scope(conclusion_claim)
         if invalid_indices or any(item is None for item in dependencies):
             conclusion_support, conclusion_reasons = "unsupported", ("v2 结论必须引用已验证综合推断的 inference_indices。",)
-        elif not required_conclusion_fields <= frozenset(conclusion_claim_payload) or conclusion_scope is None or conclusion_claim.claim_role not in {"primary", "background"}:
-            conclusion_support, conclusion_reasons = "unsupported", ("v2 结论必须声明 scope、time_range 和 claim_role。",)
-        elif invalid_conclusion_refs:
-            conclusion_support, conclusion_reasons = "unsupported", ("v2 结论含未许可引用。",)
         else:
             resolved_dependencies = [item for item in dependencies if item is not None]
-            derived_refs = tuple(dict.fromkeys(ref for item in resolved_dependencies for ref in item.evidence_refs))
-            if conclusion_refs and set(conclusion_refs) != set(derived_refs):
-                conclusion_support, conclusion_reasons = "unsupported", ("v2 结论引用必须由已验证综合推断服务端推导。",)
-            elif any(
-                item.scope != conclusion_claim.scope
-                or item.time_range != conclusion_claim.time_range
-                or (conclusion_claim.claim_role == "primary" and item.claim_role != "primary")
-                for item in resolved_dependencies
-            ):
-                conclusion_support, conclusion_reasons = "unsupported", ("v2 结论声明的范围、时间或角色与综合推断不一致。",)
+            conclusion_claim, derivation_reasons = _v2_conclusion_claim(
+                conclusion_claim, conclusion_claim_payload, resolved_dependencies
+            )
+            if derivation_reasons:
+                conclusion_support, conclusion_reasons = "unsupported", derivation_reasons
+            elif invalid_conclusion_refs:
+                conclusion_support, conclusion_reasons = "unsupported", ("v2 结论含未许可引用。",)
             else:
-                conclusion_claim = _Claim(**{**conclusion_claim.__dict__, "evidence_refs": derived_refs})
-                conclusion_refs = list(derived_refs)
-                conclusion_scope_mismatch = _scope_mismatch(
-                    submitted_conclusion, conclusion_claim.evidence_refs, contract,
-                )
-                if conclusion_scope_mismatch:
-                    conclusion_support, conclusion_reasons = "unsupported", ("引用未支持主范围声明。",)
+                derived_refs = tuple(dict.fromkeys(ref for item in resolved_dependencies for ref in item.evidence_refs))
+                if conclusion_refs and set(conclusion_refs) != set(derived_refs):
+                    conclusion_support, conclusion_reasons = "unsupported", ("v2 结论引用必须由已验证综合推断服务端推导。",)
                 else:
-                    conclusion_support, conclusion_reasons = _v2_composite_status(conclusion_claim, contract)
+                    conclusion_claim = _Claim(**{**conclusion_claim.__dict__, "evidence_refs": derived_refs})
+                    conclusion_refs = list(derived_refs)
+                    conclusion_scope_mismatch = _scope_mismatch(
+                        submitted_conclusion, conclusion_claim.evidence_refs, contract,
+                    )
+                    if conclusion_scope_mismatch:
+                        conclusion_support, conclusion_reasons = "unsupported", ("引用未支持主范围声明。",)
+                    else:
+                        conclusion_support, conclusion_reasons = _v2_composite_status(conclusion_claim, contract)
     else:
         conclusion_scope_mismatch = conclusion_scope_mismatch or _structured_claim_mismatch(conclusion_claim, contract)
         if contract.model_knowledge_fallback:
@@ -1587,5 +1666,6 @@ def synthesize_legacy_answer(
         synthesized.report,
         sections=("待验证原文（未经结构化验证）", "证据限制"),
     ))
+
 
 

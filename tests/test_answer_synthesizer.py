@@ -712,6 +712,60 @@ class AnswerSynthesizerTests(unittest.TestCase):
     def test_fact_schema_only_requires_statement_and_refs(self):
         facts = SUBMIT_ANALYSIS_TOOL["function"]["parameters"]["properties"]["facts"]
         self.assertEqual(facts["items"]["required"], ["statement", "evidence_refs"])
+    def _v2_inference_payload(self, contract):
+        references = [ref for ref in contract.permitted_source_refs if ref.startswith("TOOL:S")][:2]
+        return references, {
+            "analysis_protocol_version": "2.0",
+            "conclusion": "当前缺陷构成与设备异常存在相关性，设备级根因仍需分层证据确认。",
+            "conclusion_evidence_refs": [],
+            "facts": [
+                {"statement": "整体良率为 91.2%。", "evidence_refs": [references[0]]},
+                {"statement": "Particle 缺陷占比 24%。", "evidence_refs": [references[1]]},
+            ],
+            "inferences": [{
+                "statement": "缺陷构成与设备异常在同一范围和时间内同时出现，两者存在相关性。",
+                "fact_indices": [0, 1],
+                "basis": "两条事实的范围与时间一致。",
+                "uncertainty": "缺少设备级缺陷占比。",
+            }],
+            "hypotheses": [], "recommendations": [], "limitations": [], "source_refs": [],
+            "conclusion_claim": {"inference_indices": [0]},
+        }
+
+    def test_inference_metadata_is_derived_from_its_facts(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        inferences = [item for item in result.report.claim_support if item["category"] == "inference"]
+        self.assertTrue(inferences)
+        self.assertIn(inferences[0]["support"], {"supported", "limited"})
+        self.assertNotIn("必须声明目标 scope", "".join(inferences[0]["reasons"]))
+
+    def test_inference_with_contradictory_scope_stays_unsupported(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        payload["inferences"][0]["scope"] = {"equipment_ids": ["ETCH-04"]}
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        inferences = [item for item in result.report.claim_support if item["category"] == "inference"]
+        self.assertTrue(inferences)
+        self.assertEqual(inferences[0]["support"], "unsupported")
+
+    def test_conclusion_metadata_is_derived_from_verified_inferences(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        conclusions = [item for item in result.report.claim_support if item["category"] == "conclusion"]
+        self.assertTrue(conclusions)
+        self.assertIn(conclusions[0]["support"], {"supported", "limited"})
+        self.assertNotIn("当前证据未能验证模型提交的结论。", result.answer)
+
+    def test_conclusion_without_valid_inference_stays_unsupported(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        payload["conclusion_claim"] = {"inference_indices": [5]}
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        conclusions = [item for item in result.report.claim_support if item["category"] == "conclusion"]
+        self.assertEqual(conclusions[0]["support"], "unsupported")
     def test_compact_renders_one_bullet_per_item(self):
         contract, sources = _supported_yield_contract()
         payload = {
@@ -1195,6 +1249,8 @@ class AnswerSynthesizerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
 
 
 
