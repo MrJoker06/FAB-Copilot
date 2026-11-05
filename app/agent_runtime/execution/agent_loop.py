@@ -14,6 +14,11 @@ from .loop_dispatch import LoopDispatchBinding, execute_dispatched_loop_round
 from .loop_response import classify_loop_response
 from .runtime_contracts import RuntimeContractError
 from ..synthesis.ready import SYNTHESIS_REPAIR_MAX_SECONDS, salvage_submit_analysis, valid_submit_analysis
+from ...evidence.evidence_truncation import (
+    project_result,
+    truncation_notices,
+    truncation_prompt_note,
+)
 
 LOOP_SYNTHESIS_MAX_TOKENS = 8192
 
@@ -675,7 +680,22 @@ async def run_agent_loop(
                         rows=row_count,
                         full_content={"result": result},
                     )
-                    content = json.dumps({"ok": True, "data": result}, ensure_ascii=False, default=str)
+                    prompt_view, truncation_meta = project_result(name, result)
+                    if truncation_meta is None:
+                        content = json.dumps({"ok": True, "data": prompt_view}, ensure_ascii=False, default=str)
+                    else:
+                        content = json.dumps(
+                            {
+                                "ok": True,
+                                "data": prompt_view,
+                                "truncation": dict(
+                                    truncation_meta,
+                                    note=truncation_prompt_note(name, truncation_meta),
+                                ),
+                            },
+                            ensure_ascii=False,
+                            default=str,
+                        )
                 except Exception as exc:
                     loop_guard.record_result(name or "unknown", None, False)
                     evidence_observations.append(EvidenceObservation(
@@ -723,6 +743,7 @@ async def run_agent_loop(
                 allow_model_knowledge_fallback=knowledge_fallback["used"],
                 question=question,
                 resolved_question=analysis_question,
+                extra_limitations=truncation_notices(evidence_observations),
             )
             messages.append({"role": "system", "content": validator_system_message(evidence_validation)})
             messages.append({"role": "system", "content": synthesizer_system_message(answer_contract)})

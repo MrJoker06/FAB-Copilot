@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import Any, Literal
 
@@ -303,6 +304,7 @@ def create_answer_contract(
     allow_model_knowledge_fallback: bool = False,
     question: str = "",
     resolved_question: str = "",
+    extra_limitations: Sequence[str] = (),
 ) -> AnswerContract:
     matched_tools = {
         tool
@@ -328,6 +330,7 @@ def create_answer_contract(
         ]
     else:
         limitations = list(_validation_limitations(validation))
+    limitations.extend(item for item in extra_limitations if item)
     required = validation.status == "validated"
     return AnswerContract(
         schema_version="1.2",
@@ -1383,3 +1386,4 @@ def synthesize_legacy_answer(
         synthesized.report,
         sections=("待验证原文（未经结构化验证）", "证据限制"),
     ))
+
