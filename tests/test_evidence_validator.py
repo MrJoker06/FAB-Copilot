@@ -192,7 +192,7 @@ class EvidenceValidatorTests(unittest.TestCase):
         self.assertEqual(observed["TOOL:S04"]["evidence_ids"], ("YLD-03",))
 
     def test_unsupported_plan_is_not_applicable_and_prompt_is_serializable(self):
-        selection, plan = _context("分析 CMP 划伤缺陷 Pareto")
+        selection, plan = _context("介绍下光刻工艺")
 
         validation = validate_evidence(plan, selection.selected_playbook, [])
 
@@ -253,3 +253,4 @@ class EvidenceValidatorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
