@@ -1,8 +1,8 @@
 # 当前项目精细结构快照
 
-快照日期：2026-11-04。依据为 experiment/parallel-platform 的 `86f6c96` 基线及本轮 MOD-019 改造。MOD-008、跨平台启动和 MOD-016～019 已验收，历史失败保留；下一项为 MOD-009，随后 012 → 015。Skill 清单、Catalog、渐进加载、显式光刻装配及进程内发布/禁用/回退与资源固定已实现；默认 HTTP 未启用。验收证据以对应报告为准，提交与远程状态以 Git 记录为准。
+快照日期：2026-11-06。依据为 experiment/parallel-platform 的 `6dd6544` 基线及本轮 MOD-009 改造。MOD-008/009、跨平台启动和 MOD-016～019 已验收，历史失败保留；下一项 MOD-012，随后 015。Skill 加载与发布保持显式可选；新增来源装配和扩展工具复用原 Ready/Loop，默认 HTTP 与 21 项工具清单未改。验收证据以对应报告为准，提交与远程状态以 Git 记录为准。
 
-本次实扫 `app/` 的受管源码为 **272 文件：244 个 Python、28 个静态文件**。数量与
+本次实扫 `app/` 的受管源码为 **275 文件：247 个 Python、28 个静态文件**。数量与
 `evaluations/mod_003_boundaries_v1.json` 一致；测试、日志、缓存和运行期生成物不计入。
 
 ## 平台启动入口
@@ -10,7 +10,7 @@
 根目录 `run.py` 统一处理启动检查、源码快照、隔离实例与子进程生命周期；`run.bat`
 直接运行原生 Windows Python，`run.sh` 用于 Linux / WSL，支持各自 venv 和既有 Conda。
 `scripts/instance_lock.py` 提供平台锁，`scripts/manage_runtime.py` 维护安全的实例检查/
-清理。以上均在 `app/` 之外。MOD-016 之前应用源码为 258 文件，016/017 累计新增九个 Skill 文件，018 另增三个 bootstrap 和一个 evidence 文件，019 再增一个 releases 模块；四个光刻 Skill 文本资产另计。启动入口不计入应用源码统计。
+清理。以上均在 `app/` 之外。MOD-016 之前应用源码为 258 文件，016/017 累计新增九个 Skill 文件，018 另增三个 bootstrap 和一个 evidence 文件，019 再增一个 releases 模块；009 新增两个来源装配/演示文件和一个可选设备健康汇总。四个光刻 Skill 文本资产另计。启动入口不计入应用源码统计。
 启动方式见 [README](../README.md#快速启动)，实际验证见 [跨平台启动报告](reports/cross-platform-startup.md)。
 
 ## 1. 当前物理树与逻辑边界
@@ -101,6 +101,10 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 接到 v2，并从默认清单和执行绑定移除 SQL 能力；功能、拒绝路径、完整质量门与独立性能
 比较的实际结果见报告。仍保留的历史 SQL 模板与内部 `safe_select` 不应注册到默认模型链。
 
+### MOD-009：显式批量来源替换
+
+`ToolSources → create_tool_bindings → AgentApplication → Ready/Loop → Dispatcher → 原 Handler → Data Port`。七类 Port 按显式配置选入；替换来源不改核心工具或 Runtime。完整 21 项工具已在 Fake 与 17 SQLite / 3 Provider / 1 Backend 两组来源通过双路径；企业与知识工具的外部接入仍使用内存夹具并标为 FAKE。可选 `get_equipment_health_summary` 只在显式注册时加入，复用原设备健康分类和 Scope；默认 21 项清单未变。见 [报告](reports/mod-009-tool-sources.md)。
+
 ### 仓库根目录与交付资产
 
 | 位置 | 作用 |
@@ -165,6 +169,8 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/api/services/personal_job_events.py` | API | 个人知识后台任务事件转换。 |
 | `app/bootstrap/__init__.py` | 包 | bootstrap 包锚点。 |
 | `app/bootstrap/tool_catalog.py` | 装配/兼容 | 默认 21 项原生 Schema 加 `SUBMIT_ANALYSIS_TOOL`，保持全局列表身份；另保存显式历史回放的 `LEGACY_TOOLS`。 |
+| `app/bootstrap/tool_sources.py` | 装配 | 七类消费方 Port 的显式可选组合，复用原生绑定工厂；不发现配置、不读取来源，支持可选查询注册。 |
+| `app/bootstrap/tool_sources_demo.py` | 装配 | 统一来源演示及实际 Ready/两阶段 Fake Loop，显式 Fake 或 SQLite/Provider/Backend 夹具，输出完整 Scope/错误/Guard。 |
 | `app/bootstrap/tool_definitions.py` | 纯 | 默认能力版本与 21 项原生 ToolDefinition 的唯一清单；不创建来源或执行器。 |
 | `app/bootstrap/tool_bindings.py` | 装配/兼容 | 13 项非 SQL kwargs Handler 的全局兼容绑定；保留 Python 导出，不注册旧 SQL 工具。 |
 | `app/bootstrap/default_coordinator_assembly.py` | 装配 | 从 live namespace 构造默认协调器依赖，注入 v2 规划、每次运行的工具装配及受控原生离线降级。 |
@@ -289,6 +295,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/manufacturing/equipment_health/contracts.py` | 纯 | 设备健康输入、聚合、Port 与错误契约。 |
 | `app/manufacturing/equipment_health/handler.py` | 纯 | 设备健康用例/范围归一化。 |
 | `app/manufacturing/equipment_health/binding.py` | 纯 | 从 Port 建立原生 ToolBinding。 |
+| `app/manufacturing/equipment_health/summary.py` | 纯 | 可选设备健康汇总 ToolDefinition/Handler/Binding，复用原等级计算与来源，不改执行器或默认清单。 |
 | `app/manufacturing/process_diagnostics/__init__.py` | 包 | 过程诊断包锚点，不执行默认注册。 |
 | `app/manufacturing/process_diagnostics/contracts.py` | 纯 | 两种输入、冻结 Query、Snapshot、消费方 Port 和完整结果字段/范围校验。 |
 | `app/manufacturing/process_diagnostics/handler.py` | 纯 | Cpk/传感器处理器，核对查询、来源 Scope 与行级过滤，生成 ToolResult。 |
@@ -481,7 +488,7 @@ MOD-016～018 已实现独立 Manifest、依赖校验、安全资源、显式 Ca
 - `app/agent_runtime/compatibility.py` 仍直接装配 manufacturing、legacy 与 default bootstrap（4 条，MOD-015）；本批只新增一条精确默认装配边，不扩大 Runtime 的全局允许依赖。
 - `app/agent_runtime/tools/catalog.py` 与 `registry.py` 仍反向看 bootstrap（2 条，MOD-015）。
 - `app/conversation/decision_arbiter.py` 仍直接引用 `memory_system.contracts`（1 条，MOD-015）。
-- `app/conversation/sessions.py`、`app/knowledge/rag.py`/`search_registry.py`、`enterprise_data.py`/`reports.py` 仍直接接身份或 SQLite（9 条，MOD-009/015）；默认原生工具已避开旧业务查询路径，API 和直接 Python 消费者继续跟踪。
+- `app/conversation/sessions.py`、`app/knowledge/rag.py`/`search_registry.py`、`enterprise_data.py`/`reports.py` 仍直接接身份或 SQLite（9 条，MOD-015；009 已完成原生 Port 替换验收）；默认原生工具已避开旧业务查询路径，API 和直接 Python 消费者继续跟踪。
 - `app/evidence/validator.py` 仍接 Playbook/Plan 实现（2 条，MOD-015）。
 - `app/model_gateway` 与 `app/persistence` 仍互相涉及配置、身份、记忆或数据库（7 条，MOD-012/015）。
 - 个人知识和 telemetry 仍直接接审计/身份/SQLite（4 条，MOD-015）。
@@ -498,7 +505,7 @@ F2b 从默认清单、提示和 Dispatcher 移除旧 SQL 能力，但历史代�
 `scope.py` / `evidence.semantics.py` 的兼容语义，以及 `manufacturing.reports.safe_select(sql)`。
 只有显式历史回放与内部 Python 消费者可以使用这些保留入口，不能据此恢复默认模型执行。
 默认业务读取已改走具名原生工具；API 报表、应用自有存储和历史 facade 的残余依赖
-仍须在 MOD-009/012/015 中逐项验证，不能声称整个项目的数据库访问已全部解耦。
+仍须在 MOD-012/015 中逐项验证，不能声称整个项目的数据库访问已全部解耦。
 
 ## 6. 可搬迁范围与尚不可独立搬迁部分
 
@@ -523,6 +530,7 @@ MOD-016 另有 **7 文件**独立源码验证切片（六个 app/skills 文件 +
 MOD-017 另以 **10 文件**切片（九个 Skill 文件 + 原 app 锚点）在两端完成 Catalog → 发现 → 说明 → 显式参考资料的隔离真链路，持续负控、精确模块来源及无效声明/依赖反例通过；旧七文件 MOD-016 隔离仍通过。
 MOD-018 另有 **95 文件 + 4 文本资产**的完整光刻试点切片，在两端以 -I -S、无关 cwd 执行真实装配 → Ready/Fake Loop → Dispatcher → Fake 来源 → 证据策略；未改写包锚点，保留现有 runtime 包锚点带入的 Coordinator/stages 依赖，不能据此宣称旧协调器已完全退出。
 MOD-019 以原 95 文件清单加 `app/skills/releases.py` 的 **96 文件**切片，在两端验证旧 Run 跨越发布后仍使用原资源、新版本 Loop 与禁用准入；原 95 文件切片不扩容，文件配置通过延迟导入保持可用。
+MOD-009 另以 **101 文件**的完整工具来源切片，在两端以 -I -S、无关 cwd 和持续守卫执行 21 项工具加可选汇总的 44 条 Fake Ready/Loop 路径；按声明逐文件复制、核对导入来源，默认 Registry 为空。原 Runtime 包锚点带入的 Coordinator/stages 保留，不宣称旧协调器已退役。替代来源的 17 SQLite / 3 Provider / 1 Backend 双路径在显式临时联合夹具另验收。
 这些都是源码切片或试点制品，不是可与整个应用任意组合安装的正式 Wheel。
 
 只读 SQLite 各批工具的双路径数值与 Scope 对照在显式临时库上另行验证。公司账号、公司
@@ -561,5 +569,5 @@ httpx/Provider 生命周期、历史 Python 兼容入口、会话与个人知识
 修订后预声明 r2 正式性能/独立审计通过，r1 证据保留。MOD-008 首批的 281 项必要回归、
 60 文件隔离、旧安装/源码闭包/冻结行为/守卫通过。第二批的 305 项必要回归、67 文件隔离、
 旧安装/源码闭包/冻结行为/守卫也通过。第三批最终 328 项必要回归、74 文件隔离及上述兼容门
-通过。第四批最终 354 项必要回归、82 文件隔离及上述兼容门也通过；第五批最终 413 项必要回归、RAG 15/15、66 文件知识切片及兼容门通过，首轮仓库边界失败记录保留。第六批 F1 的 431 项必要回归、32 主路径、60 文件具名切片及上述兼容门也通过。F2a 版本化消费映射已验收；F2b 默认切换及 SQL 退出已通过功能/质量复核和 r5 正式性能及原始墙钟独立重算，整个 MOD-008 已验证；原定下一项 MOD-009，现按用户调整优先实施 MOD-016～019 后再回到 MOD-009。此后变化须随
+通过。第四批最终 354 项必要回归、82 文件隔离及上述兼容门也通过；第五批最终 413 项必要回归、RAG 15/15、66 文件知识切片及兼容门通过，首轮仓库边界失败记录保留。第六批 F1 的 431 项必要回归、32 主路径、60 文件具名切片及上述兼容门也通过。F2a 版本化消费映射已验收；F2b 默认切换及 SQL 退出已通过功能/质量复核和 r5 正式性能及原始墙钟独立重算，整个 MOD-008 已验证；原定下一项 MOD-009，MOD-016～019 和 MOD-009 现均已验证，下一项 MOD-012；009 的两端专项、来源替换、101 文件隔离与完整阶段门见对应报告。此后变化须随
 工作树重新核对。文档为 UTF-8/LF，源码表不展开测试、日志、runtime 产物或工作簿内容。

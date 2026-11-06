@@ -543,6 +543,16 @@
       "artifact_group": "application_bundle"
     },
     {
+      "path": "app/bootstrap/tool_sources.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/tool_sources_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
       "path": "app/conversation/__init__.py",
       "primary_module": "orchestration",
       "artifact_group": "platform_core"
@@ -884,6 +894,11 @@
     },
     {
       "path": "app/manufacturing/equipment_health/handler.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/manufacturing/equipment_health/summary.py",
       "primary_module": "business_tools",
       "artifact_group": "manufacturing_capability"
     },
@@ -1615,14 +1630,14 @@
     {
       "source": "app.manufacturing.enterprise_data",
       "target": "app.core.identity",
-      "reason": "Business tool directly binds identity or SQL persistence; replace with consumer-owned business Data Port.",
-      "exit_task": "MOD-009"
+      "reason": "Native consumer-owned Port replacement was validated by MOD-009, but retained API/Python/live-patch consumers require MOD-015 consumer review before deletion.",
+      "exit_task": "MOD-015"
     },
     {
       "source": "app.manufacturing.reports",
       "target": "app.persistence.database",
-      "reason": "Business tool directly binds identity or SQL persistence; replace with consumer-owned business Data Port.",
-      "exit_task": "MOD-009"
+      "reason": "Native consumer-owned Port replacement was validated by MOD-009, but retained API/Python/live-patch consumers require MOD-015 consumer review before deletion.",
+      "exit_task": "MOD-015"
     },
     {
       "source": "app.model_gateway.compatibility",
@@ -2851,16 +2866,16 @@
         "owner": "business_tools",
         "classification": "business-read",
         "stores": "lots, process_runs",
-        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
-        "exit_task": "MOD-009"
+        "init_effects": "Retained legacy Python/API report path uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total); native Port replacement does not remove this path.",
+        "exit_task": "MOD-015"
       },
       {
         "source_file": "app/manufacturing/seed.py",
         "owner": "simulation",
         "classification": "demo-init",
         "stores": "lots, process_runs",
-        "init_effects": "Demo initializer and seed writes; not a company-source prerequisite",
-        "exit_task": "MOD-009"
+        "init_effects": "App-owned simulation demo initializer and seed writes; not a company-source prerequisite; startup separation remains MOD-015.",
+        "exit_task": "MOD-015"
       },
       {
         "source_file": "app/model_gateway/health.py",
