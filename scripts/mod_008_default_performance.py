@@ -680,7 +680,14 @@ def _operation(side, scene, runner=None):
         )
 
     token = set_principal(Principal("demo", "perf"))
+    loop = None
     try:
+        if runner is None:
+            # Create the loop before the socket guard below.  On Windows the
+            # Proactor loop builds its self-pipe through socket.socketpair(),
+            # which would otherwise be recorded as forbidden socket access.
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         with ExitStack() as stack:
             stack.enter_context(
                 patch.object(service, "get_settings", return_value=settings)
@@ -713,9 +720,15 @@ def _operation(side, scene, runner=None):
             result, clocks = (
                 runner.run(measured(), context=copy_context())
                 if runner is not None
-                else asyncio.run(measured())
+                else loop.run_until_complete(measured())
             )
     finally:
+        if loop is not None:
+            try:
+                loop.run_until_complete(loop.shutdown_asyncgens())
+            finally:
+                loop.close()
+                asyncio.set_event_loop(None)
         reset_principal(token)
     if any(audit.calls.values()):
         raise AssertionError(f"forbidden source access: {audit.calls}")

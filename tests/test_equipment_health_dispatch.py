@@ -38,6 +38,7 @@ from app.planning_runtime.contracts import (
     ExecutionPlan,
     PlanBudget,
 )
+from tests.support import sqlite_session
 
 
 @dataclass(frozen=True)
@@ -123,11 +124,11 @@ class EquipmentHealthDispatchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             manufacturing, equipment = root / "m.db", root / "e.db"
-            with sqlite3.connect(manufacturing) as connection:
+            with sqlite_session(manufacturing) as connection:
                 connection.execute(
                     "CREATE TABLE process_runs (equipment_id, process_step, run_time, excursion_code, defect_density, pass_flag)"
                 )
-            with sqlite3.connect(equipment) as connection:
+            with sqlite_session(equipment) as connection:
                 connection.execute(
                     "CREATE TABLE equipment_events (equipment_id, event_time, duration_minutes)"
                 )
@@ -148,6 +149,9 @@ class EquipmentHealthDispatchTests(unittest.TestCase):
                 def set_progress_handler(self, callback, count):
                     self.callback = callback
                     self.connection.set_progress_handler(callback, count)
+
+                def create_function(self, *args, **kwargs):
+                    self.connection.create_function(*args, **kwargs)
 
                 def close(self):
                     closed.append(True)

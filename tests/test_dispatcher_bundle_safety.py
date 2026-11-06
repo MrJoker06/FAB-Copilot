@@ -10,6 +10,7 @@ import zipfile
 from pathlib import Path
 
 from scripts.install_dispatcher_bundle import install, main
+from tests.support import SYMLINKS_SUPPORTED
 
 FILES = ["app/__init__.py", "app/demo.py"]
 
@@ -81,10 +82,11 @@ class DispatcherBundleSafetyTests(unittest.TestCase):
             linked_target.mkdir()
             sentinel = root / "symlink-sentinel"
             sentinel.mkdir()
-            (linked_target / "app").symlink_to(sentinel, target_is_directory=True)
-            with self.assertRaises(ValueError):
-                install(archive, linked_target)
-            self.assertTrue((linked_target / "app").is_symlink())
+            if SYMLINKS_SUPPORTED:
+                (linked_target / "app").symlink_to(sentinel, target_is_directory=True)
+                with self.assertRaises(ValueError):
+                    install(archive, linked_target)
+                self.assertTrue((linked_target / "app").is_symlink())
 
     def test_malformed_archives_never_create_app_or_stage(self):
         cases = {

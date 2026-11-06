@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app.agent_runtime.tools.contracts import ToolExecutionContext
+from app.core.sqlite_support import install_sqlite_functions
 from app.integrations.manufacturing.fake_equipment_health import (
     FakeEquipmentHealthAdapter,
 )
@@ -85,6 +86,7 @@ class EquipmentHealthEquivalenceTests(unittest.TestCase):
     def legacy_session(self):
         connection = sqlite3.connect(self.main)
         connection.row_factory = sqlite3.Row
+        install_sqlite_functions(connection)
         connection.execute("ATTACH DATABASE ? AS equipment", (str(self.equipment),))
         # old SQL reads unqualified equipment_events, provide a temp view.
         connection.execute(

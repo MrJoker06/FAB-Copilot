@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.agent_runtime.tools.contracts import ToolExecutionContext, ToolSourceKind
+from app.core.sqlite_support import install_sqlite_functions
 from app.integrations.manufacturing.fake_named_queries import FakeNamedQueryAdapter
 from app.integrations.manufacturing.sqlite_named_queries import SQLiteNamedQueryAdapter
 from app.manufacturing import reports
@@ -55,6 +56,9 @@ class _TimeoutConnection:
     def set_progress_handler(self, handler: object, _steps: int) -> None:
         self.handler = handler
 
+    def create_function(self, *_args: object, **_kwargs: object) -> None:
+        return None
+
     def close(self) -> None:
         self.closed = True
 
@@ -92,6 +96,9 @@ class _ConnectionSpy:
 
     def set_progress_handler(self, handler: object, steps: int) -> None:
         self.connection.set_progress_handler(handler, steps)
+
+    def create_function(self, *args: object, **kwargs: object) -> None:
+        self.connection.create_function(*args, **kwargs)
 
     def close(self) -> None:
         self.connection.close()
@@ -316,6 +323,7 @@ class NamedQueryAdapterTests(unittest.TestCase):
     def _legacy_session(path: Path):
         connection = sqlite3.connect(path)
         connection.row_factory = sqlite3.Row
+        install_sqlite_functions(connection)
         try:
             yield connection
         finally:

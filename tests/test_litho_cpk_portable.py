@@ -57,6 +57,7 @@ SOURCE_FILES = (
     "app/bootstrap/ready_assembly.py",
     "app/bootstrap/skill_assembly.py",
     "app/evidence/__init__.py",
+    "app/evidence/evidence_truncation.py",
     "app/evidence/semantics.py",
     "app/evidence/serialization.py",
     "app/evidence/skill_policy.py",

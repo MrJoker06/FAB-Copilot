@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app.agent_runtime.tools.contracts import ToolSourceKind
+from app.core.sqlite_support import install_sqlite_functions
 from app.integrations.manufacturing.fake_production_reports import (
     FakeProductionReportsAdapter,
 )
@@ -50,6 +51,9 @@ class _ConnectionSpy:
     def set_progress_handler(self, handler: object, steps: int) -> None:
         self.connection.set_progress_handler(handler, steps)
 
+    def create_function(self, *args: object, **kwargs: object) -> None:
+        self.connection.create_function(*args, **kwargs)
+
     def close(self) -> None:
         self.closed = True
         self.connection.close()
@@ -78,6 +82,9 @@ class _TimeoutConnection:
 
     def set_progress_handler(self, handler: object, _steps: int) -> None:
         self.handler = handler
+
+    def create_function(self, *_args: object, **_kwargs: object) -> None:
+        return None
 
     def close(self) -> None:
         self.closed = True
@@ -159,6 +166,7 @@ class ProductionReportAdapterTests(unittest.TestCase):
     def _legacy_session(self):
         connection = sqlite3.connect(self.path)
         connection.row_factory = sqlite3.Row
+        install_sqlite_functions(connection)
         try:
             yield connection
         finally:

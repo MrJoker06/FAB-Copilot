@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 from scripts import check_modularization_boundaries as boundaries
+from tests.support import requires_symlinks
 
 
 class ModularizationBoundaryTests(unittest.TestCase):
@@ -326,6 +327,7 @@ class ModularizationBoundaryTests(unittest.TestCase):
                     )
                 )
 
+    @requires_symlinks
     def test_static_symlink_is_rejected(self):
         root = self._project()
         (root / "app" / "static").mkdir()

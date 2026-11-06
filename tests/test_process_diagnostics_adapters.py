@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app.agent_runtime.tools.contracts import ToolSourceKind
+from app.core.sqlite_support import install_sqlite_functions
 from app.integrations.manufacturing.fake_process_diagnostics import (
     FakeProcessDiagnosticsAdapter,
 )
@@ -98,6 +99,7 @@ class ProcessDiagnosticsAdapterTests(unittest.TestCase):
     def _old_session(path: Path):
         connection = sqlite3.connect(path)
         connection.row_factory = sqlite3.Row
+        install_sqlite_functions(connection)
         try:
             yield connection
         finally:
@@ -236,6 +238,9 @@ class ProcessDiagnosticsAdapterTests(unittest.TestCase):
             def set_progress_handler(self, *args):
                 return self.connection.set_progress_handler(*args)
 
+            def create_function(self, *args, **kwargs):
+                return self.connection.create_function(*args, **kwargs)
+
             def close(self):
                 self.connection.close()
                 self.closed = True
@@ -300,6 +305,9 @@ class ProcessDiagnosticsAdapterTests(unittest.TestCase):
             def set_progress_handler(self, handler, count):
                 del count
                 self.timed_out = bool(handler())
+
+            def create_function(self, *args, **kwargs):
+                return self.connection.create_function(*args, **kwargs)
 
             def close(self):
                 self.connection.close()

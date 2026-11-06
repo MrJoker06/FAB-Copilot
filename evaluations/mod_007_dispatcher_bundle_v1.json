@@ -30,6 +30,8 @@
         "app/agent_runtime/execution/tool_result_bridge.py",
         "app/planning_runtime/__init__.py",
         "app/planning_runtime/contracts.py",
+        "app/evidence/__init__.py",
+        "app/evidence/evidence_truncation.py",
         "app/manufacturing/__init__.py",
         "app/manufacturing/processes.py",
         "app/manufacturing/equipment_health/__init__.py",

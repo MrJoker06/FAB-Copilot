@@ -15,6 +15,7 @@ from scripts.live_e2e import enforce_live_bounds, load_live_budgets, load_live_c
 from scripts.local_openai_protocol_fixture import LocalOpenAIProtocolFixture, fixture_report
 from scripts.run_live_e2e import EXPECTED_LIVE_RUN_COUNT, LIVE_E2E_TARGET_ENV, PROVIDER_MATRIX_LIVE_RUN_COUNT, browser_environment, browser_timeout_seconds, collect_parent_owned_metadata, finalize_report, live_matrix_passes, remaining_duration_seconds, resolve_live_target, startup_timeout_seconds, validate_live_target_budget
 from scripts.run_live_browser_test_server import LIVE_BROWSER_ADMIN_TOKEN, live_browser_environment, live_retry_settings, merge_live_events
+from tests.support import sqlite_session
 
 
 async def _notify(_progress, _event): pass
@@ -28,8 +29,7 @@ class LiveE2ETests(unittest.TestCase):
             require_live_authorization({"FAB_LIVE_E2E_AUTHORIZED": "true", "FAB_LIVE_MODEL_ID": "live"})
         with tempfile.TemporaryDirectory() as temporary:
             db = Path(temporary) / "catalog.db"
-            import sqlite3
-            with sqlite3.connect(db) as connection:
+            with sqlite_session(db) as connection:
                 connection.execute("CREATE TABLE model_catalog(model_id, provider, provider_model, base_url, status, capabilities_json, compatibility_json)")
                 connection.execute("INSERT INTO model_catalog VALUES ('live','openai-compatible','provider-live','https://safe.example','published','{\"streaming\":true,\"thinking\":true}','{\"status\":\"passed\"}')")
             model = load_live_catalog_model(db, "live", ("streaming", "thinking"))
@@ -231,8 +231,7 @@ class LiveE2ETests(unittest.TestCase):
     def test_parent_owned_root_collects_model_metadata_without_graceful_shutdown(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); departments = root / "departments"; departments.mkdir()
-            import sqlite3
-            with sqlite3.connect(departments / "ai_operations.db") as connection:
+            with sqlite_session(departments / "ai_operations.db") as connection:
                 connection.execute("CREATE TABLE model_catalog(model_id, provider, provider_model, base_url, status, capabilities_json, compatibility_json)")
                 connection.execute("INSERT INTO model_catalog VALUES ('live','openai-compatible','provider-live','https://model.test','published','{}','{\"status\":\"passed\"}')")
             (root / "agent_events.jsonl").write_text(json.dumps({"event": "model_call_finished", "run_id": "live-run", "status": "success", "phase": "synthesis"}) + "\n", encoding="utf-8")

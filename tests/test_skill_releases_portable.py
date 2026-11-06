@@ -23,8 +23,8 @@ ASSETS = (
 
 
 class SkillReleasesPortableTests(unittest.TestCase):
-    def test_released_ready_and_loop_use_only_the_explicit_96_file_slice(self) -> None:
-        self.assertEqual(len(SOURCE_FILES), 96)
+    def test_released_ready_and_loop_use_only_the_explicit_97_file_slice(self) -> None:
+        self.assertEqual(len(SOURCE_FILES), 97)
         with tempfile.TemporaryDirectory() as temporary:
             unit = Path(temporary) / "unit"
             for relative in SOURCE_FILES:

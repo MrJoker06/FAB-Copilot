@@ -8,6 +8,7 @@ import gc
 import importlib.util
 import json
 import os
+import socket
 import statistics
 import sys
 import time as _stdlib_time
@@ -16,6 +17,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
+
+_SOCKET_CONNECT = socket.socket.connect
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 PROTOCOL_PATH = PROJECT_DIR / "evaluations/mod_002_paired_protocol_v1.json"
@@ -503,7 +506,18 @@ def worker_main(project_dir: Path) -> int:
             cleanup = _CLOCK() - cleanup_start
             timing_calls = 0
             timing_stamps = []
-            capture = asyncio.run(captures[scene]())
+            # Build the loop before the network guard is consulted: on Windows
+            # the Proactor self-pipe is created through socket.socketpair(),
+            # whose loopback connect must not look like business traffic.
+            with patch("socket.socket.connect", new=_SOCKET_CONNECT):
+                loop = asyncio.new_event_loop()
+            try:
+                capture = loop.run_until_complete(captures[scene]())
+            finally:
+                try:
+                    loop.run_until_complete(loop.shutdown_asyncgens())
+                finally:
+                    loop.close()
             if timing_calls != 2:
                 raise AssertionError(
                     f"fixture timing contract requires exactly two calls, got {timing_calls}"

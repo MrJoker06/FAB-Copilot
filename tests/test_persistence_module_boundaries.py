@@ -8,6 +8,7 @@ from pathlib import Path
 
 from app.persistence import database, department_schemas, execution_store
 from scripts.check_module_boundaries import boundary_errors, load_manifest
+from tests.support import sqlite_session
 
 
 class PersistenceModuleBoundaryTests(unittest.TestCase):
@@ -34,7 +35,7 @@ class PersistenceModuleBoundaryTests(unittest.TestCase):
                 connection.commit()
             with self.assertRaises(sqlite3.ProgrammingError):
                 connection.execute("SELECT 1")
-            with sqlite3.connect(path) as verification:
+            with sqlite_session(path) as verification:
                 self.assertEqual(verification.execute("SELECT value FROM records").fetchone()[0], "saved")
 
             uncommitted_connection = None
@@ -42,7 +43,7 @@ class PersistenceModuleBoundaryTests(unittest.TestCase):
                 uncommitted_connection.execute("INSERT INTO records VALUES ('normal exit rollback')")
             with self.assertRaises(sqlite3.ProgrammingError):
                 uncommitted_connection.execute("SELECT 1")
-            with sqlite3.connect(path) as verification:
+            with sqlite_session(path) as verification:
                 self.assertEqual(verification.execute("SELECT value FROM records").fetchall(), [("saved",)])
 
             failed_connection = None
@@ -52,17 +53,17 @@ class PersistenceModuleBoundaryTests(unittest.TestCase):
                     raise RuntimeError("expected")
             with self.assertRaises(sqlite3.ProgrammingError):
                 failed_connection.execute("SELECT 1")
-            with sqlite3.connect(path) as verification:
+            with sqlite_session(path) as verification:
                 self.assertEqual(verification.execute("SELECT value FROM records").fetchall(), [("saved",)])
 
     def test_canonical_schema_initialization_is_idempotent(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "legacy.db"
             database.initialize(path)
-            with sqlite3.connect(path) as connection:
+            with sqlite_session(path) as connection:
                 first_migrations = connection.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0]
             database.initialize(path)
-            with sqlite3.connect(path) as connection:
+            with sqlite_session(path) as connection:
                 migrations = connection.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0]
                 tables = connection.execute(
                     "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'lots'"

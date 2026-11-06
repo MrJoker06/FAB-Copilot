@@ -7,6 +7,7 @@ import zipfile
 from pathlib import Path
 
 from scripts import build_portable_unit
+from tests.support import requires_symlinks
 
 
 class PortableUnitTests(unittest.TestCase):
@@ -106,6 +107,7 @@ class PortableUnitTests(unittest.TestCase):
                     root,
                 )
 
+    @requires_symlinks
     def test_rejects_symlinked_declared_file_outside_project_root(self):
         with tempfile.TemporaryDirectory() as temporary, tempfile.TemporaryDirectory() as external:
             root = Path(temporary)

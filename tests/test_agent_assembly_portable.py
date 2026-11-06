@@ -24,12 +24,12 @@ RUNTIME_FILES = (
 
 
 class AgentAssemblyPortableTests(unittest.TestCase):
-    def test_explicit_agent_assembly_runs_from_the_actual_44_file_slice(self):
+    def test_explicit_agent_assembly_runs_from_the_actual_46_file_slice(self):
         baseline = json.loads(INVENTORY.read_text(encoding="utf-8"))["units"][
             "dispatcher_pilot"
         ]["files"]
         files = tuple(baseline) + RUNTIME_FILES + MODERN_FILES
-        self.assertEqual(len(files), 44)
+        self.assertEqual(len(files), 46)
         self.assertEqual(len(set(files)), len(files))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"

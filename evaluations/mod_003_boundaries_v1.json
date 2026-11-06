@@ -595,12 +595,22 @@
       "exit_task": "MOD-015"
     },
     {
+      "path": "app/core/sqlite_support.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/evidence/__init__.py",
       "primary_module": "evidence",
       "artifact_group": "platform_core"
     },
     {
       "path": "app/evidence/answer_synthesizer.py",
+      "primary_module": "evidence",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/evidence/evidence_truncation.py",
       "primary_module": "evidence",
       "artifact_group": "platform_core"
     },
@@ -1057,6 +1067,11 @@
     },
     {
       "path": "app/model_gateway/health.py",
+      "primary_module": "models",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/model_gateway/message_compat.py",
       "primary_module": "models",
       "artifact_group": "platform_core"
     },
@@ -1586,6 +1601,12 @@
       "source": "app.evidence.validator",
       "target": "app.planning_runtime.contracts",
       "reason": "Evidence validation consumes planning/playbook implementation contracts; extract stable evidence requirements at the boundary.",
+      "exit_task": "MOD-015"
+    },
+    {
+      "source": "app.evidence.validator",
+      "target": "app.planning_runtime.scope",
+      "reason": "Evidence validation reuses the planner's call-scope derivation so declared plan scope and executed call scope are compared with one rule; extract the shared scope contract at the boundary.",
       "exit_task": "MOD-015"
     },
     {
@@ -2408,6 +2429,15 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
+      "source_file": "app/core/sqlite_support.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
       "source_file": "app/integrations/knowledge/runtime_search.py",
       "imports": [
         "sqlite3"
@@ -2780,6 +2810,14 @@
         "classification": "internal-store",
         "stores": "agent.agent_runs, agent.agent_tool_events, agent.chat_messages, agent.chat_sessions, agent.message_sources, agent_runs, chat_messages, chat_sessions",
         "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "exit_task": "MOD-015"
+      },
+      {
+        "source_file": "app/core/sqlite_support.py",
+        "owner": "core_contracts_configuration",
+        "classification": "storage-binding",
+        "stores": "caller-provided connection only; no store is opened here",
+        "init_effects": "Registers the SQRT function on an existing connection; never connects, initializes, seeds or attaches a database",
         "exit_task": "MOD-015"
       },
       {
