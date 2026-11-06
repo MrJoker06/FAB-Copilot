@@ -456,6 +456,8 @@ def synthesizer_system_message(contract: AnswerContract) -> str:
             f"使用 analysis_protocol_version={ANALYSIS_PROTOCOL_VERSION}：facts 是调用级直接事实，只写 statement 与 TOOL:Sxx 引用即可；"
             "claim_kind、semantic_id、scope、time_range、grain、claim_role 由服务端从被引用证据推导，"
             "如果你显式填写则必须与证据一致，否则该声明会被判为不支持。"
+            "一条事实只引用同一种语义的调用级证据；不同工具或不同语义（例如近期异常明细与历史异常记录）不要合并成一条事实，"
+            "请拆成多条事实，或在推断中基于这些事实综合。"
             "inferences 用已验证 facts 的从零开始 fact_indices（1 条为单源推断，最多给出受限结论；2 条及以上为复合推断），并填写简短 basis 和 uncertainty；其引用由服务端从事实推导，不要重复填报来源元数据。"
             "conclusion_claim 必须引用已验证综合推断的 inference_indices；其目标 scope、time_range、claim_role 由服务端从所引用的推断推导，不得把综合结论伪装成某一个原始指标。"
             "不得把背景来源混入综合推断，范围或时间不兼容时改为 hypotheses。"

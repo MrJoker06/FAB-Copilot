@@ -94,7 +94,7 @@ def call_scope(tool: str, parameters: dict[str, Any], evidence_ids: tuple[str, .
     apply the same rules (fab default, equipment-before-process, SQL filters).
     """
     values = {"fab_ids": (), "process_steps": (), "equipment_ids": (), "products": (), "lot_ids": (), "wafer_ids": (), "chambers": (), "recipes": ()}
-    if tool in {"get_fab_overview", "get_process_capability", "get_equipment_health", "get_equipment_productivity", "get_defect_pareto", "get_recent_excursions", "get_sensor_summary"} and not parameters.get("process_step") and not parameters.get("equipment_id"):
+    if tool in {"get_fab_overview", "get_process_capability", "get_equipment_health", "get_equipment_productivity", "get_defect_pareto", "get_recent_excursions", "get_sensor_summary", "get_equipment_event_timeline", "get_equipment_excursion_history"} and not parameters.get("process_step") and not parameters.get("equipment_id"):
         values["fab_ids"] = ("FAB",)
     if tool == "get_yield_trend" and not parameters.get("product"):
         values["fab_ids"] = ("FAB",)
@@ -124,8 +124,17 @@ def call_scope(tool: str, parameters: dict[str, Any], evidence_ids: tuple[str, .
         if product:
             values["products"] = (product.group(1).upper(),)
             values["fab_ids"] = ()
-        if not any((lot, process, equipment, product)) and "FROM lots" in sql:
-            values["fab_ids"] = ("FAB",)
+        if not any((lot, process, equipment, product)):
+            tables = {
+                name.lower()
+                for name in re.findall(r"\bFROM\s+([A-Za-z_][\w.]*)", sql, re.I)
+            }
+            # Global report templates without a row filter are fab-wide, whether
+            # they read lots, equipment events or process runs.  Leaving the
+            # scope empty made their facts incompatible with other fab-scoped
+            # facts inside one composite inference.
+            if tables & {"lots", "equipment_events", "process_runs"}:
+                values["fab_ids"] = ("FAB",)
     return values
 
 

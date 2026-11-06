@@ -123,6 +123,14 @@ class StructuredPlannerTests(unittest.TestCase):
         self.assertEqual(lots.evidence_scope["process_steps"], ())
         self.assertEqual(lots.scope_role, "context_only")
 
+    def test_fab_wide_equipment_queries_keep_fab_scope(self):
+        plan = _plan("最近三个月哪些设备风险最高？")
+        sql_steps = [step for step in plan.steps if step.tool == "query_manufacturing_data"]
+        self.assertTrue(sql_steps)
+        for step in sql_steps:
+            self.assertEqual(step.evidence_scope["fab_ids"], ("FAB",), step.step_id)
+            self.assertEqual(step.scope_role, "primary", step.step_id)
+
     def test_equipment_yield_pass_rate_uses_actual_equipment_filter(self):
         plan = _plan("分析 ETCH-01 最近一周良率下降")
         step = next(item for item in plan.steps if item.tool == "get_process_pass_rate")

@@ -31,6 +31,12 @@ def route_question(question: str, current_date: date | None = None) -> IntentRou
             intent = "general_knowledge"
             candidate_intents = ("general_knowledge",)
             confidence = 0.8
+        elif equipment_ids:
+            # A named tool/equipment is a concrete manufacturing subject even
+            # when the phrasing has no built-in intent keyword.
+            intent = "equipment_fault"
+            candidate_intents = ("equipment_fault",)
+            confidence = 0.7
         else:
             intent = "unknown"
             candidate_intents = ()
