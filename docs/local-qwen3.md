@@ -113,6 +113,12 @@ $env:AGENT_RUN_LOG_DIR = "D:\Fab_Insight\FAB-Copilot\runtime\local\logs\agent"
 
 （`run.bat` 也可以，它会用 `.venv-win` / `.venv` 并创建独立的 `runtime/<实例ID>/`。）
 
+> 不要省略上面的四个环境变量。直接 `uvicorn app.main:app` 会回退到仓库默认的
+> `data/departments`，那是一个独立的新库：里面只有内置的 DeepSeek 条目，
+> 已发布的本地模型、聊天记录和模型偏好都留在 `runtime/local/data` 里，看起来就像
+> "本地模型不见了"。如果模型列表突然只剩 DeepSeek，先检查 `GET /api/health` 返回的
+> `database_departments.*.path` 是否指向 `runtime/local/data/departments`。
+
 ## 验收
 
 | 检查 | 期望 |
