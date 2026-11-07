@@ -1,6 +1,6 @@
 # MOD-015：Runtime 收口、依赖类型化与兼容退出
 
-日期：2026-11-07。基线：`1c61601`（MOD-012）。状态：进行中（015a、015b 已验证，015c～015e 未开始）。
+日期：2026-11-07。基线：`1c61601`（MOD-012）。状态：进行中（015a～015c 已验证，015d、015e 未开始）。
 
 ## 分批
 
@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 015a | 兼容台账收敛：删除纯转发模块与已无生产消费者的旧 facade，修正台账；附带配置优先级修复 | 已验证（2026-11-07） |
 | 015b | 依赖组/状态类型化与 EventSink | 已验证（2026-11-07） |
-| 015c | Loop 职责拆分 | 未开始 |
+| 015c | Loop 职责拆分 | 已验证（2026-11-07） |
 | 015d | 存储/身份依赖注入 Port（含 model_gateway → persistence/identity/memory 的 5 条债务） | 未开始 |
 | 015e | Skill 启用/未启用完整链路，取消/异常无状态泄漏验收 | 未开始 |
 
@@ -129,3 +129,74 @@
 ### 回滚
 
 删除 `app/agent_runtime/ports.py`、`tests/test_runtime_dependency_types.py` 和 `telemetry.py` 的三个新增符号，恢复 `dependencies.py`、`coordinator_state.py`、`agent_loop.py`、`default_coordinator_assembly.py` 的 `Any` 注解、`build_portable_unit.py` 的 `ast.walk` 实现、台账登记和 `test_portable_units.py` 的新增测试。不涉及数据迁移。
+
+## 015c：Loop 职责拆分
+
+### 范围
+
+只做纯重构：把 `run_agent_loop`（原单函数约 700 行）按职责拆成 6 个模块，`agent_loop.py` 只保留 `AgentLoopContext` 和一个短编排函数。事件名/字段/顺序、进度 payload 及顺序、追加的消息、重试与健康记录、本地回退、用量累计、返回的结果 dict、异常（含 `CancelledError` 和裸 `raise` 重抛）以及 dispatch_binding（MOD-014 注入路径）与旧路径的差异全部不变。不涉及存储/身份注入（015d）。
+
+### 模块划分
+
+| 模块 | 行数 | 职责 |
+| --- | --- | --- |
+| `execution/agent_loop.py` | 196（原 812） | `AgentLoopContext`（字段不变）、`_resolve_dispatch_binding`（绑定一致性与 `validate_loop_binding`）、`run_agent_loop` 编排：打开会话 → 每轮“构建请求 → 模型调用 → 用量/分类/追加 assistant → 文本答案 / 提交 / 工具轮 + 轮末校验” → 轮次上限终止。`LOOP_SYNTHESIS_MAX_TOKENS` 仍可从此处导入 |
+| `execution/loop_state.py` | 67 | `LoopRunState`（slots dataclass）、`sync_to_context`、`build_result`、`add_usage` |
+| `execution/loop_request.py` | 83 | 最后一轮保留、仅综合系统消息、阶段进度、请求 payload（tools / tool_choice / max_tokens，绑定 `tools_json` 解析失败抛 `RuntimeContractError`） |
+| `execution/loop_model_call.py` | 270 | 带重试的模型调用：`model_call_started/finished`、`decide_model_failure`、健康失败记录、本地回退（`native_fallback` 或 `offline_answer`）、裸 `raise`、重试延迟/进度/`asyncio.sleep`、成功事件、`thinking_answer_effective`、健康成功/恢复；成功时返回 `ModelTurn`（assistant、usage、response_id、stream_state、model_started），回退时返回结果 dict |
+| `execution/loop_answer.py` | 297 | 无工具调用的文本答案收尾；`submit_analysis` 提交（非法 JSON → `request_synthesis_correction` 纠正 → salvage → 降级旧答案）；轮次上限终止答案 |
+| `execution/loop_tool_round.py` | 291 | Dispatcher 工具轮（F）与旧工具轮（G：`begin_round`/`finish_round`、blocked/ok/error、知识过滤、`EvidenceObservation`） |
+| `execution/loop_round_validation.py` | 114 | 轮末证据校验、进入综合、知识回退状态、答案契约、校验/综合系统消息、校验进度、`knowledge_fallback_enabled`、`loop_guard_round_finished`、注入路径同步 context |
+
+### LoopRunState
+
+字段：`evidence_validation`、`answer_contract`、`knowledge_fallback`、`fallback_announced`、`applied_synthesis_reason`、`health`、`thinking_answer_effective`（初值 False）。它是一次 Run 内这些可变事实的唯一持有者（§5.5），运行开始时从 context 快照一次，之后各模块只读写 state，不再读 context 上的这些字段。原来 `_build_result` 和轮末两处重复的 context 回写合并为 `sync_to_context(context)`，调用点不变：仅在 dispatch_binding 非空时，于每个工具轮末尾和构建结果之前写回；本地回退和异常路径照旧不写回。messages/trace/sources/evidence_observations/total_usage 仍是 context 上的同一对象，原地修改。模块级没有可变状态。
+
+### 补丁点与语义保持
+
+- `time.perf_counter`、`asyncio.sleep`、`traceback.format_exc` 仍以模块属性调用（`time.`/`asyncio.`/`traceback.`），对 `asyncio.sleep`、`time.perf_counter` 的全局 patch 继续生效；仓库内没有测试 patch `agent_loop` 命名空间里的这些名字。`traceback.format_exc()` 仍在原 `except` 块内调用；traceback 文本中的文件名会变成新模块，属预期差异，不在比较范围内。
+- 本地回退仍在 `except` 块内执行，回退中抛出的异常仍以原异常为 `__context__`；非回退路径仍在 `except` 块内裸 `raise`。
+- 提交修复使用最后一次成功尝试的 `usage` 和 `model_started`（由 `ModelTurn` 携带），与原局部变量语义相同。
+- 公开入口不变：`run_agent_loop(context, *, dispatch_binding=None)` 与 `AgentLoopContext` 仍归 `agent_loop` 所有，`execution/__init__.py` 惰性导出、`test_tool_dispatcher_boundaries` 的名称→模块映射不变。
+
+### 等价证据
+
+- 新增 `tests/agent_loop_split_scenarios.py`：全部协作者为记录型替身（真实 `ToolLoopGuard`、`ExecutionPlan`、`EvidenceObservation`，注入路径复用 `tests/test_loop_dispatcher.py` 的 Dispatcher 夹具），按发生顺序记录 emit 事件与字段、notify payload、模型请求与 stream_state、`asyncio.sleep` 延迟、纠正请求、合成调用、`build_result` 时的 context 同步快照，以及最终 messages/trace/sources/观测/用量/守卫摘要/会话开闭和返回值或异常。只剔除 `duration_ms`、`elapsed_ms`、`traceback`。
+- 黄金样本 `tests/fixtures/agent_loop_split_golden.json` 用改动前代码录制，并在 `git archive HEAD`（`f9c3c96`，原 812 行 `agent_loop.py`）导出副本中独立重录，字节一致；同一代码连续录制两次也字节一致。
+- 37 个场景：文本答案（普通/空内容/流式指标/通用知识披露/对话无工具/DeepSeek thinking）、旧工具轮（ok + 重复参数 blocked + 工具异常 + 知识过滤 + 混合 submit 拒绝 + 参数非法 JSON + 无 id/无名称 unplanned → 第二轮仅综合 + 知识回退公告）、无进展终止、轮次上限、`submit_analysis`（合法/空对象/非对象 JSON/截断 → 纠正接受/纠正被拒 → salvage/无 token 上限 → 降级/工具轮后提交）、503 重试后成功、持续失败本地回退（健康开/关、主恢复试探不重试）、`native_fallback`（旧路径/注入路径）、不可重试错误重抛、已输出正文后失败重抛、第二轮失败重抛、流中取消（旧路径/注入路径）、注入路径（工具轮 + 文本、显式参数传绑定、提交、非法提交降级、required 契约文本、失败重抛、失败记录健康、绑定不一致、绑定校验失败）。新代码 37/37 与黄金样本逐项一致。
+- 变异自检：把 `sync_to_context` 改为空操作，6 个注入路径场景立即与黄金样本不符，说明比较能发现回写时机变化。
+- 取消：`tests/test_agent_loop_split.py` 用真实 `task.cancel()` 在第二轮流中取消，验证 `CancelledError` 传播、会话关闭、无健康失败记录、无 `build_result`，注入路径 context 只保留第一轮末的同步值，旧路径 context 完全不被写回。
+
+### 测试
+
+新增 `tests/test_agent_loop_split.py`（9 项：行数预算与委托、公开名称归属与签名、`LoopRunState` 字段与 AST 级“唯一回写点/无模块级可变状态”守卫、新模块不含 httpx/AsyncClient/URL/凭据头、计时/sleep/traceback 调用形式、黄金覆盖、37 场景逐项一致、两种取消）。`tests/test_model_gateway_port.py` 的 `GATEWAY_CALLERS` 静态清单追加 6 个新模块，`import httpx` 检查扩展到全部 Loop 模块；9 个便携切片测试（skill_releases、production_reports、process_diagnostics、operational_reports、named_queries、loop_dispatcher、litho_cpk、knowledge_search、enterprise_tools）的 blocked 元组在 `agent_loop` 之外同时屏蔽 6 个新模块。便携切片和 `evaluations/mod_0xx_*.json` 文件清单本来就不含 `agent_loop.py`，所以没有改动清单或计数。
+
+| 检查 | 结果 |
+| --- | --- |
+| WSL 定向 34 模块（Py 3.11，测试用 PIL 桩；新测试 + 任务要求的 21 个模块 + 9 个便携切片 + `test_modularization_reference`、`test_agent_tool_runtime_boundaries`、`test_tool_sources_portable`） | 339 项全部通过 |
+| Windows 同 31 模块（Py 3.13，不含后 3 个） | 320 项：failures=23、errors=12，全部是既有 Windows 环境问题，与 HEAD 导出副本逐项一致：`test_module_boundaries` 反斜杠路径 19 个子测试、便携切片子进程 GBK/UTF-8 解码与非零退出 ×7、临时 SQLite 清理 WinError 32 ×7、symlink WinError 1314 ×2。HEAD 副本上 `tests.system.test_model_governance` 因导出不含未跟踪的参考库而无法启动，工作树上 17 项通过 |
+| `scripts/check_modularization_boundaries.py` | 279 文件 / 0 错误（两端） |
+| `scripts/check_module_boundaries.py` | 通过（两端） |
+| Ruff check（WSL，8 个新文件 + 11 个改动文件） | 全部通过；HEAD 同路径也全部通过 |
+| Ruff format | 新文件和重写后的 `agent_loop.py` 已按 ruff 格式化（`agent_loop.py` 偏差 576→0）；其余 10 个改动测试文件偏差与 HEAD 一致（0） |
+
+没有调用真实模型服务，也没有运行性能门、浏览器或覆盖率。
+
+### 台账计数
+
+| 项 | 前（015b 后） | 后 |
+| --- | --- | --- |
+| 受管文件 | 273 | 279（251 Python / 28 静态；6 个新模块登记为 runtime / platform_core） |
+| 依赖债务 | 29 | 29 |
+| 兼容入口 | 7 | 7 |
+| 兼容消费记录 | 92 | 92 |
+| DB 候选 | 26 | 26 |
+
+### 偏差
+
+- 原实现中，若重试次数为负，重试循环一次也不执行，随后访问未赋值的局部变量，抛出 `UnboundLocalError`。新实现在这种情况下抛出 `RuntimeError("model retry loop ended without a model turn")`。`settings.py` 把 `model_max_retries` 限制在 0～4，主恢复试探固定为 0，所以生产配置走不到这条路径。
+- `traceback` 字段里的文件名和行号会指向新模块。
+
+### 回滚
+
+删除 6 个新模块，用 `f9c3c96` 的版本恢复 `agent_loop.py`，再删除 `tests/test_agent_loop_split.py`、`tests/agent_loop_split_scenarios.py`、`tests/fixtures/agent_loop_split_golden.json`，并撤销 `mod_003_boundaries_v1.json` 中新增的 6 条登记以及 10 个测试文件的清单/blocked 改动。不涉及数据迁移。

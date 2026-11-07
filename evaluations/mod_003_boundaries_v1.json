@@ -74,6 +74,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/agent_runtime/execution/loop_answer.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/agent_runtime/execution/loop_dispatch.py",
       "primary_module": "runtime",
       "artifact_group": "platform_core"
@@ -84,7 +89,32 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/agent_runtime/execution/loop_model_call.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/loop_request.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/agent_runtime/execution/loop_response.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/loop_round_validation.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/loop_state.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/execution/loop_tool_round.py",
       "primary_module": "runtime",
       "artifact_group": "platform_core"
     },

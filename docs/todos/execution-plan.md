@@ -29,6 +29,8 @@
 
 ## 当前串行队列
 
+最新检查点（2026-11-07，MOD-015c）：Loop 职责拆分已验证，纯重构。`run_agent_loop` 由约 700 行单函数拆为 6 个模块：`loop_state.py`（`LoopRunState` slots dataclass 持有 evidence_validation/answer_contract/knowledge_fallback/fallback_announced/applied_synthesis_reason/health/thinking_answer_effective，运行开始快照一次，`sync_to_context` 是唯一回写点，只在注入路径、原调用点执行）、`loop_request.py`、`loop_model_call.py`（重试/健康/回退，返回 `ModelTurn` 或回退结果，裸 `raise` 仍在 except 内）、`loop_answer.py`（文本/提交修复/salvage/降级/轮次上限）、`loop_tool_round.py`（Dispatcher 轮与旧工具轮）、`loop_round_validation.py`；`agent_loop.py` 812→196 行，公开名称与签名不变。等价证据：37 个场景的完整有序记录（事件与字段、进度、模型请求、sleep、消息、结果、context 同步快照）与改动前录制、并经 HEAD 导出副本重录字节一致的黄金样本逐项相等；变异自检和真实 `task.cancel()` 取消测试通过。新增 9 项专项；WSL 定向 34 模块 339 项通过，Windows 同 31 模块 320 项只剩与 HEAD 逐项一致的既有环境失败。279 文件/零边界错误，29 债务/7 入口/92 消费记录/26 DB 候选不变；ruff check 全过，新文件 format 0 偏差。未运行性能门。下一批 015d 存储/身份依赖注入 Port，见 [报告](../reports/mod-015-runtime-convergence.md)。以下保留历史检查点。
+
 最新检查点（2026-11-07，MOD-015b）：依赖组/状态类型化与 EventSink 已验证。新增 `app/agent_runtime/ports.py` 结构化端口模块：`runtime_checkable` 的 `RuntimeSettings`/`RuntimeModelConnection` 配置视图（边界规则禁止 agent_runtime 导入 `app.core.settings`，含 TYPE_CHECKING）、22 个可调用 Protocol、`ToolRunBindings` 与 `Callable` 别名，领域类型仅 TYPE_CHECKING 导入、运行时只加载标准库；`dependencies.py` 58 个字段、`CoordinatorRunState`、`AgentLoopContext` 从 `Any` 全部类型化，字段名/顺序/默认值/live patch 快照不变；`telemetry.py` 新增 `RUNTIME_STAGE_AUDIT_EVENT`（`runtime_stage_completed`）、`runtime_event_audit_fields` 与 `AuditEventSink`，只供显式装配、默认路径审计流不变；`build_portable_unit.py` 的导入扫描跳过 TYPE_CHECKING 分支，便携清单不变。新增 17 项专项（含 58 字段真实快照绑定、Any 守卫、审计映射端到端、新进程导入面）；WSL 定向 433 项通过，Windows 同集只剩与 HEAD 逐项一致的既有环境失败（反斜杠断言 19、WinError 1314 ×5、WinError 32 ×11、bundle 子进程解码 ×3、便携切片 ×6）。273 文件/零边界错误，29 债务/7 入口/26 DB 候选不变，消费记录 91→92；ruff check 全过，format 计数与 HEAD 一致或更好。未运行性能门。下一批 015c Loop 职责拆分，见 [报告](../reports/mod-015-runtime-convergence.md)。以下保留历史检查点。
 
 最新检查点（2026-11-07，MOD-015a）：MOD-015 拆为 a～e 五批，015a 兼容台账收敛已验证。删除 5 个 coordinator 转发模块、`conversation/context_resolver.py`、旧 `(client, endpoint, headers)` synthesis facade、`ClientModelSession` 与 `state.endpoint`，测试消费者迁到 canonical 模块；兼容性探针的 URL/凭据头改由 `ModelEndpoint` 提供；配置优先级修为“进程环境 > 项目 `.env` > 工作区 `.env`”，新增 4 项子进程测试。WSL 定向 251 项、扩展 183 项通过；Windows 同集只有既有的反斜杠路径、WinError 1314/32 失败，且与 HEAD 副本一致。272 文件/零边界错误，29 债务（5 条 exit_task 更正为 MOD-015）、兼容入口 13→7、消费记录 99→91。未运行性能门。下一批 015b，见 [报告](../reports/mod-015-runtime-convergence.md)。以下保留历史检查点。
@@ -55,7 +57,7 @@
 | 已验证 | MOD-019 | Run 版本固定、发布、禁用和回退 | 018 |
 | 已验证 | MOD-009 | 批量工具来源替换与扩展能力验收 | 008；安排在 Skill 四项后 |
 | 已验证 | MOD-012 | 模型客户端生命周期 | 014；安排在 009 后 |
-| 进行中 | MOD-015 | Runtime 与先行 Skill 接缝、状态/事件、兼容收口（015a、015b 已验证，下一批 015c） | 009、012、014；本轮安排在 019 后 |
+| 进行中 | MOD-015 | Runtime 与先行 Skill 接缝、状态/事件、兼容收口（015a～015c 已验证，下一批 015d） | 009、012、014；本轮安排在 019 后 |
 
 执行与验收仍逐项串行；Skill 通过后回到余下 Runtime 工作，Skill 保持可选，启用/未启用路径均须兼容。后续公司接入、Checkpoint
 与整体交付的完成门槛不变。总方案 v1.4 和 [模块化追踪](modularization.md) 已同步调整。

@@ -234,7 +234,13 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/agent_runtime/execution/__init__.py` | 兼容 | 惰性导出旧 loop/ready 名称。 |
 | `app/agent_runtime/execution/failure.py` | 纯 | 模型故障重试/回退分类。 |
 | `app/agent_runtime/execution/loop_guard.py` | 纯 | `ToolLoopGuard`：预算、重复调用、进展和停止原因。 |
-| `app/agent_runtime/execution/agent_loop.py` | 兼容/业务 | 旧模型循环与重试/健康/回退；模型会话经注入的 ModelGatewayPort 打开；可显式注入 Loop Dispatcher。 |
+| `app/agent_runtime/execution/agent_loop.py` | 兼容/业务 | `AgentLoopContext` 与 `run_agent_loop` 短编排（MOD-015c）：校验 Loop Dispatcher 绑定，经注入的 ModelGatewayPort 打开会话，逐轮委托请求构建、模型调用、答案收尾、工具轮和轮末校验。 |
+| `app/agent_runtime/execution/loop_state.py` | 纯 | `LoopRunState`：一次 Run 内可变事实的唯一持有者；`sync_to_context` 唯一回写点、结果构建、用量累计。 |
+| `app/agent_runtime/execution/loop_request.py` | 业务 | 每轮仅综合门、阶段进度与模型请求 payload（tools/tool_choice/max_tokens）。 |
+| `app/agent_runtime/execution/loop_model_call.py` | 业务 | 模型调用重试、健康失败/恢复记录、本地回退（native 或离线），返回 `ModelTurn`。 |
+| `app/agent_runtime/execution/loop_answer.py` | 业务 | 文本答案、`submit_analysis` 纠正/salvage/降级与轮次上限终止。 |
+| `app/agent_runtime/execution/loop_tool_round.py` | 业务 | Dispatcher 工具轮与旧注册工具轮（守卫、blocked/ok/error、知识过滤、证据观测）。 |
+| `app/agent_runtime/execution/loop_round_validation.py` | 业务 | 轮末证据校验、答案契约刷新、知识回退公告与守卫轮次审计。 |
 | `app/agent_runtime/execution/ready_plan.py` | 兼容/业务 | 原 Ready 回调路径；可显式委托新 Ready executor。 |
 | `app/agent_runtime/execution/ready_graph.py` | 纯 | Ready 依赖拓扑排序与非法图拒绝。 |
 | `app/agent_runtime/execution/ready_dispatch.py` | 纯 | Dispatcher-backed Ready 执行、归约和事件投影。 |

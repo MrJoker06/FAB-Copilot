@@ -149,6 +149,8 @@ sys.path.insert(0, str(unit))
 warm_loop = asyncio.new_event_loop(); warm_loop.close()
 blocked = ('app.agent_runtime.service', 'app.agent_runtime.compatibility',
  'app.agent_runtime.execution.agent_loop', 'app.agent_runtime.tools.catalog',
+ 'app.agent_runtime.execution.loop_answer', 'app.agent_runtime.execution.loop_model_call', 'app.agent_runtime.execution.loop_request',
+ 'app.agent_runtime.execution.loop_round_validation', 'app.agent_runtime.execution.loop_state', 'app.agent_runtime.execution.loop_tool_round',
  'app.agent_runtime.tools.registry', 'app.core', 'app.model_gateway', 'app.persistence',
  'app.telemetry', 'app.conversation')
 events = []

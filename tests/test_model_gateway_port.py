@@ -38,6 +38,12 @@ GATEWAY_CALLERS = (
     "app/agent_runtime/stages/ready.py",
     "app/agent_runtime/synthesis/ready.py",
     "app/agent_runtime/preparation/context.py",
+    "app/agent_runtime/execution/loop_answer.py",
+    "app/agent_runtime/execution/loop_model_call.py",
+    "app/agent_runtime/execution/loop_request.py",
+    "app/agent_runtime/execution/loop_round_validation.py",
+    "app/agent_runtime/execution/loop_state.py",
+    "app/agent_runtime/execution/loop_tool_round.py",
 )
 USAGE = {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5}
 
@@ -162,8 +168,9 @@ class GatewayStaticAcceptanceTests(unittest.TestCase):
                 self.assertNotIn("AsyncClient", source)
                 self.assertNotIn("/chat/completions", source)
                 self.assertNotIn("Bearer", source)
-        loop_source = (ROOT / GATEWAY_CALLERS[0]).read_text(encoding="utf-8")
-        self.assertNotIn("import httpx", loop_source)
+        for relative in (GATEWAY_CALLERS[0], *GATEWAY_CALLERS[4:]):
+            loop_source = (ROOT / relative).read_text(encoding="utf-8")
+            self.assertNotIn("import httpx", loop_source)
 
     def test_streaming_protocol_no_longer_reads_chat_template_environment(self):
         source = inspect.getsource(streaming)
