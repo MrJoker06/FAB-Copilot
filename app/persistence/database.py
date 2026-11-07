@@ -1016,4 +1016,3 @@ def replace_defect_type_aliases(
         connection.commit()
     finally:
         connection.close()
-

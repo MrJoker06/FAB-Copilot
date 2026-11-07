@@ -39,7 +39,7 @@ KNOWLEDGE_SUPPORT = (
 
 
 class KnowledgeSearchPortableTests(unittest.TestCase):
-    def test_real_66_file_slice_cannot_reach_repository_or_system_resources(
+    def test_real_68_file_slice_cannot_reach_repository_or_system_resources(
         self,
     ) -> None:
         baseline = json.loads(INVENTORY.read_text(encoding="utf-8"))["units"][
@@ -54,7 +54,7 @@ class KnowledgeSearchPortableTests(unittest.TestCase):
             + KNOWLEDGE_FILES
             + KNOWLEDGE_SUPPORT
         )
-        self.assertEqual((len(files), len(set(files))), (66, 66))
+        self.assertEqual((len(files), len(set(files))), (68, 68))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

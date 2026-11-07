@@ -48,7 +48,7 @@ DIAGNOSTICS_FILES = (
 
 
 class ProcessDiagnosticsPortableTests(unittest.TestCase):
-    def test_demo_runs_from_actual_60_file_source_slice(self) -> None:
+    def test_demo_runs_from_actual_62_file_source_slice(self) -> None:
         baseline = json.loads(INVENTORY.read_text(encoding="utf-8"))["units"][
             "dispatcher_pilot"
         ]["files"]
@@ -60,7 +60,7 @@ class ProcessDiagnosticsPortableTests(unittest.TestCase):
             + LOOP_FILES
             + DIAGNOSTICS_FILES
         )
-        self.assertEqual((len(files), len(set(files))), (60, 60))
+        self.assertEqual((len(files), len(set(files))), (62, 62))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

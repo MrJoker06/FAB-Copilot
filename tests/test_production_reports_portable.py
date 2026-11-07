@@ -1,4 +1,4 @@
-"""Run the production-report demonstration from the real 67-file source slice."""
+"""Run the production-report demonstration from the real 69-file source slice."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ PRODUCTION_FILES = (
 
 
 class ProductionReportsPortableTests(unittest.TestCase):
-    def test_all_fake_reports_run_from_the_actual_67_file_slice(self) -> None:
+    def test_all_fake_reports_run_from_the_actual_69_file_slice(self) -> None:
         baseline = json.loads(INVENTORY.read_text(encoding="utf-8"))["units"][
             "dispatcher_pilot"
         ]["files"]
@@ -45,7 +45,7 @@ class ProductionReportsPortableTests(unittest.TestCase):
             + DIAGNOSTICS_FILES
             + PRODUCTION_FILES
         )
-        self.assertEqual((len(files), len(set(files))), (67, 67))
+        self.assertEqual((len(files), len(set(files))), (69, 69))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

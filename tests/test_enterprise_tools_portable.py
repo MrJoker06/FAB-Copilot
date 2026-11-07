@@ -35,7 +35,7 @@ ENTERPRISE_FILES = (
 
 
 class EnterpriseToolsPortableTests(unittest.TestCase):
-    def test_real_82_file_slice_cannot_reach_repository_or_system_resources(
+    def test_real_84_file_slice_cannot_reach_repository_or_system_resources(
         self,
     ) -> None:
         baseline = json.loads(INVENTORY.read_text(encoding="utf-8"))["units"][
@@ -52,7 +52,7 @@ class EnterpriseToolsPortableTests(unittest.TestCase):
             + OPERATIONAL_FILES
             + ENTERPRISE_FILES
         )
-        self.assertEqual((len(files), len(set(files))), (82, 82))
+        self.assertEqual((len(files), len(set(files))), (84, 84))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

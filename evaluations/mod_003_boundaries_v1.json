@@ -605,6 +605,11 @@
       "exit_task": "MOD-015"
     },
     {
+      "path": "app/core/sqlite_support.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/evidence/__init__.py",
       "primary_module": "evidence",
       "artifact_group": "platform_core"
@@ -1072,6 +1077,11 @@
     },
     {
       "path": "app/model_gateway/health.py",
+      "primary_module": "models",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/model_gateway/message_compat.py",
       "primary_module": "models",
       "artifact_group": "platform_core"
     },
@@ -2423,6 +2433,15 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
+      "source_file": "app/core/sqlite_support.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
       "source_file": "app/integrations/knowledge/runtime_search.py",
       "imports": [
         "sqlite3"
@@ -2796,6 +2815,14 @@
         "stores": "agent.agent_runs, agent.agent_tool_events, agent.chat_messages, agent.chat_sessions, agent.message_sources, agent_runs, chat_messages, chat_sessions",
         "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
         "exit_task": "MOD-015"
+      },
+      {
+        "source_file": "app/core/sqlite_support.py",
+        "owner": "core_contracts_configuration",
+        "classification": "storage-binding",
+        "stores": "none (caller-supplied connections only)",
+        "init_effects": "Registers the deterministic SQRT shim on a caller-supplied sqlite3.Connection; never opens, attaches, initializes, migrates or seeds a store.",
+        "exit_task": "MOD-003 conformance (retain helper)"
       },
       {
         "source_file": "app/integrations/knowledge/runtime_search.py",

@@ -24,6 +24,8 @@
     "app/manufacturing/equipment_health/contracts.py",
     "app/manufacturing/equipment_health/handler.py",
     "app/manufacturing/equipment_health/binding.py",
+    "app/core/__init__.py",
+    "app/core/sqlite_support.py",
     "app/integrations/__init__.py",
     "app/integrations/manufacturing/__init__.py",
     "app/integrations/manufacturing/fake_equipment_health.py",

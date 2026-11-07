@@ -62,6 +62,8 @@ SOURCE_FILES = (
     "app/bootstrap/ready_assembly.py",
     "app/bootstrap/tool_sources.py",
     "app/bootstrap/tool_sources_demo.py",
+    "app/core/__init__.py",
+    "app/core/sqlite_support.py",
     "app/integrations/__init__.py",
     "app/integrations/knowledge/__init__.py",
     "app/integrations/knowledge/backend_search.py",
@@ -145,7 +147,7 @@ from pathlib import Path
 unit=Path(sys.argv[1]).resolve(); original=Path(sys.argv[2]).resolve(); allowed=set(sys.argv[3:]); assert not any(Path(value).resolve()==original for value in sys.path if value); sys.path.insert(0,str(unit))
 stdlib_asyncio=(Path(sys.base_prefix)/'Lib'/'asyncio').resolve()
 argparse.ArgumentParser(); tempfile.gettempdir(); warm=asyncio.new_event_loop(); warm.close()
-blocked=('app.core','app.persistence','app.agent_runtime.service','app.agent_runtime.compatibility','app.agent_runtime.tools.catalog','app.agent_runtime.tools.registry','app.model_gateway','app.knowledge.rag','app.manufacturing.reports','app.bootstrap.default_tool_assembly','app.bootstrap.default_coordinator_assembly','app.bootstrap.tool_catalog','app.bootstrap.tool_bindings','app.main')
+blocked=('app.core.settings','app.core.identity','app.core.identity_contracts','app.persistence','app.agent_runtime.service','app.agent_runtime.compatibility','app.agent_runtime.tools.catalog','app.agent_runtime.tools.registry','app.model_gateway','app.knowledge.rag','app.manufacturing.reports','app.bootstrap.default_tool_assembly','app.bootstrap.default_coordinator_assembly','app.bootstrap.tool_catalog','app.bootstrap.tool_bindings','app.main')
 events=[]
 class Finder(importlib.abc.MetaPathFinder):
  def find_spec(self, fullname, path=None, target=None):

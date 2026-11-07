@@ -31,7 +31,7 @@ FILES = (
 
 
 class NamedQueriesPortableTests(unittest.TestCase):
-    def test_all_sixteen_paths_run_from_guarded_real_60_file_slice(self) -> None:
+    def test_all_sixteen_paths_run_from_guarded_real_62_file_slice(self) -> None:
         base = json.loads(INVENTORY.read_text(encoding="utf-8"))["units"][
             "dispatcher_pilot"
         ]["files"]
@@ -43,7 +43,7 @@ class NamedQueriesPortableTests(unittest.TestCase):
             + LOOP_FILES
             + FILES
         )
-        self.assertEqual((len(files), len(set(files))), (60, 60))
+        self.assertEqual((len(files), len(set(files))), (62, 62))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

@@ -33,7 +33,7 @@ OPERATIONAL_FILES = (
 
 
 class OperationalPortableTests(unittest.TestCase):
-    def test_fake_paths_run_from_real_74_file_slice(self) -> None:
+    def test_fake_paths_run_from_real_76_file_slice(self) -> None:
         baseline = json.loads(INVENTORY.read_text(encoding="utf-8"))["units"][
             "dispatcher_pilot"
         ]["files"]
@@ -47,7 +47,7 @@ class OperationalPortableTests(unittest.TestCase):
             + PRODUCTION_FILES
             + OPERATIONAL_FILES
         )
-        self.assertEqual((len(files), len(set(files))), (74, 74))
+        self.assertEqual((len(files), len(set(files))), (76, 76))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

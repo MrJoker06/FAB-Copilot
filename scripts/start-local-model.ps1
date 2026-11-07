@@ -156,5 +156,3 @@ Write-Host "  FAB_MODEL_PROVIDER=openai-compatible"
 Write-Host "  FAB_MODEL_BASE_URL=http://${BindHost}:$Port/v1"
 Write-Host "  FAB_MODEL_NAME=$served"
 Write-Host "  FAB_MODEL_API_KEY=local   # any non-empty value"
-
-
