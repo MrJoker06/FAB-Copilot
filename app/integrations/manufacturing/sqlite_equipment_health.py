@@ -6,6 +6,7 @@ import sqlite3
 import time
 from pathlib import Path
 
+from ...core.sqlite_support import install_sqlite_functions
 from ...agent_runtime.tools.contracts import (
     ToolPrincipal,
     ToolScope,
@@ -66,6 +67,7 @@ class SQLiteEquipmentHealthAdapter:
                 uri=True,
                 timeout=self.busy_timeout_ms / 1000,
             )
+            install_sqlite_functions(connection)
             connection.execute("PRAGMA query_only = ON")
             connection.execute(f"PRAGMA busy_timeout = {self.busy_timeout_ms}")
             connection.execute(
@@ -157,3 +159,4 @@ class SQLiteEquipmentHealthAdapter:
                 scope,
             ),
         )
+

@@ -6,6 +6,7 @@ import sqlite3
 import time
 from pathlib import Path
 
+from ...core.sqlite_support import install_sqlite_functions
 from ...agent_runtime.tools.contracts import ToolPrincipal, ToolSource, ToolSourceKind
 from ...manufacturing.named_queries.contracts import (
     NamedQuery,
@@ -174,6 +175,7 @@ class SQLiteNamedQueryAdapter:
             connection = sqlite3.connect(
                 self._uri(path), uri=True, timeout=self.busy_timeout_ms / 1000
             )
+            install_sqlite_functions(connection)
             connection.row_factory = sqlite3.Row
             connection.execute("PRAGMA query_only = ON")
             connection.execute(f"PRAGMA busy_timeout = {self.busy_timeout_ms}")
@@ -225,3 +227,4 @@ class SQLiteNamedQueryAdapter:
                 named_query_scope(query, principal),
             ),
         )
+

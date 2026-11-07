@@ -368,17 +368,15 @@ def _explicit_presentation(question: str) -> PresentationMode | None:
 
 
 def _select_presentation(question: str, resolved_question: str = "") -> PresentationMode:
-    """Use this turn's explicit format first, then the resolved task's format."""
+    """Use this turn's explicit format first, then the resolved task's format.
+
+    Brief is reserved for an explicit short-answer request.  A question that only
+    mentions a metric (for example "光刻机台的良率情况") still needs its evidence,
+    hypotheses and limitations, so it keeps the structured compact layout.
+    """
     explicit = _explicit_presentation(question) or _explicit_presentation(resolved_question)
     if explicit:
         return explicit
-    normalized = _clean_text(question or resolved_question, 400).lower()
-    # Questions asking for one named metric can be answered directly unless the
-    # user explicitly selected a richer layout above.
-    if normalized and any(token in normalized for token in ("良率", "cpk", "产能", "吞吐", "告警", "稼动率")) and not any(
-        token in normalized for token in ("原因", "诊断", "分析", "建议", "为什么", "对比", "比较")
-    ):
-        return "brief"
     return "compact"
 
 
@@ -842,7 +840,9 @@ def _render_presentation(
     if contract.presentation == "brief":
         parts = [conclusion]
         parts.extend(f"{title}：{'；'.join(lines)}" for title, lines in labeled if lines)
-        return " ".join(parts), ("结论", *(title for title, lines in labeled if lines))
+        # One paragraph per category: a single joined line turns long multi-claim
+        # answers into an unreadable block.
+        return "\n\n".join(parts), ("结论", *(title for title, lines in labeled if lines))
     if contract.presentation == "table":
         rows = [("结论", conclusion)]
         rows.extend(("事实", line) for line in fact_lines)

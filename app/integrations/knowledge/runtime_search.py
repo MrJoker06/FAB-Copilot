@@ -35,10 +35,19 @@ def _readonly_session(knowledge_path: object, *, query_timeout_ms: int = 2_000):
         active_error = False
         try:
             connection.execute("PRAGMA busy_timeout = 500")
-            connection.execute(
-                "ATTACH DATABASE ? AS knowledge",
-                (knowledge.resolve().as_uri() + "?mode=ro",),
-            )
+            try:
+                connection.execute(
+                    "ATTACH DATABASE ? AS knowledge",
+                    (knowledge.resolve().as_uri() + "?mode=ro",),
+                )
+            except sqlite3.OperationalError:
+                # Some Windows SQLite builds do not apply SQLITE_OPEN_URI to
+                # ATTACH DATABASE and reject the file:// URI.  Fall back to a
+                # plain attach; PRAGMA query_only below keeps the source read-only.
+                connection.execute(
+                    "ATTACH DATABASE ? AS knowledge",
+                    (str(knowledge.resolve()),),
+                )
             connection.execute("PRAGMA query_only = ON")
 
             def progress() -> int:

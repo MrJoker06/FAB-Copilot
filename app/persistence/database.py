@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Iterable, Iterator
 
 from ..core.settings import get_settings
+from ..core.sqlite_support import install_sqlite_functions
 from .department_schemas import (
     DEPARTMENT_SCHEMAS,
     MIGRATION_ORDER,
@@ -616,6 +617,7 @@ def _connect_single(db_path: Path) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys=ON")
     connection.execute("PRAGMA busy_timeout=20000")
+    install_sqlite_functions(connection)
     return connection
 
 
@@ -1014,3 +1016,4 @@ def replace_defect_type_aliases(
         connection.commit()
     finally:
         connection.close()
+

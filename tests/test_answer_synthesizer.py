@@ -537,6 +537,28 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertEqual(_select_presentation("一句话总结", "请用表格比较"), "brief")
         self.assertEqual(_select_presentation("继续分析", "请用表格比较"), "table")
 
+    def test_metric_question_without_explicit_format_stays_structured(self):
+        """A bare metric question must keep evidence sections, not collapse to brief."""
+        self.assertEqual(_select_presentation("光刻机台的良率情况"), "compact")
+        self.assertEqual(_select_presentation("今天良率多少"), "compact")
+        self.assertEqual(_select_presentation("Cpk 怎么样"), "compact")
+
+    def test_brief_keeps_one_paragraph_per_category(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "conclusion": "当前证据支持方向性判断。",
+            "conclusion_evidence_refs": ["TOOL:get_fab_overview"],
+            "facts": [
+                {"statement": "第一条证据。", "evidence_refs": ["TOOL:get_fab_overview"]},
+                {"statement": "第二条证据。", "evidence_refs": ["TOOL:get_yield_trend"]},
+            ],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": ["比较范围需要进一步复核。"], "source_refs": ["KB-1"],
+        }
+        brief = synthesize_submission(payload, replace(contract, presentation="brief"), sources)
+        self.assertIn("\n\n", brief.answer)
+        self.assertGreater(len(brief.answer.splitlines()), 1)
+
     def test_brief_and_table_keep_evidence_limits(self):
         contract, sources = _supported_yield_contract()
         payload = {

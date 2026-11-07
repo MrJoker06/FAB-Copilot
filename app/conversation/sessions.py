@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 
 from ..persistence.database import db_session
-from ..persistence.execution_store import executions_for_session
+from ..persistence.execution_store import executions_for_session, reconcile_plan_steps
 from ..core.identity import current_principal
 
 
@@ -437,6 +437,7 @@ def record_agent_result(
             "DELETE FROM agent.agent_tool_events WHERE run_id = ? AND sequence_no > ?",
             (run_id, len(trace)),
         )
+        reconcile_plan_steps(run_id, trace, connection=connection)
         connection.execute("DELETE FROM agent.message_sources WHERE message_id = ?", (assistant_message_id,))
         for source in result.get("sources") or []:
             locator = str(source.get("case_id") or source.get("chunk_id") or source.get("source") or "")
