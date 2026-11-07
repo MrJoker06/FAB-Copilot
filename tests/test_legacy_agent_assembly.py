@@ -18,10 +18,13 @@ class LegacyAgentAssemblyTests(unittest.TestCase):
         self.assertIs(deps.preparation.prepare_agent_run, agent.prepare_agent_run)
         self.assertIs(deps.availability.execute_ready_plan, agent._execute_ready_plan)
         self.assertIs(deps.model.context_system_message, agent.context_system_message)
-        self.assertIs(deps.ready.async_client, agent.httpx.AsyncClient)
+        self.assertIs(deps.ready.model_gateway.client_factory, agent.httpx.AsyncClient)
+        self.assertIs(deps.loop.model_gateway, deps.ready.model_gateway)
         self.assertIs(deps.loop.tools, agent.TOOLS)
         self.assertIs(deps.loop.execute_registered_tool, agent._execute_registered_tool)
-        self.assertIs(deps.loop.stream_completion, agent._stream_completion)
+        self.assertIs(
+            deps.loop.model_gateway.stream_completion, agent._stream_completion
+        )
 
     def test_service_uses_live_patches_without_mutating_prior_snapshot(self):
         previous = agent._coordinator_dependencies()
@@ -52,14 +55,16 @@ class LegacyAgentAssemblyTests(unittest.TestCase):
             current = agent._coordinator_dependencies()
 
         self.assertIs(current.loop.execute_registered_tool, execute)
-        self.assertIs(current.loop.stream_completion, stream)
+        self.assertIs(current.loop.model_gateway.stream_completion, stream)
         self.assertIs(current.preparation.perf_counter, Clock.perf_counter)
-        self.assertIs(current.ready.async_client, AsyncClient)
+        self.assertIs(current.ready.model_gateway.client_factory, AsyncClient)
         self.assertIs(current.loop.tools, patched_tools)
         self.assertIs(
             previous.loop.execute_registered_tool, agent._execute_registered_tool
         )
-        self.assertIs(previous.loop.stream_completion, agent._stream_completion)
+        self.assertIs(
+            previous.loop.model_gateway.stream_completion, agent._stream_completion
+        )
         self.assertIs(previous.loop.tools, tools)
 
     def test_helper_constructs_from_the_given_namespace_aliases(self):
@@ -89,7 +94,13 @@ class LegacyAgentAssemblyTests(unittest.TestCase):
         self.assertEqual(assembled.preparation.factory, "preparation")
         self.assertIs(captured["coordinator"]["loop"], assembled.loop)
         self.assertIs(captured["loop"]["tools"], namespace["TOOLS"])
-        self.assertIs(captured["ready"]["async_client"], namespace["httpx"].AsyncClient)
+        self.assertIs(
+            captured["ready"]["model_gateway"].client_factory,
+            namespace["httpx"].AsyncClient,
+        )
+        self.assertIs(
+            captured["loop"]["model_gateway"], captured["ready"]["model_gateway"]
+        )
         self.assertIs(
             captured["preparation"]["agent_preparation_dependencies"],
             namespace["_agent_preparation_dependencies"],

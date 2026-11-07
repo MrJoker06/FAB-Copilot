@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.agent_runtime.execution.agent_loop import AgentLoopContext, run_agent_loop
+from app.model_gateway.gateway import HttpModelGateway
 from app.agent_runtime.execution.loop_dispatch import (
     LoopDispatchBinding,
     execute_dispatched_loop_round,
@@ -772,7 +773,7 @@ class LoopDispatcherTests(unittest.TestCase):
             notify=no_op,
             stream_answer=no_op,
             emit_event=emit,
-            stream_completion=stream,
+            model_gateway=HttpModelGateway(stream_completion=stream),
             retryable_model_error=lambda _error: False,
             model_error_category=lambda _error: "",
             model_failure_reason=lambda _error: "",
@@ -902,7 +903,7 @@ class LoopDispatcherTests(unittest.TestCase):
             total_usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
             knowledge_fallback={"used": False, "disclosure": None},
             health={},
-            stream_completion=submit_stream,
+            model_gateway=HttpModelGateway(stream_completion=submit_stream),
             synthesize_submission=lambda *_args, **_kwargs: SimpleNamespace(
                 answer="Submitted.", report={}
             ),
@@ -983,7 +984,7 @@ class LoopDispatcherTests(unittest.TestCase):
             health={},
             notify=notify,
             emit_event=lambda *_args, **_kwargs: None,
-            stream_completion=unavailable_stream,
+            model_gateway=HttpModelGateway(stream_completion=unavailable_stream),
             retryable_model_error=lambda _error: True,
             model_failure_reason=lambda _error: "unavailable",
             provider_request_options=lambda *_args: {},

@@ -9,6 +9,7 @@ from app.agent_runtime.preparation.context import (
     ResolverDependencies,
     _resolve_with_memory_service,
 )
+from app.model_gateway.gateway import HttpModelGateway
 from app.memory_system.context.resolver import (
     semantic_context_resolution,
     unresolved_context,
@@ -257,10 +258,12 @@ class ContextAdapterTests(unittest.IsolatedAsyncioTestCase):
             resolve_question_context=lambda question, _history: unresolved_context(question),
             unresolved_context=unresolved_context,
             build_messages=lambda *_args: [], response_format={}, provider_options=lambda *_args: {},
-            stream_completion=stream_completion,
+            model_gateway=HttpModelGateway(
+                client_factory=client_factory, stream_completion=stream_completion
+            ),
             semantic_resolution=semantic_context_resolution,
             notify=notify, emit=lambda *_args, **_kwargs: None, perf_counter=lambda: 0,
-            async_client=client_factory, timeout=asyncio.timeout, sleep=asyncio.sleep,
+            timeout=asyncio.timeout, sleep=asyncio.sleep,
             failure_reason=lambda _error: "internal_error", retryable_error=lambda error: isinstance(error, OSError),
             error_category=lambda _error: "network", retry_delay=lambda *_args: 0,
             audit_assistant=lambda assistant: assistant or {}, record_failure=lambda *_args, **_kwargs: ({}, None),
@@ -419,7 +422,10 @@ class ContextAdapterTests(unittest.IsolatedAsyncioTestCase):
         async def invalid_completion(*_args):
             return {"content": "invalid"}, {}, None
 
-        deps.stream_completion = invalid_completion
+        deps.model_gateway = HttpModelGateway(
+            client_factory=lambda **_kwargs: ClientContext(),
+            stream_completion=invalid_completion,
+        )
         await _resolve_with_memory_service(
             "继续分析",
             [{"message_id": 1, "role": "user", "content": "先分析"}],

@@ -1076,6 +1076,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/model_gateway/gateway.py",
+      "primary_module": "models",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/model_gateway/health.py",
       "primary_module": "models",
       "artifact_group": "platform_core"
@@ -2290,6 +2295,16 @@
       "file": "tests/test_model_compatibility.py",
       "symbol": "app.agent_runtime.service",
       "kind": "import"
+    },
+    {
+      "file": "tests/test_model_gateway_port.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_model_gateway_port.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
     },
     {
       "file": "tests/test_modularization_fixture_clock.py",

@@ -16,6 +16,7 @@ from app.agent_runtime.synthesis.ready import (
     ready_synthesis_max_tokens, request_synthesis_correction, salvage_submit_analysis,
     synthesize_ready_assistant, valid_submit_analysis,
 )
+from app.model_gateway.gateway import ClientModelSession
 from app.agent_runtime.synthesis.result import (
     build_ready_model_unavailable_result,
     build_result,
@@ -27,10 +28,10 @@ class AgentSynthesisBoundaryTests(unittest.TestCase):
         deps = agent._ready_synthesis_dependencies()
         async def forbidden(*_args, **_kwargs):
             raise AssertionError("network must not be called")
-        deps.stream_completion = forbidden
+        session = ClientModelSession(None, "endpoint", {}, forbidden)
         connection = SimpleNamespace(model="m", provider="other")
         result = asyncio.run(request_synthesis_correction(
-            None, "endpoint", {}, connection, [], "{", 0, 10, "run", 1, deps=deps,
+            session, connection, [], "{", 0, 10, "run", 1, deps=deps,
         ))
         self.assertEqual(result[3], "budget_exhausted")
         self.assertIsNone(valid_submit_analysis({"tool_calls": []}))

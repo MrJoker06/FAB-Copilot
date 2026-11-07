@@ -5,15 +5,16 @@ import json
 import time
 import traceback
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable
-
-import httpx
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from .failure import decide_model_failure
 from .loop_dispatch import LoopDispatchBinding, execute_dispatched_loop_round
 from .loop_response import classify_loop_response
 from .runtime_contracts import RuntimeContractError
 from ..synthesis.ready import SYNTHESIS_REPAIR_MAX_SECONDS, salvage_submit_analysis, valid_submit_analysis
+
+if TYPE_CHECKING:
+    from ...model_gateway.gateway import ModelGatewayPort
 
 LOOP_SYNTHESIS_MAX_TOKENS = 8192
 
@@ -51,7 +52,7 @@ class AgentLoopContext:
     notify: Callable[[Any, dict], Awaitable[None]]
     stream_answer: Callable[[Any, str], Awaitable[None]]
     emit_event: Callable[..., None]
-    stream_completion: Callable[..., Awaitable[tuple[dict, dict, str | None]]]
+    model_gateway: "ModelGatewayPort"
     retryable_model_error: Callable[[Exception], bool]
     model_error_category: Callable[[Exception], str]
     model_failure_reason: Callable[[Exception], str]
@@ -118,7 +119,7 @@ async def run_agent_loop(
     _notify = context.notify
     _stream_answer = context.stream_answer
     emit = context.emit_event
-    _stream_completion = context.stream_completion
+    model_gateway = context.model_gateway
     _retryable_model_error = context.retryable_model_error
     _model_error_category = context.model_error_category
     _model_failure_reason = context.model_failure_reason
@@ -160,7 +161,9 @@ async def run_agent_loop(
 
         if not validate_loop_binding(execution_plan, loop_guard, run_id, dispatch_binding):
             raise RuntimeContractError("Loop dispatch contract violated.")
-    endpoint = f"{connection.base_url}/chat/completions"
+    model_endpoint = model_gateway.endpoint_for(
+        connection, chat_template=getattr(settings, "chat_template_compat", None)
+    )
     thinking_answer_effective = False
 
     def _build_result(answer: str, report: Any) -> dict:
@@ -175,7 +178,9 @@ async def run_agent_loop(
         result["thinking_policy"]["answer_effective"] = thinking_answer_effective
         return result
 
-    async with httpx.AsyncClient(timeout=settings.api_timeout_seconds) as client:
+    async with model_gateway.open(
+        model_endpoint, timeout_seconds=settings.api_timeout_seconds
+    ) as session:
         for iteration in range(loop_guard.max_model_iterations):
             if iteration == loop_guard.max_model_iterations - 1 and loop_guard.total_calls > 0:
                 loop_guard.reserve_final_iteration()
@@ -248,10 +253,7 @@ async def run_agent_loop(
                     "required_disclosure": knowledge_fallback.get("disclosure") or "",
                 }
                 try:
-                    assistant, usage, response_id = await _stream_completion(
-                        client,
-                        endpoint,
-                        {"Authorization": f"Bearer {connection.api_key}", "Content-Type": "application/json"},
+                    assistant, usage, response_id = await session.stream(
                         request_payload,
                         None if answer_contract.status == "required" else progress,
                         stream_state,
@@ -456,9 +458,7 @@ async def run_agent_loop(
                     original_token_cap = request_payload.get("max_tokens")
                     if request_synthesis_correction is not None and original_token_cap is not None:
                         repaired, repair_usage, _repair_response_id, repair_outcome = await request_synthesis_correction(
-                            client,
-                            endpoint,
-                            {"Authorization": f"Bearer {connection.api_key}", "Content-Type": "application/json"},
+                            session,
                             connection,
                             messages,
                             raw_arguments,

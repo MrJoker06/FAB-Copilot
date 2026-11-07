@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 import httpx
 
@@ -21,6 +21,9 @@ from ...memory_system.context.protocol import (
 from ...memory_system.ports import ContextModelResult, ContextResolveRequest
 from ...memory_system.service import ContextService
 
+if TYPE_CHECKING:
+    from ...model_gateway.gateway import ModelGatewayPort
+
 
 @dataclass(slots=True)
 class ResolverDependencies:
@@ -29,12 +32,11 @@ class ResolverDependencies:
     build_messages: Callable[..., list[dict]]
     response_format: dict
     provider_options: Callable[..., dict]
-    stream_completion: Callable[..., Awaitable[tuple[dict, dict, str | None]]]
+    model_gateway: "ModelGatewayPort"
     semantic_resolution: Callable[..., Any]
     notify: Callable[..., Awaitable[None]]
     emit: Callable[..., None]
     perf_counter: Callable[[], float]
-    async_client: Any
     timeout: Callable[..., Any]
     sleep: Callable[[float], Awaitable[None]]
     failure_reason: Callable[[Exception], str]
@@ -187,24 +189,24 @@ async def _resolve_with_memory_service(
                 failure_reason=failure_reason,
             )
 
-    endpoint = f"{connection.base_url}/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {connection.api_key}",
-        "Content-Type": "application/json",
-    }
+    model_endpoint = deps.model_gateway.endpoint_for(
+        connection, chat_template=getattr(settings, "chat_template_compat", None)
+    )
 
     class Model:
         @asynccontextmanager
         async def open(self):
-            async with deps.async_client(timeout=settings.api_timeout_seconds) as client:
-                yield Session(client)
+            async with deps.model_gateway.open(
+                model_endpoint, timeout_seconds=settings.api_timeout_seconds
+            ) as model_session:
+                yield Session(model_session)
 
         def timeout_error(self) -> Exception:
             return httpx.ReadTimeout("contextualization deadline exceeded")
 
     class Session:
-        def __init__(self, client: Any):
-            self._client = client
+        def __init__(self, model_session: Any):
+            self._model_session = model_session
 
         async def complete(
             self,
@@ -214,10 +216,7 @@ async def _resolve_with_memory_service(
             stream_state: dict[str, Any] = {}
             try:
                 async with deps.timeout(timeout_seconds):
-                    assistant, usage, response_id = await deps.stream_completion(
-                        self._client,
-                        endpoint,
-                        headers,
+                    assistant, usage, response_id = await self._model_session.stream(
                         payload,
                         None,
                         stream_state,

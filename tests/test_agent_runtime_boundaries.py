@@ -189,7 +189,7 @@ class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
         deps = SimpleNamespace(
             agent_loop_context_type=AgentLoopContext, run_agent_loop=run,
             notify=AsyncMock(), stream_answer=AsyncMock(), emit=lambda *_a, **_k: None,
-            stream_completion=AsyncMock(), retryable_model_error=lambda *_: False,
+            model_gateway=object(), retryable_model_error=lambda *_: False,
             model_error_category=lambda *_: "", model_failure_reason=lambda *_: "",
             model_retry_delay=lambda *_: 0, record_model_success=lambda *_: ({}, None),
             record_model_failure=lambda *_a, **_k: ({}, None), audit_assistant=lambda value: value,

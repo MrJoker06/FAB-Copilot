@@ -64,8 +64,8 @@ HTTP app.main / api
 `query_manufacturing_data`，提示不再暴露数据库字段目录。13 项旧 kwargs 函数只保留
 受信 Python 调用方的实时 patch 兼容桥，替换时以 `legacy-v1` 标记；未替换时解析为原生绑定。
 
-该链仍保留 `agent_loop.py` 内的 `httpx.AsyncClient` 生命周期、Provider 请求和重试；这正是
-MOD-012 的目标，不能把当前 Loop 接缝称作完整 ModelGateway 解耦。
+模型访问经 `ModelGatewayPort`（`app/model_gateway/gateway.py`）：网关负责 HTTP 客户端开关、URL、
+凭据头和聊天模板整形，`agent_loop.py` 只保留重试、健康记录和本地回退（MOD-012）。
 
 ### 新的显式试点链（MOD-011～014 的受控分支）
 
@@ -127,7 +127,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 
 | 边界 | 当前接口与职责 |
 | --- | --- |
-| Runtime → 模型 | ModelResponsePort.complete(ModelRequest, RuntimeContext) → ModelResponse；旧默认 Loop 的 httpx 生命周期仍待 MOD-012。 |
+| Runtime → 模型 | ModelResponsePort.complete(ModelRequest, RuntimeContext) → ModelResponse；默认 Loop/Ready/Context 经 ModelGatewayPort.open(endpoint) → ModelSessionPort.stream(payload, progress, state)。 |
 | Runtime → 工具 | ToolDispatcherPort.dispatch(name, raw_arguments, ToolExecutionContext) → ToolResult；真实 Dispatcher 管输入、能力/Scope、期限/取消和唯一记账。 |
 | 工具 → 业务数据 | EquipmentHealthPort / ProcessDiagnosticsPort / ProductionReportsPort / OperationalReportsPort / EnterpriseDataPort / KnowledgeSearchPort / NamedQueryPort 的 fetch(query, principal) → Snapshot；输入是固定业务查询，SQL 不进入新增原生模型参数。 |
 | Adapter → 来源 | Fake 精确夹具或显式只读 SQLite。生产报表、capability 和 excursions 只用制造库；sensors/productivity 只用设备库，defects 只用质量库；不附挂其余数据库。设备健康保留自身获验收的显式双库读取。 |
@@ -238,7 +238,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/agent_runtime/execution/__init__.py` | 兼容 | 惰性导出旧 loop/ready 名称。 |
 | `app/agent_runtime/execution/failure.py` | 纯 | 模型故障重试/回退分类。 |
 | `app/agent_runtime/execution/loop_guard.py` | 纯 | `ToolLoopGuard`：预算、重复调用、进展和停止原因。 |
-| `app/agent_runtime/execution/agent_loop.py` | 兼容/业务 | 旧模型循环、httpx 生命周期；可显式注入 Loop Dispatcher。 |
+| `app/agent_runtime/execution/agent_loop.py` | 兼容/业务 | 旧模型循环与重试/健康/回退；模型会话经注入的 ModelGatewayPort 打开；可显式注入 Loop Dispatcher。 |
 | `app/agent_runtime/execution/ready_plan.py` | 兼容/业务 | 原 Ready 回调路径；可显式委托新 Ready executor。 |
 | `app/agent_runtime/execution/ready_graph.py` | 纯 | Ready 依赖拓扑排序与非法图拒绝。 |
 | `app/agent_runtime/execution/ready_dispatch.py` | 纯 | Dispatcher-backed Ready 执行、归约和事件投影。 |
@@ -405,6 +405,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/model_gateway/compatibility.py` | 兼容/过渡 | 旧模型协议/上下文兼容层。 |
 | `app/model_gateway/registry.py` | 装配/存储 | 模型 Provider 配置、选择和持久化读取。 |
 | `app/model_gateway/health.py` | 业务/存储 | 模型熔断健康记录。 |
+| `app/model_gateway/gateway.py` | Port/Adapter | `ModelGatewayPort`/`ModelSessionPort`、`ModelEndpoint`，`HttpModelGateway` 持有客户端生命周期与聊天模板整形。 |
 | `app/model_gateway/streaming.py` | Adapter | SSE 请求、响应拼装、流式审计。 |
 | `app/core/__init__.py` | 包 | 核心包锚点。 |
 | `app/core/settings.py` | 装配 | 环境设置和默认运行配置。 |
@@ -558,8 +559,8 @@ Guard 的计数。原生工具版本均为 1.0.0；F2b 统一迁移默认能力�
 TOOLS/TOOL_HANDLERS 的容器身份，但有意改变清单内容及默认解析行为。
 周良率的产品过滤由完整 Query 核对；当前通用 ToolScope 没有 product 维度，不能将其解释为新增了产品级授权。
 
-当前不能独立搬迁的部分包括：默认 HTTP/API 应用、旧 service/coordinator 链、默认 Loop 的
-httpx/Provider 生命周期、历史 Python 兼容入口、会话与个人知识写入的 SQLite 组合、模型健康
+当前不能独立搬迁的部分包括：默认 HTTP/API 应用、旧 service/coordinator 链、模型目录/健康
+与真实 Provider 配置、历史 Python 兼容入口、会话与个人知识写入的 SQLite 组合、模型健康
 存储、知识管理的旧后端选择，以及前端与 API 的整体装配。企业内网迁移应只把已验收切片与明确 Adapter
 接口先行带入，不能把该工作树视为所有模块已独立部署。
 

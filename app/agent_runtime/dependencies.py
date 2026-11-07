@@ -58,7 +58,7 @@ class ModelDependencies:
 
 @dataclass(frozen=True)
 class ReadyDependencies:
-    async_client: Any
+    model_gateway: Any
     ready_synthesis_messages: Any
     request_ready_synthesis: Any
     record_model_success: Any
@@ -84,7 +84,7 @@ class LoopDependencies:
     synthesize_submission: Any
     provider_request_options: Any
     evidence_observation_type: Any
-    stream_completion: Any
+    model_gateway: Any
     model_failure_reason: Any
     model_retry_delay: Any
     audit_assistant: Any

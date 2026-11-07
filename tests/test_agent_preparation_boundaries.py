@@ -15,6 +15,7 @@ from app.agent_runtime.preparation.context import (
 from app.bootstrap.legacy_agent_assembly import build_legacy_coordinator_dependencies
 from app.bootstrap.tool_catalog import LEGACY_TOOLS
 from app.memory_system.context.resolver import unresolved_context
+from app.model_gateway.gateway import HttpModelGateway
 
 
 class AgentPreparationBoundaryTests(unittest.TestCase):
@@ -151,14 +152,16 @@ class AgentPreparationBoundaryTests(unittest.TestCase):
             build_messages=lambda *_args: [],
             response_format={},
             provider_options=lambda *_args: {},
-            stream_completion=AsyncMock(
-                return_value=({"content": "not json"}, {}, None)
+            model_gateway=HttpModelGateway(
+                client_factory=lambda **_kwargs: Client(),
+                stream_completion=AsyncMock(
+                    return_value=({"content": "not json"}, {}, None)
+                ),
             ),
             semantic_resolution=lambda *_args: None,
             notify=AsyncMock(),
             emit=capture_emit,
             perf_counter=lambda: 1.0,
-            async_client=lambda **_kwargs: Client(),
             timeout=timeout,
             sleep=AsyncMock(),
             failure_reason=lambda exc: getattr(exc, "code", "error"),

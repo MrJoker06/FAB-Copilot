@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import unittest
 
 import httpx
 
+from app.model_gateway.gateway import HttpModelGateway, ModelEndpoint
 from app.model_gateway.streaming import (
     audit_assistant,
     model_error_category,
@@ -66,6 +68,45 @@ class ModelTransportPortableTests(unittest.IsolatedAsyncioTestCase):
                     client, "https://provider.invalid/stream", {}, {"messages": []}, None,
                     notify=notify, disclosure_checker=lambda _text: True,
                 )
+
+    async def test_gateway_owns_client_lifecycle_and_endpoint_headers(self):
+        requests: list[httpx.Request] = []
+        clients: list[httpx.AsyncClient] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(200, content=_sse(
+                '{"choices":[{"delta":{"content":"ok"}}]}', '{"usage":{"total_tokens":2}}', "[DONE]",
+            ))
+
+        def client_factory(**kwargs):
+            clients.append(httpx.AsyncClient(transport=httpx.MockTransport(handler), **kwargs))
+            return clients[-1]
+
+        async def notify(_progress, _event):
+            return None
+
+        async def protocol(client, url, headers, payload, progress, state=None):
+            return await stream_completion(
+                client, url, headers, payload, progress, state,
+                notify=notify, disclosure_checker=lambda _text: True,
+            )
+
+        gateway = HttpModelGateway(client_factory=client_factory, stream_completion=protocol)
+        endpoint = ModelEndpoint("p", "offline", "https://provider.invalid/v1", "offline-key", "merge-system")
+        self.assertNotIn("offline-key", repr(endpoint))
+        async with gateway.open(endpoint, timeout_seconds=3) as session:
+            assistant, usage, _ = await session.stream({"model": "offline", "messages": [
+                {"role": "user", "content": "q"}, {"role": "system", "content": "late"},
+            ]}, None, {})
+        self.assertTrue(clients[0].is_closed)
+        self.assertEqual(requests[0].url, httpx.URL("https://provider.invalid/v1/chat/completions"))
+        self.assertEqual(requests[0].headers["authorization"], "Bearer offline-key")
+        self.assertEqual(
+            [item["role"] for item in json.loads(requests[0].content)["messages"]],
+            ["system", "user"],
+        )
+        self.assertEqual((assistant["content"], usage), ("ok", {"total_tokens": 2}))
 
     async def test_reasoning_is_redacted_from_audit_record(self):
         self.assertEqual(

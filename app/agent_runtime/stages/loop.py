@@ -58,7 +58,7 @@ async def execute_agent_loop(
         fallback_announced=state.fallback_announced,
         applied_synthesis_reason=state.applied_synthesis_reason, health=state.health,
         build_result=build_loop_result, notify=deps.notify, stream_answer=deps.stream_answer,
-        emit_event=deps.emit, stream_completion=deps.stream_completion,
+        emit_event=deps.emit, model_gateway=deps.model_gateway,
         retryable_model_error=deps.retryable_model_error, model_error_category=deps.model_error_category,
         model_failure_reason=deps.model_failure_reason, model_retry_delay=deps.model_retry_delay,
         record_model_success=deps.record_model_success, record_model_failure=deps.record_model_failure,

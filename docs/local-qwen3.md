@@ -71,6 +71,8 @@ MODEL_CONTEXT_TIMEOUT_MS=30000
 FAB_CHAT_TEMPLATE_COMPAT=merge-system
 ```
 
+该变量由 `Settings.chat_template_compat` 读取，并在模型网关（`app/model_gateway/gateway.py`）发送请求前合并 system 消息；直接调用 `streaming.stream_completion` 不再读取该变量。
+
 注意：**`base_url` 与模型名以数据库 `model_catalog` 为准**，`.env` 只提供 api_key。
 `ensure_model_catalog()` 只在首次建库时按当时的 `.env` 种子两条内置模型
 （`deepseekv4-flash` / `deepseekv4-pro`），之后不会再改。因此已有数据库需要显式处理。

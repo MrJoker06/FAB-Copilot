@@ -72,6 +72,9 @@ class Settings:
     enterprise_mock_virtual_lots: int
     enterprise_mock_cursor_secret: str
     admin_api_token: str
+    # Opt-in chat-template compatibility mode (``FAB_CHAT_TEMPLATE_COMPAT``);
+    # defaulted so explicitly constructed settings snapshots stay valid.
+    chat_template_compat: str | None = None
 
 
 def get_settings() -> Settings:
@@ -150,4 +153,5 @@ def get_settings() -> Settings:
         enterprise_mock_cursor_secret=os.getenv("FAB_MOCK_CURSOR_SECRET", "fab-insight-local-demo-secret").strip()
         or "fab-insight-local-demo-secret",
         admin_api_token=os.getenv("FAB_ADMIN_API_TOKEN", "").strip(),
+        chat_template_compat=os.getenv("FAB_CHAT_TEMPLATE_COMPAT", "").strip() or None,
     )
