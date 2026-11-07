@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
-from ..manufacturing.playbooks import DomainPlaybook
-from ..planning_runtime.contracts import ExecutionPlan, PlanStep
 from .semantics import EvidenceScope, descriptor_for_tool
 from .serialization import json_dataclass_payload
 
@@ -42,6 +40,98 @@ _NAMED_QUERY_TOOLS = frozenset({
 })
 _SAMPLE_FIELDS = ("samples", "lots", "wafers", "runs", "tested_dies", "recorded_minutes")
 _SPEC_FIELDS = ("spec_lsl", "spec_usl")
+
+
+# Evidence-owned read-only views of the plan and playbook facts the validator
+# consumes.  ``planning_runtime.contracts.ExecutionPlan``/``PlanStep`` and
+# ``manufacturing.playbooks.DomainPlaybook``/``EvidenceRequirement`` satisfy
+# them structurally, so evidence does not import orchestration modules.
+class PlanStepView(Protocol):
+    @property
+    def step_id(self) -> str: ...
+
+    @property
+    def tool(self) -> str: ...
+
+    @property
+    def parameters(self) -> Mapping[str, Any]: ...
+
+    @property
+    def evidence_ids(self) -> tuple[str, ...]: ...
+
+    @property
+    def required(self) -> bool: ...
+
+    @property
+    def scope_role(self) -> str: ...
+
+    @property
+    def semantic_id(self) -> str: ...
+
+    @property
+    def grain(self) -> str: ...
+
+    @property
+    def filter_provenance(self) -> str: ...
+
+    @property
+    def evidence_kind(self) -> str: ...
+
+    @property
+    def evidence_scope(self) -> Mapping[str, tuple[str, ...]] | None: ...
+
+    @property
+    def evidence_start(self) -> str | None: ...
+
+    @property
+    def evidence_end(self) -> str | None: ...
+
+
+class PlanScopeView(Protocol):
+    @property
+    def primary_scope_type(self) -> str: ...
+
+    @property
+    def primary_scope_ids(self) -> tuple[str, ...]: ...
+
+    @property
+    def primary_scope_labels(self) -> tuple[str, ...]: ...
+
+
+class ExecutionPlanView(Protocol):
+    @property
+    def plan_id(self) -> str: ...
+
+    @property
+    def status(self) -> str: ...
+
+    @property
+    def scope_contract(self) -> PlanScopeView: ...
+
+    @property
+    def steps(self) -> tuple[PlanStepView, ...]: ...
+
+
+class EvidenceRequirementView(Protocol):
+    @property
+    def evidence_id(self) -> str: ...
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def source_tools(self) -> tuple[str, ...]: ...
+
+    @property
+    def required_fields(self) -> tuple[str, ...]: ...
+
+    @property
+    def required(self) -> bool: ...
+
+
+class PlaybookView(Protocol):
+    @property
+    def evidence_requirements(self) -> tuple[EvidenceRequirementView, ...]: ...
 
 
 @dataclass(frozen=True)
@@ -116,7 +206,7 @@ def _normalize_value(key: str, value: Any) -> Any:
     return value
 
 
-def _source_scope_roles(plan: ExecutionPlan) -> dict[str, str]:
+def _source_scope_roles(plan: ExecutionPlanView) -> dict[str, str]:
     roles: dict[str, str] = {}
     for step in plan.steps:
         roles[f"TOOL:{step.step_id}"] = step.scope_role
@@ -128,7 +218,7 @@ def _source_scope_roles(plan: ExecutionPlan) -> dict[str, str]:
     return roles
 
 
-def _source_semantics(plan: ExecutionPlan) -> dict[str, dict[str, Any]]:
+def _source_semantics(plan: ExecutionPlanView) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     for step in plan.steps:
         descriptor = descriptor_for_tool(
@@ -144,7 +234,7 @@ def _source_semantics(plan: ExecutionPlan) -> dict[str, dict[str, Any]]:
     return result
 
 
-def _step_matches(step: PlanStep, observation: EvidenceObservation) -> bool:
+def _step_matches(step: PlanStepView, observation: EvidenceObservation) -> bool:
     if step.tool != observation.tool:
         return False
     if step.tool in _NAMED_QUERY_TOOLS:
@@ -164,7 +254,7 @@ def _step_matches(step: PlanStep, observation: EvidenceObservation) -> bool:
     return True
 
 
-def _matching_evidence_ids(plan: ExecutionPlan, observation: EvidenceObservation, step_matcher: Callable[[PlanStep, EvidenceObservation], bool] | None = None) -> set[str]:
+def _matching_evidence_ids(plan: ExecutionPlanView, observation: EvidenceObservation, step_matcher: Callable[[PlanStepView, EvidenceObservation], bool] | None = None) -> set[str]:
     matcher = step_matcher or _step_matches
     return {
         evidence_id
@@ -195,10 +285,10 @@ def _deduplicate_issues(issues: list[ValidationIssue]) -> tuple[ValidationIssue,
 
 
 def _scope_risks(
-    plan: ExecutionPlan,
-    playbook: DomainPlaybook,
+    plan: ExecutionPlanView,
+    playbook: PlaybookView,
     observations: list[EvidenceObservation],
-    step_matcher: Callable[[PlanStep, EvidenceObservation], bool] | None = None,
+    step_matcher: Callable[[PlanStepView, EvidenceObservation], bool] | None = None,
 ) -> list[ValidationIssue]:
     risks: list[ValidationIssue] = []
     for observation in observations:
@@ -279,8 +369,8 @@ def _sample_and_source_risks(
 
 
 def _execution_risks(
-    plan: ExecutionPlan,
-    playbook: DomainPlaybook,
+    plan: ExecutionPlanView,
+    playbook: PlaybookView,
     observations: list[EvidenceObservation],
 ) -> list[ValidationIssue]:
     risks: list[ValidationIssue] = []
@@ -349,12 +439,12 @@ def _fact_conflicts(
 
 
 def _reference_evidence(
-    plan: ExecutionPlan,
+    plan: ExecutionPlanView,
     matched: list[tuple[EvidenceObservation, set[str]]],
     checks: list[EvidenceCheck],
     risks: tuple[ValidationIssue, ...],
     conflicts: tuple[ValidationIssue, ...],
-    step_matcher: Callable[[PlanStep, EvidenceObservation], bool] | None = None,
+    step_matcher: Callable[[PlanStepView, EvidenceObservation], bool] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Map each observed call reference to its concrete evidence obligations."""
     status_by_id = {item.evidence_id: item.status for item in checks}
@@ -419,11 +509,11 @@ _GUIDANCE: dict[ConclusionStrength, str] = {
 
 
 def validate_evidence(
-    plan: ExecutionPlan,
-    playbook: DomainPlaybook | None,
+    plan: ExecutionPlanView,
+    playbook: PlaybookView | None,
     observations: list[EvidenceObservation],
     *,
-    step_matcher: Callable[[PlanStep, EvidenceObservation], bool] | None = None,
+    step_matcher: Callable[[PlanStepView, EvidenceObservation], bool] | None = None,
 ) -> EvidenceValidation:
     if plan.status != "ready" or playbook is None:
         strength: ConclusionStrength = "not_applicable"

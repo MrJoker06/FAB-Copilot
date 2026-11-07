@@ -345,13 +345,13 @@
       "source": "app.agent_runtime.compatibility",
       "target": "app.bootstrap.legacy_agent_assembly",
       "reason": "legacy coordinator dependency assembly is delegated with the per-call service namespace so live patch semantics remain intact",
-      "exit_condition": "MOD-015 migrates remaining compatibility preparation, offline synthesis and concrete alias consumers"
+      "exit_condition": "MOD-027 migrates remaining compatibility preparation, offline synthesis and concrete alias consumers (retained at MOD-015 closeout)"
     },
     {
       "source": "app.agent_runtime.compatibility",
       "target": "app.bootstrap.default_coordinator_assembly",
       "reason": "default coordinator assembly selects v2 named planning and per-run native tools while the compatibility facade retains its public live-patch surface",
-      "exit_condition": "MOD-015 removes the compatibility facade after recorded consumers have migrated"
+      "exit_condition": "MOD-027 removes the compatibility facade after recorded consumers have migrated (retained at MOD-015 closeout)"
     },
     {
       "source": "app.agent_runtime.compatibility",

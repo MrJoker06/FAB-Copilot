@@ -2,7 +2,7 @@
 
 快照日期：2026-11-06。依据为 experiment/parallel-platform 的 `6dd6544` 基线及本轮 MOD-009 改造。MOD-008/009、跨平台启动和 MOD-016～019 已验收，历史失败保留；下一项 MOD-012，随后 015。Skill 加载与发布保持显式可选；新增来源装配和扩展工具复用原 Ready/Loop，默认 HTTP 与 21 项工具清单未改。验收证据以对应报告为准，提交与远程状态以 Git 记录为准。
 
-本次实扫 `app/` 的受管源码为 **282 文件：254 个 Python、28 个静态文件**（2026-11-07 MOD-015d 后复扫；015a 删除 6 个转发模块，015b 新增 `agent_runtime/ports.py`，015c 新增 6 个 Loop 模块，015d 新增 2 个 core 模块和 1 个 bootstrap 模块）。数量与
+本次实扫 `app/` 的受管源码为 **282 文件：254 个 Python、28 个静态文件**（2026-11-07 MOD-015e 后复扫；015a 删除 6 个转发模块，015b 新增 `agent_runtime/ports.py`，015c 新增 6 个 Loop 模块，015d 新增 2 个 core 模块和 1 个 bootstrap 模块，015e 只新增测试）。数量与
 `evaluations/mod_003_boundaries_v1.json` 一致；测试、日志、缓存和运行期生成物不计入。
 
 ## 平台启动入口
@@ -354,7 +354,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/knowledge/ocr_quality.py` | 纯 | OCR 质量评价规则。 |
 | `app/evidence/__init__.py` | 包 | 证据包锚点。 |
 | `app/evidence/semantics.py` | 纯/过渡 | 原报告和八项具名工具的证据语义与范围描述；仍识别旧 SQL 工具。 |
-| `app/evidence/validator.py` | 业务 | 计划/Playbook 证据覆盖与结论限制；新具名查询精确匹配产品、设备、制程、批次及日期参数。 |
+| `app/evidence/validator.py` | 业务 | 计划/Playbook 证据覆盖与结论限制；新具名查询精确匹配产品、设备、制程、批次及日期参数。计划和 Playbook 经本模块的只读 Protocol（`ExecutionPlanView`、`PlanStepView`、`PlanScopeView`、`PlaybookView`、`EvidenceRequirementView`）读取，不导入 planning_runtime 或 playbooks（MOD-015e）。 |
 | `app/evidence/skill_policy.py` | 纯 | 显式 1.3.0 证据策略：核对知识结果原生检索焦点，复用原覆盖/风险校验；默认 1.2.0 不变。 |
 | `app/evidence/answer_synthesizer.py` | 业务 | 证据约束答案结构和渲染。 |
 | `app/evidence/serialization.py` | 纯 | 证据/报告递归复制及 JSON 规范化；精确内置容器和字段名元数据优化，保留子类/deepcopy/错误语义。 |
@@ -400,7 +400,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/memory_system/context/protocol.py` | 纯 | Context 模型 JSON 协议、错误和修复提示。 |
 | `app/memory_system/context/resolver.py` | 业务 | 解析上下文、预算和模型回退。 |
 | `app/conversation/__init__.py` | 包 | 会话包锚点。 |
-| `app/conversation/decision_arbiter.py` | 业务/过渡 | 单次会话决策权和 active flow 恢复。 |
+| `app/conversation/decision_arbiter.py` | 业务/过渡 | 单次会话决策权和 active flow 恢复。上下文解析结果经只读 `DecisionContext` Protocol 读取，不导入 memory_system（MOD-015e）。 |
 | `app/conversation/sessions.py` | 业务/存储 | 会话 CRUD、历史、执行记录组合；数据库会话、执行存储和身份经存储/身份 Port 读取。 |
 | `app/conversation/turn_decision.py` | 纯 | 单轮决定数据结构。 |
 | `app/model_gateway/__init__.py` | 包 | 模型网关包锚点。 |
@@ -484,16 +484,14 @@ MOD-016～018 已实现独立 Manifest、依赖校验、安全资源、显式 Ca
 
 ## 5. 当前耦合与迁移事实
 
-边界清单记录 **14 条精确依赖债务、26 个 DB 调用候选文件、7 个兼容入口、92 个静态消费者**（MOD-015d 后；015a 退出 5 个 coordinator 转发模块与 `conversation/context_resolver.py`，015d 用存储/身份 Port 移除 15 条债务）。
+边界清单记录 **11 条精确依赖债务、26 个 DB 调用候选文件、7 个兼容入口、94 个静态消费者**（MOD-015e 后；015a 退出 5 个 coordinator 转发模块与 `conversation/context_resolver.py`，015d 用存储/身份 Port 移除 15 条债务，015e 用只读 Protocol 移除 3 条，并把其余 MOD-015 台账项改挂 MOD-027）。
 兼容消费者扫描只覆盖 app/scripts/tests 内的静态 import、字面动态 import 与常见 mock patch；
 外部调用方和计算出的动态引用仍需人工审查。
 
-14 条债务的实际来源可归纳为：
+11 条债务的实际来源可归纳为：
 
-- `app/agent_runtime/compatibility.py` 仍直接装配 manufacturing、legacy 与 default bootstrap（4 条，MOD-015）；本批只新增一条精确默认装配边，不扩大 Runtime 的全局允许依赖。
-- `app/agent_runtime/tools/catalog.py` 与 `registry.py` 仍反向看 bootstrap（2 条，MOD-015）。
-- `app/conversation/decision_arbiter.py` 仍直接引用 `memory_system.contracts`（1 条，MOD-015）。
-- `app/evidence/validator.py` 仍接 Playbook/Plan 实现（2 条，MOD-015）。
+- `app/agent_runtime/compatibility.py` 仍直接装配 manufacturing、legacy 与 default bootstrap（4 条，MOD-027；MOD-015 收尾时保留，`run_agent` 的 live patch 命名空间是公开兼容契约）。
+- `app/agent_runtime/tools/catalog.py` 与 `registry.py` 仍反向看 bootstrap（2 条，MOD-027；保留 `service.TOOLS`/`TOOL_HANDLERS` 对象身份）。
 - `app/manufacturing/enterprise_data.py` 接身份、`reports.py` 接 SQLite（2 条，MOD-008；过渡期旧 facade，随旧路径退出处理）。
 - `app/model_gateway/compatibility.py` 仍接 `memory_system.context.history/protocol`（2 条，MOD-025；去掉需改公开探针或移动协议逻辑）。
 - `app/persistence/execution_store.py` 仍接身份（1 条，MOD-021；REF-027 例外保留公开身份锚点）。

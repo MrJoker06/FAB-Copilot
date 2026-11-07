@@ -1,6 +1,6 @@
 # MOD-015：Runtime 收口、依赖类型化与兼容退出
 
-日期：2026-11-07。基线：`1c61601`（MOD-012）。状态：进行中（015a～015d 已验证，015e 未开始）。
+日期：2026-11-07。基线：`1c61601`（MOD-012）。状态：已验证（2026-11-07；015a～015e 全部验证）。
 
 ## 分批
 
@@ -12,7 +12,7 @@
 | 015b | 依赖组/状态类型化与 EventSink | 已验证（2026-11-07） |
 | 015c | Loop 职责拆分 | 已验证（2026-11-07） |
 | 015d | 存储/身份依赖注入 Port（含 model_gateway → persistence/identity/memory 的 5 条债务） | 已验证（2026-11-07） |
-| 015e | Skill 启用/未启用完整链路，取消/异常无状态泄漏验收 | 未开始 |
+| 015e | Skill 启用/未启用完整链路，取消/异常无状态泄漏验收；剩余台账收尾 | 已验证（2026-11-07） |
 
 ## 015a：兼容台账收敛
 
@@ -294,3 +294,141 @@
 ### 回滚
 
 删除 3 个新模块和 `tests/test_storage_identity_ports.py`，恢复 10 个消费者模块原来的直接导入（`registry` 恢复 `MODEL_CAPABILITY_DEFAULTS`/`normalize_capabilities` 定义，`sqlite_backend` 恢复 `sqlite_fts_query` 定义，`database.py` 恢复函数内惰性导入），删除 `runtime_dependencies.py`、`default_coordinator_assembly.py`、两个脚本和两个测试里的安装调用，并恢复两份台账。不涉及数据迁移。
+
+## 015e：Skill 启用/未启用完整链路与取消/异常无泄漏验收
+
+### 范围
+
+只做验收和收尾：用确定性内存替身把三条入口路径各跑一遍成功、取消、模型异常、工具/Skill 异常，检查每次失败后进程级运行状态不变、下一次运行与第一次干净运行一致；同时退出 015 名下最后 3 条可在零行为变化内去掉的依赖债务，并把其余标为 MOD-015 的台账项逐条判定为“已修复”或“保留并改挂 MOD-027”。不改运行时代码路径、事件名与字段、公开入口或 live patch 语义。
+
+三条路径：
+
+| 路径 | 入口 | 夹具 |
+| --- | --- | --- |
+| 类型化应用，未启用 Skill | `assemble_agent(...)`（`skill_refs=()`）→ `AgentApplication.new_run` → `execute_dispatched_ready_plan` / `model_stage` + `execute_dispatched_loop_round` | 光刻 Cpk 命名计划的 4 个 Fake 工具绑定，外加一个计划不使用的 `get_defect_pareto` 绑定，用来观察 Skill 的能力收窄 |
+| 类型化应用，启用 Skill | 同上，`skill_refs` 指向 `litho-cpk-diagnostic@1.0.0`；分别用文件根（`package_roots`，临时目录中的包副本）和发布库（`SkillReleaseStore` 发布并激活）两种配置 | 同上 |
+| 旧入口 | 公开的 `service.run_agent`；Loop（CMP 划伤 Pareto，模型调用 `get_lot_identity`）、Ready（`查询 LOT-001 的批次信息`，6 个工具）、上下文解析（“继续”+ 带 `active_flow` 的历史，解析后走 Ready） | `tests.test_default_native_runtime` 的 SQLite 夹具库、`tests.test_model_gateway_port.ScriptedGateway`、Fake 知识 Port，patch `get_settings`/`HttpModelGateway`/`emit`/模型健康四件 |
+
+没有调用真实模型服务或网络。
+
+### 验收矩阵
+
+新增 `tests/test_runtime_convergence_acceptance.py`（11 项，按路径 × Skill × 模式展开子测试）。
+
+| 路径 | 成功 | 取消 | 模型异常 | 工具 / Skill 异常 |
+| --- | --- | --- | --- | --- |
+| 类型化，Skill 关闭，Ready | 4 步全部 ok，必需证据覆盖 3/3，来源含 `KB-LITHO-001`；不调用模型 | 第一个工具结束后在 notify 中挂起并取消：`CancelledError` 传播，Ready 收尾仍执行，本次 Run 的 projector 被 `clear()` 且无残留行数 | Ready 不调用模型：脚本里放一个会抛错的模型响应，计划照常完成、模型请求为 0 | `get_process_capability` 的适配器抛 `RuntimeError`：该步 error，依赖它的 3 步 blocked，trace 中不出现原始异常文本 |
+| 类型化，Skill 关闭，Loop | 2 次模型调用，2 个 `model_response` 事件发布到 EventSink，4 个工具 ok | 第一次模型调用中取消：`CancelledError` 传播，模型调用已退出，守卫 0 次调用，适配器 0 次访问 | 模型抛 `RuntimeError`：原样传播，工具 0 次，EventSink 无新事件 | 同一适配器抛错：两个诊断工具 error，其余 ok |
+| 类型化，Skill 开启（文件根 / 发布库），Ready | 同 Skill 关闭，另验证 Skill 元数据、`skill_context` 等于绑定的 `model_context`、首条为包内 `SKILL.md` | 同上 | 同上 | 同上；另有 Skill 重新校验失败：组装后禁用发布（发布库）或改动磁盘上的 `manifest.json`（文件根），`new_run` 抛 `AssemblyError`，且发生在预算工厂之前（没有新守卫），模型和适配器 0 次访问 |
+| 类型化，Skill 开启，Loop | 同上，模型请求里 system 指令之后紧跟 Skill 上下文 | 同上 | 同上 | 同上 |
+| 旧入口，Loop | `mode=deepseek`，1 个工具 ok，事件以 `agent_run_started` 开始、`agent_run_finished`（success）结束 | 模型流中取消：`CancelledError` 传播，网关会话打开 1 次、关闭 1 次，不发 `agent_run_finished` | 模型抛错：`RuntimeError` 从 `run_agent` 传出，`agent_run_finished` 为 `status=error` | `SQLiteNamedQueryAdapter.fetch` 抛错：工具结果为 `DATA_SOURCE_FAILED`，运行成功，答案不含原始异常文本 |
+| 旧入口，Ready | `execution_mode=deterministic_ready_plan`，6 个工具 ok，1 次模型调用 | 综合调用中取消：同上 | 综合模型抛错：本地回退（`model_local_fallback_activated`），运行成功 | 同上，依赖步骤 blocked |
+| 旧入口，上下文解析 | 解析为 `查询 LOT-001 的批次信息` 后走 Ready，2 次模型调用 | 上下文解析调用中取消：同上 | 上下文模型抛错：`resolution_state=unavailable`，发 `question_context_degraded`，`agent_run_finished` 的 `outcome=degraded`，运行成功 | 同 Ready |
+
+每个场景结束后都检查：
+
+- 没有残留任务（在事件循环内检查 `asyncio.all_tasks()` 只剩当前任务）；脚本模型 `active` 计数归零；旧入口网关会话打开次数等于关闭次数。
+- 每次 Run 都有新的预算/守卫和 Dispatcher：两次运行的守卫、Dispatcher 都不是同一对象，`dispatcher.budget.guard` 是本次守卫，第二次的调用计数从 0 重新开始。
+- 发布库状态（`store.states()`）和绑定的 Skill 快照、计划对象不变（同一对象）。
+- `runtime_status` 不变：它只由 HTTP 聊天服务（`app/api/services/chat.py`、`chat_stream.py`）登记，`run_agent` 和类型化路径都不写入；测试对 `runtime_status._users` 做深拷贝比较。
+- 身份 ContextVar 不变：`run_agent` 返回或抛出后，`current_principal()` 与调用前相同。
+- `configured_storage_identity()` 仍是同一绑定对象；`service.TOOLS`、`service.TOOL_HANDLERS` 的对象身份和内容不变。
+- 失败之后在同一应用/夹具上再跑一次，结果（trace、观测、来源、守卫摘要、调度事件、Runtime 事件、证据覆盖、Skill 元数据、`tools_json`、模型请求；旧入口为完整结果 dict 和事件序列）与第一次干净运行相等。比较前只去掉 `run_id`、`started_at`、`completed_at`、`traceback` 和所有 `*_ms` 计时字段。
+
+Skill 能力收窄：Skill 关闭时，有效能力、Dispatcher 允许工具和 `tools_json` 都包含 5 个绑定；Skill 开启时只剩计划使用的 4 个，`get_defect_pareto` 不出现。
+
+边界守卫（同一测试文件）：AST 检查 `decision_arbiter.py` 不导入 `memory_system`，`validator.py` 不导入 `planning_runtime` 或 `playbooks`；`ExecutionPlan`、`PlanStep`、计划范围、`DomainPlaybook`、`EvidenceRequirement` 的实例和 `ContextResolution` 字段在结构上满足新增的只读视图。
+
+变异自检：分别注入三种泄漏，测试都能发现——跨 Run 复用同一个 Dispatcher（成功矩阵报错）、运行中向 `service.TOOLS` 追加条目（旧入口成功用例失败）、网关会话在取消时不关闭（取消用例 3 个子测试失败）。
+
+### 泄漏排查结论
+
+运行时代码中没有发现状态泄漏，没有需要修复的生产缺陷。记录三点观察：
+
+- 旧入口被取消时，`run_agent` 不发 `agent_run_finished`，直接把 `CancelledError` 交给调用方。这是既有行为：HTTP 聊天服务负责取消后的终态和 `runtime_status` 收尾，本批不改。
+- 测试中的 `ResourceWarning: unclosed database` 用 tracemalloc 追溯，24 个连接全部来自测试夹具（`tests/test_named_queries_adapters.py` 建库与 `tests/test_default_native_runtime.py` 的 `setUp` 中 `with sqlite3.connect(...)`，`with` 只提交不关闭），`app/` 内 0 个。Windows 上夹具清理的 WinError 32 也是这个原因；新测试在清理前调用 `gc.collect()`，夹具本身不在本批范围内，没有修改。
+- Ready 路径对失败步骤的依赖步骤一律 blocked（Cpk 计划中其余 3 步都依赖 `get_process_capability`），Loop 路径没有依赖阻断；两者都是既有语义，已写进断言。
+
+### 依赖债务退出
+
+| 债务 | 处理 |
+| --- | --- |
+| `conversation.decision_arbiter → memory_system.contracts` | `decision_arbiter.py` 新增只读 `DecisionContext(Protocol)`（`applied`、`strategy`、`relation`、`confidence`、`source`、`intent_hint`），`arbitrate_decision(context: DecisionContext)`；删除对 `memory_system.contracts` 的导入。`ContextResolution` 结构化满足它 |
+| `evidence.validator → manufacturing.playbooks`、`→ planning_runtime.contracts` | `validator.py` 新增 `PlanStepView`、`PlanScopeView`、`ExecutionPlanView`、`EvidenceRequirementView`、`PlaybookView` 五个只读 Protocol，14 处注解改用它们；删除两处导入。没有外部模块从 `validator` 导入被删的名字 |
+
+两处都只改注解和导入，运行时行为不变；对应模块的既有测试（turn_decision、evidence_validator、named_planner_evidence、skill_evidence_policy、answer_synthesizer、两个模块边界测试等）全部通过。
+
+### 台账收尾
+
+收尾后，台账里没有任何 `exit_task` 仍为 MOD-015（只有 `legacy_sql_tool.exit_tasks` 历史列表中保留 "MOD-015" 一项作为经历记录）。
+
+| 类别 | 已修复 | 保留并改挂 MOD-027 | 其他归属（015d 已改，未动） |
+| --- | --- | --- | --- |
+| 依赖债务 | 3 条（见上表） | 6 条：`agent_runtime.compatibility` → `manufacturing.processes`、`manufacturing.reports`、`bootstrap.legacy_agent_assembly`、`bootstrap.default_coordinator_assembly`；`tools.catalog → bootstrap.tool_catalog`；`tools.registry → bootstrap.tool_bindings` | 5 条：MOD-008 ×2、MOD-025 ×2、MOD-021 ×1 |
+| 过渡文件归属 | — | 3 个：`agent_runtime/compatibility.py`、`agent_runtime/tools/catalog.py`、`core/settings.py` | — |
+| 兼容入口 | — | 7 个：`service.run_agent`、`_run_agent_impl`、`_coordinator_dependencies`、`TOOLS`、`TOOL_HANDLERS`、`service` 模块、`agent_runtime.compatibility`；`target_checkpoint` 改为 “P5 Fake integration profile (MOD-027)” | — |
+| `database_ledger.sources` | — | 19 条 exit_task；演示 seed 的初始化说明改为“retained at MOD-015 closeout and owned by MOD-027” | — |
+| `legacy_sql_tool` | — | `exit_tasks` 追加 MOD-027，`replacement` 文字同步 | — |
+| `module_boundaries_v1.json` 例外边 | — | 2 条 `exit_condition`（compatibility → legacy / default coordinator 装配）改为 MOD-027，并注明 “retained at MOD-015 closeout” | — |
+
+保留的理由逐条写进台账的 reason/strategy：`run_agent` 是公开 API，它的逐次 live patch 命名空间、`_EXPORT_NAMES` 动态发布、`service.TOOLS`/`TOOL_HANDLERS` 对象身份和 `patch.dict` 语义都是有意保留的兼容契约；类型化 `AgentApplication` 路径已经不依赖它们。退掉这层 facade 必须改公开行为，归 MOD-027（内网分块搬迁与 Fake 集成 Profile，形成最小完整应用）。`core/settings.py` 仍是 live 命名空间里被 patch 的配置锚点，也被 REF-027 例外引用，配置加载与应用装配的分离同样归 MOD-027。
+
+新测试导入并 patch `app.agent_runtime.service`，`compatibility_consumers` 按检查器实算追加 2 条（import、patch）。
+
+### 测试
+
+| 检查 | 结果 |
+| --- | --- |
+| WSL 全部 169 个测试模块逐模块运行（Py 3.11.15，测试用 PIL 桩，导出副本带 `data/departments`），与 HEAD 导出副本（168 个模块）对照 | 1301 项（HEAD 1290 项，差值为新增的 11 项）。160 个模块通过；9 个模块失败，失败模块和 failures/errors 计数与 HEAD 完全一致，全部是既有环境问题：`tests.system.test_knowledge_uploads`（errors=3）、`test_modularization_fixture_clock`（failures=1）、`test_ocr`（errors=1）、`test_ocr_assets`（errors=1）、`test_ocr_evaluation`（errors=2）、`test_personal_knowledge_module_boundaries`（errors=3）、`test_startup_script`（failures=8、errors=1）、`test_tool_contracts`（failures=1）、`test_tool_registry`（failures=1）。没有新增失败 |
+| WSL 新测试连续重复运行 3 次 | 3 次均 11 项通过 |
+| Windows 定向 37 模块（Py 3.13.5，`.venv-win`；新测试、两个改动模块的消费者测试、上下文/Memory、默认原生 Runtime、网关、Skill 装配/发布/光刻、Ready/Loop/工具 Dispatcher、Runtime/准备/执行边界、Loop 拆分、依赖类型、存储/身份 Port、聊天 API 边界、`tests.system.test_sessions_streaming`），与 HEAD 导出副本对照 | 412 项：failures=19、errors=9，全部是既有 Windows 环境问题，且模块和计数与 HEAD 一致：`test_module_boundaries` 反斜杠路径断言 19、临时 SQLite 清理 WinError 32 ×8（`test_default_native_runtime` 4、`test_ready_dispatcher` 2、`test_loop_dispatcher` 1、`test_named_planner_runtime` 1）、`test_modularization_boundaries` symlink WinError 1314 ×1。HEAD 副本另外 36 个模块共 401 项，failures=19、errors=9 完全相同；新测试模块在 HEAD 上因不存在而导入失败（errors=1） |
+| Windows 新测试连续重复运行 3 次 | 3 次均 11 项通过 |
+| `scripts/check_modularization_boundaries.py` | 282 文件 / 0 错误（两端） |
+| `scripts/check_module_boundaries.py` | 通过（两端） |
+| Ruff check（WSL） | 新测试文件通过；`decision_arbiter.py` 0 项、`validator.py` 1 项（既有 F402，HEAD 同样 1 项，只是行号随新增 Protocol 后移），没有新增 |
+| Ruff format | 新测试文件已格式化、0 偏差；两个改动文件偏差行数与 HEAD 相同（129、284），没有整体重排 |
+
+没有调用真实模型服务，也没有运行性能门、浏览器或覆盖率。
+
+### 台账计数
+
+| 项 | 前（015d 后） | 后 |
+| --- | --- | --- |
+| 受管文件 | 282 | 282（新增文件只在 `tests/`） |
+| 依赖债务 | 14 | 11（移除 3 条；6 条改挂 MOD-027，5 条维持 015d 的归属） |
+| 兼容入口 | 7 | 7（全部改挂 MOD-027） |
+| 兼容消费记录 | 92 | 94 |
+| DB 候选 | 26 | 26 |
+| `module_boundaries_v1.json` 例外 | 32 | 32 |
+
+### 偏差
+
+- 类型化 Ready 路径不调用模型，所以“模型异常”一格验证的是“会抛错的模型从未被调用、计划照常完成”，而不是异常传播。
+- 旧入口的“工具异常”用 patch `SQLiteNamedQueryAdapter.fetch` 模拟数据源失败。Skill 关闭时没有可重新校验的 Skill，这一格只有工具异常。
+- 原计划要求在发现泄漏时最小修复并补回归测试。本批没有发现运行时泄漏，因此没有生产代码修复；测试夹具未关闭 SQLite 连接的问题只记录，不在本批修改。
+
+### 回滚
+
+删除 `tests/test_runtime_convergence_acceptance.py`，恢复 `decision_arbiter.py`、`validator.py` 的原导入和注解，并恢复两份台账（3 条债务、MOD-027 改挂和 2 条消费记录）。不涉及数据迁移。
+
+## MOD-015 总结
+
+MOD-015 分 5 批完成，每批独立验证：
+
+| 批次 | 结果 |
+| --- | --- |
+| 015a | 删除 6 个转发/facade 模块、两个旧 synthesis facade、`ClientModelSession` 和 `state.endpoint`；修复配置优先级；兼容入口 13→7 |
+| 015b | 依赖组、运行状态和 Loop 上下文全部类型化（`agent_runtime/ports.py`），新增 `AuditEventSink`；运行时零变化 |
+| 015c | `run_agent_loop` 拆成 6 个职责模块，`LoopRunState` 成为唯一可变状态；37 个场景黄金样本逐项一致 |
+| 015d | 存储/身份依赖注入 Port，移除 15 条债务，5 条延后到 MOD-008/025/021 |
+| 015e | 三条路径 × Skill 开/关 × 成功/取消/模型异常/工具或 Skill 异常的无泄漏验收；移除最后 3 条可零行为变化退出的债务，其余 MOD-015 台账项改挂 MOD-027 |
+
+| 项 | MOD-015 前（`1c61601`） | MOD-015 后 |
+| --- | --- | --- |
+| 受管文件 | 278 | 282 |
+| 依赖债务 | 29 | 11（MOD-027 ×6、MOD-008 ×2、MOD-025 ×2、MOD-021 ×1） |
+| 兼容入口 | 13 | 7（全部为保留的公开/兼容契约，归 MOD-027） |
+| 兼容消费记录 | 99 | 94 |
+| DB 候选 | 26 | 26 |
+
+总方案对 MOD-015 的验收要求逐项对应：剩余依赖组类型化（015b）、Loop 职责拆分（015c）、事件与状态接口（015b 的 `AuditEventSink`、015c 的 `LoopRunState`）、启用/未启用 Skill 的完整链路 Fake 装配（015e）、旧协议兼容（每批的 live patch 与公开入口保持）、取消/异常无状态泄漏（015c 的真实取消测试和 015e 的验收矩阵）、兼容台账收敛（015a、015d、015e）。默认 HTTP 路径仍未启用 Skill；公司真实接入、Checkpoint 和整体迁移里程碑不因本项完成而完成。
