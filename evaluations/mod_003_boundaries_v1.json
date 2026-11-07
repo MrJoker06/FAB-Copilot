@@ -134,6 +134,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/agent_runtime/ports.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/agent_runtime/preparation/__init__.py",
       "primary_module": "runtime",
       "artifact_group": "platform_core"
@@ -2225,6 +2230,11 @@
       "file": "tests/test_ready_plan_execution.py",
       "symbol": "app.agent_runtime.service._run_agent_impl",
       "kind": "patch"
+    },
+    {
+      "file": "tests/test_runtime_dependency_types.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
     },
     {
       "file": "tests/test_stream_diagnostics.py",

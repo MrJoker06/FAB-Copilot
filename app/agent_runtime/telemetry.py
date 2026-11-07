@@ -4,9 +4,15 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .contracts import ProgressCallback
+
+if TYPE_CHECKING:
+    from .execution.runtime_contracts import RuntimeEvent
+    from .ports import AuditEmitter
+
+RUNTIME_STAGE_AUDIT_EVENT = "runtime_stage_completed"
 
 
 async def notify(progress: ProgressCallback | None, event: dict) -> None:
@@ -83,3 +89,50 @@ def trace_reference_counts(
         "tool_evidence_count": len(tool_references),
         "total_reference_count": len(knowledge_references | tool_references),
     }
+
+
+def runtime_event_audit_fields(event: RuntimeEvent) -> dict[str, object]:
+    """Map one payload-free ``RuntimeEvent`` to audit fields in a fixed order.
+
+    Common: ``call_id``, ``kind``, ``status`` (enum value) and
+    ``runtime_event_schema_version``; the audit envelope reserves
+    ``schema_version`` and ``run_id`` (passed positionally).
+    ``model_response`` adds ``prompt_tokens``, ``completion_tokens`` and
+    ``total_tokens``; ``tool_result`` adds ``tool_name``, ``row_count`` and
+    ``execution_state`` (enum value).
+    """
+    fields: dict[str, object] = {
+        "call_id": event.call_id,
+        "kind": event.kind,
+        "status": event.status.value,
+        "runtime_event_schema_version": event.schema_version,
+    }
+    if event.kind == "model_response":
+        usage = event.usage
+        fields["prompt_tokens"] = usage.prompt_tokens
+        fields["completion_tokens"] = usage.completion_tokens
+        fields["total_tokens"] = usage.total_tokens
+    else:
+        fields["tool_name"] = event.tool_name
+        fields["row_count"] = event.row_count
+        fields["execution_state"] = event.execution_state.value
+    return fields
+
+
+class AuditEventSink:
+    """``EventSink`` adapter writing each runtime event as one audit record.
+
+    Only explicit assemblies use it; the default coordinator path does not, so
+    its audit stream is unchanged.  Emitter failures propagate to the publisher,
+    as for every ``EventSink``.
+    """
+
+    __slots__ = ("_emit",)
+
+    def __init__(self, emit: AuditEmitter) -> None:
+        self._emit = emit
+
+    async def emit(self, event: RuntimeEvent) -> None:
+        self._emit(
+            RUNTIME_STAGE_AUDIT_EVENT, event.run_id, **runtime_event_audit_fields(event)
+        )

@@ -29,6 +29,8 @@
 
 ## 当前串行队列
 
+最新检查点（2026-11-07，MOD-015b）：依赖组/状态类型化与 EventSink 已验证。新增 `app/agent_runtime/ports.py` 结构化端口模块：`runtime_checkable` 的 `RuntimeSettings`/`RuntimeModelConnection` 配置视图（边界规则禁止 agent_runtime 导入 `app.core.settings`，含 TYPE_CHECKING）、22 个可调用 Protocol、`ToolRunBindings` 与 `Callable` 别名，领域类型仅 TYPE_CHECKING 导入、运行时只加载标准库；`dependencies.py` 58 个字段、`CoordinatorRunState`、`AgentLoopContext` 从 `Any` 全部类型化，字段名/顺序/默认值/live patch 快照不变；`telemetry.py` 新增 `RUNTIME_STAGE_AUDIT_EVENT`（`runtime_stage_completed`）、`runtime_event_audit_fields` 与 `AuditEventSink`，只供显式装配、默认路径审计流不变；`build_portable_unit.py` 的导入扫描跳过 TYPE_CHECKING 分支，便携清单不变。新增 17 项专项（含 58 字段真实快照绑定、Any 守卫、审计映射端到端、新进程导入面）；WSL 定向 433 项通过，Windows 同集只剩与 HEAD 逐项一致的既有环境失败（反斜杠断言 19、WinError 1314 ×5、WinError 32 ×11、bundle 子进程解码 ×3、便携切片 ×6）。273 文件/零边界错误，29 债务/7 入口/26 DB 候选不变，消费记录 91→92；ruff check 全过，format 计数与 HEAD 一致或更好。未运行性能门。下一批 015c Loop 职责拆分，见 [报告](../reports/mod-015-runtime-convergence.md)。以下保留历史检查点。
+
 最新检查点（2026-11-07，MOD-015a）：MOD-015 拆为 a～e 五批，015a 兼容台账收敛已验证。删除 5 个 coordinator 转发模块、`conversation/context_resolver.py`、旧 `(client, endpoint, headers)` synthesis facade、`ClientModelSession` 与 `state.endpoint`，测试消费者迁到 canonical 模块；兼容性探针的 URL/凭据头改由 `ModelEndpoint` 提供；配置优先级修为“进程环境 > 项目 `.env` > 工作区 `.env`”，新增 4 项子进程测试。WSL 定向 251 项、扩展 183 项通过；Windows 同集只有既有的反斜杠路径、WinError 1314/32 失败，且与 HEAD 副本一致。272 文件/零边界错误，29 债务（5 条 exit_task 更正为 MOD-015）、兼容入口 13→7、消费记录 99→91。未运行性能门。下一批 015b，见 [报告](../reports/mod-015-runtime-convergence.md)。以下保留历史检查点。
 
 最新检查点（2026-11-07，MOD-012）：ModelGatewayPort 与默认 HTTP Adapter 已验证。Loop、Ready 综合和上下文解析通过同一网关打开会话，客户端在成功、错误和取消时关闭；URL、凭据头和 `FAB_CHAT_TEMPLATE_COMPAT` 整形收进 gateway，重试/健康/回退仍由调用方负责。旧 service live patch 与 `(client, endpoint, headers)` facade 保持兼容。新增 20 项专项；WSL 定向 313 项与治理 17 项通过，Windows 同集只剩既有反斜杠路径、WinError 32/1314 失败。278 文件/零边界错误，29 债务/13 入口不变，消费者 97→99。未运行性能门。下一项 MOD-015，见 [验收报告](../reports/mod-012-model-gateway.md)。以下保留历史检查点。
@@ -53,7 +55,7 @@
 | 已验证 | MOD-019 | Run 版本固定、发布、禁用和回退 | 018 |
 | 已验证 | MOD-009 | 批量工具来源替换与扩展能力验收 | 008；安排在 Skill 四项后 |
 | 已验证 | MOD-012 | 模型客户端生命周期 | 014；安排在 009 后 |
-| 进行中 | MOD-015 | Runtime 与先行 Skill 接缝、状态/事件、兼容收口（015a 已验证，下一批 015b） | 009、012、014；本轮安排在 019 后 |
+| 进行中 | MOD-015 | Runtime 与先行 Skill 接缝、状态/事件、兼容收口（015a、015b 已验证，下一批 015c） | 009、012、014；本轮安排在 019 后 |
 
 执行与验收仍逐项串行；Skill 通过后回到余下 Runtime 工作，Skill 保持可选，启用/未启用路径均须兼容。后续公司接入、Checkpoint
 与整体交付的完成门槛不变。总方案 v1.4 和 [模块化追踪](modularization.md) 已同步调整。

@@ -14,72 +14,101 @@ from .runtime_contracts import RuntimeContractError
 from ..synthesis.ready import SYNTHESIS_REPAIR_MAX_SECONDS, salvage_submit_analysis, valid_submit_analysis
 
 if TYPE_CHECKING:
+    from ...evidence.answer_synthesizer import AnswerContract
+    from ...evidence.validator import EvidenceObservation, EvidenceValidation
+    from ...intent_runtime.contracts import IntentRoute
+    from ...manufacturing.playbooks import DomainPlaybook, PlaybookSelection
+    from ...memory_system.contracts import ContextResolution
     from ...model_gateway.gateway import ModelGatewayPort
+    from ...planning_runtime.contracts import ExecutionPlan
+    from ..contracts import ProgressCallback
+    from ..ports import (
+        AnswerContractFactory,
+        AnswerStreamer,
+        AnswerSynthesisEmitter,
+        AuditEmitter,
+        ContractMessageBuilder,
+        EvidenceValidator,
+        KnowledgeFallbackStateBuilder,
+        LegacyAnswerSynthesizer,
+        LoopResultBuilder,
+        ModelFailureRecorder,
+        ModelSuccessRecorder,
+        OfflineAnswerer,
+        ProgressSink,
+        RegisteredToolExecutor,
+        RuntimeModelConnection,
+        RuntimeSettings,
+        SubmissionSynthesizer,
+        SynthesisCorrectionRequester,
+        ValidationMessageBuilder,
+    )
+    from .loop_guard import ToolLoopGuard
 
 LOOP_SYNTHESIS_MAX_TOKENS = 8192
 
 
 @dataclass
 class AgentLoopContext:
-    settings: Any
-    connection: Any
-    intent_route: Any
-    execution_plan: Any
-    selected_playbook: Any
-    loop_guard: Any
+    settings: RuntimeSettings
+    connection: RuntimeModelConnection
+    intent_route: IntentRoute
+    execution_plan: ExecutionPlan
+    selected_playbook: DomainPlaybook | None
+    loop_guard: ToolLoopGuard
     run_id: str
-    progress: Any
+    progress: ProgressCallback | None
     thinking: bool
     main_recovery_trial: bool
     health_enabled: bool
     selected_model_id: str
     question: str
     analysis_question: str
-    playbook_selection: Any
-    context_resolution: Any
+    playbook_selection: PlaybookSelection
+    context_resolution: ContextResolution
     messages: list[dict]
     trace: list[dict]
     sources: dict[str, dict]
-    evidence_observations: list[Any]
-    evidence_validation: Any
-    answer_contract: Any
+    evidence_observations: list[EvidenceObservation]
+    evidence_validation: EvidenceValidation
+    answer_contract: AnswerContract
     total_usage: dict[str, int]
     knowledge_fallback: dict[str, Any]
     fallback_announced: bool
     applied_synthesis_reason: str | None
     health: dict[str, Any]
-    build_result: Callable[[str, Any], dict]
-    notify: Callable[[Any, dict], Awaitable[None]]
-    stream_answer: Callable[[Any, str], Awaitable[None]]
-    emit_event: Callable[..., None]
-    model_gateway: "ModelGatewayPort"
+    build_result: LoopResultBuilder
+    notify: ProgressSink
+    stream_answer: AnswerStreamer
+    emit_event: AuditEmitter
+    model_gateway: ModelGatewayPort
     retryable_model_error: Callable[[Exception], bool]
     model_error_category: Callable[[Exception], str]
     model_failure_reason: Callable[[Exception], str]
     model_retry_delay: Callable[[float, int, Exception], float]
-    record_model_success: Callable[[str], tuple[dict, str | None]]
-    record_model_failure: Callable[..., tuple[dict, str | None]]
+    record_model_success: ModelSuccessRecorder
+    record_model_failure: ModelFailureRecorder
     audit_assistant: Callable[[dict], dict]
     tools: list[dict]
     submit_analysis_tool: dict
     parse_tool_arguments: Callable[[str], tuple[dict, Exception | None]]
-    execute_tool: Callable[[str, dict], Any]
+    execute_tool: RegisteredToolExecutor
     usable_knowledge_result: Callable[[str, dict], bool]
     normalize_general_knowledge_answer: Callable[[str], str]
     has_knowledge_fallback_disclosure: Callable[[str], bool]
-    knowledge_fallback_state: Callable[[Any, list[Any], dict[str, dict]], dict]
-    validate_evidence: Callable[[Any, Any, list[Any]], Any]
-    create_answer_contract: Callable[..., Any]
-    validator_system_message: Callable[[Any], str]
-    synthesizer_system_message: Callable[[Any], str]
-    synthesize_legacy_answer: Callable[..., Any]
-    synthesize_submission: Callable[..., Any]
-    emit_answer_synthesis: Callable[[str, Any], None]
+    knowledge_fallback_state: KnowledgeFallbackStateBuilder
+    validate_evidence: EvidenceValidator
+    create_answer_contract: AnswerContractFactory
+    validator_system_message: ValidationMessageBuilder
+    synthesizer_system_message: ContractMessageBuilder
+    synthesize_legacy_answer: LegacyAnswerSynthesizer
+    synthesize_submission: SubmissionSynthesizer
+    emit_answer_synthesis: AnswerSynthesisEmitter
     emit_evidence_validation: Callable[[str, int, dict[str, Any]], None]
-    offline_answer: Callable[..., dict]
-    evidence_observation_type: Any
+    offline_answer: OfflineAnswerer
+    evidence_observation_type: type[EvidenceObservation]
     provider_request_options: Callable[[str, bool], dict]
-    request_synthesis_correction: Callable[..., Awaitable[tuple[dict[str, Any] | None, dict[str, Any], str | None, str]]]
+    request_synthesis_correction: SynthesisCorrectionRequester
     dispatch_binding: LoopDispatchBinding | None = None
     native_fallback: Callable[[], Awaitable[dict]] | None = None
 

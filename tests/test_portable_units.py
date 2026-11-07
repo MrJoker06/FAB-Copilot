@@ -89,6 +89,32 @@ class PortableUnitTests(unittest.TestCase):
                     root,
                 )
 
+    def test_ignores_type_checking_only_imports(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "app").mkdir()
+            (root / "app/__init__.py").write_text("", encoding="utf-8")
+            (root / "app/unit.py").write_text(
+                "from typing import TYPE_CHECKING\n"
+                "import typing\n"
+                "if TYPE_CHECKING:\n"
+                "    import app.missing\n"
+                "if typing.TYPE_CHECKING:\n"
+                "    from app.other import thing\n"
+                "else:\n"
+                "    import app\n",
+                encoding="utf-8",
+            )
+            files = build_portable_unit.validate_unit(
+                "unit",
+                {"version": "1", "files": ["app/__init__.py", "app/unit.py"]},
+                root,
+            )
+            self.assertEqual(
+                [str(relative) for relative, _source in files],
+                ["app/__init__.py", "app/unit.py"],
+            )
+
     def test_rejects_import_below_a_declared_package_when_module_is_not_declared(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

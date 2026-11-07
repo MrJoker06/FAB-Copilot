@@ -206,6 +206,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/agent_runtime/definition.py` | 纯 | 冻结 `AgentDefinition`、`ComponentReference`。 |
 | `app/agent_runtime/application.py` | 纯 | `AgentRun` 对 Model/Tool/Event ports 的小门面；可携带装配层传入的 Skill 文本消息与基础元数据，自身不依赖 Skill/业务模块。 |
 | `app/agent_runtime/dependencies.py` | 装配契约 | 分阶段 CoordinatorDependencies 与类型字段名缓存；依赖值、回调仍按当前运行读取。 |
+| `app/agent_runtime/ports.py` | 纯 | 依赖组、运行状态与事件通道的结构化 Protocol/Callable 端口（含 `RuntimeSettings`/`RuntimeModelConnection` 配置视图、`ToolRunBindings`）；领域类型仅类型检查时导入，运行时只加载标准库。 |
 | `app/agent_runtime/service.py` | 兼容/装配 | 默认 `run_agent`、运行生命周期与全局兼容对象。 |
 | `app/agent_runtime/telemetry.py` | 业务 | Runtime 事件和审计辅助。 |
 | `app/agent_runtime/preparation/__init__.py` | 包 | 准备阶段包锚点。 |

@@ -70,6 +70,36 @@ def resolve_relative(module: str | None, level: int, package: str) -> str:
     return ".".join([*base, *suffix])
 
 
+def _is_type_checking_guard(test: ast.expr) -> bool:
+    if isinstance(test, ast.Name):
+        return test.id == "TYPE_CHECKING"
+    return isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING"
+
+
+class _AppImportCollector(ast.NodeVisitor):
+    def __init__(self, package: str) -> None:
+        self._package = package
+        self.imports: set[str] = set()
+
+    def visit_Import(self, node: ast.Import) -> None:
+        self.imports.update(
+            alias.name
+            for alias in node.names
+            if alias.name == "app" or alias.name.startswith("app.")
+        )
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        target = resolve_relative(node.module, node.level, self._package) if node.level else node.module
+        if target == "app" or (target and target.startswith("app.")):
+            self.imports.add(target)
+
+    def visit_If(self, node: ast.If) -> None:
+        # Imports under TYPE_CHECKING never execute, so bundles need not ship them.
+        statements = node.orelse if _is_type_checking_guard(node.test) else [*node.body, *node.orelse]
+        for statement in statements:
+            self.visit(statement)
+
+
 def imported_app_modules(path: Path, relative: PurePosixPath) -> set[str]:
     """Find statically declared app imports, resolving relative import statements."""
     source_module = module_name(relative)
@@ -77,15 +107,9 @@ def imported_app_modules(path: Path, relative: PurePosixPath) -> set[str]:
         return set()
     package = source_module if path.name == "__init__.py" else source_module.rsplit(".", 1)[0]
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    imports: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            imports.update(alias.name for alias in node.names if alias.name == "app" or alias.name.startswith("app."))
-        elif isinstance(node, ast.ImportFrom):
-            target = resolve_relative(node.module, node.level, package) if node.level else node.module
-            if target == "app" or (target and target.startswith("app.")):
-                imports.add(target)
-    return imports
+    collector = _AppImportCollector(package)
+    collector.visit(tree)
+    return collector.imports
 
 
 def validate_unit(name: str, definition: Any, project_dir: Path = PROJECT_DIR) -> list[tuple[PurePosixPath, Path]]:

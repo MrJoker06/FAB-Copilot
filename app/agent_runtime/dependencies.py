@@ -4,7 +4,67 @@ from __future__ import annotations
 
 from dataclasses import dataclass, fields
 from functools import lru_cache
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..evidence.validator import EvidenceObservation
+    from ..model_gateway.gateway import ModelGatewayPort
+    from .execution.agent_loop import AgentLoopContext
+    from .execution.loop_guard import ToolLoopGuard
+    from .ports import (
+        AgentLoopRunner,
+        AgentPreparationFactory,
+        AgentRunPreparer,
+        AnswerContractFactory,
+        AnswerNormalizer,
+        AnswerStreamer,
+        AnswerSynthesisEmitter,
+        AssistantAuditor,
+        AuditEmitter,
+        Clock,
+        ContextMessageBuilder,
+        ContractMessageBuilder,
+        DisclosurePredicate,
+        EvidenceValidationEmitter,
+        EvidenceValidator,
+        GeneralKnowledgePrefetcher,
+        JsonObject,
+        KnowledgeFallbackStateBuilder,
+        KnowledgeResultPredicate,
+        LegacyAnswerSynthesizer,
+        ModelCallClaimer,
+        ModelErrorClassifier,
+        ModelErrorPredicate,
+        ModelFailureRecorder,
+        ModelHealthReader,
+        ModelRetryDelay,
+        ModelSuccessRecorder,
+        OfflineAnswerer,
+        OfflineToolRunner,
+        PlanMessageBuilder,
+        PlaybookMessageBuilder,
+        ProgressSink,
+        ProviderRequestOptions,
+        ReadyAssistantSynthesizer,
+        ReadyPlanExecutor,
+        ReadySynthesisFallback,
+        ReadySynthesisMessages,
+        ReadySynthesisRequester,
+        ReadyUnavailableResultBuilder,
+        RegisteredToolExecutor,
+        ResultBuilder,
+        RetrievalMessageBuilder,
+        RouteMessageBuilder,
+        RuntimeSettings,
+        SettingsProvider,
+        SettingsResolver,
+        StageMemoryMessages,
+        SubmissionSynthesizer,
+        SynthesisCorrectionRequester,
+        ToolArgumentParser,
+        ToolRunFactory,
+        ValidationMessageBuilder,
+    )
 
 
 @lru_cache(maxsize=32)
@@ -16,79 +76,79 @@ def _dependency_field_names(group_type: type[object]) -> frozenset[str]:
 @dataclass(frozen=True)
 class PreparationDependencies:
     system_prompt: str
-    perf_counter: Any
-    settings_type: type
-    effective_agent_settings: Any
-    get_settings: Any
-    prepare_agent_run: Any
-    agent_preparation_dependencies: Any
-    tool_loop_guard_type: Any
-    validate_evidence: Any
-    create_answer_contract: Any
-    emit: Any
-    notify: Any
-    offline_answer: Any
-    emit_evidence_validation: Any
-    stream_answer: Any
+    perf_counter: Clock
+    settings_type: type[RuntimeSettings]
+    effective_agent_settings: SettingsResolver
+    get_settings: SettingsProvider
+    prepare_agent_run: AgentRunPreparer
+    agent_preparation_dependencies: AgentPreparationFactory
+    tool_loop_guard_type: type[ToolLoopGuard]
+    validate_evidence: EvidenceValidator
+    create_answer_contract: AnswerContractFactory
+    emit: AuditEmitter
+    notify: ProgressSink
+    offline_answer: OfflineAnswerer
+    emit_evidence_validation: EvidenceValidationEmitter
+    stream_answer: AnswerStreamer
 
 
 @dataclass(frozen=True)
 class AvailabilityDependencies:
-    get_model_health: Any
-    claim_model_call: Any
-    execute_ready_plan: Any
-    ready_synthesis_fallback: Any
-    emit_answer_synthesis: Any
-    build_ready_model_unavailable_result: Any
+    get_model_health: ModelHealthReader
+    claim_model_call: ModelCallClaimer
+    execute_ready_plan: ReadyPlanExecutor
+    ready_synthesis_fallback: ReadySynthesisFallback
+    emit_answer_synthesis: AnswerSynthesisEmitter
+    build_ready_model_unavailable_result: ReadyUnavailableResultBuilder
 
 
 @dataclass(frozen=True)
 class ModelDependencies:
-    context_system_message: Any
-    routing_system_message: Any
-    playbook_system_message: Any
-    planner_system_message: Any
-    validator_system_message: Any
-    synthesizer_system_message: Any
-    prefetch_general_knowledge: Any
-    retrieval_system_message: Any
-    knowledge_fallback_state: Any
-    stage_memory_messages: Any
+    context_system_message: ContextMessageBuilder
+    routing_system_message: RouteMessageBuilder
+    playbook_system_message: PlaybookMessageBuilder
+    planner_system_message: PlanMessageBuilder
+    validator_system_message: ValidationMessageBuilder
+    synthesizer_system_message: ContractMessageBuilder
+    prefetch_general_knowledge: GeneralKnowledgePrefetcher
+    retrieval_system_message: RetrievalMessageBuilder
+    knowledge_fallback_state: KnowledgeFallbackStateBuilder
+    stage_memory_messages: StageMemoryMessages
 
 
 @dataclass(frozen=True)
 class ReadyDependencies:
-    model_gateway: Any
-    ready_synthesis_messages: Any
-    request_ready_synthesis: Any
-    record_model_success: Any
-    synthesize_ready_assistant: Any
-    retryable_model_error: Any
-    record_model_failure: Any
-    model_error_category: Any
+    model_gateway: ModelGatewayPort
+    ready_synthesis_messages: ReadySynthesisMessages
+    request_ready_synthesis: ReadySynthesisRequester
+    record_model_success: ModelSuccessRecorder
+    synthesize_ready_assistant: ReadyAssistantSynthesizer
+    retryable_model_error: ModelErrorPredicate
+    record_model_failure: ModelFailureRecorder
+    model_error_category: ModelErrorClassifier
 
 
 @dataclass(frozen=True)
 class LoopDependencies:
-    build_result: Any
-    run_agent_loop: Any
-    agent_loop_context_type: Any
-    tools: Any
-    submit_analysis_tool: Any
-    parse_tool_arguments: Any
-    execute_registered_tool: Any
-    usable_knowledge_result: Any
-    normalize_general_knowledge_answer: Any
-    has_knowledge_fallback_disclosure: Any
-    synthesize_legacy_answer: Any
-    synthesize_submission: Any
-    provider_request_options: Any
-    evidence_observation_type: Any
-    model_gateway: Any
-    model_failure_reason: Any
-    model_retry_delay: Any
-    audit_assistant: Any
-    request_synthesis_correction: Any
+    build_result: ResultBuilder
+    run_agent_loop: AgentLoopRunner
+    agent_loop_context_type: type[AgentLoopContext]
+    tools: list[JsonObject]
+    submit_analysis_tool: JsonObject
+    parse_tool_arguments: ToolArgumentParser
+    execute_registered_tool: RegisteredToolExecutor
+    usable_knowledge_result: KnowledgeResultPredicate
+    normalize_general_knowledge_answer: AnswerNormalizer
+    has_knowledge_fallback_disclosure: DisclosurePredicate
+    synthesize_legacy_answer: LegacyAnswerSynthesizer
+    synthesize_submission: SubmissionSynthesizer
+    provider_request_options: ProviderRequestOptions
+    evidence_observation_type: type[EvidenceObservation]
+    model_gateway: ModelGatewayPort
+    model_failure_reason: ModelErrorClassifier
+    model_retry_delay: ModelRetryDelay
+    audit_assistant: AssistantAuditor
+    request_synthesis_correction: SynthesisCorrectionRequester
 
 
 @dataclass(frozen=True)
@@ -100,8 +160,8 @@ class CoordinatorDependencies:
     model: ModelDependencies
     ready: ReadyDependencies
     loop: LoopDependencies
-    tool_run_factory: Any = None
-    offline_tool_runner: Any = None
+    tool_run_factory: ToolRunFactory | None = None
+    offline_tool_runner: OfflineToolRunner | None = None
 
     def __getattr__(self, name: str) -> Any:
         """Keep existing ``deps.name`` consumers and patch tests source-compatible."""
