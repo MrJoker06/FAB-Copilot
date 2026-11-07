@@ -1,6 +1,6 @@
 # 非企业级 TODO 执行计划
 
-状态核对：`experiment/parallel-platform`，2026-11-06。
+状态核对：`experiment/parallel-platform`，2026-11-07，`c8d44cd`（MOD-015e）。
 
 本计划只安排当前单机样例和产品能力建设。企业 SSO、真实制造系统、分布式数据基础设施、多实例治理、网关和生产部署统一暂缓，未经用户重新确认不进入开发。
 

@@ -1,6 +1,6 @@
 # 当前项目精细结构快照
 
-快照日期：2026-11-06。依据为 experiment/parallel-platform 的 `6dd6544` 基线及本轮 MOD-009 改造。MOD-008/009、跨平台启动和 MOD-016～019 已验收，历史失败保留；下一项 MOD-012，随后 015。Skill 加载与发布保持显式可选；新增来源装配和扩展工具复用原 Ready/Loop，默认 HTTP 与 21 项工具清单未改。验收证据以对应报告为准，提交与远程状态以 Git 记录为准。
+快照日期：2026-11-07。依据为 experiment/parallel-platform 的 `c8d44cd`（MOD-015e）及当前源码清单。MOD-001～019 均已验证，跨平台启动维护已验收；MOD-012 模型网关、MOD-015a～e 的依赖类型化、Loop 拆分、存储/身份 Port 与无泄漏验收已落地。MOD-020～023 的 Checkpoint/只读恢复与 MOD-024～028 的交付/内网集成仍待完成，保留的兼容 facade 与配置锚点归 MOD-027。Skill 加载与发布保持显式可选，默认 HTTP 未启用。当前状态见 [模块化追踪](todos/modularization.md)，历史失败及各轮实际验证范围见对应报告；提交与远程状态以 Git 记录为准。
 
 本次实扫 `app/` 的受管源码为 **282 文件：254 个 Python、28 个静态文件**（2026-11-07 MOD-015e 后复扫；015a 删除 6 个转发模块，015b 新增 `agent_runtime/ports.py`，015c 新增 6 个 Loop 模块，015d 新增 2 个 core 模块和 1 个 bootstrap 模块，015e 只新增测试）。数量与
 `evaluations/mod_003_boundaries_v1.json` 一致；测试、日志、缓存和运行期生成物不计入。
@@ -408,9 +408,11 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/model_gateway/registry.py` | 装配/存储 | 模型 Provider 配置、选择和持久化读取；数据库会话与身份经存储/身份 Port 读取。 |
 | `app/model_gateway/health.py` | 业务/存储 | 模型熔断健康记录；数据库会话经存储/身份 Port 读取。 |
 | `app/model_gateway/gateway.py` | Port/Adapter | `ModelGatewayPort`/`ModelSessionPort`、`ModelEndpoint`，`HttpModelGateway` 持有客户端生命周期与聊天模板整形。 |
+| `app/model_gateway/message_compat.py` | 纯 | OpenAI 兼容模型的聊天模板整形；显式配置后将 system 内容合并为首条消息，其余消息顺序保留，不发起网络请求。 |
 | `app/model_gateway/streaming.py` | Adapter | SSE 请求、响应拼装、流式审计。 |
 | `app/core/__init__.py` | 包 | 核心包锚点。 |
 | `app/core/settings.py` | 装配 | 环境设置和默认运行配置。 |
+| `app/core/sqlite_support.py` | Adapter | 在 SQLite 连接注册 `SQRT` 兼容函数，保持数字文本转换及非法值返回 NULL 的语义，供各数据库打开入口复用。 |
 | `app/core/identity.py` | Adapter/过渡 | 当前身份解析和 SQLite/请求绑定。 |
 | `app/core/identity_contracts.py` | 纯 | Identity claims 与演示 Header 解析契约。 |
 | `app/core/storage_identity_ports.py` | 纯 | 存储/身份窄 Port：`PrincipalView`、`StorageIdentityBindings` 与安装/读取函数；只加载标准库，未安装时报错并写明安装函数。 |
@@ -575,5 +577,4 @@ TOOLS/TOOL_HANDLERS 的容器身份，但有意改变清单内容及默认解析
 修订后预声明 r2 正式性能/独立审计通过，r1 证据保留。MOD-008 首批的 281 项必要回归、
 60 文件隔离、旧安装/源码闭包/冻结行为/守卫通过。第二批的 305 项必要回归、67 文件隔离、
 旧安装/源码闭包/冻结行为/守卫也通过。第三批最终 328 项必要回归、74 文件隔离及上述兼容门
-通过。第四批最终 354 项必要回归、82 文件隔离及上述兼容门也通过；第五批最终 413 项必要回归、RAG 15/15、66 文件知识切片及兼容门通过，首轮仓库边界失败记录保留。第六批 F1 的 431 项必要回归、32 主路径、60 文件具名切片及上述兼容门也通过。F2a 版本化消费映射已验收；F2b 默认切换及 SQL 退出已通过功能/质量复核和 r5 正式性能及原始墙钟独立重算，整个 MOD-008 已验证；原定下一项 MOD-009，MOD-016～019 和 MOD-009 现均已验证，下一项 MOD-012；009 的两端专项、来源替换、101 文件隔离与完整阶段门见对应报告。此后变化须随
-工作树重新核对。文档为 UTF-8/LF，源码表不展开测试、日志、runtime 产物或工作簿内容。
+通过。第四批最终 354 项必要回归、82 文件隔离及上述兼容门也通过；第五批最终 413 项必要回归、RAG 15/15、66 文件知识切片及兼容门通过，首轮仓库边界失败记录保留。第六批 F1 的 431 项必要回归、32 主路径、60 文件具名切片及上述兼容门也通过。F2a 版本化消费映射已验收；F2b 默认切换及 SQL 退出已通过功能/质量复核和 r5 正式性能及原始墙钟独立重算，整个 MOD-008 已验证。MOD-016～019、MOD-009、MOD-012 及 MOD-015a～e 也已验证，具体范围见 [测试与验收索引](testing-strategy.md#当前验证记录索引2026-11-07)。MOD-015 的逐模块基线对照保留既有环境失败，不代表在该环境重跑完整离线门全绿；Checkpoint 与整体交付仍按 MOD-020～028 分别验收。此后变化须随工作树重新核对。文档为 UTF-8/LF，源码表不展开测试、日志、runtime 产物或工作簿内容。

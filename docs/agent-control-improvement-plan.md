@@ -1,6 +1,6 @@
 # Agent 会话控制、范围证据与执行效率改善方案
 
-状态：`AGENT-036` 已实施；其余任务仍待逐任务确认。本文定义当前产品的改进边界，不授权直接实施后续任务；不迁移至 Rasa 或其他 Agent 框架。
+状态核对：2026-11-07。本文的 `AGENT-036`、`AGENT-037`、`AGENT-038`、`OBS-017`、`QA-004` 及后续 `DEPLOY-012` 均已完成；任务状态见 [Agent TODO](todos/agent-architecture.md)、[可观测性 TODO](todos/observability.md)、[测试质量 TODO](todos/testing-quality.md) 与 [部署 TODO](todos/deployment-architecture.md)。下文保留原问题、设计和验收要求；相关 Trace 是当时问题依据。后续 MOD 工作包另见 [模块化追踪](todos/modularization.md)，不迁移至 Rasa 或其他 Agent 框架。
 
 ## 问题依据
 
@@ -51,7 +51,7 @@
 | `OBS-017` | 已完成审计/TurnDecision schema 分离、候选仲裁、三类引用计数、六阶段耗时与旧日志兼容。 | `AGENT-036`、`AGENT-038` |
 | `QA-004` | 已建立 7-case 脱敏离线 Trace 回放与黄金矩阵，并以三条真实链路的 HTTP 系统测试跨层验证流式与持久化。 | `AGENT-036`、`AGENT-037`、`AGENT-038`、`OBS-017` |
 
-`DEPLOY-012` 已在这些当前队列任务及其测试完成后执行，并将完整质量门纳入远程分支保护。
+`DEPLOY-012` 已在上述任务及其测试完成后执行，并将完整质量门纳入远程分支保护。这些任务现已退出当前产品队列；远程 Live 验收 `QA-010` 仍由用户暂缓。
 
 ## 非目标
 
