@@ -432,22 +432,10 @@
       "exit_condition": "replace only if model registry receives equivalent model settings without the public anchor"
     },
     {
-      "source": "app.model_gateway.registry",
-      "target": "app.core.identity",
-      "reason": "canonical model registry resolves the public identity anchor",
-      "exit_condition": "replace only if model registry receives an equivalent identity context contract"
-    },
-    {
       "source": "app.telemetry.http",
       "target": "app.core.settings",
       "reason": "canonical HTTP telemetry resolves the project settings anchor",
       "exit_condition": "replace only if HTTP telemetry receives equivalent settings without the public anchor"
-    },
-    {
-      "source": "app.personal_knowledge_runtime.service",
-      "target": "app.telemetry.audit",
-      "reason": "personal knowledge emits through the canonical telemetry boundary",
-      "exit_condition": "replace only if personal knowledge receives an equivalent audit emitter contract"
     },
     {
       "source": "app.personal_knowledge_runtime.service",
@@ -486,28 +474,10 @@
       "exit_condition": "replace only if RAG receives equivalent knowledge settings without the public anchor"
     },
     {
-      "source": "app.knowledge.rag",
-      "target": "app.core.identity",
-      "reason": "canonical knowledge RAG resolves the public identity context",
-      "exit_condition": "replace only if RAG receives an equivalent identity context contract"
-    },
-    {
-      "source": "app.telemetry.runtime_status",
-      "target": "app.core.identity",
-      "reason": "canonical runtime telemetry reads the identity principal contract",
-      "exit_condition": "replace only if runtime telemetry receives an equivalent identity context contract"
-    },
-    {
       "source": "app.manufacturing.seed",
       "target": "app.core.settings",
       "reason": "existing app.seed compatibility implementation consumes the configuration facade before its scheduled migration",
       "exit_condition": "retain while the seed CLI resolves the public configuration anchor"
-    },
-    {
-      "source": "app.conversation.sessions",
-      "target": "app.core.identity",
-      "reason": "canonical session lifecycle reads the public identity principal context",
-      "exit_condition": "replace only if sessions receive an equivalent identity context contract"
     },
     {
       "source": "app.knowledge.search_tool.binding",

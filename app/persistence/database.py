@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Iterator
 
+from ..core.model_capabilities import normalize_capabilities
 from ..core.settings import get_settings
 from ..core.sqlite_support import install_sqlite_functions
 from .department_schemas import (
@@ -487,8 +488,6 @@ def _migrate_model_catalog_capabilities(connection: sqlite3.Connection) -> None:
     tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     if "model_catalog" not in tables:
         return
-    from ..model_gateway.registry import normalize_capabilities
-
     rows = connection.execute("SELECT model_id, capabilities_json FROM model_catalog").fetchall()
     for row in rows:
         try:

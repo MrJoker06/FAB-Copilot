@@ -1,6 +1,6 @@
 # MOD-015：Runtime 收口、依赖类型化与兼容退出
 
-日期：2026-11-07。基线：`1c61601`（MOD-012）。状态：进行中（015a～015c 已验证，015d、015e 未开始）。
+日期：2026-11-07。基线：`1c61601`（MOD-012）。状态：进行中（015a～015d 已验证，015e 未开始）。
 
 ## 分批
 
@@ -11,7 +11,7 @@
 | 015a | 兼容台账收敛：删除纯转发模块与已无生产消费者的旧 facade，修正台账；附带配置优先级修复 | 已验证（2026-11-07） |
 | 015b | 依赖组/状态类型化与 EventSink | 已验证（2026-11-07） |
 | 015c | Loop 职责拆分 | 已验证（2026-11-07） |
-| 015d | 存储/身份依赖注入 Port（含 model_gateway → persistence/identity/memory 的 5 条债务） | 未开始 |
+| 015d | 存储/身份依赖注入 Port（含 model_gateway → persistence/identity/memory 的 5 条债务） | 已验证（2026-11-07） |
 | 015e | Skill 启用/未启用完整链路，取消/异常无状态泄漏验收 | 未开始 |
 
 ## 015a：兼容台账收敛
@@ -200,3 +200,97 @@
 ### 回滚
 
 删除 6 个新模块，用 `f9c3c96` 的版本恢复 `agent_loop.py`，再删除 `tests/test_agent_loop_split.py`、`tests/agent_loop_split_scenarios.py`、`tests/fixtures/agent_loop_split_golden.json`，并撤销 `mod_003_boundaries_v1.json` 中新增的 6 条登记以及 10 个测试文件的清单/blocked 改动。不涉及数据迁移。
+
+## 015d：存储/身份依赖注入 Port
+
+### 范围
+
+只做依赖反转：会话、知识检索、模型注册/健康、个人知识和运行状态不再直接导入 SQLite 存储、执行存储、审计 sink、请求身份上下文和具体检索后端，改为依赖一个只含标准库的窄 Port，由装配层显式安装默认实现。SQL、表结构、返回值、事件名与字段、权限判断和 live patch 语义全部不变。`dependency_debt` 中 20 条存储/身份债务移除 15 条，另 5 条留待更合适的任务处理（见“延后的债务”）。不涉及 Skill 链路验收（015e）。
+
+### 变更
+
+| 项 | 变更 |
+| --- | --- |
+| 新模块 `app/core/storage_identity_ports.py` | 只导入标准库。`runtime_checkable` 的 `PrincipalView`（`tenant_id`、`user_id`、`roles`、`knowledge_owner_id` 只读属性，`core.identity.Principal` 结构化满足）；7 个 `Callable` 别名；冻结 dataclass `StorageIdentityBindings`（`session_factory`、`current_principal`、`defect_alias_reader`、`audit_emit`、`executions_for_session`、`reconcile_plan_steps`、`factory_search_backend_factory`）；`install_storage_identity(bindings, *, replace=True)`（类型不对抛 `TypeError`，`replace=False` 时保留已安装的绑定）、`configured_storage_identity()`、`storage_identity_bindings()`、`reset_storage_identity()`（仅供测试隔离）。未安装时 `storage_identity_bindings()` 抛 `StorageIdentityNotConfiguredError`（`RuntimeError` 子类），消息里写明安装函数全名。导入时不安装任何绑定 |
+| 新模块 `app/bootstrap/storage_identity_assembly.py` | 默认绑定 `DEFAULT_STORAGE_IDENTITY_BINDINGS`。每个绑定在调用时才读取具体模块属性（`database.db_session()`、`identity.current_principal()`、`database.get_active_defect_aliases()`、`audit.emit`、`execution_store.executions_for_session/reconcile_plan_steps`、`sqlite_backend.SqliteFactorySearchBackend()`），所以对这些具体模块的 patch 照样能传到所有消费者。`install_default_storage_identity()` 以 `replace=False` 安装，可重复调用，不覆盖自定义装配 |
+| 新模块 `app/core/model_capabilities.py` | `MODEL_CAPABILITY_DEFAULTS`、`normalize_capabilities` 从 `model_gateway/registry.py` 原样移入。`registry` 从这里导入并继续导出同一对象；`persistence/database.py` 的迁移函数原来在函数内惰性导入 `model_gateway.registry`，现改为顶层导入 `core.model_capabilities`，`database → registry` 的反向边因此消失 |
+| `search_query.sqlite_fts_query` | 纯函数从 `sqlite_backend.py` 原样移到 `search_query.py`；`sqlite_backend` 与 `rag` 都从这里导入，三处是同一对象，`rag → sqlite_backend` 边消失 |
+| `conversation/sessions.py` | `db_session`、`executions_for_session`、`reconcile_plan_steps`、`current_principal` 改为同名模块级委托函数，签名不变，调用时读取已安装的绑定 |
+| `knowledge/rag.py` | `get_active_defect_aliases`、`current_principal` 改为同名委托函数；`patch.object(rag, ...)` 仍然生效，因为 rag 内部照旧按模块全局名调用 |
+| `knowledge/search_registry.py` | `"sqlite"` 分支改为调用 `factory_search_backend_factory()`；错误信息和其他后端名的处理不变 |
+| `model_gateway/health.py`、`registry.py`、`telemetry/runtime_status.py` | `db_session`（registry 另有 `current_principal`）改为同名委托函数；`Principal` 注解换成 `PrincipalView` |
+| `personal_knowledge_runtime/service.py` | `db_session`、`emit` 改为同名委托函数；`_ingestion/_document/_search_dependencies()` 照旧在调用时读取模块全局，`patch("...service.db_session")` 不受影响 |
+| 装配入口 | `app/api/runtime_dependencies.py`（`app.main` 经此导入）和 `app/bootstrap/default_coordinator_assembly.py`（`app.agent_runtime.service` 经 compatibility 导入）在模块级调用 `install_default_storage_identity()`。所以启动 HTTP 服务和直接在 Python 里调用 `run_agent` 都与改动前一样可用 |
+| 脚本与测试 | `scripts/prepare_ci_data.py`（`ensure_model_catalog()` 前）和 `scripts/evaluate_rag.py`（`evaluate()` 开头）显式调用安装函数；`tests/test_model_publication.py`、`tests/test_factory_search_backend_boundary.py` 不经过 `app.main`，所以加了 `setUpModule` 安装默认绑定 |
+| 台账 | `mod_003_boundaries_v1.json`：登记 3 个新文件（两个 `core` 模块为 core_contracts_configuration / platform_core，装配模块为 application_bootstrap / application_bundle），受管文件 279→282；删除 15 条债务，5 条改 exit_task 并在 reason 末尾注明“Deferred from MOD-015d: …”；`database_candidates` 按检查器实算重写（`personal_knowledge_runtime/service.py` 退出，`bootstrap/storage_identity_assembly.py` 加入，仍为 26）；`database_ledger.sources` 相应增删，sessions/health/registry/runtime_status 的初始化说明改为 Port 写法，health/registry 的 exit_task 由 MOD-012 改为 MOD-015。`module_boundaries_v1.json` 删除 5 条已不存在的例外边（37→32） |
+
+已移除的 15 条债务：
+
+| 来源 | 目标 |
+| --- | --- |
+| `conversation.sessions` | `persistence.database`、`persistence.execution_store`、`core.identity` |
+| `knowledge.rag` | `persistence.database`、`core.identity`、`knowledge.sqlite_backend` |
+| `knowledge.search_registry` | `knowledge.sqlite_backend` |
+| `model_gateway.health` | `persistence.database` |
+| `model_gateway.registry` | `persistence.database`、`core.identity` |
+| `persistence.database` | `model_gateway.registry` |
+| `personal_knowledge_runtime.service` | `telemetry.audit`、`persistence.database` |
+| `telemetry.runtime_status` | `persistence.database`、`core.identity` |
+
+### 延后的债务
+
+| 债务 | 新 exit_task | 原因 |
+| --- | --- | --- |
+| `manufacturing.enterprise_data → core.identity` | MOD-008 | 过渡期旧 facade。MOD-009 要求先审查保留的 API/Python/live patch 消费者才能删这条边，这属于 MOD-008 旧路径退出 |
+| `manufacturing.reports → persistence.database` | MOD-008 | 过渡期旧 facade，有 4 处 `db_session` patch 点；`database_ledger` 把旧路径记为保留，随 MOD-008 旧路径退出一起处理 |
+| `model_gateway.compatibility → memory_system.context.history`、`→ memory_system.context.protocol` | MOD-025 | 要去掉这两条边，只能改公开兼容性探针的签名/行为，或把 context_memory 协议逻辑移进 core，都超出“零行为变化”的范围 |
+| `persistence.execution_store → core.identity` | MOD-021 | REF-027 例外要求执行存储的身份锚点保持公开；稳定的调用身份归 MOD-021 |
+
+### 补丁点与语义保持
+
+逐项验证过的 patch 点（新增测试和既有测试都覆盖）：
+
+- 具体模块：`patch("app.persistence.database.db_session")` 同时传到 sessions、health、个人知识 service（registry、runtime_status 走同一个绑定）；`patch("app.core.identity.current_principal")` 和 `set_principal(...)` 上下文传到 rag、sessions、registry 与 `sessions._scope()`；`patch("app.persistence.database.get_active_defect_aliases")` 传到 rag；`patch("app.knowledge.sqlite_backend.SqliteFactorySearchBackend")` 传到 `search_registry.get_factory_search_backend("sqlite")`。
+- 消费者模块：`patch("app.model_gateway.health.db_session")`（`tests.test_model_health`）、`patch.object(health, "db_session")`（`tests.test_model_gateway_module_boundaries`，README 也写了这种用法）、`patch("app.personal_knowledge_runtime.service.db_session")`（`tests.test_personal_knowledge`、`tests.test_personal_knowledge_module_boundaries`，并经 `_document_dependencies()` / `_search_dependencies()` 取到）、`patch.object(rag, "current_principal" / "get_active_defect_aliases" / "get_factory_search_backend" / "get_factory_catalog_backend")`（`tests.test_knowledge_search_adapters`、`tests.test_factory_search_backend_boundary`）、`patch("app.knowledge.rag.get_active_defect_aliases")`（`tests.system.test_knowledge_uploads`）、`patch.object(runtime_status, "_users")`（未改动）。
+- 改动前后对象相同：`registry.normalize_capabilities`、`registry.MODEL_CAPABILITY_DEFAULTS`、`sqlite_backend.sqlite_fts_query`、`rag.sqlite_fts_query`。
+
+### 兼容说明
+
+- 不经过 `app.main` 或 `app.agent_runtime.service` 而直接调用上述消费者的代码（独立脚本、单独导入 `sessions`/`registry`/`rag` 的测试等），需要先调用一次 `app.bootstrap.storage_identity_assembly.install_default_storage_identity()`；否则会立即得到写明安装函数的 `StorageIdentityNotConfiguredError`，不会悄悄打开数据库。仓库内的这类消费者已全部补上。
+- 要替换存储或身份实现，可以在装配根调用 `install_storage_identity(StorageIdentityBindings(...))`；之后默认安装函数不会覆盖它。
+- 公开函数名、签名和返回值不变；`Principal` 仍可传给所有标注为 `PrincipalView` 的参数。
+
+### 测试
+
+新增 `tests/test_storage_identity_ports.py`（10 项）：两个 core 模块在新进程中只加载标准库；12 个委托入口在未安装时都抛出带安装函数名的错误，且导入消费者不会拉入 `app.api.runtime_dependencies`；导入 `app.main` 和 `app.agent_runtime.service` 都会安装默认绑定；默认安装可重复且不覆盖自定义绑定、错误类型抛 `TypeError`；替身绑定在调用时传到 sessions/registry/runtime_status/个人知识/rag/search_registry/health；`Principal` 满足 `PrincipalView`；移动的纯函数在各处是同一对象；AST 守卫确认 8 个文件不再导入已移除的目标；具体模块 patch 穿透默认绑定；消费者模块 patch 仍然生效。
+
+| 检查 | 结果 |
+| --- | --- |
+| WSL 全部 168 个测试模块逐模块运行（Py 3.11，测试用 PIL 桩，导出副本带 `data/departments`），与 HEAD 导出副本（167 个模块）对照 | 1290 项（HEAD 1280 项，差值为新增的 10 项）。158 个模块通过；10 个模块的失败在 HEAD 上同名同数，全部是环境问题：缺 PIL/docx/pypdf（`test_ocr`、`test_ocr_assets`、`test_ocr_evaluation`、`test_personal_knowledge_module_boundaries`、`tests.system.test_knowledge_uploads`、`test_tool_contracts`、`test_tool_registry`、`test_modularization_fixture_clock` 中的子进程）和 `test_startup_script`（8 failures + 1 error）。没有新增失败 |
+| Windows 定向 43 模块（Py 3.13，`.venv-win`；新测试、所有导入改动模块的测试、边界/台账/便携切片和 5 个系统测试模块），与 HEAD 导出副本（同样带 `data/departments`）对照 | 440 项：failures=20、errors=9，全部是既有 Windows 环境问题，测试名与 HEAD 一致：`test_module_boundaries` 反斜杠路径 19 个子测试、`tests.system.test_data_reports` 的 WAL/DELETE 日志模式断言 1 个、symlink WinError 1314 ×2、临时 SQLite 清理 WinError 32 ×5（其中 `test_default_native_runtime` 3 个；HEAD 上该模块是 4 个，具体哪几项出错每次不同）、`test_personal_job_sse` 无法打开数据库文件 ×1、知识检索便携切片子进程 GBK/UTF-8 解码 ×1。HEAD 副本 431 项：failures=20、errors=11，多出的 2 个 error 是缺少新测试模块和上述 WinError 32 的波动。`tests.system.test_knowledge_uploads` 在 Windows 两端都通过（14 项） |
+| `scripts/check_modularization_boundaries.py` | 282 文件 / 0 错误 |
+| `scripts/check_module_boundaries.py` | 通过 |
+| Ruff check（WSL，4 个新文件 + 16 个改动的 Python 文件） | 新文件通过；改动文件共 20 项，逐文件与 HEAD 相同，没有新增 |
+| Ruff format | 4 个新文件 0 偏差；改动文件的偏差行数都不高于 HEAD（`rag.py` 42→37、`registry.py` 93→89，其余相同），没有整体重排既有文件 |
+
+没有调用真实模型服务，也没有运行性能门、浏览器或覆盖率。
+
+### 台账计数
+
+| 项 | 前（015c 后） | 后 |
+| --- | --- | --- |
+| 受管文件 | 279 | 282（254 Python / 28 静态） |
+| 依赖债务 | 29 | 14（移除 15 条；5 条存储/身份债务改到 MOD-008 ×2、MOD-025 ×2、MOD-021 ×1） |
+| 兼容入口 | 7 | 7 |
+| 兼容消费记录 | 92 | 92 |
+| DB 候选 | 26 | 26（`personal_knowledge_runtime/service.py` 退出，`bootstrap/storage_identity_assembly.py` 加入） |
+| `module_boundaries_v1.json` 例外 | 37 | 32 |
+
+### 偏差
+
+- 原计划只在 `app.main` 的装配路径安装默认绑定。逐模块对照时发现 `tests.test_agent_preparation_boundaries` 不经过 `app.main`、直接导入 `app.agent_runtime.service` 跑一次运行，会在 `effective_agent_settings` 取身份时失败。直接调用 `run_agent` 是公开用法，所以在 `default_coordinator_assembly.py` 也加了模块级安装（同属 bootstrap，不新增跨模块边），并在新测试里覆盖。
+- `scripts/evaluate_ocr.py`、`scripts/run_live_e2e.py`、`scripts/run_browser_test_server.py` 和 MOD-008 性能夹具 worker 没有加安装调用：前两者用到的函数（`_extract_sections`、`_decode_model`）不访问绑定，浏览器测试服务器导入 `app.main`，性能夹具经 `app.agent_runtime.service` 安装；`tests.test_default_performance_fixture` 在两端都通过。
+
+### 回滚
+
+删除 3 个新模块和 `tests/test_storage_identity_ports.py`，恢复 10 个消费者模块原来的直接导入（`registry` 恢复 `MODEL_CAPABILITY_DEFAULTS`/`normalize_capabilities` 定义，`sqlite_backend` 恢复 `sqlite_fts_query` 定义，`database.py` 恢复函数内惰性导入），删除 `runtime_dependencies.py`、`default_coordinator_assembly.py`、两个脚本和两个测试里的安装调用，并恢复两份台账。不涉及数据迁移。

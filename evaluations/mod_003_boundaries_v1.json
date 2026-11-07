@@ -538,6 +538,11 @@
       "artifact_group": "application_bundle"
     },
     {
+      "path": "app/bootstrap/storage_identity_assembly.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
       "path": "app/bootstrap/tool_bindings.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"
@@ -598,6 +603,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/core/model_capabilities.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/core/settings.py",
       "primary_module": "core_contracts_configuration",
       "artifact_group": "platform_core",
@@ -611,6 +621,11 @@
     },
     {
       "path": "app/core/sqlite_support.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/core/storage_identity_ports.py",
       "primary_module": "core_contracts_configuration",
       "artifact_group": "platform_core"
     },
@@ -1594,24 +1609,6 @@
       "exit_task": "MOD-015"
     },
     {
-      "source": "app.conversation.sessions",
-      "target": "app.persistence.database",
-      "reason": "Session use case directly binds SQLite execution store or identity adapter; inject internal Store/identity Ports.",
-      "exit_task": "MOD-015"
-    },
-    {
-      "source": "app.conversation.sessions",
-      "target": "app.persistence.execution_store",
-      "reason": "Session use case directly binds SQLite execution store or identity adapter; inject internal Store/identity Ports.",
-      "exit_task": "MOD-015"
-    },
-    {
-      "source": "app.conversation.sessions",
-      "target": "app.core.identity",
-      "reason": "Session use case directly binds SQLite execution store or identity adapter; inject internal Store/identity Ports.",
-      "exit_task": "MOD-015"
-    },
-    {
       "source": "app.evidence.validator",
       "target": "app.manufacturing.playbooks",
       "reason": "Evidence validation consumes planning/playbook implementation contracts; extract stable evidence requirements at the boundary.",
@@ -1624,106 +1621,34 @@
       "exit_task": "MOD-015"
     },
     {
-      "source": "app.knowledge.rag",
-      "target": "app.persistence.database",
-      "reason": "Knowledge facade/registry selects SQLite or environment identity directly; move selection to explicit assembly and retain consumer Ports.",
-      "exit_task": "MOD-015"
-    },
-    {
-      "source": "app.knowledge.rag",
-      "target": "app.core.identity",
-      "reason": "Knowledge facade/registry selects SQLite or environment identity directly; move selection to explicit assembly and retain consumer Ports.",
-      "exit_task": "MOD-015"
-    },
-    {
-      "source": "app.knowledge.rag",
-      "target": "app.knowledge.sqlite_backend",
-      "reason": "Knowledge facade/registry selects SQLite or environment identity directly; move selection to explicit assembly and retain consumer Ports.",
-      "exit_task": "MOD-015"
-    },
-    {
-      "source": "app.knowledge.search_registry",
-      "target": "app.knowledge.sqlite_backend",
-      "reason": "Knowledge facade/registry selects SQLite or environment identity directly; move selection to explicit assembly and retain consumer Ports.",
-      "exit_task": "MOD-015"
-    },
-    {
       "source": "app.manufacturing.enterprise_data",
       "target": "app.core.identity",
-      "reason": "Native consumer-owned Port replacement was validated by MOD-009, but retained API/Python/live-patch consumers require MOD-015 consumer review before deletion.",
-      "exit_task": "MOD-015"
+      "reason": "Native consumer-owned Port replacement was validated by MOD-009, but retained API/Python/live-patch consumers require MOD-015 consumer review before deletion. Deferred from MOD-015d: transitional legacy facade; MOD-009 requires consumer review of the retained API/Python/live-patch consumers before the identity edge can be deleted, which belongs to the MOD-008 legacy-path retirement.",
+      "exit_task": "MOD-008"
     },
     {
       "source": "app.manufacturing.reports",
       "target": "app.persistence.database",
-      "reason": "Native consumer-owned Port replacement was validated by MOD-009, but retained API/Python/live-patch consumers require MOD-015 consumer review before deletion.",
-      "exit_task": "MOD-015"
+      "reason": "Native consumer-owned Port replacement was validated by MOD-009, but retained API/Python/live-patch consumers require MOD-015 consumer review before deletion. Deferred from MOD-015d: transitional legacy facade with four db_session patch points; database_ledger records the legacy path as retained, so the edge leaves with the MOD-008 legacy-path retirement.",
+      "exit_task": "MOD-008"
     },
     {
       "source": "app.model_gateway.compatibility",
       "target": "app.memory_system.context.history",
-      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports. MOD-012 closed model client lifecycle only; these store/identity edges move to MOD-015 batch d (storage/identity Port injection).",
-      "exit_task": "MOD-015"
+      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports. MOD-012 closed model client lifecycle only; these store/identity edges move to MOD-015 batch d (storage/identity Port injection). Deferred from MOD-015d: removing it requires changing the public compatibility-probe signature/behaviour or moving context_memory protocol logic into core.",
+      "exit_task": "MOD-025"
     },
     {
       "source": "app.model_gateway.compatibility",
       "target": "app.memory_system.context.protocol",
-      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports. MOD-012 closed model client lifecycle only; these store/identity edges move to MOD-015 batch d (storage/identity Port injection).",
-      "exit_task": "MOD-015"
-    },
-    {
-      "source": "app.model_gateway.health",
-      "target": "app.persistence.database",
-      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports. MOD-012 closed model client lifecycle only; these store/identity edges move to MOD-015 batch d (storage/identity Port injection).",
-      "exit_task": "MOD-015"
-    },
-    {
-      "source": "app.model_gateway.registry",
-      "target": "app.persistence.database",
-      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports. MOD-012 closed model client lifecycle only; these store/identity edges move to MOD-015 batch d (storage/identity Port injection).",
-      "exit_task": "MOD-015"
-    },
-    {
-      "source": "app.model_gateway.registry",
-      "target": "app.core.identity",
-      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports. MOD-012 closed model client lifecycle only; these store/identity edges move to MOD-015 batch d (storage/identity Port injection).",
-      "exit_task": "MOD-015"
-    },
-    {
-      "source": "app.persistence.database",
-      "target": "app.model_gateway.registry",
-      "reason": "Persistence implementation reaches model initialization or environment identity; separate storage from application assembly.",
-      "exit_task": "MOD-015"
+      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports. MOD-012 closed model client lifecycle only; these store/identity edges move to MOD-015 batch d (storage/identity Port injection). Deferred from MOD-015d: removing it requires changing the public compatibility-probe signature/behaviour or moving context_memory protocol logic into core.",
+      "exit_task": "MOD-025"
     },
     {
       "source": "app.persistence.execution_store",
       "target": "app.core.identity",
-      "reason": "Persistence implementation reaches model initialization or environment identity; separate storage from application assembly.",
-      "exit_task": "MOD-015"
-    },
-    {
-      "source": "app.personal_knowledge_runtime.service",
-      "target": "app.telemetry.audit",
-      "reason": "Internal knowledge/observability use case directly binds audit, identity or SQLite; inject narrow internal Ports.",
-      "exit_task": "MOD-015"
-    },
-    {
-      "source": "app.personal_knowledge_runtime.service",
-      "target": "app.persistence.database",
-      "reason": "Internal knowledge/observability use case directly binds audit, identity or SQLite; inject narrow internal Ports.",
-      "exit_task": "MOD-015"
-    },
-    {
-      "source": "app.telemetry.runtime_status",
-      "target": "app.persistence.database",
-      "reason": "Internal knowledge/observability use case directly binds audit, identity or SQLite; inject narrow internal Ports.",
-      "exit_task": "MOD-015"
-    },
-    {
-      "source": "app.telemetry.runtime_status",
-      "target": "app.core.identity",
-      "reason": "Internal knowledge/observability use case directly binds audit, identity or SQLite; inject narrow internal Ports.",
-      "exit_task": "MOD-015"
+      "reason": "Persistence implementation reaches model initialization or environment identity; separate storage from application assembly. Deferred from MOD-015d: the REF-027 exception keeps the execution-store identity anchor public; stable call identity belongs to MOD-021.",
+      "exit_task": "MOD-021"
     }
   ],
   "portable_overlaps": [
@@ -2337,10 +2262,17 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
-      "source_file": "app/conversation/sessions.py",
-      "imports": [
-        "persistence.database.db_session"
+      "source_file": "app/bootstrap/storage_identity_assembly.py",
+      "imports": [],
+      "calls": [
+        "database.db_session"
       ],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/conversation/sessions.py",
+      "imports": [],
       "calls": [
         "connection.execute",
         "db_session"
@@ -2503,9 +2435,7 @@
     },
     {
       "source_file": "app/model_gateway/health.py",
-      "imports": [
-        "persistence.database.db_session"
-      ],
+      "imports": [],
       "calls": [
         "connection.execute"
       ],
@@ -2516,9 +2446,7 @@
     },
     {
       "source_file": "app/model_gateway/registry.py",
-      "imports": [
-        "persistence.database.db_session"
-      ],
+      "imports": [],
       "calls": [
         "connection.execute",
         "connection.executemany",
@@ -2655,19 +2583,8 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
-      "source_file": "app/personal_knowledge_runtime/service.py",
-      "imports": [
-        "persistence.database.db_session"
-      ],
-      "calls": [],
-      "table_hints": [],
-      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
-    },
-    {
       "source_file": "app/telemetry/runtime_status.py",
-      "imports": [
-        "persistence.database.db_session"
-      ],
+      "imports": [],
       "calls": [
         "connection.execute",
         "db_session"
@@ -2734,11 +2651,19 @@
         "exit_task": "MOD-015"
       },
       {
+        "source_file": "app/bootstrap/storage_identity_assembly.py",
+        "owner": "application_bootstrap",
+        "classification": "storage-binding",
+        "stores": "unknown/dynamic or delegated; review consumer operation",
+        "init_effects": "Composition root binds the storage/identity Port session factory and defect-alias reader to global db_session/get_active_defect_aliases at call time: the default connect may initialize missing stores and attach a main database plus four department databases (five total); installs nothing at import",
+        "exit_task": "MOD-015"
+      },
+      {
         "source_file": "app/conversation/sessions.py",
         "owner": "context_memory",
         "classification": "internal-store",
         "stores": "agent.agent_runs, agent.agent_tool_events, agent.chat_messages, agent.chat_sessions, agent.message_sources, agent_runs, chat_messages, chat_sessions",
-        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "init_effects": "Calls the injected storage/identity Port session factory; the default binding (app.bootstrap.storage_identity_assembly) resolves global db_session at call time: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
         "exit_task": "MOD-015"
       },
       {
@@ -2834,16 +2759,16 @@
         "owner": "models",
         "classification": "internal-store",
         "stores": "agent.model_health",
-        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
-        "exit_task": "MOD-012"
+        "init_effects": "Calls the injected storage/identity Port session factory; the default binding (app.bootstrap.storage_identity_assembly) resolves global db_session at call time: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "exit_task": "MOD-015"
       },
       {
         "source_file": "app/model_gateway/registry.py",
         "owner": "models",
         "classification": "internal-store",
         "stores": "agent.model_catalog, agent.user_model_preferences, model_catalog, user_model_preferences",
-        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
-        "exit_task": "MOD-012"
+        "init_effects": "Calls the injected storage/identity Port session factory; the default binding (app.bootstrap.storage_identity_assembly) resolves global db_session at call time: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "exit_task": "MOD-015"
       },
       {
         "source_file": "app/persistence/database.py",
@@ -2894,19 +2819,11 @@
         "exit_task": "MOD-015"
       },
       {
-        "source_file": "app/personal_knowledge_runtime/service.py",
-        "owner": "knowledge",
-        "classification": "internal-store",
-        "stores": "unknown/dynamic or delegated; review consumer operation",
-        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
-        "exit_task": "MOD-015"
-      },
-      {
         "source_file": "app/telemetry/runtime_status.py",
         "owner": "observability",
         "classification": "internal-store",
         "stores": "agent_runs, chat_sessions",
-        "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "init_effects": "Calls the injected storage/identity Port session factory; the default binding (app.bootstrap.storage_identity_assembly) resolves global db_session at call time: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
         "exit_task": "MOD-015"
       }
     ]

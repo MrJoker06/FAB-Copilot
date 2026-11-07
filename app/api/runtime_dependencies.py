@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 
 from ..agent_runtime.service import run_agent
+from ..bootstrap.storage_identity_assembly import install_default_storage_identity
 from ..telemetry.audit import (
     GIT_COMMIT,
     current_request_id,
@@ -111,6 +112,10 @@ from .services.personal_job_events import (
     personal_job_snapshot_fingerprint,
     read_personal_job_snapshots,
 )
+
+# Routes call session, knowledge, model and telemetry consumers through
+# storage/identity Ports; bind the defaults before app.main serves a request.
+install_default_storage_identity()
 
 
 __all__ = (

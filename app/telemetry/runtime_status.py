@@ -3,8 +3,11 @@ from __future__ import annotations
 import threading
 from datetime import datetime, timedelta, timezone
 
-from ..persistence.database import db_session
-from ..core.identity import Principal
+from ..core.storage_identity_ports import PrincipalView, storage_identity_bindings
+
+
+def db_session():
+    return storage_identity_bindings().session_factory()
 
 
 _lock = threading.Lock()
@@ -19,7 +22,7 @@ def _iso(value: datetime | None = None) -> str:
     return (value or _now()).isoformat(timespec="milliseconds")
 
 
-def begin_agent_run(principal: Principal, session_id: str, question: str, model: str) -> None:
+def begin_agent_run(principal: PrincipalView, session_id: str, question: str, model: str) -> None:
     key = (principal.tenant_id, principal.user_id)
     timestamp = _now()
     with _lock:
@@ -39,7 +42,7 @@ def begin_agent_run(principal: Principal, session_id: str, question: str, model:
 
 
 def finish_agent_run(
-    principal: Principal,
+    principal: PrincipalView,
     status: str,
     run_id: str = "",
     model: str = "",

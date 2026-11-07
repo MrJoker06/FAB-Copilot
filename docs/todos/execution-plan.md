@@ -29,6 +29,8 @@
 
 ## 当前串行队列
 
+最新检查点（2026-11-07，MOD-015d）：存储/身份依赖注入 Port 已验证，零行为变化。新增只含标准库的 `app/core/storage_identity_ports.py`（`PrincipalView`、冻结的 `StorageIdentityBindings` 七项绑定、`install_storage_identity`/`storage_identity_bindings`，未安装时抛出写明安装函数的 `StorageIdentityNotConfiguredError`）、`app/bootstrap/storage_identity_assembly.py`（默认绑定在调用时读取 database/identity/audit/execution_store/sqlite_backend 的模块属性，具体模块 patch 照样生效；`install_default_storage_identity()` 可重复调用、不覆盖自定义绑定）和 `app/core/model_capabilities.py`；`sqlite_fts_query` 移到 `search_query.py`。sessions、rag、search_registry、模型 health/registry、个人知识 service、runtime_status 改为同名委托函数，SQL、签名和既有 patch 点不变；`app.main`（经 `runtime_dependencies`）和 `agent_runtime.service`（经 `default_coordinator_assembly`）的装配路径安装默认绑定，两个脚本和两个不经 `app.main` 的测试显式安装。债务 29→14，5 条延后到 MOD-008 ×2 / MOD-025 ×2 / MOD-021 ×1；282 文件/零边界错误，7 入口/92 消费记录/26 DB 候选不变，边界例外 37→32。新增 10 项专项；WSL 全部 168 个模块 1290 项与 HEAD 逐模块对照无新增失败，Windows 定向 43 模块 440 项只剩与 HEAD 一致的既有环境失败（反斜杠断言 19、WAL 断言 1、WinError 1314 ×2、WinError 32 ×5、数据库路径 1、便携切片解码 1）；ruff check 无新增，新文件 format 0 偏差。未运行性能门。下一批 015e Skill 链路与取消/异常验收，见 [报告](../reports/mod-015-runtime-convergence.md)。以下保留历史检查点。
+
 最新检查点（2026-11-07，MOD-015c）：Loop 职责拆分已验证，纯重构。`run_agent_loop` 由约 700 行单函数拆为 6 个模块：`loop_state.py`（`LoopRunState` slots dataclass 持有 evidence_validation/answer_contract/knowledge_fallback/fallback_announced/applied_synthesis_reason/health/thinking_answer_effective，运行开始快照一次，`sync_to_context` 是唯一回写点，只在注入路径、原调用点执行）、`loop_request.py`、`loop_model_call.py`（重试/健康/回退，返回 `ModelTurn` 或回退结果，裸 `raise` 仍在 except 内）、`loop_answer.py`（文本/提交修复/salvage/降级/轮次上限）、`loop_tool_round.py`（Dispatcher 轮与旧工具轮）、`loop_round_validation.py`；`agent_loop.py` 812→196 行，公开名称与签名不变。等价证据：37 个场景的完整有序记录（事件与字段、进度、模型请求、sleep、消息、结果、context 同步快照）与改动前录制、并经 HEAD 导出副本重录字节一致的黄金样本逐项相等；变异自检和真实 `task.cancel()` 取消测试通过。新增 9 项专项；WSL 定向 34 模块 339 项通过，Windows 同 31 模块 320 项只剩与 HEAD 逐项一致的既有环境失败。279 文件/零边界错误，29 债务/7 入口/92 消费记录/26 DB 候选不变；ruff check 全过，新文件 format 0 偏差。未运行性能门。下一批 015d 存储/身份依赖注入 Port，见 [报告](../reports/mod-015-runtime-convergence.md)。以下保留历史检查点。
 
 最新检查点（2026-11-07，MOD-015b）：依赖组/状态类型化与 EventSink 已验证。新增 `app/agent_runtime/ports.py` 结构化端口模块：`runtime_checkable` 的 `RuntimeSettings`/`RuntimeModelConnection` 配置视图（边界规则禁止 agent_runtime 导入 `app.core.settings`，含 TYPE_CHECKING）、22 个可调用 Protocol、`ToolRunBindings` 与 `Callable` 别名，领域类型仅 TYPE_CHECKING 导入、运行时只加载标准库；`dependencies.py` 58 个字段、`CoordinatorRunState`、`AgentLoopContext` 从 `Any` 全部类型化，字段名/顺序/默认值/live patch 快照不变；`telemetry.py` 新增 `RUNTIME_STAGE_AUDIT_EVENT`（`runtime_stage_completed`）、`runtime_event_audit_fields` 与 `AuditEventSink`，只供显式装配、默认路径审计流不变；`build_portable_unit.py` 的导入扫描跳过 TYPE_CHECKING 分支，便携清单不变。新增 17 项专项（含 58 字段真实快照绑定、Any 守卫、审计映射端到端、新进程导入面）；WSL 定向 433 项通过，Windows 同集只剩与 HEAD 逐项一致的既有环境失败（反斜杠断言 19、WinError 1314 ×5、WinError 32 ×11、bundle 子进程解码 ×3、便携切片 ×6）。273 文件/零边界错误，29 债务/7 入口/26 DB 候选不变，消费记录 91→92；ruff check 全过，format 计数与 HEAD 一致或更好。未运行性能门。下一批 015c Loop 职责拆分，见 [报告](../reports/mod-015-runtime-convergence.md)。以下保留历史检查点。
@@ -57,7 +59,7 @@
 | 已验证 | MOD-019 | Run 版本固定、发布、禁用和回退 | 018 |
 | 已验证 | MOD-009 | 批量工具来源替换与扩展能力验收 | 008；安排在 Skill 四项后 |
 | 已验证 | MOD-012 | 模型客户端生命周期 | 014；安排在 009 后 |
-| 进行中 | MOD-015 | Runtime 与先行 Skill 接缝、状态/事件、兼容收口（015a～015c 已验证，下一批 015d） | 009、012、014；本轮安排在 019 后 |
+| 进行中 | MOD-015 | Runtime 与先行 Skill 接缝、状态/事件、兼容收口（015a～015d 已验证，下一批 015e） | 009、012、014；本轮安排在 019 后 |
 
 执行与验收仍逐项串行；Skill 通过后回到余下 Runtime 工作，Skill 保持可选，启用/未启用路径均须兼容。后续公司接入、Checkpoint
 与整体交付的完成门槛不变。总方案 v1.4 和 [模块化追踪](modularization.md) 已同步调整。

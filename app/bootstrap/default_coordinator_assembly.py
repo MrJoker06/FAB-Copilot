@@ -9,6 +9,7 @@ from ..core.identity import current_principal
 from ..manufacturing.named_playbooks import select_named_playbook
 from ..planning_runtime.named_planner import create_named_execution_plan
 from .legacy_agent_assembly import build_legacy_coordinator_dependencies
+from .storage_identity_assembly import install_default_storage_identity
 
 if TYPE_CHECKING:
     from ..agent_runtime.coordinator_state import CoordinatorRunState
@@ -19,6 +20,10 @@ if TYPE_CHECKING:
     from ..agent_runtime.synthesis.fallback import PrecomputedTools
     from ..planning_runtime.contracts import ExecutionPlan
     from .default_tool_assembly import DefaultRunTools
+
+# Importing app.agent_runtime.service reaches this module, so direct Python
+# callers of run_agent get the same storage/identity bindings as app.main.
+install_default_storage_identity()
 
 
 def build_default_coordinator_dependencies(

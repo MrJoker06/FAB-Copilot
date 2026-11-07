@@ -3,8 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from ..core.settings import get_settings
-from ..persistence.database import get_active_defect_aliases
-from ..core.identity import current_principal
+from ..core.storage_identity_ports import storage_identity_bindings
 from ..personal_knowledge_runtime.service import search_personal_knowledge
 from .ranking import _metadata_rerank
 from .search_contracts import (
@@ -15,14 +14,25 @@ from .search_contracts import (
     validate_knowledge_document,
     validate_knowledge_documents,
 )
-from .search_query import search_terms as _portable_search_terms, tokenize_query as _portable_tokenize_query
+from .search_query import (
+    search_terms as _portable_search_terms,
+    sqlite_fts_query,
+    tokenize_query as _portable_tokenize_query,
+)
 from .search_policy import (
     PROCESS_SEARCH_EXPANSIONS,
     PROCESS_STEPS,  # noqa: F401 - legacy public re-export
     infer_filters_from_aliases as _infer_filters_from_aliases,
 )
 from .search_registry import get_factory_catalog_backend, get_factory_search_backend
-from .sqlite_backend import sqlite_fts_query
+
+
+def get_active_defect_aliases():
+    return storage_identity_bindings().defect_alias_reader()
+
+
+def current_principal():
+    return storage_identity_bindings().current_principal()
 
 
 def _tokenize_query(text: str) -> list[str]:

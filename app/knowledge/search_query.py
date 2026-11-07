@@ -18,3 +18,8 @@ def tokenize_query(text: str) -> list[str]:
 
 def search_terms(text: str) -> list[str]:
     return tokenize_query(text)
+
+
+def sqlite_fts_query(text: str) -> str:
+    """Translate portable query terms to the SQLite FTS MATCH syntax."""
+    return " OR ".join(f'"{term}"' for term in tokenize_query(text) if len(term) >= 3)
