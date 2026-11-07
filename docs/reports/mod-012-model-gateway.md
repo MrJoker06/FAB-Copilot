@@ -70,12 +70,13 @@ class ClientModelSession(client, url, headers, stream_completion)  # 旧 (client
 
 边界清单：文件 277 → 278（新增 `gateway.py`），债务 29、兼容入口 13 不变，兼容消费者 97 → 99（新增测试对 service 的导入和 patch）。`portable_units_v1.json` 中 `model_transport` 升至 1.1.0 并包含 `gateway.py`。
 
-## 遗留（交给 MOD-015）
+## 遗留事项的后续处理（2026-11-08 核对）
 
 - 已在 015a 解决：`state.endpoint`（`stages/model.py`、`coordinator_state.py`）已删除。
 - 已在 015a 解决：旧 `(client, endpoint, headers)` facade 和 `ClientModelSession` 已删除，测试改用会话 facade 和 `ModelSessionPort` 替身。
 - 015a 部分解决：`model_gateway/compatibility.py` 的探针 URL 与凭据头改由 `ModelEndpoint` 提供；它是管理端探针，仍按设计自建 `httpx.AsyncClient`（`follow_redirects=False`），不经过 Run 的 Port。
-- 更正：本项没有退出 model_gateway → memory/persistence/identity 的 5 条依赖债务，台账中的 exit_task 已从 MOD-012 改为 MOD-015（015d）。
+- 本项没有退出 model_gateway → memory/persistence/identity 的 5 条依赖债务。015a（`e442df9`）将其 exit_task 从 MOD-012 改为 MOD-015，计划由 015d 承接；015d（`3cbed1d`）实际移除了 `model_gateway.health → persistence.database`、`model_gateway.registry → persistence.database` 与 `model_gateway.registry → core.identity` 三条债务；`model_gateway.compatibility → memory_system.context.history/protocol` 两条保留并改挂 MOD-025。
+- 另行区分：015d 将 `manufacturing.enterprise_data → core.identity`、`manufacturing.reports → persistence.database` 改挂 MOD-008，将 `persistence.execution_store → core.identity` 改挂 MOD-021。这三条不属于上述原归 MOD-012 的五条债务。015e 将其余保留的 MOD-015 台账项改挂 MOD-027；当前台账已无 exit_task 为 MOD-015 的条目。
 
 见 [MOD-015 报告](mod-015-runtime-convergence.md)。
 

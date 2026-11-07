@@ -266,12 +266,14 @@
 
 | 检查 | 结果 |
 | --- | --- |
-| WSL 全部 168 个测试模块逐模块运行（Py 3.11，测试用 PIL 桩，导出副本带 `data/departments`），与 HEAD 导出副本（167 个模块）对照 | 1290 项（HEAD 1280 项，差值为新增的 10 项）。158 个模块通过；10 个模块的失败在 HEAD 上同名同数，全部是环境问题：缺 PIL/docx/pypdf（`test_ocr`、`test_ocr_assets`、`test_ocr_evaluation`、`test_personal_knowledge_module_boundaries`、`tests.system.test_knowledge_uploads`、`test_tool_contracts`、`test_tool_registry`、`test_modularization_fixture_clock` 中的子进程）和 `test_startup_script`（8 failures + 1 error）。没有新增失败 |
+| WSL 全部 168 个测试模块逐模块运行（Py 3.11，测试用 PIL 桩，导出副本带 `data/departments`），与改动前基线 `bff4eca` 导出副本（167 个模块）对照 | **历史统计待核实，原记录保留：**1290 项（基线 1280 项，差值为新增的 10 项）；原文记录 158 个模块通过、10 个模块失败，与基线同名同数，原因记为缺 PIL/docx/pypdf（`test_ocr`、`test_ocr_assets`、`test_ocr_evaluation`、`test_personal_knowledge_module_boundaries`、`tests.system.test_knowledge_uploads`、`test_tool_contracts`、`test_tool_registry`、`test_modularization_fixture_clock` 中的子进程）和 `test_startup_script`（8 failures + 1 error），并记载“没有新增失败”。列举的失败模块实际只有 9 个，详见下方复核说明 |
 | Windows 定向 43 模块（Py 3.13，`.venv-win`；新测试、所有导入改动模块的测试、边界/台账/便携切片和 5 个系统测试模块），与 HEAD 导出副本（同样带 `data/departments`）对照 | 440 项：failures=20、errors=9，全部是既有 Windows 环境问题，测试名与 HEAD 一致：`test_module_boundaries` 反斜杠路径 19 个子测试、`tests.system.test_data_reports` 的 WAL/DELETE 日志模式断言 1 个、symlink WinError 1314 ×2、临时 SQLite 清理 WinError 32 ×5（其中 `test_default_native_runtime` 3 个；HEAD 上该模块是 4 个，具体哪几项出错每次不同）、`test_personal_job_sse` 无法打开数据库文件 ×1、知识检索便携切片子进程 GBK/UTF-8 解码 ×1。HEAD 副本 431 项：failures=20、errors=11，多出的 2 个 error 是缺少新测试模块和上述 WinError 32 的波动。`tests.system.test_knowledge_uploads` 在 Windows 两端都通过（14 项） |
 | `scripts/check_modularization_boundaries.py` | 282 文件 / 0 错误 |
 | `scripts/check_module_boundaries.py` | 通过 |
 | Ruff check（WSL，4 个新文件 + 16 个改动的 Python 文件） | 新文件通过；改动文件共 20 项，逐文件与 HEAD 相同，没有新增 |
 | Ruff format | 4 个新文件 0 偏差；改动文件的偏差行数都不高于 HEAD（`rag.py` 42→37、`registry.py` 93→89，其余相同），没有整体重排既有文件 |
+
+2026-11-08 文档复核：上述 WSL 记录的失败模块总数与名单不一致，尚未找到对应轮次的原始逐模块统计，暂不能判断是 158/10 写错还是漏列一个失败模块。保留原记录并标记待核实，不凭 015e 的另一轮结果推改为 159/9；“没有新增失败”为原验收记载，本次未独立复核该结论。这项待核实记录不改变其他批次已记录的测试结果，也不代表已重新运行测试。
 
 没有调用真实模型服务，也没有运行性能门、浏览器或覆盖率。
 

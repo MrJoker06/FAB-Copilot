@@ -1,6 +1,6 @@
 # Fab Insight Agent TODO
 
-状态基线：`experiment/parallel-platform`，2026-11-07，`c8d44cd`。
+状态核对：`experiment/parallel-platform`，2026-11-08；源码基线 `c8d44cd`（MOD-015e），后续纯文档提交不改变该源码基线。
 
 当前产品统计：共 227 个独立任务，已完成 182 个，待做 45 个；以各分类清单中的 `[x]` / `[ ]` 实算，模块化 `MOD-*` 工作包另计。
 

@@ -2,7 +2,7 @@
 
 快照日期：2026-11-07。依据为 experiment/parallel-platform 的 `c8d44cd`（MOD-015e）及当前源码清单。MOD-001～019 均已验证，跨平台启动维护已验收；MOD-012 模型网关、MOD-015a～e 的依赖类型化、Loop 拆分、存储/身份 Port 与无泄漏验收已落地。MOD-020～023 的 Checkpoint/只读恢复与 MOD-024～028 的交付/内网集成仍待完成，保留的兼容 facade 与配置锚点归 MOD-027。Skill 加载与发布保持显式可选，默认 HTTP 未启用。当前状态见 [模块化追踪](todos/modularization.md)，历史失败及各轮实际验证范围见对应报告；提交与远程状态以 Git 记录为准。
 
-本次实扫 `app/` 的受管源码为 **282 文件：254 个 Python、28 个静态文件**（2026-11-07 MOD-015e 后复扫；015a 删除 6 个转发模块，015b 新增 `agent_runtime/ports.py`，015c 新增 6 个 Loop 模块，015d 新增 2 个 core 模块和 1 个 bootstrap 模块，015e 只新增测试）。数量与
+本次实扫 `app/` 的受管源码为 **282 文件：254 个 Python、28 个静态文件**（2026-11-07 MOD-015e 后复扫；015a 删除 6 个转发模块，015b 新增 `agent_runtime/ports.py`，015c 新增 6 个 Loop 模块，015d 新增 2 个 core 模块和 1 个 bootstrap 模块；015e 未新增 app 文件，修改了 `conversation/decision_arbiter.py` 与 `evidence/validator.py`，并新增验收测试）。数量与
 `evaluations/mod_003_boundaries_v1.json` 一致；测试、日志、缓存和运行期生成物不计入。
 
 ## 平台启动入口
