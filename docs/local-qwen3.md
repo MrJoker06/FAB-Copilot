@@ -57,7 +57,7 @@ KV/token ≈ 2 × 17 × 4 × 256 × (q8 ≈ 1 B) ≈ 34 KB
 
 ## 应用侧配置
 
-`.env` 被 `.gitignore` 忽略（含密钥，不入库），可参考 `.env.local.example`：
+`.env` 被 `.gitignore` 忽略（含密钥，不入库），可参考 `.env.local.example`。同名变量以进程环境变量优先，其次为项目 `.env`，最后才是上两级目录的工作区 `.env`，因此工作区里残留的旧密钥不会覆盖项目配置：
 
 ```ini
 FAB_MODEL_PROVIDER=openai-compatible

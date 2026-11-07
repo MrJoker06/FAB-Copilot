@@ -3,8 +3,8 @@ from __future__ import annotations
 import subprocess
 import sys
 import unittest
+from pathlib import Path
 
-from app.conversation import context_resolver as compatibility
 from app.memory_system.contracts import ContextResolution
 from app.memory_system.context.builder import context_system_message
 from app.memory_system.context.history import build_contextualizer_messages
@@ -13,11 +13,11 @@ from app.memory_system.context.resolver import semantic_context_resolution
 
 
 class MemorySystemContextTests(unittest.TestCase):
-    def test_conversation_facade_reexports_the_same_implementation_objects(self):
-        self.assertIs(compatibility.ContextResolution, ContextResolution)
-        self.assertIs(compatibility.build_contextualizer_messages, build_contextualizer_messages)
-        self.assertIs(compatibility.semantic_context_resolution, semantic_context_resolution)
+    def test_memory_system_is_the_only_context_implementation_owner(self):
+        app_dir = Path(__file__).resolve().parents[1] / "app"
+        self.assertFalse((app_dir / "conversation" / "context_resolver.py").exists())
         self.assertEqual(ContextResolution.__module__, "app.memory_system.contracts")
+        self.assertEqual(build_contextualizer_messages.__module__, "app.memory_system.context.history")
         self.assertEqual(semantic_context_resolution.__module__, "app.memory_system.context.resolver")
 
     def test_contextualizer_message_window_is_frozen(self):

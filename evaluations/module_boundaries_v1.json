@@ -34,7 +34,6 @@
     "app.model_gateway.compatibility": "model_gateway.compatibility",
     "app.model_gateway.health": "model_gateway.health",
     "app.model_gateway.streaming": "model_gateway.streaming",
-    "app.conversation.context_resolver": "memory_system.compatibility",
     "app.memory_system": "memory_system",
     "app.memory_system.context": "memory_system.context",
     "app.memory_system.contracts": "memory_system.contracts",

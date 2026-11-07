@@ -72,9 +72,12 @@ class ClientModelSession(client, url, headers, stream_completion)  # 旧 (client
 
 ## 遗留（交给 MOD-015）
 
-- `state.endpoint`（`stages/model.py`、`coordinator_state.py`）仍作为旧视图保留，主路径已不读取。
-- 旧 `(client, endpoint, headers)` facade 和 `ClientModelSession` 仅为兼容保留，待消费者迁移后退出。
-- `model_gateway/compatibility.py` 的兼容性探测仍自建 `httpx.AsyncClient`，未接入 Port。
+- 已在 015a 解决：`state.endpoint`（`stages/model.py`、`coordinator_state.py`）已删除。
+- 已在 015a 解决：旧 `(client, endpoint, headers)` facade 和 `ClientModelSession` 已删除，测试改用会话 facade 和 `ModelSessionPort` 替身。
+- 015a 部分解决：`model_gateway/compatibility.py` 的探针 URL 与凭据头改由 `ModelEndpoint` 提供；它是管理端探针，仍按设计自建 `httpx.AsyncClient`（`follow_redirects=False`），不经过 Run 的 Port。
+- 更正：本项没有退出 model_gateway → memory/persistence/identity 的 5 条依赖债务，台账中的 exit_task 已从 MOD-012 改为 MOD-015（015d）。
+
+见 [MOD-015 报告](mod-015-runtime-convergence.md)。
 
 ## 回滚
 

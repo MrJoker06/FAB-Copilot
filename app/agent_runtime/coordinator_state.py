@@ -60,7 +60,6 @@ class CoordinatorRunState:
     messages: list[dict] = field(default_factory=list)
     trace: list[dict] = field(default_factory=list)
     sources: dict[str, dict] = field(default_factory=dict)
-    endpoint: str = ""
     total_usage: dict[str, int] = field(default_factory=dict)
     applied_synthesis_reason: str | None = None
     health: dict[str, Any] = field(default_factory=dict)
@@ -84,7 +83,7 @@ class CoordinatorRunState:
             "connection", "model_health", "main_recovery_trial", "health",
         ))
         self.model_state = CoordinatorStateView(self, (
-            "messages", "endpoint", "total_usage", "knowledge_fallback", "fallback_announced",
+            "messages", "total_usage", "knowledge_fallback", "fallback_announced",
             "retrieval_decision_payload", "thinking_answer_effective",
         ))
         self.result_state = CoordinatorStateView(self, (

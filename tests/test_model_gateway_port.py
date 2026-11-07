@@ -17,10 +17,11 @@ import httpx
 from app.agent_runtime import service as agent
 from app.agent_runtime.execution.agent_loop import AgentLoopContext, run_agent_loop
 from app.core.settings import get_settings
+from app.model_gateway import gateway as gateway_module
 from app.model_gateway import streaming
 from app.model_gateway.gateway import (
-    ClientModelSession,
     HttpModelGateway,
+    HttpModelSession,
     ModelEndpoint,
     ModelGatewayPort,
     ModelSessionPort,
@@ -173,9 +174,11 @@ class GatewayStaticAcceptanceTests(unittest.TestCase):
         gateway = HttpModelGateway(stream_completion=_protocol_stream)
         self.assertIsInstance(gateway, ModelGatewayPort)
         self.assertIsInstance(ScriptedGateway([]), ModelGatewayPort)
+        endpoint = ModelEndpoint("p", "m", "https://h.test/v1", "k")
         self.assertIsInstance(
-            ClientModelSession(None, "u", {}, _protocol_stream), ModelSessionPort
+            HttpModelSession(None, endpoint, _protocol_stream), ModelSessionPort
         )
+        self.assertFalse(hasattr(gateway_module, "ClientModelSession"))
         self.assertIs(gateway.client_factory, httpx.AsyncClient)
 
     def test_endpoint_repr_hides_api_key_and_builds_chat_completions_request(self):
@@ -194,6 +197,12 @@ class GatewayStaticAcceptanceTests(unittest.TestCase):
         self.assertEqual(
             endpoint.headers(),
             {"Authorization": "Bearer secret-key", "Content-Type": "application/json"},
+        )
+        trailing = ModelEndpoint.from_connection(
+            SimpleNamespace(base_url="https://h.test/v1/", api_key="k")
+        )
+        self.assertEqual(
+            trailing.chat_completions_url, "https://h.test/v1/chat/completions"
         )
 
     def test_settings_load_chat_template_mode_from_environment(self):
@@ -362,26 +371,6 @@ class HttpModelGatewayTests(unittest.IsolatedAsyncioTestCase):
                     {},
                 )
         self.assertEqual(bodies[0]["messages"], messages)
-
-    async def test_legacy_client_session_passes_raw_arguments_without_shaping(self):
-        calls: list[tuple] = []
-
-        async def capture(*args):
-            calls.append(args)
-            return _answer()
-
-        session = ClientModelSession("client", "raw-url", {"h": "1"}, capture)
-        payload = {
-            "messages": [
-                {"role": "user", "content": "q"},
-                {"role": "system", "content": "s"},
-            ]
-        }
-        await session.stream(payload, "progress", {"s": 1})
-        self.assertIsNone(session.endpoint)
-        self.assertEqual(
-            calls, [("client", "raw-url", {"h": "1"}, payload, "progress", {"s": 1})]
-        )
 
 
 class _Guard(SimpleNamespace):

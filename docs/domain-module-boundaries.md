@@ -19,4 +19,4 @@ REF-035 将 `app/` 收敛为仅两个 Python 文件：`__init__.py`（包锚点�
 
 所有外部 Python 调用方必须迁移到表中 canonical 路径；Git 历史保留了已移除门面的可恢复记录。
 
-Memory 抽离后，`app.conversation.context_resolver` 暂作为无业务实现的兼容转发，供既有测试与尚未迁移的约定调用方使用；应用生产模块不得重新依赖它。Session 的原始消息读写及归属校验仍在 `app.conversation.sessions`，API 通过 `HistoryReader` 端口在原有单次读取点访问，Memory 核心不导入 API、Agent、数据库或模型网关。
+Memory 抽离后，`app.conversation.context_resolver` 曾作为无业务实现的兼容转发；MOD-015a 已把剩余测试消费者迁到 `app.memory_system.*` 并删除该文件。`production_forbidden_imports` 仍保留该路径，防止生产模块重新引入。Session 的原始消息读写及归属校验仍在 `app.conversation.sessions`，API 通过 `HistoryReader` 端口在原有单次读取点访问，Memory 核心不导入 API、Agent、数据库或模型网关。

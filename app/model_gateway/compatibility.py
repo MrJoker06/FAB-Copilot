@@ -11,6 +11,7 @@ from typing import Any
 
 import httpx
 
+from .gateway import ModelEndpoint
 from ..memory_system.context.history import build_contextualizer_messages
 from ..memory_system.context.protocol import (
     CONTEXTUALIZER_RESPONSE_FORMAT,
@@ -159,8 +160,9 @@ async def check_model_compatibility(
     if capabilities.get("streaming") is not True or capabilities.get("tool_calls") is not True:
         raise ModelCompatibilityError("当前 Agent 要求 Streaming 和 Tool calls 能力均为 true", False, "required_capability")
     timeout_seconds, context_chars = compatibility_limits(timeout_seconds, context_chars)
-    endpoint = f"{str(connection.base_url).rstrip('/')}/chat/completions"
-    headers = {"Authorization": f"Bearer {connection.api_key}", "Content-Type": "application/json"}
+    model_endpoint = ModelEndpoint.from_connection(connection)
+    endpoint = model_endpoint.chat_completions_url
+    headers = model_endpoint.headers()
     started = time.perf_counter()
     owned_client = client is None
     client = client or httpx.AsyncClient(timeout=httpx.Timeout(timeout_seconds), follow_redirects=False)

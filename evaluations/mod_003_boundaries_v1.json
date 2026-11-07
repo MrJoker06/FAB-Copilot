@@ -44,31 +44,6 @@
       "artifact_group": "platform_core"
     },
     {
-      "path": "app/agent_runtime/coordinator_availability.py",
-      "primary_module": "runtime",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/agent_runtime/coordinator_loop.py",
-      "primary_module": "runtime",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/agent_runtime/coordinator_model.py",
-      "primary_module": "runtime",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/agent_runtime/coordinator_prepare.py",
-      "primary_module": "runtime",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/agent_runtime/coordinator_ready.py",
-      "primary_module": "runtime",
-      "artifact_group": "platform_core"
-    },
-    {
       "path": "app/agent_runtime/coordinator_state.py",
       "primary_module": "runtime",
       "artifact_group": "platform_core"
@@ -555,11 +530,6 @@
     {
       "path": "app/conversation/__init__.py",
       "primary_module": "orchestration",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/conversation/context_resolver.py",
-      "primary_module": "context_memory",
       "artifact_group": "platform_core"
     },
     {
@@ -1657,32 +1627,32 @@
     {
       "source": "app.model_gateway.compatibility",
       "target": "app.memory_system.context.history",
-      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports.",
-      "exit_task": "MOD-012"
+      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports. MOD-012 closed model client lifecycle only; these store/identity edges move to MOD-015 batch d (storage/identity Port injection).",
+      "exit_task": "MOD-015"
     },
     {
       "source": "app.model_gateway.compatibility",
       "target": "app.memory_system.context.protocol",
-      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports.",
-      "exit_task": "MOD-012"
+      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports. MOD-012 closed model client lifecycle only; these store/identity edges move to MOD-015 batch d (storage/identity Port injection).",
+      "exit_task": "MOD-015"
     },
     {
       "source": "app.model_gateway.health",
       "target": "app.persistence.database",
-      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports.",
-      "exit_task": "MOD-012"
+      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports. MOD-012 closed model client lifecycle only; these store/identity edges move to MOD-015 batch d (storage/identity Port injection).",
+      "exit_task": "MOD-015"
     },
     {
       "source": "app.model_gateway.registry",
       "target": "app.persistence.database",
-      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports.",
-      "exit_task": "MOD-012"
+      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports. MOD-012 closed model client lifecycle only; these store/identity edges move to MOD-015 batch d (storage/identity Port injection).",
+      "exit_task": "MOD-015"
     },
     {
       "source": "app.model_gateway.registry",
       "target": "app.core.identity",
-      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports.",
-      "exit_task": "MOD-012"
+      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports. MOD-012 closed model client lifecycle only; these store/identity edges move to MOD-015 batch d (storage/identity Port injection).",
+      "exit_task": "MOD-015"
     },
     {
       "source": "app.persistence.database",
@@ -1811,66 +1781,6 @@
       "exit_task": "MOD-015",
       "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
       "target_checkpoint": "P2 compatibility migration",
-      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
-      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
-    },
-    {
-      "entrypoint": "app.agent_runtime.coordinator_availability",
-      "owner": "runtime",
-      "strategy": "pure forwarding module",
-      "exit_task": "MOD-015",
-      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
-      "target_checkpoint": "P2 compatibility convergence",
-      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
-      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
-    },
-    {
-      "entrypoint": "app.agent_runtime.coordinator_loop",
-      "owner": "runtime",
-      "strategy": "pure forwarding module",
-      "exit_task": "MOD-015",
-      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
-      "target_checkpoint": "P2 compatibility convergence",
-      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
-      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
-    },
-    {
-      "entrypoint": "app.agent_runtime.coordinator_model",
-      "owner": "runtime",
-      "strategy": "pure forwarding module",
-      "exit_task": "MOD-015",
-      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
-      "target_checkpoint": "P2 compatibility convergence",
-      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
-      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
-    },
-    {
-      "entrypoint": "app.agent_runtime.coordinator_prepare",
-      "owner": "runtime",
-      "strategy": "pure forwarding module",
-      "exit_task": "MOD-015",
-      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
-      "target_checkpoint": "P2 compatibility convergence",
-      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
-      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
-    },
-    {
-      "entrypoint": "app.agent_runtime.coordinator_ready",
-      "owner": "runtime",
-      "strategy": "pure forwarding module",
-      "exit_task": "MOD-015",
-      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
-      "target_checkpoint": "P2 compatibility convergence",
-      "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
-      "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
-    },
-    {
-      "entrypoint": "app.conversation.context_resolver",
-      "owner": "context_memory",
-      "strategy": "retain forwarding compatibility",
-      "exit_task": "MOD-015",
-      "exit_condition": "Recorded internal consumers migrate to the replacement Port/canonical module; import, live-patch and behavior tests pass; external consumers reviewed before deletion.",
-      "target_checkpoint": "P2 compatibility convergence",
       "validation": "tests.test_agent_runtime_boundaries, tests.test_agent_tool_runtime_boundaries and static consumer guard; scope-specific behavior tests before removal",
       "consumer_scope": "Known static imports, literal dynamic imports and common unittest.mock patches in app/scripts/tests only; assigned/computed targets, scope-dependent alias rebinding and external consumers require manual review."
     }
@@ -2058,31 +1968,6 @@
     },
     {
       "file": "tests/test_agent_runtime_boundaries.py",
-      "symbol": "app.agent_runtime.coordinator_availability",
-      "kind": "import"
-    },
-    {
-      "file": "tests/test_agent_runtime_boundaries.py",
-      "symbol": "app.agent_runtime.coordinator_loop",
-      "kind": "import"
-    },
-    {
-      "file": "tests/test_agent_runtime_boundaries.py",
-      "symbol": "app.agent_runtime.coordinator_model",
-      "kind": "import"
-    },
-    {
-      "file": "tests/test_agent_runtime_boundaries.py",
-      "symbol": "app.agent_runtime.coordinator_prepare",
-      "kind": "import"
-    },
-    {
-      "file": "tests/test_agent_runtime_boundaries.py",
-      "symbol": "app.agent_runtime.coordinator_ready",
-      "kind": "import"
-    },
-    {
-      "file": "tests/test_agent_runtime_boundaries.py",
       "symbol": "app.agent_runtime.service",
       "kind": "import"
     },
@@ -2170,16 +2055,6 @@
       "file": "tests/test_context_resolver.py",
       "symbol": "app.agent_runtime.service._run_agent_impl",
       "kind": "patch"
-    },
-    {
-      "file": "tests/test_context_resolver.py",
-      "symbol": "app.conversation.context_resolver",
-      "kind": "import"
-    },
-    {
-      "file": "tests/test_conversation_runtime_module_boundaries.py",
-      "symbol": "app.conversation.context_resolver",
-      "kind": "import"
     },
     {
       "file": "tests/test_default_native_runtime.py",
@@ -2285,11 +2160,6 @@
       "file": "tests/test_loop_guard.py",
       "symbol": "app.agent_runtime.service.TOOL_HANDLERS",
       "kind": "patch.dict"
-    },
-    {
-      "file": "tests/test_memory_system_context.py",
-      "symbol": "app.conversation.context_resolver",
-      "kind": "import"
     },
     {
       "file": "tests/test_model_compatibility.py",

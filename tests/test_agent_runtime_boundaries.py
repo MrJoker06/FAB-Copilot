@@ -1,22 +1,15 @@
 from __future__ import annotations
 
 import inspect
-import sys
 import unittest
 from dataclasses import dataclass, replace
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.agent_runtime import service as agent
 from app.agent_runtime.contracts import AgentRunLifecycle, AgentRunRequest
 from app.agent_runtime.coordinator import CoordinatorDependencies, coordinate_agent_run
-from app.agent_runtime.coordinator_availability import (
-    handle_model_availability as legacy_availability,
-)
-from app.agent_runtime.coordinator_loop import execute_agent_loop as legacy_loop
-from app.agent_runtime.coordinator_model import prepare_model_stage as legacy_model
-from app.agent_runtime.coordinator_prepare import prepare_immediate as legacy_prepare
-from app.agent_runtime.coordinator_ready import execute_ready_synthesis
 from app.agent_runtime.coordinator_state import CoordinatorRunState
 from app.agent_runtime.dependencies import (
     AvailabilityDependencies,
@@ -28,6 +21,7 @@ from app.agent_runtime.dependencies import (
 from app.agent_runtime.execution.agent_loop import AgentLoopContext
 from app.agent_runtime.stages import (
     execute_agent_loop,
+    execute_ready_synthesis,
     handle_model_availability,
     prepare_immediate,
     prepare_model_stage,
@@ -45,7 +39,7 @@ class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
     def test_compatibility_exports_preserve_async_reflection_for_patching(self):
         async_names = (
             "_notify", "_stream_answer", "_execute_ready_plan",
-            "_request_ready_synthesis", "_prefetch_general_knowledge",
+            "_request_ready_synthesis_session", "_prefetch_general_knowledge",
             "_stream_completion", "_resolve_conversation_turn",
         )
         for name in async_names:
@@ -87,13 +81,22 @@ class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(second.messages, [])
         self.assertEqual(second.trace, [])
 
-    def test_stage_shims_and_dependency_groups_preserve_legacy_access(self):
-        self.assertIs(legacy_prepare, prepare_immediate)
-        self.assertIs(legacy_availability, handle_model_availability)
-        self.assertIs(legacy_model, prepare_model_stage)
-        self.assertIs(legacy_loop, execute_agent_loop)
-        self.assertIn("stages.ready", execute_ready_synthesis.__module__)
-        self.assertNotIn("async def", inspect.getsource(sys.modules["app.agent_runtime.coordinator_prepare"]))
+    def test_stages_are_canonical_and_dependency_groups_preserve_legacy_access(self):
+        runtime_dir = Path(agent.__file__).resolve().parent
+        for name in ("availability", "loop", "model", "prepare", "ready"):
+            with self.subTest(retired=f"coordinator_{name}"):
+                self.assertFalse((runtime_dir / f"coordinator_{name}.py").exists())
+        owners = (
+            (prepare_immediate, "app.agent_runtime.stages.prepare"),
+            (handle_model_availability, "app.agent_runtime.stages.availability"),
+            (prepare_model_stage, "app.agent_runtime.stages.model"),
+            (execute_agent_loop, "app.agent_runtime.stages.loop"),
+            (execute_ready_synthesis, "app.agent_runtime.stages.ready"),
+        )
+        for stage, owner in owners:
+            with self.subTest(stage=stage.__name__):
+                self.assertEqual(stage.__module__, owner)
+                self.assertTrue(inspect.iscoroutinefunction(stage))
 
         deps = agent._coordinator_dependencies()
         self.assertIsInstance(deps, CoordinatorDependencies)

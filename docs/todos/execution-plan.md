@@ -29,6 +29,8 @@
 
 ## 当前串行队列
 
+最新检查点（2026-11-07，MOD-015a）：MOD-015 拆为 a～e 五批，015a 兼容台账收敛已验证。删除 5 个 coordinator 转发模块、`conversation/context_resolver.py`、旧 `(client, endpoint, headers)` synthesis facade、`ClientModelSession` 与 `state.endpoint`，测试消费者迁到 canonical 模块；兼容性探针的 URL/凭据头改由 `ModelEndpoint` 提供；配置优先级修为“进程环境 > 项目 `.env` > 工作区 `.env`”，新增 4 项子进程测试。WSL 定向 251 项、扩展 183 项通过；Windows 同集只有既有的反斜杠路径、WinError 1314/32 失败，且与 HEAD 副本一致。272 文件/零边界错误，29 债务（5 条 exit_task 更正为 MOD-015）、兼容入口 13→7、消费记录 99→91。未运行性能门。下一批 015b，见 [报告](../reports/mod-015-runtime-convergence.md)。以下保留历史检查点。
+
 最新检查点（2026-11-07，MOD-012）：ModelGatewayPort 与默认 HTTP Adapter 已验证。Loop、Ready 综合和上下文解析通过同一网关打开会话，客户端在成功、错误和取消时关闭；URL、凭据头和 `FAB_CHAT_TEMPLATE_COMPAT` 整形收进 gateway，重试/健康/回退仍由调用方负责。旧 service live patch 与 `(client, endpoint, headers)` facade 保持兼容。新增 20 项专项；WSL 定向 313 项与治理 17 项通过，Windows 同集只剩既有反斜杠路径、WinError 32/1314 失败。278 文件/零边界错误，29 债务/13 入口不变，消费者 97→99。未运行性能门。下一项 MOD-015，见 [验收报告](../reports/mod-012-model-gateway.md)。以下保留历史检查点。
 
 最新检查点（2026-11-06，MOD-009）：批量来源替换和新增查询入口已验证。显式七类 Port 组合 21 项 canonical 工具，Fake 与 17 SQLite / 3 Provider / 1 Backend 的 Ready/Loop 通过；可选设备健康汇总复用原 Handler，不改默认清单或执行内核。主审两端各 9 项专项（ResourceWarning 按错误）、各 6 组 CLI 和 101 文件/44 路隔离通过，完整离线阶段门通过。275 文件（247 Python/28 静态），29 债务/25 DB 候选/13 入口/97 消费者不扩张；遗留报表、身份和演示 seed/启动退出交给 MOD-015，不冒充已移除。下一项 MOD-012，见 [验收报告](../reports/mod-009-tool-sources.md)。按用户要求通过后单任务提交并同步，Git 以实际记录为准。以下保留历史检查点。
@@ -51,7 +53,7 @@
 | 已验证 | MOD-019 | Run 版本固定、发布、禁用和回退 | 018 |
 | 已验证 | MOD-009 | 批量工具来源替换与扩展能力验收 | 008；安排在 Skill 四项后 |
 | 已验证 | MOD-012 | 模型客户端生命周期 | 014；安排在 009 后 |
-| 下一项 | MOD-015 | Runtime 与先行 Skill 接缝、状态/事件、兼容收口 | 009、012、014；本轮安排在 019 后 |
+| 进行中 | MOD-015 | Runtime 与先行 Skill 接缝、状态/事件、兼容收口（015a 已验证，下一批 015b） | 009、012、014；本轮安排在 019 后 |
 
 执行与验收仍逐项串行；Skill 通过后回到余下 Runtime 工作，Skill 保持可选，启用/未启用路径均须兼容。后续公司接入、Checkpoint
 与整体交付的完成门槛不变。总方案 v1.4 和 [模块化追踪](modularization.md) 已同步调整。

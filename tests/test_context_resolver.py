@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, patch
 
 from app.agent_runtime import service as agent_module
 from app.evidence.answer_synthesizer import MODEL_KNOWLEDGE_DISCLOSURE, MODEL_KNOWLEDGE_REF
-from app.conversation.context_resolver import (
-    build_contextualizer_messages,
+from app.memory_system.context.history import build_contextualizer_messages
+from app.memory_system.context.resolver import (
     resolve_question_context,
     semantic_context_resolution,
 )

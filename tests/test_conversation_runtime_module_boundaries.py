@@ -9,7 +9,9 @@ from pathlib import Path
 
 from app.agent_runtime import assistant_capabilities
 from app.agent_runtime.execution import loop_guard
-from app.conversation import context_resolver, decision_arbiter, sessions, turn_decision
+from app.conversation import decision_arbiter, sessions, turn_decision
+from app.memory_system import contracts as memory_contracts
+from app.memory_system.context import resolver as memory_resolver
 from app.planning_runtime.contracts import (
     AnalysisScopeContract,
     ExecutionPlan,
@@ -34,13 +36,13 @@ class ConversationRuntimeModuleBoundaryTests(unittest.TestCase):
         for name in ("assistant_capabilities", "context_resolver", "decision_arbiter", "loop_guard", "sessions", "turn_decision"):
             with self.subTest(name=name):
                 self.assertFalse((root / f"{name}.py").exists())
+        self.assertFalse((root / "conversation" / "context_resolver.py").exists())
         self.assertEqual(assistant_capabilities.__name__, "app.agent_runtime.assistant_capabilities")
-        self.assertEqual(context_resolver.__name__, "app.conversation.context_resolver")
 
     def test_canonical_exports_have_domain_owners(self):
         owners = (
-            (context_resolver.ContextResolution, "app.memory_system.contracts"),
-            (context_resolver.semantic_context_resolution, "app.memory_system.context.resolver"),
+            (memory_contracts.ContextResolution, "app.memory_system.contracts"),
+            (memory_resolver.semantic_context_resolution, "app.memory_system.context.resolver"),
             (turn_decision.TurnDecision, "app.conversation.turn_decision"),
             (turn_decision.TurnDecisionValidationError, "app.conversation.turn_decision"),
             (decision_arbiter.ArbitrationResult, "app.conversation.decision_arbiter"),
@@ -65,8 +67,8 @@ class ConversationRuntimeModuleBoundaryTests(unittest.TestCase):
 
     def test_import_orders_do_not_open_network_connections(self):
         orders = {
-            "runtime_first": "import app.agent_runtime.assistant_capabilities, app.agent_runtime.execution.loop_guard; import app.conversation.context_resolver, app.conversation.turn_decision, app.conversation.decision_arbiter, app.conversation.sessions",
-            "conversation_first": "import app.conversation.context_resolver, app.conversation.turn_decision, app.conversation.decision_arbiter, app.conversation.sessions; import app.agent_runtime.assistant_capabilities, app.agent_runtime.execution.loop_guard",
+            "runtime_first": "import app.agent_runtime.assistant_capabilities, app.agent_runtime.execution.loop_guard; import app.memory_system.context.resolver, app.conversation.turn_decision, app.conversation.decision_arbiter, app.conversation.sessions",
+            "conversation_first": "import app.memory_system.context.resolver, app.conversation.turn_decision, app.conversation.decision_arbiter, app.conversation.sessions; import app.agent_runtime.assistant_capabilities, app.agent_runtime.execution.loop_guard",
         }
         guard = "import socket; socket.socket.connect=lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError('network during import')); "
         for name, imports in orders.items():

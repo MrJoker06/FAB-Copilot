@@ -2,7 +2,7 @@
 
 快照日期：2026-11-06。依据为 experiment/parallel-platform 的 `6dd6544` 基线及本轮 MOD-009 改造。MOD-008/009、跨平台启动和 MOD-016～019 已验收，历史失败保留；下一项 MOD-012，随后 015。Skill 加载与发布保持显式可选；新增来源装配和扩展工具复用原 Ready/Loop，默认 HTTP 与 21 项工具清单未改。验收证据以对应报告为准，提交与远程状态以 Git 记录为准。
 
-本次实扫 `app/` 的受管源码为 **275 文件：247 个 Python、28 个静态文件**。数量与
+本次实扫 `app/` 的受管源码为 **272 文件：244 个 Python、28 个静态文件**（2026-11-07 MOD-015a 删除 6 个转发模块后复扫）。数量与
 `evaluations/mod_003_boundaries_v1.json` 一致；测试、日志、缓存和运行期生成物不计入。
 
 ## 平台启动入口
@@ -202,11 +202,6 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/agent_runtime/compatibility.py` | 兼容 | 旧 facade、动态导出和 live patch 依赖快照入口。 |
 | `app/agent_runtime/contracts.py` | 纯 | 旧 Runtime 的请求、进度与结果契约。 |
 | `app/agent_runtime/coordinator.py` | 业务 | Coordinator 主流程与阶段切换。 |
-| `app/agent_runtime/coordinator_availability.py` | 兼容 | availability stage 的保留转发入口。 |
-| `app/agent_runtime/coordinator_loop.py` | 兼容 | loop stage 的保留转发入口。 |
-| `app/agent_runtime/coordinator_model.py` | 兼容 | model stage 的保留转发入口。 |
-| `app/agent_runtime/coordinator_prepare.py` | 兼容 | prepare stage 的保留转发入口。 |
-| `app/agent_runtime/coordinator_ready.py` | 兼容 | ready stage 的保留转发入口。 |
 | `app/agent_runtime/coordinator_state.py` | 业务 | `CoordinatorRunState` 和阶段受限状态视图。 |
 | `app/agent_runtime/definition.py` | 纯 | 冻结 `AgentDefinition`、`ComponentReference`。 |
 | `app/agent_runtime/application.py` | 纯 | `AgentRun` 对 Model/Tool/Event ports 的小门面；可携带装配层传入的 Skill 文本消息与基础元数据，自身不依赖 Skill/业务模块。 |
@@ -398,11 +393,10 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/memory_system/context/resolver.py` | 业务 | 解析上下文、预算和模型回退。 |
 | `app/conversation/__init__.py` | 包 | 会话包锚点。 |
 | `app/conversation/decision_arbiter.py` | 业务/过渡 | 单次会话决策权和 active flow 恢复。 |
-| `app/conversation/context_resolver.py` | 兼容 | 旧上下文解析导出。 |
 | `app/conversation/sessions.py` | 业务/存储 | 会话 CRUD、历史、执行记录直接组合。 |
 | `app/conversation/turn_decision.py` | 纯 | 单轮决定数据结构。 |
 | `app/model_gateway/__init__.py` | 包 | 模型网关包锚点。 |
-| `app/model_gateway/compatibility.py` | 兼容/过渡 | 旧模型协议/上下文兼容层。 |
+| `app/model_gateway/compatibility.py` | 兼容/过渡 | 发布前模型兼容性探针；URL 与凭据头取自 `ModelEndpoint`，管理端探针仍自建客户端。 |
 | `app/model_gateway/registry.py` | 装配/存储 | 模型 Provider 配置、选择和持久化读取。 |
 | `app/model_gateway/health.py` | 业务/存储 | 模型熔断健康记录。 |
 | `app/model_gateway/gateway.py` | Port/Adapter | `ModelGatewayPort`/`ModelSessionPort`、`ModelEndpoint`，`HttpModelGateway` 持有客户端生命周期与聊天模板整形。 |
@@ -480,7 +474,7 @@ MOD-016～018 已实现独立 Manifest、依赖校验、安全资源、显式 Ca
 
 ## 5. 当前耦合与迁移事实
 
-边界清单记录 **29 条精确依赖债务、25 个 DB 调用候选文件、13 个兼容入口、97 个静态消费者**。
+边界清单记录 **29 条精确依赖债务、26 个 DB 调用候选文件、7 个兼容入口、91 个静态消费者**（MOD-015a 后；5 个 coordinator 转发模块与 `conversation/context_resolver.py` 已退出）。
 兼容消费者扫描只覆盖 app/scripts/tests 内的静态 import、字面动态 import 与常见 mock patch；
 外部调用方和计算出的动态引用仍需人工审查。
 

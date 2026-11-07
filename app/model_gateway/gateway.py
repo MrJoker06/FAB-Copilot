@@ -43,7 +43,7 @@ class ModelEndpoint:
         return cls(
             provider=str(getattr(connection, "provider", "") or ""),
             model=str(getattr(connection, "model", "") or ""),
-            base_url=str(connection.base_url),
+            base_url=str(connection.base_url).rstrip("/"),
             api_key=str(getattr(connection, "api_key", "") or ""),
             chat_template=chat_template,
         )
@@ -132,42 +132,6 @@ class HttpModelSession:
         )
 
 
-class ClientModelSession:
-    """Adapter for legacy callers that still pass ``(client, endpoint, headers)``.
-
-    The caller owns the client and the raw URL/headers, so no endpoint-level
-    message shaping is applied.
-    """
-
-    __slots__ = ("_client", "_url", "_headers", "_stream_completion")
-
-    def __init__(
-        self,
-        client: Any,
-        url: str,
-        headers: dict[str, str],
-        stream_completion: StreamCompletion,
-    ) -> None:
-        self._client = client
-        self._url = url
-        self._headers = headers
-        self._stream_completion = stream_completion
-
-    @property
-    def endpoint(self) -> None:
-        return None
-
-    async def stream(
-        self,
-        payload: dict,
-        progress: Any,
-        stream_state: dict[str, Any] | None = None,
-    ) -> StreamResult:
-        return await self._stream_completion(
-            self._client, self._url, self._headers, payload, progress, stream_state
-        )
-
-
 class HttpModelGateway:
     """ModelGatewayPort over an injected async HTTP client factory and SSE parser."""
 
@@ -197,7 +161,6 @@ class HttpModelGateway:
 
 
 __all__ = [
-    "ClientModelSession",
     "HttpModelGateway",
     "HttpModelSession",
     "ModelEndpoint",

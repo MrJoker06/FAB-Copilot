@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 import unittest
 from types import SimpleNamespace
@@ -6,6 +7,8 @@ from unittest.mock import patch
 
 import httpx
 
+from app.model_gateway import compatibility as compatibility_module
+from app.model_gateway.gateway import ModelEndpoint
 from app.model_gateway.compatibility import ModelCompatibilityError, check_model_compatibility, compatibility_limits, provider_request_options
 from app.agent_runtime.service import _audit_assistant, _stream_completion
 
@@ -282,3 +285,32 @@ class ModelCompatibilityTests(unittest.TestCase):
             self.assertEqual(raised.exception.category, "multimodal")
             self.assertEqual(raised.exception.summary, "模型不具备原生多模态能力（图片内容识别未通过）")
         asyncio.run(run())
+
+    def test_probe_url_and_headers_come_from_gateway_endpoint(self):
+        seen = []
+        def handler(request):
+            seen.append((str(request.url), request.headers.get("authorization"), request.headers.get("content-type")))
+            body = json.loads(request.content)
+            if body.get("response_format"):
+                delta = {"content": '{"relation":"standalone","resolved_question":"介绍光刻基本原理","topic_anchor":"","target_message_ids":[],"confidence":1,"intent_hint":"general_knowledge"}'}
+            elif body.get("tools"):
+                delta = {"tool_calls": [{"index": 0, "id": "call-1", "type": "function", "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}]}
+            else:
+                delta = {"content": "ok"}
+            stream = f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\ndata: [DONE]\n\n"
+            return httpx.Response(200, text=stream, headers={"content-type": "text/event-stream"})
+        connection = SimpleNamespace(provider="openai-compatible", api_key="test-key", base_url="https://model.test/v1/", model="test")
+        async def run():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                await check_model_compatibility(connection, {"streaming": True, "tool_calls": True}, client=client, context_chars=1024)
+        asyncio.run(run())
+        endpoint = ModelEndpoint.from_connection(connection)
+        self.assertTrue(seen)
+        self.assertEqual(
+            set(seen),
+            {(endpoint.chat_completions_url, endpoint.headers()["Authorization"], endpoint.headers()["Content-Type"])},
+        )
+        self.assertEqual(endpoint.chat_completions_url, "https://model.test/v1/chat/completions")
+        source = inspect.getsource(compatibility_module.check_model_compatibility)
+        self.assertNotIn("/chat/completions", source)
+        self.assertNotIn("Bearer", source)

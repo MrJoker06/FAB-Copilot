@@ -125,7 +125,7 @@ from ..knowledge.decision import (
 )
 from .execution.loop_guard import ToolLoopGuard
 from ..model_gateway.compatibility import provider_request_options
-from ..model_gateway.gateway import ClientModelSession, HttpModelGateway
+from ..model_gateway.gateway import HttpModelGateway
 from ..model_gateway.health import (
     claim_model_call,
     get_model_health,
@@ -413,24 +413,6 @@ def _ready_synthesis_fallback(
     )
 
 
-async def _request_ready_synthesis(
-    client: httpx.AsyncClient,
-    endpoint: str,
-    headers: dict[str, str],
-    connection: Any,
-    settings: Any,
-    messages: list[dict[str, str]],
-    run_id: str,
-    thinking: bool,
-    retry_budget: int,
-) -> tuple[dict[str, Any], dict[str, Any], str | None, dict[str, Any]]:
-    """Compatibility facade for the extracted synthesis-only model request."""
-    return await _request_ready_synthesis_runtime(
-        ClientModelSession(client, endpoint, headers, _stream_completion),
-        connection, settings, messages, run_id, thinking, retry_budget,
-        deps=_ready_synthesis_dependencies(),
-    )
-
 
 async def _request_ready_synthesis_session(
     session: Any,
@@ -447,26 +429,6 @@ async def _request_ready_synthesis_session(
         deps=_ready_synthesis_dependencies(),
     )
 
-
-async def _request_synthesis_correction(
-    client: httpx.AsyncClient,
-    endpoint: str,
-    headers: dict[str, str],
-    connection: Any,
-    messages: list[dict[str, str]],
-    invalid_arguments: str,
-    completion_token_budget: int,
-    wall_time_seconds: float,
-    run_id: str,
-    iteration: int,
-) -> tuple[dict[str, Any] | None, dict[str, Any], str | None, str]:
-    """Compatibility facade for one synthesis-only correction request."""
-    return await _request_synthesis_correction_runtime(
-        ClientModelSession(client, endpoint, headers, _stream_completion),
-        connection, messages, invalid_arguments,
-        completion_token_budget, wall_time_seconds, run_id, iteration,
-        deps=_ready_synthesis_dependencies(),
-    )
 
 
 async def _request_synthesis_correction_session(

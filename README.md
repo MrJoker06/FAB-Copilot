@@ -63,7 +63,7 @@ SQLite 连接、部门 Schema 与执行记录位于 `app/persistence/`；数据�
 
 项目支持原生 Windows 和 Linux，WSL 也按 Linux 方式运行。需要 Python 3.11 或更高版本，依赖安装在各平台独立的虚拟环境中；无需为了启动 Windows 版本安装 WSL。
 
-模型配置读取项目根目录 `.env`，也兼容项目上两级目录的 `.env`；可用 `FAB_PROJECT_ENV_FILE` / `FAB_WORKSPACE_ENV_FILE` 指定。未配置模型密钥也能启动页面、报表和本地规则分析；需要调用模型时再配置密钥。例如：
+模型配置读取项目根目录 `.env`，也兼容项目上两级目录的 `.env`；可用 `FAB_PROJECT_ENV_FILE` / `FAB_WORKSPACE_ENV_FILE` 指定。同名变量的优先级为：进程环境变量 > 项目 `.env` > 上两级目录 `.env`。未配置模型密钥也能启动页面、报表和本地规则分析；需要调用模型时再配置密钥。例如：
 
 ```dotenv
 FAB_MODEL_PROVIDER=deepseek
