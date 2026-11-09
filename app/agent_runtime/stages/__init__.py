@@ -1,4 +1,4 @@
-"""Explicit coordinator stages; legacy coordinator_* modules are compatibility shims."""
+"""Explicit coordinator stages."""
 
 from .availability import AvailabilityOutcome, handle_model_availability
 from .loop import execute_agent_loop

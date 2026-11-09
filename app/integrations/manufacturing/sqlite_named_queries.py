@@ -227,4 +227,3 @@ class SQLiteNamedQueryAdapter:
                 named_query_scope(query, principal),
             ),
         )
-

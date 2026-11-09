@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -24,12 +25,12 @@ RUNTIME_FILES = (
 
 
 class AgentAssemblyPortableTests(unittest.TestCase):
-    def test_explicit_agent_assembly_runs_from_the_actual_46_file_slice(self):
+    def test_explicit_agent_assembly_runs_from_the_actual_49_file_slice(self):
         baseline = json.loads(INVENTORY.read_text(encoding="utf-8"))["units"][
             "dispatcher_pilot"
         ]["files"]
         files = tuple(baseline) + RUNTIME_FILES + MODERN_FILES
-        self.assertEqual(len(files), 46)
+        self.assertEqual(len(files), 49)
         self.assertEqual(len(set(files)), len(files))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
@@ -70,6 +71,9 @@ os.getenv = lambda key, default=None: os.environ.get(key, default)
 def audit(event, args):
     if event in {'sqlite3.connect', 'socket.connect', 'socket.getaddrinfo', 'socket.gethostbyname'}:
         events.append((event, args)); raise AssertionError(event)
+# Windows Proactor loops create a loopback self-pipe; build it before the audit hook.
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 sys.addaudithook(audit)
 for operation in (
     lambda: importlib.import_module('app.agent_runtime.service'),
@@ -130,7 +134,9 @@ async def main():
     assert model.requests[0].messages[0].role == 'system'
     assert tool.value.status is ToolStatus.SUCCEEDED and tool.value.data and tool.value.sources
     assert len(sink.events) == 2 and sink.events[-1].call_id == 'server-tool'
-asyncio.run(main())
+loop.run_until_complete(main())
+loop.run_until_complete(loop.shutdown_asyncgens())
+loop.close()
 from app.agent_runtime.tools.tool_registry import DEFAULT_TOOL_REGISTRY
 assert DEFAULT_TOOL_REGISTRY.model_tools == [] and DEFAULT_TOOL_REGISTRY.legacy_handlers == {}
 for name, module in list(sys.modules.items()):
@@ -144,8 +150,12 @@ assert not any(name == item or name.startswith(item + '.') for name in sys.modul
             completed = subprocess.run(
                 [sys.executable, "-I", "-S", "-c", code, str(unit), *files],
                 cwd=Path(tempfile.gettempdir()),
-                env={},
+                env={
+                    "SystemRoot": os.environ.get("SystemRoot", r"C:\Windows"),
+                    "WINDIR": os.environ.get("WINDIR", r"C:\Windows"),
+                },
                 text=True,
+                errors="replace",
                 capture_output=True,
                 check=False,
             )

@@ -6,12 +6,7 @@ from collections.abc import Mapping, Sequence
 
 from ..persistence.database import db_session, get_active_defect_aliases, rows_to_dicts
 from .search_contracts import FactorySearchPrincipal, FactorySearchRequest
-from .search_query import search_terms, tokenize_query
-
-
-def sqlite_fts_query(text: str) -> str:
-    """Translate portable query terms to the SQLite FTS syntax at this edge."""
-    return " OR ".join(f'"{term}"' for term in tokenize_query(text) if len(term) >= 3)
+from .search_query import search_terms, sqlite_fts_query
 
 
 class SqliteFactorySearchBackend:

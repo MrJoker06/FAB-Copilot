@@ -125,6 +125,7 @@ from ..knowledge.decision import (
 )
 from .execution.loop_guard import ToolLoopGuard
 from ..model_gateway.compatibility import provider_request_options
+from ..model_gateway.gateway import HttpModelGateway
 from ..model_gateway.health import (
     claim_model_call,
     get_model_health,
@@ -378,7 +379,6 @@ def _ready_synthesis_dependencies() -> ReadySynthesisDependencies:
         synthesize_submission=synthesize_submission,
         ready_synthesis_fallback=_ready_synthesis_fallback,
         provider_request_options=provider_request_options,
-        stream_completion=_stream_completion,
         retryable_model_error=_retryable_model_error,
         model_failure_reason=_model_failure_reason,
         model_retry_delay=_model_retry_delay,
@@ -413,10 +413,9 @@ def _ready_synthesis_fallback(
     )
 
 
-async def _request_ready_synthesis(
-    client: httpx.AsyncClient,
-    endpoint: str,
-    headers: dict[str, str],
+
+async def _request_ready_synthesis_session(
+    session: Any,
     connection: Any,
     settings: Any,
     messages: list[dict[str, str]],
@@ -424,17 +423,16 @@ async def _request_ready_synthesis(
     thinking: bool,
     retry_budget: int,
 ) -> tuple[dict[str, Any], dict[str, Any], str | None, dict[str, Any]]:
-    """Compatibility facade for the extracted synthesis-only model request."""
+    """Synthesis-only model request over an open ModelGatewayPort session."""
     return await _request_ready_synthesis_runtime(
-        client, endpoint, headers, connection, settings, messages, run_id, thinking, retry_budget,
+        session, connection, settings, messages, run_id, thinking, retry_budget,
         deps=_ready_synthesis_dependencies(),
     )
 
 
-async def _request_synthesis_correction(
-    client: httpx.AsyncClient,
-    endpoint: str,
-    headers: dict[str, str],
+
+async def _request_synthesis_correction_session(
+    session: Any,
     connection: Any,
     messages: list[dict[str, str]],
     invalid_arguments: str,
@@ -443,9 +441,9 @@ async def _request_synthesis_correction(
     run_id: str,
     iteration: int,
 ) -> tuple[dict[str, Any] | None, dict[str, Any], str | None, str]:
-    """Compatibility facade for one synthesis-only correction request."""
+    """One synthesis-only correction request over an open ModelGatewayPort session."""
     return await _request_synthesis_correction_runtime(
-        client, endpoint, headers, connection, messages, invalid_arguments,
+        session, connection, messages, invalid_arguments,
         completion_token_budget, wall_time_seconds, run_id, iteration,
         deps=_ready_synthesis_dependencies(),
     )
@@ -604,12 +602,14 @@ def _agent_preparation_dependencies() -> PreparationDependencies:
                 build_messages=build_contextualizer_messages,
                 response_format=CONTEXTUALIZER_RESPONSE_FORMAT,
                 provider_options=provider_request_options,
-                stream_completion=_stream_completion,
+                model_gateway=HttpModelGateway(
+                    client_factory=httpx.AsyncClient,
+                    stream_completion=_stream_completion,
+                ),
                 semantic_resolution=semantic_context_resolution,
                 notify=_notify,
                 emit=emit,
                 perf_counter=time.perf_counter,
-                async_client=httpx.AsyncClient,
                 timeout=asyncio.timeout,
                 sleep=asyncio.sleep,
                 failure_reason=_model_failure_reason,

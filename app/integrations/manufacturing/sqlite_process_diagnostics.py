@@ -201,4 +201,3 @@ class SQLiteProcessDiagnosticsAdapter:
                 diagnostics_scope(query, principal),
             ),
         )
-

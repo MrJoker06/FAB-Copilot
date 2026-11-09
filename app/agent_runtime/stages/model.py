@@ -29,7 +29,6 @@ async def prepare_model_stage(
     ])
     state.messages.extend(deps.stage_memory_messages("agent_loop", state.history))
     state.messages.append({"role": "user", "content": state.question})
-    state.endpoint = f"{state.connection.base_url}/chat/completions"
     state.total_usage = {
         key: int(state.context_usage.get(key, 0) or 0)
         for key in ("prompt_tokens", "completion_tokens", "total_tokens")

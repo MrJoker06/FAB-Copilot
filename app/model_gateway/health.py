@@ -7,7 +7,11 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from ..persistence.database import db_session
+from ..core.storage_identity_ports import storage_identity_bindings
+
+
+def db_session():
+    return storage_identity_bindings().session_factory()
 
 
 def _now() -> datetime:

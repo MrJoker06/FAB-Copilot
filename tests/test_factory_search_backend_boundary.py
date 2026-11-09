@@ -5,6 +5,7 @@ import unittest
 from dataclasses import dataclass
 from unittest.mock import patch
 
+from app.bootstrap.storage_identity_assembly import install_default_storage_identity
 from app.core.identity import Principal
 from app.knowledge import rag, search_registry
 from app.knowledge.search_registry import (
@@ -14,6 +15,10 @@ from app.knowledge.search_registry import (
     get_factory_search_backend,
     register_factory_search_backend,
 )
+
+
+def setUpModule():
+    install_default_storage_identity()
 
 
 class RecordingBackend:

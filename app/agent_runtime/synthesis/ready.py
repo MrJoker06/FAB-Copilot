@@ -9,7 +9,7 @@ import traceback
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
-from ...evidence.evidence_truncation import project_result, truncation_prompt_note
+from ...core.tool_result_projection import project_result, truncation_prompt_note
 
 
 READY_SYNTHESIS_MAX_TOKENS = 8192
@@ -120,9 +120,7 @@ def salvage_submit_analysis(raw_arguments: str) -> dict[str, Any] | None:
 
 
 async def request_synthesis_correction(
-    client: Any,
-    endpoint: str,
-    headers: dict[str, str],
+    session: Any,
     connection: Any,
     messages: list[dict[str, str]],
     invalid_arguments: str,
@@ -135,8 +133,9 @@ async def request_synthesis_correction(
 ) -> tuple[dict[str, Any] | None, dict[str, Any], str | None, str]:
     """Make the single allowed synthesis-only correction request.
 
-    The caller owns the combined original+repair budget.  A correction never
-    receives business tools, and callers must locally synthesize on any error.
+    The caller owns the combined original+repair budget and the open model
+    session.  A correction never receives business tools, and callers must
+    locally synthesize on any error.
     """
     max_tokens = min(SYNTHESIS_REPAIR_MAX_TOKENS, max(0, completion_token_budget))
     if max_tokens <= 0 or wall_time_seconds <= 0:
@@ -163,7 +162,7 @@ async def request_synthesis_correction(
               wall_time_budget_ms=round(wall_time_seconds * 1000, 1))
     try:
         assistant, usage, response_id = await asyncio.wait_for(
-            deps.stream_completion(client, endpoint, headers, payload, None, state),
+            session.stream(payload, None, state),
             timeout=wall_time_seconds,
         )
     except Exception as exc:
@@ -190,7 +189,6 @@ class ReadySynthesisDependencies:
     synthesize_submission: Callable[..., Any]
     ready_synthesis_fallback: Callable[[Any, Any, list[Any], str], Any]
     provider_request_options: Callable[[str, bool], dict[str, Any]]
-    stream_completion: Callable[..., Awaitable[tuple[dict, dict, str | None]]]
     retryable_model_error: Callable[[Exception], bool]
     model_failure_reason: Callable[[Exception], str]
     model_retry_delay: Callable[[float, int, Exception], float]
@@ -357,9 +355,7 @@ def synthesize_ready_assistant(
 
 
 async def request_ready_synthesis(
-    client: Any,
-    endpoint: str,
-    headers: dict[str, str],
+    session: Any,
     connection: Any,
     settings: Any,
     messages: list[dict[str, str]],
@@ -400,9 +396,7 @@ async def request_ready_synthesis(
             "suppress_embedded_tool_json": True,
         }
         try:
-            assistant, usage, response_id = await deps.stream_completion(
-                client, endpoint, headers, payload, None, state
-            )
+            assistant, usage, response_id = await session.stream(payload, None, state)
         except Exception as exc:
             retryable = deps.retryable_model_error(exc)
             will_retry = retryable and attempt <= retry_budget
@@ -475,7 +469,7 @@ async def request_ready_synthesis(
             token_cap = ready_synthesis_max_tokens(connection.provider, thinking)
             used = int(usage.get("completion_tokens", 0) or 0)
             repaired, repair_usage, repair_response_id, repair_outcome = await request_synthesis_correction(
-                client, endpoint, headers, connection, messages, invalid_arguments,
+                session, connection, messages, invalid_arguments,
                 token_cap - used, SYNTHESIS_REPAIR_MAX_SECONDS - (deps.perf_counter() - started),
                 run_id, 1, deps=deps,
             )

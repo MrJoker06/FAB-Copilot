@@ -35,7 +35,7 @@ ENTERPRISE_FILES = (
 
 
 class EnterpriseToolsPortableTests(unittest.TestCase):
-    def test_real_82_file_slice_cannot_reach_repository_or_system_resources(
+    def test_real_84_file_slice_cannot_reach_repository_or_system_resources(
         self,
     ) -> None:
         baseline = json.loads(INVENTORY.read_text(encoding="utf-8"))["units"][
@@ -52,7 +52,7 @@ class EnterpriseToolsPortableTests(unittest.TestCase):
             + OPERATIONAL_FILES
             + ENTERPRISE_FILES
         )
-        self.assertEqual((len(files), len(set(files))), (82, 82))
+        self.assertEqual((len(files), len(set(files))), (84, 84))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:
@@ -66,7 +66,7 @@ unit=Path(sys.argv[1]).resolve(); original=Path(sys.argv[2]).resolve(); allowed=
 assert not any(str(unit) in value for value in sys.path)
 assert not any(Path(value).resolve()==original for value in sys.path if value)
 sys.path.insert(0,str(unit)); events=[]
-blocked=('app.agent_runtime.service','app.agent_runtime.compatibility','app.agent_runtime.execution.agent_loop','app.agent_runtime.tools.catalog','app.agent_runtime.tools.registry','app.core.settings','app.core.identity','app.model_gateway','app.evidence','app.persistence','app.manufacturing.enterprise_data','app.manufacturing.reports')
+blocked=('app.agent_runtime.service','app.agent_runtime.compatibility','app.agent_runtime.execution.agent_loop','app.agent_runtime.execution.loop_answer','app.agent_runtime.execution.loop_model_call','app.agent_runtime.execution.loop_request','app.agent_runtime.execution.loop_round_validation','app.agent_runtime.execution.loop_state','app.agent_runtime.execution.loop_tool_round','app.agent_runtime.tools.catalog','app.agent_runtime.tools.registry','app.core.settings','app.core.identity','app.model_gateway','app.evidence','app.persistence','app.manufacturing.enterprise_data','app.manufacturing.reports')
 class Finder(importlib.abc.MetaPathFinder):
  def find_spec(self,fullname,path=None,target=None):
   if any(fullname==item or fullname.startswith(item+'.') for item in blocked): events.append(('import',fullname));raise AssertionError(fullname)

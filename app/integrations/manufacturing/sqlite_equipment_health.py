@@ -159,4 +159,3 @@ class SQLiteEquipmentHealthAdapter:
                 scope,
             ),
         )
-

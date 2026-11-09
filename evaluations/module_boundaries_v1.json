@@ -34,7 +34,6 @@
     "app.model_gateway.compatibility": "model_gateway.compatibility",
     "app.model_gateway.health": "model_gateway.health",
     "app.model_gateway.streaming": "model_gateway.streaming",
-    "app.conversation.context_resolver": "memory_system.compatibility",
     "app.memory_system": "memory_system",
     "app.memory_system.context": "memory_system.context",
     "app.memory_system.contracts": "memory_system.contracts",
@@ -159,6 +158,8 @@
       "app.bootstrap.tool_catalog",
       "app.bootstrap.tool_bindings",
       "app.bootstrap.tool_definitions",
+      "app.bootstrap.tool_sources",
+      "app.bootstrap.tool_sources_demo",
       "app.bootstrap.agent_assembly",
       "app.bootstrap.skill_assembly",
       "app.bootstrap.litho_cpk_workflow",
@@ -218,6 +219,7 @@
       "app.intent_runtime.rules",
       "app.planning_runtime.contracts",
       "app.manufacturing.processes",
+      "app.manufacturing.equipment_health.summary",
       "app.manufacturing.equipment_health.contracts",
       "app.manufacturing.equipment_health.handler",
       "app.manufacturing.equipment_health.binding",
@@ -343,13 +345,13 @@
       "source": "app.agent_runtime.compatibility",
       "target": "app.bootstrap.legacy_agent_assembly",
       "reason": "legacy coordinator dependency assembly is delegated with the per-call service namespace so live patch semantics remain intact",
-      "exit_condition": "MOD-015 migrates remaining compatibility preparation, offline synthesis and concrete alias consumers"
+      "exit_condition": "MOD-027 migrates remaining compatibility preparation, offline synthesis and concrete alias consumers (retained at MOD-015 closeout)"
     },
     {
       "source": "app.agent_runtime.compatibility",
       "target": "app.bootstrap.default_coordinator_assembly",
       "reason": "default coordinator assembly selects v2 named planning and per-run native tools while the compatibility facade retains its public live-patch surface",
-      "exit_condition": "MOD-015 removes the compatibility facade after recorded consumers have migrated"
+      "exit_condition": "MOD-027 removes the compatibility facade after recorded consumers have migrated (retained at MOD-015 closeout)"
     },
     {
       "source": "app.agent_runtime.compatibility",
@@ -430,22 +432,10 @@
       "exit_condition": "replace only if model registry receives equivalent model settings without the public anchor"
     },
     {
-      "source": "app.model_gateway.registry",
-      "target": "app.core.identity",
-      "reason": "canonical model registry resolves the public identity anchor",
-      "exit_condition": "replace only if model registry receives an equivalent identity context contract"
-    },
-    {
       "source": "app.telemetry.http",
       "target": "app.core.settings",
       "reason": "canonical HTTP telemetry resolves the project settings anchor",
       "exit_condition": "replace only if HTTP telemetry receives equivalent settings without the public anchor"
-    },
-    {
-      "source": "app.personal_knowledge_runtime.service",
-      "target": "app.telemetry.audit",
-      "reason": "personal knowledge emits through the canonical telemetry boundary",
-      "exit_condition": "replace only if personal knowledge receives an equivalent audit emitter contract"
     },
     {
       "source": "app.personal_knowledge_runtime.service",
@@ -484,28 +474,10 @@
       "exit_condition": "replace only if RAG receives equivalent knowledge settings without the public anchor"
     },
     {
-      "source": "app.knowledge.rag",
-      "target": "app.core.identity",
-      "reason": "canonical knowledge RAG resolves the public identity context",
-      "exit_condition": "replace only if RAG receives an equivalent identity context contract"
-    },
-    {
-      "source": "app.telemetry.runtime_status",
-      "target": "app.core.identity",
-      "reason": "canonical runtime telemetry reads the identity principal contract",
-      "exit_condition": "replace only if runtime telemetry receives an equivalent identity context contract"
-    },
-    {
       "source": "app.manufacturing.seed",
       "target": "app.core.settings",
       "reason": "existing app.seed compatibility implementation consumes the configuration facade before its scheduled migration",
       "exit_condition": "retain while the seed CLI resolves the public configuration anchor"
-    },
-    {
-      "source": "app.conversation.sessions",
-      "target": "app.core.identity",
-      "reason": "canonical session lifecycle reads the public identity principal context",
-      "exit_condition": "replace only if sessions receive an equivalent identity context contract"
     },
     {
       "source": "app.knowledge.search_tool.binding",

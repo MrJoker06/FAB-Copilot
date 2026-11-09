@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from .model import build_result
 from ..coordinator_state import CoordinatorRunState
-from ...evidence.evidence_truncation import truncation_details, truncation_notices
+from ...core.tool_result_projection import truncation_details, truncation_notices
 
 if TYPE_CHECKING:
     from ..dependencies import CoordinatorDependencies
@@ -86,11 +86,17 @@ async def execute_ready_synthesis(
     )
     retry_budget = 0 if state.main_recovery_trial else state.settings.model_max_retries
     try:
-        async with deps.async_client(timeout=state.settings.api_timeout_seconds) as client:
+        gateway = deps.model_gateway
+        model_endpoint = gateway.endpoint_for(
+            state.connection,
+            chat_template=getattr(state.settings, "chat_template_compat", None),
+        )
+        async with gateway.open(
+            model_endpoint, timeout_seconds=state.settings.api_timeout_seconds,
+        ) as session:
             assistant, usage, _, _ = await deps.request_ready_synthesis(
-                client, state.endpoint,
-                {"Authorization": f"Bearer {state.connection.api_key}", "Content-Type": "application/json"},
-                state.connection, state.settings, messages, state.run_id, state.thinking, retry_budget,
+                session, state.connection, state.settings, messages, state.run_id,
+                state.thinking, retry_budget,
             )
         for key in state.total_usage:
             state.total_usage[key] += int(usage.get(key, 0) or 0)

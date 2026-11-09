@@ -1,5 +1,20 @@
 # 测试策略与质量门
 
+## 当前验证记录索引（2026-11-07）
+
+当前源码基线为 `experiment/parallel-platform` 的 `c8d44cd`（MOD-015e）。本节汇总既有验收记录，完整离线门、定向测试和基线对照分别列出；下方各日期的历史基线保留原值。
+
+| 范围 | 已记录的验证与限制 | 证据入口 |
+| --- | --- | --- |
+| AGENT-040～044 产品改善 | 全部已完成；044 的跨路径回归、局部修复预算和完整离线门于 2026-10-17 通过 | [Agent 分类验收记录](todos/agent-architecture.md) |
+| 跨平台启动维护 | 原生 Windows 与 WSL 的启动、停止、重启及必要回归，保留平台失败与修复记录 | [启动报告](reports/cross-platform-startup.md) |
+| MOD-001～019 | 工作包状态、各切片独立运行与兼容验证逐项维护；不代表公司真实接入或整体离线交付已通过 | [模块化追踪](todos/modularization.md) |
+| MOD-009 完整离线阶段门 | 2026-11-06 记录退出码 0，480.3 秒；Python 1226 项（含 2 个平台跳过）、覆盖率 88%、Node 61/61、浏览器 17/17；RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7 | [来源替换报告](reports/mod-009-tool-sources.md) |
+| MOD-012 模型网关 | 定向回归、边界门和两端平台测试；保留原有环境失败，未运行性能门 | [模型网关报告](reports/mod-012-model-gateway.md) |
+| MOD-015a～e Runtime 收口 | 各批独立验证；015e 的 WSL 169 模块/1301 项与前批基线对照无新增失败，其中 160 模块通过、9 模块保留相同的既有环境失败；Windows 定向 412 项也保留基线失败。新增 11 项无泄漏验收在两端各连续 3 次通过；未重跑浏览器、覆盖率或性能门 | [Runtime 收口报告](reports/mod-015-runtime-convergence.md) |
+
+当前五个系统模块共有 70 个测试方法（数据 13、HTTP 15、知识 14、模型 17、会话 11）。这是源码清单数量；执行结果以每轮报告的环境、命令和日志为准。后续 Checkpoint/恢复、模块交付和公司真实适配分别按 MOD-020～028 验收；远程 Live `QA-010` 与移动端 `UX-029` 继续暂缓。
+
 ## QA-001 审计基线（2026-08-01）
 
 审计前有 166 个 Python 测试、19 个 JavaScript 断言和 15 条 RAG 黄金集。完整宿主 Python 回归当时有 2 个失败；`app` 分支覆盖率为 81%。低覆盖重点为 `seed.py`（25%）、`database.py`（76%）、`agent.py`（77%）、`context_resolver.py`（78%）和 `personal_knowledge.py`（80%）。在 coverage run 中，`scripts/evaluate_rag.py`、`scripts/manage_databases.py` 和 `scripts/smoke_stream.py` 均为 0%；其中 RAG 评估另以独立命令实际通过 15/15。

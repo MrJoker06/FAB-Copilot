@@ -4,10 +4,10 @@ from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
-from ..telemetry.audit import emit
 from ..core.settings import get_settings
-from ..persistence.database import db_session
+from ..core.storage_identity_ports import storage_identity_bindings
 from ..knowledge.ocr import extract_image_result
 from ..knowledge.ocr_quality import POLICY_VERSION, evaluate_observations
 from . import documents as _documents
@@ -48,6 +48,14 @@ MIN_NATIVE_PDF_TEXT = 20
 DOCUMENT_TYPE_TAGS = _metadata.DOCUMENT_TYPE_TAGS
 TOPIC_TAGS = _metadata.TOPIC_TAGS
 MAX_TAG_SOURCE_CHARS = _metadata.MAX_TAG_SOURCE_CHARS
+
+
+def db_session():
+    return storage_identity_bindings().session_factory()
+
+
+def emit(event: str, run_id: str, **fields: Any) -> None:
+    storage_identity_bindings().audit_emit(event, run_id, **fields)
 
 
 def _ingestion_dependencies() -> SimpleNamespace:

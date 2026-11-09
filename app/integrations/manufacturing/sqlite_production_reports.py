@@ -158,4 +158,3 @@ class SQLiteProductionReportsAdapter:
                 production_report_scope(query, principal),
             ),
         )
-

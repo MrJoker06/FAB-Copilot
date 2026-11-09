@@ -13,6 +13,12 @@ def build_legacy_coordinator_dependencies(
     namespace: Mapping[str, Any],
 ) -> CoordinatorDependencies:
     """Build one legacy dependency snapshot without bypassing live patch bindings."""
+    # Ready and Loop share one gateway per snapshot; its client factory and SSE
+    # function are read from the namespace so test and legacy patches stay live.
+    model_gateway = namespace["HttpModelGateway"](
+        client_factory=namespace["httpx"].AsyncClient,
+        stream_completion=namespace["_stream_completion"],
+    )
     return namespace["CoordinatorDependencies"](
         preparation=namespace["CoordinatorPreparationDependencies"](
             system_prompt=namespace["SYSTEM_PROMPT"],
@@ -54,9 +60,9 @@ def build_legacy_coordinator_dependencies(
             stage_memory_messages=namespace["build_stage_memory_messages"],
         ),
         ready=namespace["CoordinatorReadyDependencies"](
-            async_client=namespace["httpx"].AsyncClient,
+            model_gateway=model_gateway,
             ready_synthesis_messages=namespace["_ready_synthesis_messages"],
-            request_ready_synthesis=namespace["_request_ready_synthesis"],
+            request_ready_synthesis=namespace["_request_ready_synthesis_session"],
             record_model_success=namespace["record_model_success"],
             synthesize_ready_assistant=namespace["_synthesize_ready_assistant"],
             retryable_model_error=namespace["_retryable_model_error"],
@@ -82,10 +88,12 @@ def build_legacy_coordinator_dependencies(
             synthesize_submission=namespace["synthesize_submission"],
             provider_request_options=namespace["provider_request_options"],
             evidence_observation_type=namespace["EvidenceObservation"],
-            stream_completion=namespace["_stream_completion"],
+            model_gateway=model_gateway,
             model_failure_reason=namespace["_model_failure_reason"],
             model_retry_delay=namespace["_model_retry_delay"],
             audit_assistant=namespace["_audit_assistant"],
-            request_synthesis_correction=namespace["_request_synthesis_correction"],
+            request_synthesis_correction=namespace[
+                "_request_synthesis_correction_session"
+            ],
         ),
     )

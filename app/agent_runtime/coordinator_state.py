@@ -3,7 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..conversation.turn_decision import TurnDecision
+    from ..evidence.answer_synthesizer import AnswerContract
+    from ..evidence.validator import EvidenceObservation, EvidenceValidation
+    from ..intent_runtime.contracts import IntentRoute
+    from ..manufacturing.playbooks import DomainPlaybook, PlaybookSelection
+    from ..memory_system.contracts import ContextResolution
+    from ..planning_runtime.contracts import ExecutionPlan
+    from .contracts import PreparationResult, ProgressCallback
+    from .execution.loop_guard import ToolLoopGuard
+    from .ports import RuntimeModelConnection, RuntimeSettings, ToolRunBindings
 
 
 class CoordinatorStateView:
@@ -18,7 +30,7 @@ class CoordinatorStateView:
             return getattr(self._state, name)
         raise AttributeError(name)
 
-    def __setattr__(self, name: str, value: Any) -> None:
+    def __setattr__(self, name: str, value: object) -> None:
         if name not in self._names:
             raise AttributeError(name)
         setattr(self._state, name, value)
@@ -31,36 +43,35 @@ class CoordinatorRunState:
     question: str
     history: list[dict] | None
     run_id: str
-    progress: Any
+    progress: ProgressCallback | None
     thinking: bool
-    settings: Any = None
-    preparation: Any = None
-    context_resolution: Any = None
+    settings: RuntimeSettings | None = None
+    preparation: PreparationResult | None = None
+    context_resolution: ContextResolution | None = None
     context_usage: dict[str, Any] = field(default_factory=dict)
     health_enabled: bool = False
     selected_model_id: str | None = None
     analysis_question: str = ""
-    intent_route: Any = None
-    turn_decision: Any = None
+    intent_route: IntentRoute | None = None
+    turn_decision: TurnDecision | None = None
     route_payload: dict[str, Any] = field(default_factory=dict)
-    playbook_selection: Any = None
+    playbook_selection: PlaybookSelection | None = None
     playbook_payload: dict[str, Any] = field(default_factory=dict)
-    selected_playbook: Any = None
-    execution_plan: Any = None
+    selected_playbook: DomainPlaybook | None = None
+    execution_plan: ExecutionPlan | None = None
     plan_payload: dict[str, Any] = field(default_factory=dict)
     thinking_answer_effective: bool = False
-    loop_guard: Any = None
-    tool_run: Any = None
-    evidence_observations: list[Any] = field(default_factory=list)
-    evidence_validation: Any = None
-    answer_contract: Any = None
-    connection: Any = None
+    loop_guard: ToolLoopGuard | None = None
+    tool_run: ToolRunBindings | None = None
+    evidence_observations: list[EvidenceObservation] = field(default_factory=list)
+    evidence_validation: EvidenceValidation | None = None
+    answer_contract: AnswerContract | None = None
+    connection: RuntimeModelConnection | None = None
     model_health: dict[str, Any] = field(default_factory=dict)
     main_recovery_trial: bool = False
     messages: list[dict] = field(default_factory=list)
     trace: list[dict] = field(default_factory=list)
     sources: dict[str, dict] = field(default_factory=dict)
-    endpoint: str = ""
     total_usage: dict[str, int] = field(default_factory=dict)
     applied_synthesis_reason: str | None = None
     health: dict[str, Any] = field(default_factory=dict)
@@ -84,7 +95,7 @@ class CoordinatorRunState:
             "connection", "model_health", "main_recovery_trial", "health",
         ))
         self.model_state = CoordinatorStateView(self, (
-            "messages", "endpoint", "total_usage", "knowledge_fallback", "fallback_announced",
+            "messages", "total_usage", "knowledge_fallback", "fallback_announced",
             "retrieval_decision_payload", "thinking_answer_effective",
         ))
         self.result_state = CoordinatorStateView(self, (

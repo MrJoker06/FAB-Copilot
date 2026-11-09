@@ -37,14 +37,14 @@ LOOP_FILES = (
 
 
 class LoopDispatcherPortableTests(unittest.TestCase):
-    def test_loop_demo_runs_from_actual_53_file_source_slice(self):
+    def test_loop_demo_runs_from_actual_55_file_source_slice(self):
         baseline = json.loads(INVENTORY.read_text(encoding="utf-8"))["units"][
             "dispatcher_pilot"
         ]["files"]
         files = (
             tuple(baseline) + RUNTIME_FILES + MODERN_FILES + READY_FILES + LOOP_FILES
         )
-        self.assertEqual((len(files), len(set(files))), (53, 53))
+        self.assertEqual((len(files), len(set(files))), (55, 55))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:
@@ -62,6 +62,8 @@ sys.path.insert(0, str(unit))
 blocked = (
     'app.agent_runtime.service', 'app.agent_runtime.compatibility',
     'app.agent_runtime.execution.agent_loop', 'app.agent_runtime.tools.catalog',
+    'app.agent_runtime.execution.loop_answer', 'app.agent_runtime.execution.loop_model_call', 'app.agent_runtime.execution.loop_request',
+    'app.agent_runtime.execution.loop_round_validation', 'app.agent_runtime.execution.loop_state', 'app.agent_runtime.execution.loop_tool_round',
     'app.agent_runtime.tools.registry', 'app.core.settings', 'app.model_gateway',
     'app.evidence', 'app.persistence', 'app.manufacturing.reports',
 )

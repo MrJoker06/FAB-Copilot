@@ -7,9 +7,8 @@ boundary explicit before the existing Router/Planner path begins.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Iterable
+from typing import Iterable, Protocol
 
-from ..memory_system.contracts import ContextResolution
 from ..intent_runtime import INTENT_LABELS, IntentRoute, apply_semantic_intent_hint, route_question
 from .turn_decision import TurnAction, TurnDecisionValidationError, validate_turn_actions
 
@@ -20,6 +19,32 @@ _META_SUBJECTS = {
 }
 _TASK_INTENTS = set(INTENT_LABELS) - {"conversation", "unknown", "ambiguous"}
 _EXPLICIT_TASK_INTENTS = _TASK_INTENTS
+
+
+class DecisionContext(Protocol):
+    """Read-only contextualizer facts the arbiter consults.
+
+    ``app.memory_system.contracts.ContextResolution`` satisfies this
+    structurally; orchestration must not import the context-memory module.
+    """
+
+    @property
+    def applied(self) -> bool: ...
+
+    @property
+    def strategy(self) -> str: ...
+
+    @property
+    def relation(self) -> str: ...
+
+    @property
+    def confidence(self) -> float: ...
+
+    @property
+    def source(self) -> str: ...
+
+    @property
+    def intent_hint(self) -> str: ...
 
 
 @dataclass(frozen=True)
@@ -101,7 +126,7 @@ def arbitrate_decision(
     resolved_question: str,
     original_route: IntentRoute,
     resolved_route: IntentRoute,
-    context: ContextResolution,
+    context: DecisionContext,
     raw_model_actions: object = None,
     previous_active_flow: str | None = None,
 ) -> ArbitrationResult:

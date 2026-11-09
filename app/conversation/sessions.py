@@ -4,9 +4,25 @@ import json
 import uuid
 from datetime import datetime, timezone
 
-from ..persistence.database import db_session
-from ..persistence.execution_store import executions_for_session, reconcile_plan_steps
-from ..core.identity import current_principal
+from ..core.storage_identity_ports import storage_identity_bindings
+
+
+def db_session():
+    return storage_identity_bindings().session_factory()
+
+
+def executions_for_session(connection, session_id: str) -> dict[int, dict]:
+    bindings = storage_identity_bindings()
+    return bindings.executions_for_session(connection, session_id)
+
+
+def reconcile_plan_steps(run_id: str, trace: list[dict], *, connection=None) -> int:
+    bindings = storage_identity_bindings()
+    return bindings.reconcile_plan_steps(run_id, trace, connection=connection)
+
+
+def current_principal():
+    return storage_identity_bindings().current_principal()
 
 
 def _now() -> str:

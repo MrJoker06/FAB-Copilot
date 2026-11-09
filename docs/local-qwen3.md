@@ -57,7 +57,7 @@ KV/token ≈ 2 × 17 × 4 × 256 × (q8 ≈ 1 B) ≈ 34 KB
 
 ## 应用侧配置
 
-`.env` 被 `.gitignore` 忽略（含密钥，不入库），可参考 `.env.local.example`：
+`.env` 被 `.gitignore` 忽略（含密钥，不入库），可参考 `.env.local.example`。同名变量以进程环境变量优先，其次为项目 `.env`，最后才是上两级目录的工作区 `.env`，因此工作区里残留的旧密钥不会覆盖项目配置：
 
 ```ini
 FAB_MODEL_PROVIDER=openai-compatible
@@ -70,6 +70,8 @@ MODEL_CONTEXT_TIMEOUT_MS=30000
 # Qwen 模板要求 system 消息在最前（llama.cpp --jinja）
 FAB_CHAT_TEMPLATE_COMPAT=merge-system
 ```
+
+该变量由 `Settings.chat_template_compat` 读取，并在模型网关（`app/model_gateway/gateway.py`）发送请求前合并 system 消息；直接调用 `streaming.stream_completion` 不再读取该变量。
 
 注意：**`base_url` 与模型名以数据库 `model_catalog` 为准**，`.env` 只提供 api_key。
 `ensure_model_catalog()` 只在首次建库时按当时的 `.env` 种子两条内置模型

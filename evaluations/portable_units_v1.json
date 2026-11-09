@@ -23,6 +23,8 @@
       "description": "Deterministic intent routing, planning, playbooks, and evidence semantics.",
       "files": [
         "app/__init__.py",
+        "app/core/__init__.py",
+        "app/core/call_scope.py",
         "app/manufacturing/__init__.py",
         "app/manufacturing/processes.py",
         "app/manufacturing/playbooks.py",
@@ -48,14 +50,15 @@
       ]
     },
     "model_transport": {
-      "version": "1.0.0",
-      "description": "Offline-testable OpenAI-compatible SSE parsing and retry policy, without provider configuration or credentials.",
+      "version": "1.1.0",
+      "description": "Offline-testable OpenAI-compatible SSE parsing, retry policy and the ModelGatewayPort HTTP adapter, without provider configuration or credentials.",
       "external_dependencies": [
         "httpx>=0.28,<1"
       ],
       "files": [
         "app/__init__.py",
         "app/model_gateway/__init__.py",
+        "app/model_gateway/gateway.py",
         "app/model_gateway/message_compat.py",
         "app/model_gateway/streaming.py",
         "tests/test_model_transport_portable.py"

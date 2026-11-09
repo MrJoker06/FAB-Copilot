@@ -229,4 +229,3 @@ class SQLiteOperationalReportsAdapter:
                 operational_report_scope(query, principal),
             ),
         )
-

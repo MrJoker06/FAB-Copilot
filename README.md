@@ -14,7 +14,7 @@
 - 周良率趋势、设备健康、缺陷 Pareto、近期异常批次
 - 覆盖光刻、刻蚀、CVD、PVD、扩散、离子注入、CMP、清洗和量测，各站点按自身关键量测与规格计算 Cpk
 - 九类制程各有一个可复现异常场景，隐藏根因真值不向 Agent 开放
-- OpenAI Compatible Agent 多轮工具调用，支持固定报表和受限只读 SQL
+- OpenAI Compatible Agent 多轮工具调用，通过 21 项具名业务工具读取报表、批次和知识；模型填写结构化参数，默认工具清单不提供 SQL 执行能力
 - 模型服务瞬时网络错误、429 和 5xx 在首 Token 前自动退避重试；消息使用客户端幂等 ID 防止重复落库
 - 工具执行期间实时展开路径；收到最终答案首批 Token 后立即折叠，Markdown 答案流式输出并支持一键复制
 - 短追问可引用最近澄清选项或上一条已声明任务，例如“最后一点”和“为什么没有继续”；无法安全恢复上下文时由确定性路由器给出可选择的澄清方向，不调用模型生成伪工具请求
@@ -63,7 +63,7 @@ SQLite 连接、部门 Schema 与执行记录位于 `app/persistence/`；数据�
 
 项目支持原生 Windows 和 Linux，WSL 也按 Linux 方式运行。需要 Python 3.11 或更高版本，依赖安装在各平台独立的虚拟环境中；无需为了启动 Windows 版本安装 WSL。
 
-模型配置读取项目根目录 `.env`，也兼容项目上两级目录的 `.env`；可用 `FAB_PROJECT_ENV_FILE` / `FAB_WORKSPACE_ENV_FILE` 指定。未配置模型密钥也能启动页面、报表和本地规则分析；需要调用模型时再配置密钥。例如：
+模型配置读取项目根目录 `.env`，也兼容项目上两级目录的 `.env`；可用 `FAB_PROJECT_ENV_FILE` / `FAB_WORKSPACE_ENV_FILE` 指定。同名变量的优先级为：进程环境变量 > 项目 `.env` > 上两级目录 `.env`。未配置模型密钥也能启动页面、报表和本地规则分析；需要调用模型时再配置密钥。例如：
 
 ```dotenv
 FAB_MODEL_PROVIDER=deepseek
@@ -479,4 +479,6 @@ logs/           Agent JSONL 审计日志（不提交）
 
 ## 接入真实 C# 系统
 
-保留当前 Agent 和前端，只需把 `app/manufacturing/reports.py` 的查询函数替换为 ASP.NET Core API、MCP 工具或 CLI 调用。工具输入输出结构可以保持不变，因此模型侧提示词和前端不必重写。生产接入时还应增加身份认证、行级数据权限、审计日志、查询成本限制和危险操作人工确认。
+制造业务读取沿 `Agent / Skill / Workflow → Tool Dispatcher → Tool Handler → Data Port → Adapter → 数据源` 接入。为对应业务 Port 实现调用 ASP.NET Core 报表 API 或其他已授权接口的 Adapter，在装配层显式替换来源；已有工具输入、结果和 Scope 契约保持一致时，可复用原 Handler 与 Ready/Loop。不要让模型生成 SQL、连接串或任意查询文本。业务数据库的受控 SQL 留在 Adapter 中；会话、Checkpoint 和知识管理等内部读写另经 Store/Repository Port。
+
+七类 Port、21 项工具的来源替换与离线演示见 [MOD-009 报告](docs/reports/mod-009-tool-sources.md)。`app/manufacturing/reports.py` 仍服务部分旧 API/Python 消费者，直接替换其函数不能代表所有原生工具已接入公司系统。实际接入需逐项确认字段、统计口径、标识映射、来源/Scope、认证、行级权限、审计、超时和接口限额；失败时不隐式改用模拟来源。来源接入与整体分块搬迁分别按 [MOD-025 / MOD-027 计划](docs/architecture-modularization-master-plan.md#p5模块交付与内网集成) 验收，真实公司接口尚未接入。

@@ -3,7 +3,9 @@
 Some Windows SQLite builds (for example Anaconda's) are compiled without
 ``SQLITE_ENABLE_MATH_FUNCTIONS``, while Cpk queries rely on ``SQRT``.  Python can
 register the function per connection, so every opener in the app installs the
-same set of helpers instead of assuming a particular build.
+same set of helpers instead of assuming a particular build.  The shim mirrors
+native ``SQRT`` argument coercion: only decimal text is accepted, while NULL,
+blobs, non-numeric text and negatives return NULL.
 
 The same helper also chooses where SQLite may spill temporary B-trees.  If the
 process ``TMP``/``TEMP`` directory is not writable (locked-down Windows hosts,
@@ -17,16 +19,39 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import sqlite3
 from typing import Any
 
 _TEMP_STORE_MODE: str | None = None
 
+# SQLite only coerces text that is entirely a decimal literal (optionally
+# surrounded by ASCII whitespace); anything else, including "inf", "nan", hex
+# and non-ASCII digits, makes the native math functions return NULL.
+_NUMERIC_TEXT = re.compile(
+    r"[ \t\n\v\f\r]*"
+    r"(?P<number>[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?)"
+    r"[ \t\n\v\f\r]*"
+)
+
+
+def _numeric_argument(value: Any) -> float | None:
+    if isinstance(value, (int, float)):
+        return value
+    if isinstance(value, str):
+        match = _NUMERIC_TEXT.fullmatch(value)
+        if match is None:
+            return None
+        return float(match.group("number"))
+    return None
+
 
 def _sqrt(value: Any) -> float | None:
-    if value is None or value < 0:
+    """Mirror native ``SQRT``: NULL for NULL, blobs, non-numeric text and negatives."""
+    number = _numeric_argument(value)
+    if number is None or number < 0:
         return None
-    return math.sqrt(value)
+    return math.sqrt(number)
 
 
 def _temp_dir_writable(path: str) -> bool:
@@ -59,7 +84,12 @@ def temp_store_mode() -> str:
 
 
 def install_sqlite_functions(connection: sqlite3.Connection) -> sqlite3.Connection:
-    """Register helpers that are missing from some SQLite builds."""
-    connection.create_function("SQRT", 1, _sqrt, deterministic=True)
-    connection.execute(f"PRAGMA temp_store={temp_store_mode()}")
+    """Register helpers that are missing from some SQLite builds.
+
+    Only real ``sqlite3.Connection`` objects are touched; wrappers and test
+    doubles that merely mimic the connection protocol are returned unchanged.
+    """
+    if isinstance(connection, sqlite3.Connection):
+        connection.create_function("SQRT", 1, _sqrt, deterministic=True)
+        connection.execute(f"PRAGMA temp_store={temp_store_mode()}")
     return connection

@@ -16,10 +16,23 @@ from app.agent_runtime.synthesis.ready import (
     ready_synthesis_max_tokens, request_synthesis_correction, salvage_submit_analysis,
     synthesize_ready_assistant, valid_submit_analysis,
 )
+from app.model_gateway.gateway import ModelSessionPort
 from app.agent_runtime.synthesis.result import (
     build_ready_model_unavailable_result,
     build_result,
 )
+
+
+class _ScriptedSession:
+    """ModelSessionPort double that forwards requests to a local callable."""
+
+    endpoint = None
+
+    def __init__(self, stream):
+        self._stream = stream
+
+    async def stream(self, payload, progress, stream_state=None):
+        return await self._stream(payload, progress, stream_state)
 
 
 class AgentSynthesisBoundaryTests(unittest.TestCase):
@@ -27,10 +40,11 @@ class AgentSynthesisBoundaryTests(unittest.TestCase):
         deps = agent._ready_synthesis_dependencies()
         async def forbidden(*_args, **_kwargs):
             raise AssertionError("network must not be called")
-        deps.stream_completion = forbidden
+        session = _ScriptedSession(forbidden)
+        self.assertIsInstance(session, ModelSessionPort)
         connection = SimpleNamespace(model="m", provider="other")
         result = asyncio.run(request_synthesis_correction(
-            None, "endpoint", {}, connection, [], "{", 0, 10, "run", 1, deps=deps,
+            session, connection, [], "{", 0, 10, "run", 1, deps=deps,
         ))
         self.assertEqual(result[3], "budget_exhausted")
         self.assertIsNone(valid_submit_analysis({"tool_calls": []}))
@@ -69,13 +83,15 @@ class AgentSynthesisBoundaryTests(unittest.TestCase):
 
     def test_ready_request_payload_uses_thinking_budget_only_for_deepseek(self):
         captured = []
-        async def completion(_client, _endpoint, _headers, payload, _progress, state):
+        async def completion(payload, _progress, state):
             captured.append(payload); state["finish_reason"] = "tool_calls"; return {"tool_calls": []}, {}, "r"
         class Settings: model_retry_base_seconds = 0
         for provider, thinking in (("deepseek", True), ("deepseek", False), ("openai-compatible", True)):
             connection = SimpleNamespace(model="m", provider=provider)
-            with patch("app.agent_runtime.service._stream_completion", completion), patch("app.agent_runtime.service.emit"):
-                asyncio.run(agent._request_ready_synthesis(None, "e", {}, connection, Settings(), [], "run", thinking, 0))
+            with patch("app.agent_runtime.service.emit"):
+                asyncio.run(agent._request_ready_synthesis_session(
+                    _ScriptedSession(completion), connection, Settings(), [], "run", thinking, 0,
+                ))
         self.assertEqual([payload["max_tokens"] for payload in captured], [32768, 8192, 8192])
 
     def test_ready_messages_facade_uses_live_synthesizer_patch(self):
@@ -132,21 +148,23 @@ class AgentSynthesisBoundaryTests(unittest.TestCase):
 
     def test_ready_request_exposes_only_submit_tool(self):
         events = []
-        async def completion(_client, _endpoint, _headers, payload, _progress, state):
+        async def completion(payload, _progress, state):
             self.assertEqual(payload["tools"], [SUBMIT_ANALYSIS_TOOL])
             self.assertNotIn("get_fab_overview", str(payload))
             state["finish_reason"] = "tool_calls"
             return {"tool_calls": []}, {}, "r"
         class Connection: model = "m"; provider = "other"
         class Settings: model_retry_base_seconds = 0
-        with patch("app.agent_runtime.service._stream_completion", completion), patch("app.agent_runtime.service.emit", side_effect=lambda *args, **kwargs: events.append(args[0])):
-            asyncio.run(agent._request_ready_synthesis(None, "e", {}, Connection(), Settings(), [], "run", False, 0))
+        with patch("app.agent_runtime.service.emit", side_effect=lambda *args, **kwargs: events.append(args[0])):
+            asyncio.run(agent._request_ready_synthesis_session(
+                _ScriptedSession(completion), Connection(), Settings(), [], "run", False, 0,
+            ))
         self.assertEqual(events, ["model_call_started", "model_call_finished"])
 
     def test_ready_invalid_submit_attempts_one_repair_then_keeps_local_fallback_path(self):
         calls: list[dict] = []
 
-        async def completion(_client, _endpoint, _headers, payload, _progress, _state):
+        async def completion(payload, _progress, _state):
             calls.append(payload)
             if len(calls) == 1:
                 return {"tool_calls": [{"function": {"name": "submit_analysis", "arguments": "{"}}]}, {"completion_tokens": 5}, "first"
@@ -154,9 +172,11 @@ class AgentSynthesisBoundaryTests(unittest.TestCase):
 
         class Connection: model = "m"; provider = "other"
         class Settings: model_retry_base_seconds = 0
-        with patch("app.agent_runtime.service._stream_completion", completion), patch("app.agent_runtime.service.emit"):
+        with patch("app.agent_runtime.service.emit"):
             assistant, usage, _, _ = asyncio.run(
-                agent._request_ready_synthesis(None, "e", {}, Connection(), Settings(), [], "run", False, 0)
+                agent._request_ready_synthesis_session(
+                    _ScriptedSession(completion), Connection(), Settings(), [], "run", False, 0,
+                )
             )
         self.assertEqual(len(calls), 2)
         self.assertEqual([tool["function"]["name"] for tool in calls[1]["tools"]], ["submit_analysis"])

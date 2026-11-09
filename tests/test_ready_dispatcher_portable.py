@@ -31,12 +31,12 @@ READY_FILES = (
 
 
 class ReadyDispatcherPortableTests(unittest.TestCase):
-    def test_ready_demo_runs_from_the_actual_49_file_source_slice(self):
+    def test_ready_demo_runs_from_the_actual_51_file_source_slice(self):
         baseline = json.loads(INVENTORY.read_text(encoding="utf-8"))["units"][
             "dispatcher_pilot"
         ]["files"]
         files = tuple(baseline) + RUNTIME_FILES + MODERN_FILES + READY_FILES
-        self.assertEqual((len(files), len(set(files))), (49, 49))
+        self.assertEqual((len(files), len(set(files))), (51, 51))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

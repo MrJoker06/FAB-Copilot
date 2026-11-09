@@ -5,29 +5,22 @@ import re
 from dataclasses import replace
 from datetime import datetime, timezone
 
+from ..core.model_capabilities import MODEL_CAPABILITY_DEFAULTS, normalize_capabilities
 from ..core.settings import ALLOWED_MODELS, MODEL_API_NAMES, ModelConnection, Settings, get_settings
-from ..persistence.database import db_session
-from ..core.identity import Principal, current_principal
+from ..core.storage_identity_ports import PrincipalView, storage_identity_bindings
 from .health import ensure_model_health
 
 
 MODEL_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{1,63}$")
 MODEL_PROVIDERS = {"deepseek", "openai-compatible"}
-MODEL_CAPABILITY_DEFAULTS = {
-    "streaming": True,
-    "tool_calls": True,
-    "thinking": False,
-    "native_multimodal": False,
-}
 
 
-def normalize_capabilities(value: object | None) -> dict:
-    """Preserve extension keys while providing the complete public contract."""
-    source = value if isinstance(value, dict) else {}
-    normalized = dict(source)
-    for key, default in MODEL_CAPABILITY_DEFAULTS.items():
-        normalized[key] = source.get(key) if isinstance(source.get(key), bool) else default
-    return normalized
+def db_session():
+    return storage_identity_bindings().session_factory()
+
+
+def current_principal() -> PrincipalView:
+    return storage_identity_bindings().current_principal()
 
 
 def _now() -> str:
@@ -111,7 +104,7 @@ def list_models(include_retired: bool = False) -> list[dict]:
     return [_decode_model(row) for row in rows]
 
 
-def _selected_model(principal: Principal) -> dict:
+def _selected_model(principal: PrincipalView) -> dict:
     with db_session() as connection:
         row = connection.execute(
             """SELECT m.*, h.status AS health_status, h.consecutive_failures AS health_failures,
@@ -143,7 +136,7 @@ def _selected_model(principal: Principal) -> dict:
     return _decode_model(row)
 
 
-def public_user_model_config(principal: Principal | None = None) -> dict:
+def public_user_model_config(principal: PrincipalView | None = None) -> dict:
     principal = principal or current_principal()
     selected = _selected_model(principal)
     models = list_models()
@@ -174,7 +167,7 @@ def public_user_model_config(principal: Principal | None = None) -> dict:
     }
 
 
-def select_user_model(model_id: str, principal: Principal | None = None) -> dict:
+def select_user_model(model_id: str, principal: PrincipalView | None = None) -> dict:
     principal = principal or current_principal()
     with db_session() as connection:
         exists = connection.execute(

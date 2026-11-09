@@ -9,6 +9,7 @@ PROJECT_DIR = Path(__file__).resolve().parent.parent
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
+from app.bootstrap.storage_identity_assembly import install_default_storage_identity  # noqa: E402
 from app.persistence.database import db_session, department_paths
 from app.model_gateway.registry import ensure_model_catalog
 from app.manufacturing.seed import main as seed_main
@@ -114,6 +115,7 @@ def prepare_ci_data() -> dict:
     result = seed_main(["--force", "--days", "730", "--end-date", "2026-12-25"])
     if result != 0:
         raise RuntimeError(f"CI synthetic database generation failed with exit code {result}")
+    install_default_storage_identity()
     ensure_model_catalog()
     return validate_ci_data()
 

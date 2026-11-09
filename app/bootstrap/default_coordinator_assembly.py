@@ -3,20 +3,37 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
 from ..core.identity import current_principal
 from ..manufacturing.named_playbooks import select_named_playbook
 from ..planning_runtime.named_planner import create_named_execution_plan
 from .legacy_agent_assembly import build_legacy_coordinator_dependencies
+from .storage_identity_assembly import install_default_storage_identity
+
+if TYPE_CHECKING:
+    from ..agent_runtime.coordinator_state import CoordinatorRunState
+    from ..agent_runtime.dependencies import CoordinatorDependencies
+    from ..agent_runtime.execution.loop_guard import ToolLoopGuard
+    from ..agent_runtime.ports import RuntimeSettings
+    from ..agent_runtime.preparation.pipeline import PreparationDependencies
+    from ..agent_runtime.synthesis.fallback import PrecomputedTools
+    from ..planning_runtime.contracts import ExecutionPlan
+    from .default_tool_assembly import DefaultRunTools
+
+# Importing app.agent_runtime.service reaches this module, so direct Python
+# callers of run_agent get the same storage/identity bindings as app.main.
+install_default_storage_identity()
 
 
-def build_default_coordinator_dependencies(namespace: Mapping[str, Any]) -> Any:
+def build_default_coordinator_dependencies(
+    namespace: Mapping[str, Any],
+) -> CoordinatorDependencies:
     """Preserve the live compatibility facade while selecting the v2 capability."""
     dependencies = build_legacy_coordinator_dependencies(namespace)
     legacy_factory = dependencies.preparation.agent_preparation_dependencies
 
-    def agent_preparation_dependencies() -> Any:
+    def agent_preparation_dependencies() -> PreparationDependencies:
         group = legacy_factory()
         planning = replace(
             group.planning,
@@ -25,7 +42,13 @@ def build_default_coordinator_dependencies(namespace: Mapping[str, Any]) -> Any:
         )
         return replace(group, planning=planning)
 
-    def tool_run_factory(*, settings: Any, plan: Any, guard: Any, run_id: str) -> Any:
+    def tool_run_factory(
+        *,
+        settings: RuntimeSettings,
+        plan: ExecutionPlan,
+        guard: ToolLoopGuard,
+        run_id: str,
+    ) -> DefaultRunTools:
         # Import lazily so historical explicit assembly remains importable alone.
         from .default_tool_assembly import build_default_run_tools
         from .tool_bindings import _LEGACY_BINDINGS
@@ -41,7 +64,9 @@ def build_default_coordinator_dependencies(namespace: Mapping[str, Any]) -> Any:
             baseline_handlers=_LEGACY_BINDINGS,
         )
 
-    async def offline_tool_runner(state):
+    async def offline_tool_runner(
+        state: CoordinatorRunState,
+    ) -> PrecomputedTools | None:
         from ..agent_runtime.execution.loop_dispatch import (
             execute_dispatched_loop_round,
         )

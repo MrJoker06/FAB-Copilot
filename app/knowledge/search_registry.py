@@ -4,8 +4,8 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 
+from ..core.storage_identity_ports import storage_identity_bindings
 from .search_contracts import FactoryCatalogBackend, FactorySearchBackend
-from .sqlite_backend import SqliteFactorySearchBackend
 
 
 class FactorySearchBackendError(ValueError):
@@ -66,7 +66,7 @@ def _from_factory(name: str, factory: Callable[[], FactorySearchBackend]) -> Fac
 def get_factory_search_backend(name: str) -> FactorySearchBackend:
     """Resolve an explicitly selected backend without reading application settings."""
     if name == "sqlite":
-        return SqliteFactorySearchBackend()
+        return storage_identity_bindings().factory_search_backend_factory()
     factory = _FACTORIES.get(name)
     if factory is None:
         raise _configuration_error(name)

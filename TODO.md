@@ -1,14 +1,16 @@
 # Fab Insight Agent TODO
 
-状态基线：`experiment/parallel-platform`，2026-10-15。
+状态基线：`experiment/parallel-platform`，2026-11-07，`c8d44cd`。
 
-当前统计：共 225 个独立任务，已完成 177 个，待做 48 个。
+当前产品统计：共 227 个独立任务，已完成 182 个，待做 45 个；以各分类清单中的 `[x]` / `[ ]` 实算，模块化 `MOD-*` 工作包另计。
 
 另有 4 项 `OPTIONAL` 可选候选，不计入上述主统计。
 
 本文件是项目任务状态的总入口。详细设计继续保留在 `docs/` 的架构文档中，任务是否完成以代码、迁移和测试是否落地为准。
 
-当前结论：`REF-035` 根目录精简与旧入口退役、Memory 的 MEM-001 至 MEM-004 结构抽离以及 `AGENT-040` 证据契约与答案展示分离均已完成。剩余 48 项中，当前队列 4 项（`AGENT-041` 至 `AGENT-044`）、用户暂缓 2 项（`QA-010` 远程 Live、`UX-029` 移动端）、企业级暂缓 42 项；另有 4 项 `OPTIONAL` 候选保持不排期，详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
+当前结论：`REF-035`、Memory 的 MEM-001 至 MEM-004 结构抽离，以及 `AGENT-040` 至 `AGENT-044` 答案综合改善均已完成。既有产品当前队列为 0；待做 45 项为用户暂缓 2 项（`QA-010` 远程 Live、`UX-029` 移动端）与企业级暂缓 43 项。另有 4 项 `OPTIONAL` 候选保持不排期，详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
+
+模块化计划单独维护：`MOD-001` 至 `MOD-019` 已验证；`MOD-020` 至 `MOD-023` 的 Checkpoint/只读恢复，以及 `MOD-024` 至 `MOD-028` 的离线交付/内网集成仍为计划中。保留的兼容 facade 与配置锚点由 `MOD-027` 承接，详见 [模块化工作包追踪](docs/todos/modularization.md) 和 [总方案](docs/architecture-modularization-master-plan.md)。
 
 ## 标记规则
 
@@ -23,19 +25,20 @@
 
 | 类型 | 任务 | 当前结论 |
 |---|---|---|
-| 当前队列 | `AGENT-041` 至 `AGENT-044` | `AGENT-040` 已通过完整离线质量门；不自动激活暂缓或 `OPTIONAL` 任务 |
+| 产品当前队列 | 0 项 | `AGENT-040` 至 `AGENT-044` 已完成；不自动激活暂缓或 `OPTIONAL` 任务 |
+| 模块化待办（另计） | `MOD-020` 至 `MOD-028` | 恢复能力 4 项、模块交付与内网集成 5 项；P5 随稳定切片推进，不要求全部等待恢复能力 |
 | 用户暂缓 | `QA-010`、`UX-029` | 远程 Live 验收和移动端需求暂不进入当前队列 |
-| 企业级暂缓 | 42 项 | 等待身份提供方、真实数据接口、部署环境和运维边界明确 |
+| 企业级暂缓 | 43 项 | 等待身份提供方、真实数据接口、部署环境和运维边界明确 |
 | 可选候选 | `RAG-024`、`AGENT-039`、`REF-025`、`REF-026` `OPTIONAL` | 不计入主统计，只在用户明确激活后排期 |
 
-最近一次完整质量门为 2026-10-15 `AGENT-040` WSL 完整离线质量门 exit 0：发现 613 个 Python 测试，544/544 非系统测试，系统数据/HTTP/知识/模型/会话 13/15/13/17/11 全通过、总墙钟 111.455 秒且预算通过；coverage 89%，Node 61/61、RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7、Playwright 17/17（48.5 秒）均通过，仓库与冻结兼容契约检查通过。首次完整门发现一条旧报告标题断言并已按预期格式变化更新；一次浏览器全套会话旅程时序失败，单项和最终完整门复跑通过。普通门未调用真实模型。完整基线见 [测试策略](docs/testing-strategy.md)。
+已有完整离线门记录见 [MOD-009 验收报告](docs/reports/mod-009-tool-sources.md)：2026-11-06 记录退出码 0，Python 1226 项（含 2 个平台跳过）、覆盖率 88%、Node 61/61、浏览器 17/17。后续 [MOD-012](docs/reports/mod-012-model-gateway.md) 与 [MOD-015](docs/reports/mod-015-runtime-convergence.md) 按各自范围验证；MOD-015e 的 WSL 1301 项逐模块对照没有新增失败，但保留与基线一致的既有环境失败，未重跑浏览器、覆盖率或性能门。各轮历史基线保留，当前验证索引见 [测试策略](docs/testing-strategy.md)。
 
 ## 工作流清单
 
 | 工作流 | 清单 | 当前结论 |
 |---|---|---|
 | Memory System | [Memory TODO](docs/todos/memory-system.md) | MEM-001 至 MEM-004 已通过完整离线验收；长期记忆 OPTIONAL |
-| Agent 执行架构 | [Agent TODO](docs/todos/agent-architecture.md) | Tool Agent Loop、四态上下文安全降级、基于真实消息 ID 的上下文回忆、制造范围门禁、通用制造运营概览、Router、六类 Playbook、Planner、运行时守卫、Validator、Synthesizer、计划审计持久化、Playbook 黄金集、统一会话仲裁、范围安全证据、ready 计划确定性执行与 `AGENT-040` 答案展示分离均已完成；Trace 语义由 `OBS-017` 收口 |
+| Agent 执行架构 | [Agent TODO](docs/todos/agent-architecture.md) | Tool Agent Loop、四态上下文安全降级、历史回忆、制造范围门禁、Router/Playbook/Planner、证据与综合、计划审计、ready 确定性执行及 `AGENT-040` 至 `AGENT-044` 答案展示、声明支持、多证据推断、措辞和局部协议修复均已完成；Trace 语义由 `OBS-017` 收口 |
 | 身份与权限 | [身份安全 TODO](docs/todos/identity-security.md) | 本地隔离和管理令牌已完成；企业 SSO/RBAC 属于企业级暂缓 |
 | 模型治理 | [模型治理 TODO](docs/todos/model-governance.md) | 统一 Provider 连接、能力目录、用户选择与 Thinking 服务端门禁已完成；企业凭据与审批属于企业级暂缓 |
 | RAG 与知识库 | [知识库 TODO](docs/todos/rag-knowledge.md) | L0 本地 RAG、中文双语制程召回治理、自动 Tag 人工保护和离线 OCR 已完成；分布式 RAG 属于企业级暂缓 |
@@ -45,6 +48,7 @@
 | 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接、运行快照治理和受保护的远程 CI 质量门已完成；其余项均为企业级暂缓 |
 | 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 至 QA-009 已完成；QA-010 本地完整 Live 通过、远程验收暂缓 |
 | 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 至 REF-024、REF-027 至 REF-034 已完成；REF-035 已完成；`REF-025`、`REF-026` 仍为 `OPTIONAL` |
+| 模块化与内网迁移（另计） | [模块化追踪](docs/todos/modularization.md) | MOD-001～019 已验证；MOD-020～028 计划中，不计入产品 227 项统计 |
 
 ## 更新要求
 
