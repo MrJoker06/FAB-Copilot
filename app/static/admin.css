@@ -69,3 +69,41 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media (max-width: 1180px) { .model-catalog-table colgroup, .model-catalog-table thead { display: none; }.model-catalog-table, .model-catalog-table tbody, .model-catalog-table tr, .model-catalog-table td { display: block; width: 100%; }.model-catalog-table tbody { display: grid; gap: 10px; padding: 10px; }.model-catalog-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }.model-catalog-table td { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px; min-height: 0; padding: 9px 11px; border-bottom: 1px solid #e8ecec; }.model-catalog-table td:last-child { border-bottom: 0; }.model-catalog-table td::before { content: attr(data-label); color: var(--muted); font-size: 9px; font-weight: 700; }.model-catalog-table .empty-row { display: block; grid-column: 1 / -1; height: auto; text-align: center; }.model-catalog-table .empty-row::before { content: none; }.model-catalog-table .catalog-actions { justify-content: flex-start; } }
 @media (max-width: 1100px) { .admin-kpis { grid-template-columns: repeat(3, minmax(130px, 1fr)); } }
 @media (max-width: 760px) { .admin-shell { grid-template-columns: 54px minmax(0, 1fr); }.admin-sidebar { padding-inline: 7px; }.admin-nav { justify-content: center; padding: 0; }.admin-nav span:last-child, .admin-sidebar-meta { display: none; }.admin-main { padding: 16px 12px 32px; }.admin-page-heading { align-items: flex-start; flex-direction: column; }.runtime-controls { width: 100%; }.runtime-controls select { flex: 1; }.admin-kpis { grid-template-columns: repeat(2, minmax(120px, 1fr)); }.model-form-grid { grid-template-columns: 1fr; }.full-field { grid-column: auto; }.admin-topbar { padding-inline: 12px; }.admin-brand small { display: none; }.model-catalog-table tr { grid-template-columns: 1fr; } }
+
+/* Model catalog: prioritise readable cells and let chips/buttons wrap as whole units. */
+.model-catalog-wrap { overflow-x: auto; }
+.model-catalog-table { width: 100%; min-width: 1024px; table-layout: fixed; }
+.model-catalog-model { width: 17%; }
+.model-catalog-provider { width: 10%; }
+.model-catalog-credential { width: 9%; }
+.model-catalog-capabilities { width: 15%; }
+.model-catalog-compatibility { width: 12%; }
+.model-catalog-health { width: 8%; }
+.model-catalog-users { width: 5%; }
+.model-catalog-status { width: 6%; }
+.model-catalog-published { width: 7%; }
+.model-catalog-actions { width: 11%; }
+.model-catalog-table th, .model-catalog-table td { padding-left: 9px; padding-right: 9px; }
+.model-catalog-table th:nth-child(8), .model-catalog-table td:nth-child(8),
+.model-catalog-table th:nth-child(9), .model-catalog-table td:nth-child(9),
+.model-catalog-table th:nth-child(10), .model-catalog-table td:nth-child(10) { text-align: left; }
+.model-catalog-table th:nth-child(6), .model-catalog-table td:nth-child(6),
+.model-catalog-table th:nth-child(7), .model-catalog-table td:nth-child(7) { text-align: center; }
+.model-identity code { color: #536465; font-family: Consolas, monospace; font-size: 10px; overflow-wrap: anywhere; }
+.provider-identity strong { font-size: 11px; }
+.capability-chips { align-content: flex-start; }
+.capability-chip { flex: 0 0 auto; white-space: nowrap; }
+.model-credential { min-width: 0; align-content: start; }
+.model-credential button, .catalog-actions button { flex: 0 0 auto; white-space: nowrap; }
+.catalog-actions { align-content: flex-start; }
+@media (max-width: 1180px) {
+  .model-catalog-table { min-width: 0; }
+  .model-catalog-table tr { overflow: visible; }
+  .model-catalog-table td[data-label="模型"],
+  .model-catalog-table td[data-label="凭据"],
+  .model-catalog-table td[data-label="能力"],
+  .model-catalog-table td[data-label="兼容性"],
+  .model-catalog-table td[data-label="操作"] { grid-column: 1 / -1; }
+  .model-catalog-table td[data-label="操作"] { grid-template-columns: 92px minmax(0, 1fr); }
+  .model-catalog-table td[data-label="能力"] .capability-chips { gap: 6px; }
+}

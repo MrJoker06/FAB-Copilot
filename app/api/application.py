@@ -54,6 +54,16 @@ def lifespan_for(deps: ApplicationDependencies):
     return lifespan
 
 
+class RevalidatingStaticFiles(StaticFiles):
+    """Make browsers revalidate UI assets instead of silently using stale ones."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        if path.lower().endswith((".html", ".js", ".css")):
+            response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return response
+
+
 def create_application(
     *,
     lifespan: Callable[[FastAPI], AsyncContextManager[None]],
@@ -69,5 +79,9 @@ def create_application(
     )
     app.add_middleware(principal_context_middleware)
     app.add_middleware(request_audit_middleware)
-    app.mount("/static", StaticFiles(directory=project_dir / "app" / "static"), name="static")
+    app.mount(
+        "/static",
+        RevalidatingStaticFiles(directory=project_dir / "app" / "static"),
+        name="static",
+    )
     return app

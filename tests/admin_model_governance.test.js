@@ -37,7 +37,8 @@ test('model catalog uses a responsive fixed layout and capability chips', () => 
   assert.match(script, /capability-chip capability-chip-\$\{key\}/);
   assert.match(script, /capability-chip capability-chip-empty">无/);
   assert.match(script, /data-label="兼容性"/);
-  assert.match(script, /data-label="提供方模型"/);
+  assert.match(script, /data-label="提供方"/);
+  assert.match(script, /data-label="模型"/);
   assert.match(script, /compatibility-details/);
   assert.match(script, /structured_context:'结构化上下文'/);
   assert.match(script, /data-label="健康"/);
@@ -50,6 +51,9 @@ test('model catalog uses a responsive fixed layout and capability chips', () => 
   assert.match(css, /\.capability-chip-tool_calls \{[^}]*color: #365b70;[^}]*background: #edf4f7;/);
   assert.match(css, /\.capability-chip-thinking \{[^}]*color: #62507e;[^}]*background: #f3eff8;/);
   assert.match(css, /\.capability-chip-native_multimodal \{[^}]*color: #765c37;[^}]*background: #faf3e7;/);
+  assert.match(css, /\.capability-chip \{ flex: 0 0 auto; white-space: nowrap; \}/);
+  assert.match(css, /td\[data-label="操作"\]/);
+  assert.match(css, /grid-column: 1 \/ -1/);
   assert.match(css, /@media \(max-width: 1180px\) \{[^}]*\.model-catalog-table colgroup, .model-catalog-table thead \{ display: none; \}/);
   assert.match(css, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
   assert.match(css, /@media \(max-width: 760px\)/);
@@ -57,17 +61,18 @@ test('model catalog uses a responsive fixed layout and capability chips', () => 
 });
 
 test('model catalog header is semantic, Chinese, and visually distinct', () => {
-  assert.equal((html.match(/<th scope="col">/g) || []).length, 12);
-  assert.match(html, /<th scope="col">提供方模型<\/th>/);
+  assert.equal((html.match(/<th scope="col">/g) || []).length, 10);
+  assert.match(html, /<th scope="col">模型<\/th>/);
+  assert.match(html, /<th scope="col">提供方<\/th>/);
   assert.match(html, /<th scope="col">凭据<\/th>/);
   assert.doesNotMatch(html, />Provider Model</);
   assert.match(css, /\.model-catalog-table th \{[^}]*height: 44px;[^}]*color: #465957;[^}]*background: #f1f5f4;[^}]*font-size: 10px;[^}]*font-weight: 700;[^}]*text-transform: none;/);
   assert.match(css, /\.model-catalog-table th \{[^}]*border-bottom: 2px solid #c5d3d0;/);
-  assert.match(css, /\.model-catalog-table th:nth-child\(10\), .model-catalog-table td:nth-child\(10\) \{ text-align: center; \}/);
+  assert.match(css, /\.model-catalog-table th:nth-child\(6\)[^{]*\{ text-align: center; \}/);
   assert.match(css, /\.credential-chip \{/);
   assert.match(script, /credentialLabels = \{local_file:'本地凭据', environment:'环境变量', missing:'未配置'\}/);
   assert.match(html, /id="modelCredentialDialog"/);
-  assert.match(css, /\.model-catalog-table th:nth-child\(11\), .model-catalog-table td:nth-child\(11\) \{ text-align: left; \}/);
+  assert.match(css, /\.model-catalog-table th:nth-child\(9\)[^{]*\{ text-align: left; \}/);
   assert.match(css, /\.model-catalog-table \.catalog-actions \{ justify-content: flex-start; \}/);
   assert.match(css, /\.model-catalog-wrap \{ overflow-x: hidden; \}/);
   assert.match(css, /@media \(max-width: 1180px\) \{[^}]*\.model-catalog-table colgroup, .model-catalog-table thead \{ display: none; \}/);
