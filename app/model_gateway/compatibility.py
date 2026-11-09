@@ -34,6 +34,7 @@ class ModelCompatibilityError(ValueError):
     retryable: bool = False
     category: str = "protocol"
     http_status: int | None = None
+    provider_detail: str = ""
 
     def __str__(self) -> str:
         return self.summary
@@ -59,6 +60,24 @@ def compatibility_limits(timeout_seconds: float | None, context_chars: int | Non
     return max(1.0, min(timeout, 60.0)), max(1024, min(context, 65536))
 
 
+def _provider_error_detail(body: bytes) -> str:
+    """Return a bounded provider message without exposing arbitrary response text."""
+    try:
+        payload = json.loads(body)
+    except (TypeError, ValueError):
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    error = payload.get("error")
+    if isinstance(error, dict):
+        message = error.get("message")
+    elif isinstance(error, str):
+        message = error
+    else:
+        message = payload.get("message")
+    return message[:300] if isinstance(message, str) else ""
+
+
 async def _stream_probe(client: httpx.AsyncClient, endpoint: str, headers: dict, payload: dict) -> dict:
     saw_done = False
     content: list[str] = []
@@ -67,7 +86,18 @@ async def _stream_probe(client: httpx.AsyncClient, endpoint: str, headers: dict,
     event_count = byte_count = 0
     try:
         async with client.stream("POST", endpoint, headers=headers, json={**payload, "stream": True}) as response:
-            response.raise_for_status()
+            if response.status_code >= 400:
+                try:
+                    body = await response.aread()
+                except httpx.HTTPError:
+                    body = b""
+                raise ModelCompatibilityError(
+                    f"模型兼容性请求失败（HTTP {response.status_code}）",
+                    response.status_code >= 500 or response.status_code == 429,
+                    "http",
+                    response.status_code,
+                    _provider_error_detail(body),
+                )
             if "text/event-stream" not in response.headers.get("content-type", "").lower():
                 raise ModelCompatibilityError("模型响应不是 SSE 事件流", False, "content_type")
             async for raw in response.aiter_lines():
@@ -117,9 +147,6 @@ async def _stream_probe(client: httpx.AsyncClient, endpoint: str, headers: dict,
                     target["function"]["arguments"] += str(function.get("arguments") or "")
     except ModelCompatibilityError:
         raise
-    except httpx.HTTPStatusError as exc:
-        status_code = exc.response.status_code
-        raise ModelCompatibilityError(f"模型兼容性请求失败（HTTP {status_code}）", status_code >= 500 or status_code == 429, "http", status_code) from exc
     except (httpx.TimeoutException, httpx.RequestError) as exc:
         raise ModelCompatibilityError("无法在限定时间内连接模型服务", True, "network") from exc
     if not saw_done:
@@ -245,6 +272,13 @@ async def check_model_compatibility(
             except ModelCompatibilityError as exc:
                 if exc.category == "http" and exc.http_status in {400, 404, 415, 422}:
                     raise ModelCompatibilityError("模型不具备原生多模态能力（图片输入被模型拒绝）", False, "multimodal", exc.http_status) from exc
+                if exc.category == "http" and "image input is not supported" in exc.provider_detail.lower():
+                    raise ModelCompatibilityError(
+                        "模型服务未加载多模态投影（启动 llama-server 时需要 --mmproj）",
+                        False,
+                        "multimodal",
+                        exc.http_status,
+                    ) from exc
                 raise
             if "BLACK" not in image["content"].upper():
                 raise ModelCompatibilityError("模型不具备原生多模态能力（图片内容识别未通过）", False, "multimodal")

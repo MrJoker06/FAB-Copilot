@@ -127,6 +127,9 @@ Write-Host "context     : $($profileSpec.Ctx) (parallel $($profileSpec.Parallel)
 Write-Host "endpoint    : http://${BindHost}:$Port/v1"
 Write-Host "logs        : $stderr"
 
+if (-not $Vision) {
+    Write-Host "note: starting text-only; models declaring native_multimodal=true will fail image compatibility (use -Vision)."
+}
 $process = Start-Process -FilePath $server -ArgumentList $arguments -PassThru -NoNewWindow `
     -RedirectStandardOutput $stdout -RedirectStandardError $stderr
 

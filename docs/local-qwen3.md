@@ -37,6 +37,10 @@ KV/token ≈ 2 × 17 × 4 × 256 × (q8 ≈ 1 B) ≈ 34 KB
 
 脚本会等待 `/v1/models` 就绪后打印模型 id，并给出需要写进 `.env` 的四行配置。
 
+> 如果模型在管理端声明了 `native_multimodal = true`，兼容性探针会发送一张图片。
+> 此时必须用 `-Vision` 启动；否则 llama.cpp 会返回 HTTP 500
+> `image input is not supported`，兼容性检查会提示“模型服务未加载多模态投影”。
+
 默认关闭 Qwen 的 thinking（`--reasoning off`）：在本机实测，开启时单次回答会多出约
 6–7k 输出 token、耗时从约 60 秒涨到约 200 秒。需要推理过程时加 `-Thinking`。
 
