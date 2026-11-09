@@ -160,7 +160,7 @@ function renderModels(models) {
     const label = credentialLabels[source] || '未配置';
     return `<div class="model-credential"><span class="credential-chip credential-${escapeHtml(source)}">${escapeHtml(label)}</span><button class="quiet-button" type="button" data-action="credential" data-model-id="${escapeHtml(model.model_id)}">配置</button></div>`;
   };
-  $('#modelCatalogBody').innerHTML = models.map(model => `<tr><td data-label="显示名称"><div class="identity-cell"><strong>${escapeHtml(model.display_name)}</strong><span>${escapeHtml(model.base_url)}</span></div></td><td data-label="模型编号">${escapeHtml(model.model_id)}</td><td data-label="提供方">${escapeHtml(model.provider)}</td><td data-label="提供方模型">${escapeHtml(model.provider_model)}</td><td data-label="凭据">${credential(model)}</td><td data-label="能力"><div class="capability-chips">${capabilityChips(model)}</div></td><td data-label="兼容性">${compatibility(model)}</td><td data-label="健康">${health(model)}</td><td data-label="使用用户">${formatNumber(model.selected_user_count)}</td><td data-label="状态">${statusChip(model.status)}</td><td data-label="发布时间">${formatDate(model.published_at)}</td><td data-label="操作"><div class="catalog-actions"><button class="quiet-button" type="button" data-action="status" data-model-id="${escapeHtml(model.model_id)}" data-model-status="${model.status === 'published' ? 'retired' : 'published'}">${model.status === 'published' ? '停用' : '重新发布'}</button><button class="quiet-button" type="button" data-action="capabilities" data-model-id="${escapeHtml(model.model_id)}">编辑能力</button><button class="quiet-button" type="button" data-action="compatibility" data-model-id="${escapeHtml(model.model_id)}">兼容性探针</button></div></td></tr>`).join('') || '<tr><td class="empty-row" colspan="12">模型目录为空</td></tr>';
+  $('#modelCatalogBody').innerHTML = models.map(model => `<tr><td data-label="显示名称"><div class="identity-cell"><strong>${escapeHtml(model.display_name)}</strong><span>${escapeHtml(model.base_url)}</span></div></td><td data-label="模型编号">${escapeHtml(model.model_id)}</td><td data-label="提供方">${escapeHtml(model.provider)}</td><td data-label="提供方模型">${escapeHtml(model.provider_model)}</td><td data-label="凭据">${credential(model)}</td><td data-label="能力"><div class="capability-chips">${capabilityChips(model)}</div></td><td data-label="兼容性">${compatibility(model)}</td><td data-label="健康">${health(model)}</td><td data-label="使用用户">${formatNumber(model.selected_user_count)}</td><td data-label="状态">${statusChip(model.status)}</td><td data-label="发布时间">${formatDate(model.published_at)}</td><td data-label="操作"><div class="catalog-actions"><button class="quiet-button" type="button" data-action="status" data-model-id="${escapeHtml(model.model_id)}" data-model-status="${model.status === 'published' ? 'retired' : 'published'}">${model.status === 'published' ? '停用' : '重新发布'}</button><button class="quiet-button" type="button" data-action="capabilities" data-model-id="${escapeHtml(model.model_id)}">编辑能力</button><button class="quiet-button" type="button" data-action="compatibility" data-model-id="${escapeHtml(model.model_id)}">兼容性探针</button><button class="quiet-button" type="button" data-action="delete" data-model-id="${escapeHtml(model.model_id)}" data-model-name="${escapeHtml(model.display_name)}">删除</button></div></td></tr>`).join('') || '<tr><td class="empty-row" colspan="12">模型目录为空</td></tr>';
 }
 
 async function loadModels() {
@@ -273,6 +273,15 @@ async function runCompatibilityCheck(modelId, button) {
   finally { button.disabled = false; button.textContent = original; }
 }
 
+async function deleteModel(modelId, displayName) {
+  if (!window.confirm(`删除模型“${displayName}”？这会移除目录记录、用户选择和本地凭据，且无法撤销。`)) return;
+  try {
+    await adminApi(`/api/admin/models/${encodeURIComponent(modelId)}`, {method:'DELETE'});
+    await loadModels();
+    showToast('模型已删除');
+  } catch (error) { showNotice('#modelNotice', error.message, true); }
+}
+
 function showView(name) {
   adminState.activeView = name;
   document.querySelectorAll('.admin-view').forEach(view => view.classList.toggle('active', view.id === `${name}View`));
@@ -315,7 +324,7 @@ function init() {
   $('#modelCredentialForm').addEventListener('submit', saveCredential);
   $('#clearModelCredential').addEventListener('click', clearCredential);
   $('#modelCredentialDialog').addEventListener('close', () => { $('#modelCredentialApiKey').value = ''; });
-  $('#modelCatalogBody').addEventListener('click', event => { const button = event.target.closest('[data-action]'); if (!button) return; if (button.dataset.action === 'status') updateModelStatus(button.dataset.modelId, button.dataset.modelStatus, button); else if (button.dataset.action === 'capabilities') openCapabilities(button.dataset.modelId); else if (button.dataset.action === 'credential') openCredential(button.dataset.modelId); else if (button.dataset.action === 'compatibility') runCompatibilityCheck(button.dataset.modelId, button); });
+  $('#modelCatalogBody').addEventListener('click', event => { const button = event.target.closest('[data-action]'); if (!button) return; if (button.dataset.action === 'status') updateModelStatus(button.dataset.modelId, button.dataset.modelStatus, button); else if (button.dataset.action === 'capabilities') openCapabilities(button.dataset.modelId); else if (button.dataset.action === 'credential') openCredential(button.dataset.modelId); else if (button.dataset.action === 'compatibility') runCompatibilityCheck(button.dataset.modelId, button); else if (button.dataset.action === 'delete') deleteModel(button.dataset.modelId, button.dataset.modelName); });
   if (adminState.token) loadOverview().then(showWorkspace).catch(() => {}); else showAuth();
   adminState.refreshTimer = window.setInterval(() => adminState.token && adminState.activeView === 'runtime' && loadOverview().catch(() => {}), 10000);
 }

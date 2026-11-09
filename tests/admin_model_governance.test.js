@@ -10,6 +10,8 @@ test('admin catalog exposes separate declaration and explicit compatibility acti
   assert.match(html, /editCapabilitiesDialog/);
   assert.match(script, /data-action="capabilities"/);
   assert.match(script, /data-action="compatibility"/);
+  assert.match(script, /data-action="delete"/);
+  assert.match(script, /async function deleteModel/);
   assert.match(script, /\/compatibility-check/);
   assert.match(script, /\/capabilities/);
   assert.doesNotMatch(script, /正在执行兼容性检查/);

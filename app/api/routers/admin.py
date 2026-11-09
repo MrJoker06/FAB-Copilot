@@ -128,6 +128,43 @@ def create_router(deps: NamespaceProvider, current_admin) -> RouterBundle:
             None,
         )
 
+    def admin_delete_model(
+        model_id: str, admin_user: Annotated[str, Depends(current_admin)]
+    ) -> dict:
+        runtime = deps()
+        model = _admin_model(runtime, model_id)
+        if model is None:
+            raise runtime["http_problem"](
+                404, "MODEL_DELETE_FAILED", "模型不存在", False
+            )
+        if model["status"] == "published":
+            published_count = sum(
+                1
+                for item in runtime["list_models"](include_retired=True)
+                if item["status"] == "published"
+            )
+            if published_count <= 1:
+                raise runtime["http_problem"](
+                    400, "MODEL_DELETE_FAILED", "至少保留一个已发布模型", False
+                )
+        try:
+            runtime["clear_stored_model_api_key"](model_id)
+            deleted = runtime["delete_model"](model_id)
+        except ValueError as exc:
+            raise runtime["http_problem"](
+                400, "MODEL_DELETE_FAILED", str(exc), False
+            ) from exc
+        runtime["emit"](
+            "model_deleted",
+            f"model-{uuid.uuid4()}",
+            status="success",
+            model_id=model_id,
+            provider=model["provider"],
+            model_status=model["status"],
+            changed_by=admin_user,
+        )
+        return deleted
+
     def admin_set_model_credential(
         model_id: str,
         request: AdminModelCredentialRequest,
@@ -252,6 +289,9 @@ def create_router(deps: NamespaceProvider, current_admin) -> RouterBundle:
         "/api/admin/models/{model_id}", admin_update_model_status, methods=["PATCH"]
     )
     router.add_api_route(
+        "/api/admin/models/{model_id}", admin_delete_model, methods=["DELETE"]
+    )
+    router.add_api_route(
         "/api/admin/models/{model_id}/capabilities",
         admin_update_model_capabilities,
         methods=["PATCH"],
@@ -279,6 +319,7 @@ def create_router(deps: NamespaceProvider, current_admin) -> RouterBundle:
             "admin_models": admin_models,
             "admin_publish_model": admin_publish_model,
             "admin_update_model_status": admin_update_model_status,
+            "admin_delete_model": admin_delete_model,
             "admin_update_model_capabilities": admin_update_model_capabilities,
             "admin_check_model_compatibility": admin_check_model_compatibility,
             "admin_set_model_credential": admin_set_model_credential,

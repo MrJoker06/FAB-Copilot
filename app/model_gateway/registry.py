@@ -54,15 +54,24 @@ def ensure_model_catalog() -> None:
         for model_id in ALLOWED_MODELS
     ]
     with db_session() as connection:
-        connection.executemany(
-            """INSERT OR IGNORE INTO agent.model_catalog(
-                   model_id, display_name, provider, provider_model, base_url, status,
-                   capabilities_json, created_by, created_at, updated_at, published_at
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            rows,
-        )
+        existing = {
+            row[0]
+            for row in connection.execute("SELECT model_id FROM agent.model_catalog")
+        }
+        # Seed the built-ins only for an empty catalog.  An administrator may
+        # intentionally delete one; it must not reappear on the next restart.
+        if not existing:
+            connection.executemany(
+                """INSERT OR IGNORE INTO agent.model_catalog(
+                       model_id, display_name, provider, provider_model, base_url, status,
+                       capabilities_json, created_by, created_at, updated_at, published_at
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                rows,
+            )
+            existing = {row[0] for row in rows}
         for model_id, *_ in rows:
-            ensure_model_health(model_id, connection)
+            if model_id in existing:
+                ensure_model_health(model_id, connection)
         connection.commit()
 
 
@@ -311,6 +320,37 @@ def set_model_status(model_id: str, status: str) -> dict:
             raise ValueError("模型不存在或状态已变化")
         connection.commit()
         row = connection.execute("SELECT * FROM model_catalog WHERE model_id = ?", (model_id,)).fetchone()
+    return _decode_model(row)
+
+
+def delete_model(model_id: str) -> dict:
+    """Remove one catalog entry and every row that references it.
+
+    The last published model is kept: deleting it would leave the application
+    without any selectable model.  A retired model can always be deleted.
+    """
+    with db_session() as connection:
+        row = connection.execute(
+            "SELECT * FROM model_catalog WHERE model_id = ?", (model_id,)
+        ).fetchone()
+        if row is None:
+            raise ValueError("模型不存在")
+        if row["status"] == "published":
+            published_count = connection.execute(
+                "SELECT COUNT(*) FROM model_catalog WHERE status = 'published'"
+            ).fetchone()[0]
+            if published_count <= 1:
+                raise ValueError("至少保留一个已发布模型")
+        connection.execute(
+            "DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,)
+        )
+        connection.execute("DELETE FROM agent.model_health WHERE model_id = ?", (model_id,))
+        deleted = connection.execute(
+            "DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,)
+        )
+        if deleted.rowcount != 1:
+            raise ValueError("模型不存在或状态已变化")
+        connection.commit()
     return _decode_model(row)
 
 

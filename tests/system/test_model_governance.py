@@ -369,6 +369,45 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                 connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
                 connection.commit()
 
+    def test_admin_can_delete_a_configured_model(self):
+        model_id, token = "model-021-delete", "model-021-delete-token"
+        credentials_path = model_credentials_path()
+        credentials_path.unlink(missing_ok=True)
+        with db_session() as connection:
+            connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
+            connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
+            connection.commit()
+        headers = {"Authorization": f"Bearer {token}"}
+        user_headers = {"X-Tenant-ID": "delete-fab", "X-User-ID": "delete-user"}
+        try:
+            with patch.dict(os.environ, {
+                "FAB_ADMIN_API_TOKEN": token,
+                "FAB_MODEL_API_KEY": "global-secret",
+                "DEEPSEEK_API_KEY": "",
+            }), TestClient(app) as client:
+                payload = {"model_id": model_id, "display_name": "Model 021 Delete", "provider": "deepseek", "provider_model": "model-021", "base_url": "https://models.example.test/v1", "capabilities": {"streaming": True, "tool_calls": True, "thinking": False, "native_multimodal": False}}
+                self.assertEqual(client.post("/api/admin/models", headers=headers, json=payload).status_code, 201)
+                self.assertEqual(client.post("/api/settings/model", headers=user_headers, json={"model": model_id}).status_code, 200)
+                self.assertEqual(client.put(f"/api/admin/models/{model_id}/credential", headers=headers, json={"api_key": "delete-me-secret"}).status_code, 200)
+                self.assertEqual(get_stored_model_api_key(model_id), "delete-me-secret")
+
+                deleted = client.delete(f"/api/admin/models/{model_id}", headers=headers)
+                self.assertEqual(deleted.status_code, 200, deleted.text)
+                self.assertEqual(deleted.json()["model_id"], model_id)
+                self.assertNotIn(model_id, [item["model_id"] for item in client.get("/api/admin/models", headers=headers).json()])
+                self.assertNotEqual(client.get("/api/settings/model", headers=user_headers).json()["model"], model_id)
+                self.assertIsNone(get_stored_model_api_key(model_id))
+                with db_session() as connection:
+                    self.assertIsNone(connection.execute("SELECT 1 FROM agent.model_catalog WHERE model_id = ?", (model_id,)).fetchone())
+                    self.assertIsNone(connection.execute("SELECT 1 FROM agent.user_model_preferences WHERE model_id = ?", (model_id,)).fetchone())
+                self.assertEqual(client.delete(f"/api/admin/models/{model_id}", headers=headers).status_code, 404)
+        finally:
+            credentials_path.unlink(missing_ok=True)
+            with db_session() as connection:
+                connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
+                connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
+                connection.commit()
+
     def test_unknown_model_is_rejected(self):
         with TestClient(app) as client:
             response = client.post("/api/settings/model", json={"model": "unknown-model"})

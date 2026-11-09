@@ -35,6 +35,7 @@ from ..persistence.execution_store import (
 from ..core.identity import PrincipalContextMiddleware, current_principal
 from ..model_gateway.compatibility import ModelCompatibilityError, check_model_compatibility
 from ..model_gateway.registry import (
+    delete_model,
     ensure_model_catalog,
     invalidate_model_compatibility,
     list_models,
@@ -174,6 +175,7 @@ __all__ = (
     "current_principal",
     "current_request_id",
     "db_session",
+    "delete_model",
     "delete_session_permanently",
     "delete_sessions_permanently",
     "department_paths",
