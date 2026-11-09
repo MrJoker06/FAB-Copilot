@@ -2473,6 +2473,7 @@
       ],
       "table_hints": [
         "agent.model_catalog",
+        "agent.model_health",
         "agent.user_model_preferences",
         "model_catalog",
         "user_model_preferences"

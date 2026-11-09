@@ -97,7 +97,11 @@ def _decode_model(row) -> dict:
         "last_error_category": item.pop("health_error_category", None),
     }
     item["selectable"] = item["status"] == "published"
-    configured, source = credential_status(item["model_id"], item["provider"])
+    configured, source = (
+        credential_status(item["model_id"], item["provider"])
+        if item.get("model_id") and item.get("provider")
+        else (False, "missing")
+    )
     item["credential_configured"] = configured
     item["credential_source"] = source
     return item

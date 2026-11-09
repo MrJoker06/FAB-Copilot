@@ -23,8 +23,8 @@ ASSETS = (
 
 
 class SkillReleasesPortableTests(unittest.TestCase):
-    def test_released_ready_and_loop_use_only_the_explicit_97_file_slice(self) -> None:
-        self.assertEqual(len(SOURCE_FILES), 97)
+    def test_released_ready_and_loop_use_only_the_explicit_100_file_slice(self) -> None:
+        self.assertEqual(len(SOURCE_FILES), 100)
         with tempfile.TemporaryDirectory() as temporary:
             unit = Path(temporary) / "unit"
             for relative in SOURCE_FILES:
@@ -56,7 +56,8 @@ blocked = ('app.agent_runtime.service', 'app.agent_runtime.compatibility',
  'app.agent_runtime.execution.agent_loop', 'app.agent_runtime.tools.catalog',
  'app.agent_runtime.execution.loop_answer', 'app.agent_runtime.execution.loop_model_call', 'app.agent_runtime.execution.loop_request',
  'app.agent_runtime.execution.loop_round_validation', 'app.agent_runtime.execution.loop_state', 'app.agent_runtime.execution.loop_tool_round',
- 'app.agent_runtime.tools.registry', 'app.core', 'app.model_gateway', 'app.persistence',
+ 'app.agent_runtime.tools.registry', 'app.core.settings', 'app.core.model_credentials',
+ 'app.model_gateway', 'app.persistence',
  'app.telemetry', 'app.conversation')
 events = []
 class BlockedFinder(importlib.abc.MetaPathFinder):

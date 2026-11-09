@@ -37,14 +37,14 @@ LOOP_FILES = (
 
 
 class LoopDispatcherPortableTests(unittest.TestCase):
-    def test_loop_demo_runs_from_actual_55_file_source_slice(self):
+    def test_loop_demo_runs_from_actual_58_file_source_slice(self):
         baseline = json.loads(INVENTORY.read_text(encoding="utf-8"))["units"][
             "dispatcher_pilot"
         ]["files"]
         files = (
             tuple(baseline) + RUNTIME_FILES + MODERN_FILES + READY_FILES + LOOP_FILES
         )
-        self.assertEqual((len(files), len(set(files))), (55, 55))
+        self.assertEqual((len(files), len(set(files))), (58, 58))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

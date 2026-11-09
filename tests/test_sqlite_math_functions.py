@@ -108,8 +108,32 @@ class SqliteMathFunctionTests(unittest.TestCase):
         self.addCleanup(setattr, sqlite_support, "_TEMP_STORE_MODE", original)
         with patch.dict(os.environ, {"FAB_SQLITE_TEMP_STORE": mode}):
             sqlite_support._TEMP_STORE_MODE = None
-            sqlite_support.install_sqlite_functions(connection)
+            sqlite_support.install_sqlite_functions(
+                connection, temp_store=sqlite_support.temp_store_mode()
+            )
         return connection.execute("PRAGMA temp_store").fetchone()[0]
+
+    def test_unresolved_mode_keeps_default_without_reading_environment(self):
+        original = sqlite_support._TEMP_STORE_MODE
+        self.addCleanup(setattr, sqlite_support, "_TEMP_STORE_MODE", original)
+        sqlite_support._TEMP_STORE_MODE = None
+        connection = sqlite3.connect(":memory:")
+        self.addCleanup(connection.close)
+        with patch.object(sqlite_support.os, "getenv") as getenv, patch.dict(
+            os.environ, {"FAB_SQLITE_TEMP_STORE": "memory"}
+        ):
+            sqlite_support.install_sqlite_functions(connection)
+        getenv.assert_not_called()
+        self.assertEqual(connection.execute("PRAGMA temp_store").fetchone()[0], 0)
+
+    def test_adapters_reuse_mode_resolved_by_application_opener(self):
+        original = sqlite_support._TEMP_STORE_MODE
+        self.addCleanup(setattr, sqlite_support, "_TEMP_STORE_MODE", original)
+        sqlite_support._TEMP_STORE_MODE = "MEMORY"
+        connection = sqlite3.connect(":memory:")
+        self.addCleanup(connection.close)
+        sqlite_support.install_sqlite_functions(connection)
+        self.assertEqual(connection.execute("PRAGMA temp_store").fetchone()[0], 2)
 
     def test_temp_store_can_be_pinned_for_hosts_with_read_only_temp(self):
         """A locked-down TMP makes SQLite temp B-trees fail; MEMORY is the fallback."""

@@ -83,13 +83,22 @@ def temp_store_mode() -> str:
     return _TEMP_STORE_MODE
 
 
-def install_sqlite_functions(connection: sqlite3.Connection) -> sqlite3.Connection:
+def install_sqlite_functions(
+    connection: sqlite3.Connection, *, temp_store: str | None = None
+) -> sqlite3.Connection:
     """Register helpers that are missing from some SQLite builds.
 
     Only real ``sqlite3.Connection`` objects are touched; wrappers and test
     doubles that merely mimic the connection protocol are returned unchanged.
+
+    Only the application opener passes ``temp_store`` (resolved from the
+    environment).  Portable adapters must not read the environment, so they
+    reuse the mode already resolved in this process and otherwise keep the
+    SQLite default.
     """
     if isinstance(connection, sqlite3.Connection):
         connection.create_function("SQRT", 1, _sqrt, deterministic=True)
-        connection.execute(f"PRAGMA temp_store={temp_store_mode()}")
+        mode = temp_store or _TEMP_STORE_MODE
+        if mode:
+            connection.execute(f"PRAGMA temp_store={mode}")
     return connection

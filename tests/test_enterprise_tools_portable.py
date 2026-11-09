@@ -52,7 +52,7 @@ class EnterpriseToolsPortableTests(unittest.TestCase):
             + OPERATIONAL_FILES
             + ENTERPRISE_FILES
         )
-        self.assertEqual((len(files), len(set(files))), (84, 84))
+        self.assertEqual((len(files), len(set(files))), (87, 87))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

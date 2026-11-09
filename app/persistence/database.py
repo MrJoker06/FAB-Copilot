@@ -10,7 +10,7 @@ from typing import Iterable, Iterator
 
 from ..core.model_capabilities import normalize_capabilities
 from ..core.settings import get_settings
-from ..core.sqlite_support import install_sqlite_functions
+from ..core.sqlite_support import install_sqlite_functions, temp_store_mode
 from .department_schemas import (
     DEPARTMENT_SCHEMAS,
     MIGRATION_ORDER,
@@ -616,7 +616,7 @@ def _connect_single(db_path: Path) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys=ON")
     connection.execute("PRAGMA busy_timeout=20000")
-    install_sqlite_functions(connection)
+    install_sqlite_functions(connection, temp_store=temp_store_mode())
     return connection
 
 

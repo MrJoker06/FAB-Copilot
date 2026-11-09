@@ -372,6 +372,14 @@ async def _capture_loop(
         s.enter_context(
             patch.object(agent, "_coordinator_dependencies", new=_legacy_v1_dependencies)
         )
+        if not knowledge:
+            # PB-DEFECT-001 turns this question into a deterministic ready plan;
+            # the loop scenarios must keep exercising the generic loop guard.
+            for registry in (
+                "app.manufacturing.playbooks.DOMAIN_PLAYBOOKS",
+                "app.manufacturing.named_playbooks.NAMED_DOMAIN_PLAYBOOKS",
+            ):
+                s.enter_context(patch.dict(registry)).pop("defect_analysis", None)
         with fixture_proxy_environment(), fixture_guard():
             started = time.perf_counter_ns()
             result = await agent._run_agent_impl(q, [], "mod002-loop", progress)

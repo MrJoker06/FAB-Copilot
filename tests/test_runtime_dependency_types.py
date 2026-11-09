@@ -641,7 +641,7 @@ class LightImportTests(unittest.TestCase):
                         (
                             "app.model_gateway",
                             "app.persistence",
-                            "app.core",
+                            "app.core.settings",
                             "app.telemetry",
                         )
                     ),

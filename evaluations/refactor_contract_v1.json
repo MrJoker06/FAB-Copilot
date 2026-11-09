@@ -123,7 +123,7 @@
     }
   },
   "api": {
-    "openapi_sha256": "da56fda6597a0b24a917ba2f9127b9fc68996201f844c66f0eaf095ce9b99e50",
+    "openapi_sha256": "588bcd03a5cfa142b7715160437c22ccce0cc56095188f6b55e4f040e4f265d9",
     "routes": [
       {
         "method": "GET",
@@ -150,6 +150,12 @@
         "success_status": 201
       },
       {
+        "method": "DELETE",
+        "name": "admin_delete_model",
+        "path": "/api/admin/models/{model_id}",
+        "success_status": 200
+      },
+      {
         "method": "PATCH",
         "name": "admin_update_model_status",
         "path": "/api/admin/models/{model_id}",
@@ -165,6 +171,18 @@
         "method": "POST",
         "name": "admin_check_model_compatibility",
         "path": "/api/admin/models/{model_id}/compatibility-check",
+        "success_status": 200
+      },
+      {
+        "method": "DELETE",
+        "name": "admin_clear_model_credential",
+        "path": "/api/admin/models/{model_id}/credential",
+        "success_status": 200
+      },
+      {
+        "method": "PUT",
+        "name": "admin_set_model_credential",
+        "path": "/api/admin/models/{model_id}/credential",
         "success_status": 200
       },
       {
@@ -454,10 +472,14 @@
         "adminToken",
         "adminWorkspace",
         "cancelCapabilities",
+        "cancelModelCredential",
         "cancelPublishModel",
+        "clearModelCredential",
         "closeCapabilities",
+        "closeModelCredential",
         "closePublishModel",
         "confirmCapabilities",
+        "confirmModelCredential",
         "confirmPublishModel",
         "editCapabilitiesDialog",
         "editCapabilitiesForm",
@@ -473,6 +495,13 @@
         "logPolicyPanel",
         "modelCatalogBody",
         "modelCatalogCount",
+        "modelCredentialApiKey",
+        "modelCredentialDialog",
+        "modelCredentialForm",
+        "modelCredentialMessage",
+        "modelCredentialModelId",
+        "modelCredentialSource",
+        "modelCredentialTitle",
         "modelNotice",
         "modelsView",
         "openPublishModel",

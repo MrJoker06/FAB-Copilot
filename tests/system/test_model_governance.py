@@ -503,6 +503,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
     def _health_patches(self, settings, claim):
         with ExitStack() as stack:
             stack.enter_context(patch("app.agent_runtime.service.get_settings", return_value=settings))
+            stack.enter_context(patch("app.agent_runtime.service.effective_agent_settings", return_value=settings))
             stack.enter_context(patch("app.agent_runtime.service.public_user_model_config", return_value={"model": "test-model"}))
             stack.enter_context(patch("app.agent_runtime.service.get_model_health", return_value={"status": "unknown"}))
             stack.enter_context(patch("app.agent_runtime.service.claim_model_call", side_effect=claim))

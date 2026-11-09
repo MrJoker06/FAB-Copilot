@@ -118,6 +118,9 @@ class ApiRouterBoundaryTests(unittest.TestCase):
                 "admin_update_model_status",
                 "admin_update_model_capabilities",
                 "admin_check_model_compatibility",
+                "admin_delete_model",
+                "admin_set_model_credential",
+                "admin_clear_model_credential",
             },
             "_report_routes": {"dashboard", "capability"},
             "_knowledge_routes": {
