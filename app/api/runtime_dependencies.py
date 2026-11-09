@@ -13,7 +13,13 @@ from ..telemetry.audit import (
     monitoring_summary,
     read_events,
 )
-from ..core.settings import APP_VERSION, PROJECT_DIR, ModelConnection, get_settings
+from ..core.settings import (
+    APP_VERSION,
+    PROJECT_DIR,
+    ModelConnection,
+    get_settings,
+    model_api_key,
+)
 from ..persistence.database import db_session, department_paths, ensure_department_databases
 from ..manufacturing.enterprise_data import EnterpriseDataError, get_enterprise_provider
 from ..persistence.execution_store import (
@@ -191,6 +197,7 @@ __all__ = (
     "models_router",
     "monitor_router",
     "monitoring_summary",
+    "model_api_key",
     "os",
     "pending_personal_jobs",
     "personal_document_file",

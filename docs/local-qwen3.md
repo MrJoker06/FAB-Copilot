@@ -193,9 +193,36 @@ MODEL_COMPATIBILITY_CONTEXT_CHARS=32768
 | 裁剪前 | 41,756 | 166 s（双槽下 500） |
 | 裁剪后 | **12,635** | **85 s** |
 
-> 内置的 `deepseekv4-flash` / `deepseekv4-pro` 共用全局 `FAB_MODEL_API_KEY`，本地部署下该值为
-> `local`，因此探针会得到 **401**。不需要云端模型时在管理端把它们「停用」即可；需要时把
-> `FAB_MODEL_API_KEY` 换成真实 DeepSeek Key（llama-server 不校验该头，两边可共用）。
+### 本地与云端模型并存
+
+模型目录可以同时保留本地 llama-server 模型和 DeepSeek 云端模型，切换入口在设置里的模型
+下拉框；选择结果按用户保存在 `agent.user_model_preferences`。切换已发布模型不需要重启，
+但新增或修改 `.env` 中的凭据后需要重启 API 才能读取。
+
+凭据按模型解析（`app/core/settings.py::model_api_key`），不再要求两边共用一个 key：
+
+1. `FAB_MODEL_API_KEY__<模型编号>`：该模型专用覆盖，编号转大写、非字母数字字符替换为
+   `_`（`qwen38-27b-q4km` → `FAB_MODEL_API_KEY__QWEN38_27B_Q4KM`）；
+2. provider 为 `deepseek` 时优先 `DEEPSEEK_API_KEY`；
+3. 最后回退全局 `FAB_MODEL_API_KEY`，再回退 `DEEPSEEK_API_KEY`。
+
+因此 `.env` 可以同时写：
+
+```dotenv
+# 本地 llama-server：不校验密钥，但必须非空
+FAB_MODEL_API_KEY=local
+FAB_MODEL_BASE_URL=http://127.0.0.1:8080/v1
+FAB_MODEL_NAME=Qwen3.8-27B-Q4_K_M
+
+# 云端 DeepSeek：与本地 key 并存
+DEEPSEEK_API_KEY=sk-your-deepseek-key
+
+# 可选：只覆盖某个模型（优先级最高）
+FAB_MODEL_API_KEY__QWEN38_27B_Q4KM=another-local-key
+```
+
+管理端的「兼容性检查」也使用同一解析规则，所以 DeepSeek 条目不会因为本地 key 而得到
+**401**。密钥只从环境变量读取，不写入数据库，也不下发给前端。
 
 ## 证据匹配与 V1/V2 同步
 

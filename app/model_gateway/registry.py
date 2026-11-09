@@ -6,7 +6,14 @@ from dataclasses import replace
 from datetime import datetime, timezone
 
 from ..core.model_capabilities import MODEL_CAPABILITY_DEFAULTS, normalize_capabilities
-from ..core.settings import ALLOWED_MODELS, MODEL_API_NAMES, ModelConnection, Settings, get_settings
+from ..core.settings import (
+    ALLOWED_MODELS,
+    MODEL_API_NAMES,
+    ModelConnection,
+    Settings,
+    get_settings,
+    model_api_key,
+)
 from ..core.storage_identity_ports import PrincipalView, storage_identity_bindings
 from .health import ensure_model_health
 
@@ -140,7 +147,9 @@ def public_user_model_config(principal: PrincipalView | None = None) -> dict:
     principal = principal or current_principal()
     selected = _selected_model(principal)
     models = list_models()
-    api_key_configured = bool(get_settings().model_connection.api_key)
+    api_key_configured = bool(
+        model_api_key(selected["model_id"], selected["provider"])
+    )
     return {
         "model": selected["model_id"],
         "display_name": selected["display_name"],
@@ -197,7 +206,7 @@ def effective_agent_settings(settings):
         settings,
         model_connection=ModelConnection(
             provider=selected["provider"],
-            api_key=settings.model_connection.api_key,
+            api_key=model_api_key(selected["model_id"], selected["provider"]),
             base_url=selected["base_url"].rstrip("/"),
             model=selected["provider_model"],
         ),

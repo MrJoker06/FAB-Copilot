@@ -135,11 +135,10 @@ def create_router(deps: NamespaceProvider, current_admin) -> RouterBundle:
         except (TypeError, json.JSONDecodeError):
             capabilities = {}
         try:
-            configured = runtime["get_settings"]().model_connection
             report = await runtime["check_model_compatibility"](
                 runtime["ModelConnection"](
                     row["provider"],
-                    configured.api_key,
+                    runtime["model_api_key"](model_id, row["provider"]),
                     row["base_url"],
                     row["provider_model"],
                 ),

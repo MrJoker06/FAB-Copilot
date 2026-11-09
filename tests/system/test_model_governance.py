@@ -96,6 +96,9 @@ class ModelGovernanceSystemTests(unittest.TestCase):
         try:
             with patch.dict(os.environ, {
                 "FAB_ADMIN_API_TOKEN": admin_token,
+                "FAB_MODEL_PROVIDER": "deepseek",
+                "FAB_MODEL_NAME": "deepseek-v4-flash",
+                "FAB_MODEL_API_KEY": "local",
                 "DEEPSEEK_API_KEY": "server-managed-test-key",
             }), patch("app.main.check_model_compatibility", new=AsyncMock(return_value={"status": "passed", "checked_at": "2026-08-11T00:00:00+00:00", "checks": []})), TestClient(app) as client:
                 self.assertEqual(client.get("/api/admin/models").status_code, 401)
@@ -142,6 +145,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                 self.assertEqual(selected.status_code, 200, selected.text)
                 self.assertEqual(selected.json()["model"], model_id)
                 self.assertEqual(selected.json()["credential_scope"], "server_managed")
+                self.assertTrue(selected.json()["api_key_configured"])
                 self.assertNotEqual(client.get("/api/settings/model", headers=user_b).json()["model"], model_id)
 
                 captured = {}
@@ -282,14 +286,18 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             "checks": [{"name": "structured_context", "status": "passed"}, {"name": "limits", "status": "passed"}],
         }
         try:
-            with patch.dict(os.environ, {"FAB_ADMIN_API_TOKEN": token}), patch(
-                "app.main.check_model_compatibility", new=AsyncMock(return_value=report)
-            ), TestClient(app) as client:
+            probe = AsyncMock(return_value=report)
+            with patch.dict(os.environ, {
+                "FAB_ADMIN_API_TOKEN": token,
+                "FAB_MODEL_API_KEY": "local",
+                "DEEPSEEK_API_KEY": "cloud-test-key",
+            }), patch("app.main.check_model_compatibility", new=probe), TestClient(app) as client:
                 payload = {"model_id": model_id, "display_name": "Model 018 Success", "provider": "deepseek", "provider_model": "model-018", "base_url": "https://models.example.test/v1", "capabilities": {"streaming": True, "tool_calls": True, "thinking": True, "native_multimodal": False}}
                 self.assertEqual(client.post("/api/admin/models", headers=headers, json=payload).status_code, 201)
                 before = next(item for item in client.get("/api/admin/models", headers=headers).json() if item["model_id"] == model_id)
                 response = client.post(f"/api/admin/models/{model_id}/compatibility-check", headers=headers)
                 self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual(probe.await_args.args[0].api_key, "cloud-test-key")
                 model = next(item for item in client.get("/api/admin/models", headers=headers).json() if item["model_id"] == model_id)
                 self.assertEqual(model["status"], before["status"])
                 self.assertEqual(model["capabilities"], before["capabilities"])

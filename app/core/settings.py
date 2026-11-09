@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -34,6 +35,32 @@ MODEL_API_NAMES = {
     "deepseekv4-flash": "deepseek-v4-flash",
     "deepseekv4-pro": "deepseek-v4-pro",
 }
+
+# Per-model overrides keep local and cloud credentials configured at the same
+# time.  The suffix is the catalog id uppercased, with every non-alphanumeric
+# character replaced by ``_`` (qwen38-27b-q4km -> QWEN38_27B_Q4KM).
+MODEL_API_KEY_OVERRIDE_PREFIX = "FAB_MODEL_API_KEY__"
+
+
+def model_api_key(model_id: str, provider: str) -> str:
+    """Resolve the server-managed key for one catalog entry.
+
+    Precedence: per-model override, provider-native key, then the global
+    ``FAB_MODEL_API_KEY`` fallback.  Keys stay in the environment; the catalog
+    never stores them.
+    """
+    suffix = re.sub(r"[^A-Za-z0-9]+", "_", model_id.strip()).strip("_").upper()
+    if suffix:
+        override = os.getenv(f"{MODEL_API_KEY_OVERRIDE_PREFIX}{suffix}", "").strip()
+        if override:
+            return override
+    if provider.strip().lower() == "deepseek":
+        deepseek_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
+        if deepseek_key:
+            return deepseek_key
+    return os.getenv("FAB_MODEL_API_KEY", "").strip() or os.getenv(
+        "DEEPSEEK_API_KEY", ""
+    ).strip()
 
 
 @dataclass(frozen=True)
