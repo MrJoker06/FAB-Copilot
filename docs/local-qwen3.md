@@ -82,7 +82,7 @@ FAB_CHAT_TEMPLATE_COMPAT=merge-system
 ```powershell
 $headers = @{ Authorization = "Bearer local-admin-token"; "Content-Type" = "application/json" }
 $body = @{
-    model_id       = "local-qwen38-27b"
+    model_id       = "qwen38-27b-q4km"
     display_name   = "Local Qwen3.8-27B"
     provider       = "openai-compatible"
     provider_model = "Qwen3.8-27B-Q4_K_M"
@@ -94,6 +94,22 @@ Invoke-RestMethod "http://127.0.0.1:8899/api/admin/models" -Method Post -Headers
 ```
 
 然后在用户端右上角的模型按钮里选择它，或调用 `POST /api/settings/model`。
+
+### 模型编号命名约定
+
+后续发布的模型统一按 `<家族><版本>-<参数规模>-<量化>` 命名，全部使用小写 ASCII、以连字符分隔：
+
+| 可读名称 | model_id |
+| --- | --- |
+| Qwen3.8-27B-Q4_K_M | `qwen38-27b-q4km` |
+| Qwen3.8-14B-Q4_K_M | `qwen38-14b-q4km` |
+| Llama3.2-8B-Q5_K_M | `llama32-8b-q5km` |
+
+- 版本号去掉小数点：Qwen3.8 → `qwen38`。
+- 参数量写成数字加 `b`：27B → `27b`。
+- 量化值小写并去掉下划线：Q4_K_M → `q4km`。
+- `display_name` 和 `provider_model` 继续写原始可读名称，不参与编号。
+- 历史内置编号 `deepseekv4-flash` / `deepseekv4-pro` 保持不变。
 
 ### 方式二：复用内置条目
 
