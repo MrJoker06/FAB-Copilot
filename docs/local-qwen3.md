@@ -196,17 +196,22 @@ MODEL_COMPATIBILITY_CONTEXT_CHARS=32768
 ### 本地与云端模型并存
 
 模型目录可以同时保留本地 llama-server 模型和 DeepSeek 云端模型，切换入口在设置里的模型
-下拉框；选择结果按用户保存在 `agent.user_model_preferences`。切换已发布模型不需要重启，
-但新增或修改 `.env` 中的凭据后需要重启 API 才能读取。
+下拉框；选择结果按用户保存在 `agent.user_model_preferences`。切换已发布模型不需要重启。
 
-凭据按模型解析（`app/core/settings.py::model_api_key`），不再要求两边共用一个 key：
+凭据与模型一一对应，保存在服务器本地的 `runtime/local/model_credentials.json`（可用
+`FAB_MODEL_CREDENTIALS_PATH` 改位置；该文件不在数据库、不在 git、不返回浏览器）。管理端
+「模型目录 → 凭据 → 配置」可以按模型新增、替换或清除 key；本地模型没有鉴权要求时填
+`local` 即可。文件通过临时文件 + 原子替换写入，权限尽量设为 `0600`。
 
-1. `FAB_MODEL_API_KEY__<模型编号>`：该模型专用覆盖，编号转大写、非字母数字字符替换为
+解析顺序（`app/core/model_credentials.py::resolve_model_api_key`）：
+
+1. 本地凭据文件中该模型的条目：存在即**唯一来源**，不会再借用其他模型的 key；
+2. `FAB_MODEL_API_KEY__<模型编号>`：环境变量覆盖，编号转大写、非字母数字字符替换为
    `_`（`qwen38-27b-q4km` → `FAB_MODEL_API_KEY__QWEN38_27B_Q4KM`）；
-2. provider 为 `deepseek` 时优先 `DEEPSEEK_API_KEY`；
-3. 最后回退全局 `FAB_MODEL_API_KEY`，再回退 `DEEPSEEK_API_KEY`。
+3. provider 为 `deepseek` 时优先 `DEEPSEEK_API_KEY`；
+4. 最后回退全局 `FAB_MODEL_API_KEY`，再回退 `DEEPSEEK_API_KEY`。
 
-因此 `.env` 可以同时写：
+因此既可以在管理端逐模型配置，也可以继续用 `.env` 作为兼容回退：
 
 ```dotenv
 # 本地 llama-server：不校验密钥，但必须非空
@@ -217,12 +222,14 @@ FAB_MODEL_NAME=Qwen3.8-27B-Q4_K_M
 # 云端 DeepSeek：与本地 key 并存
 DEEPSEEK_API_KEY=sk-your-deepseek-key
 
-# 可选：只覆盖某个模型（优先级最高）
+# 可选：只覆盖某个模型
 FAB_MODEL_API_KEY__QWEN38_27B_Q4KM=another-local-key
 ```
 
-管理端的「兼容性检查」也使用同一解析规则，所以 DeepSeek 条目不会因为本地 key 而得到
-**401**。密钥只从环境变量读取，不写入数据库，也不下发给前端。
+管理端的「兼容性检查」使用同一解析规则，所以 DeepSeek 条目不会因为本地 key 而得到
+**401**。保存或清除某个模型的本地凭据会立即使其兼容性结果变为 `unverified`，随后重新
+执行探针即可；本地凭据文件改动无需重启 API。修改 `.env` 后仍需重启 API 才能让进程读到
+新的环境变量。密钥不写入数据库，也不下发给前端。
 
 ## 证据匹配与 V1/V2 同步
 

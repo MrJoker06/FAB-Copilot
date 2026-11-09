@@ -608,6 +608,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/core/model_credentials.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/core/settings.py",
       "primary_module": "core_contracts_configuration",
       "artifact_group": "platform_core",

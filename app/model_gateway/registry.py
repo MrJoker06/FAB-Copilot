@@ -6,13 +6,13 @@ from dataclasses import replace
 from datetime import datetime, timezone
 
 from ..core.model_capabilities import MODEL_CAPABILITY_DEFAULTS, normalize_capabilities
+from ..core.model_credentials import credential_status, resolve_model_api_key
 from ..core.settings import (
     ALLOWED_MODELS,
     MODEL_API_NAMES,
     ModelConnection,
     Settings,
     get_settings,
-    model_api_key,
 )
 from ..core.storage_identity_ports import PrincipalView, storage_identity_bindings
 from .health import ensure_model_health
@@ -88,6 +88,9 @@ def _decode_model(row) -> dict:
         "last_error_category": item.pop("health_error_category", None),
     }
     item["selectable"] = item["status"] == "published"
+    configured, source = credential_status(item["model_id"], item["provider"])
+    item["credential_configured"] = configured
+    item["credential_source"] = source
     return item
 
 
@@ -148,7 +151,7 @@ def public_user_model_config(principal: PrincipalView | None = None) -> dict:
     selected = _selected_model(principal)
     models = list_models()
     api_key_configured = bool(
-        model_api_key(selected["model_id"], selected["provider"])
+        resolve_model_api_key(selected["model_id"], selected["provider"])
     )
     return {
         "model": selected["model_id"],
@@ -206,7 +209,7 @@ def effective_agent_settings(settings):
         settings,
         model_connection=ModelConnection(
             provider=selected["provider"],
-            api_key=model_api_key(selected["model_id"], selected["provider"]),
+            api_key=resolve_model_api_key(selected["model_id"], selected["provider"]),
             base_url=selected["base_url"].rstrip("/"),
             model=selected["provider_model"],
         ),
@@ -331,6 +334,29 @@ def update_model_capabilities(model_id: str, capabilities: dict) -> dict:
         connection.commit()
         row = connection.execute("SELECT * FROM model_catalog WHERE model_id = ?", (model_id,)).fetchone()
     return _decode_model(row)
+
+
+def invalidate_model_compatibility(
+    model_id: str, summary: str = "凭据已更新，请重新测试兼容性"
+) -> None:
+    """Mark a stored probe stale after its credential changes."""
+    timestamp = _now()
+    unverified = {"status": "unverified", "summary": summary}
+    with db_session() as connection:
+        cursor = connection.execute(
+            """UPDATE agent.model_catalog
+               SET compatibility_json = ?, compatibility_checked_at = NULL,
+                   updated_at = ?
+               WHERE model_id = ?""",
+            (
+                json.dumps(unverified, separators=(",", ":")),
+                timestamp,
+                model_id,
+            ),
+        )
+        if cursor.rowcount == 0:
+            raise ValueError("模型不存在")
+        connection.commit()
 
 
 def save_model_compatibility_report(model_id: str, report: dict) -> dict:
