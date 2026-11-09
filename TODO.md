@@ -2,7 +2,7 @@
 
 状态核对：`experiment/parallel-platform`，2026-11-08；源码基线 `c8d44cd`（MOD-015e），后续纯文档提交不改变该源码基线。
 
-当前产品统计：共 227 个独立任务，已完成 182 个，待做 45 个；以各分类清单中的 `[x]` / `[ ]` 实算，模块化 `MOD-*` 工作包另计。
+当前产品统计：共 228 个独立任务，已完成 183 个，待做 45 个；以各分类清单中的 `[x]` / `[ ]` 实算，模块化 `MOD-*` 工作包另计。
 
 另有 4 项 `OPTIONAL` 可选候选，不计入上述主统计。
 
@@ -45,10 +45,10 @@
 | 企业数据 | [企业数据 TODO](docs/todos/enterprise-data.md) | SQLite 开发替身与大规模模拟契约已完成；既有 Oracle 生产接口适配 `DATA-017`、生产规模多消费者语义层 `DATA-018` 与多数据库存储/知识检索后端适配 `DATA-019` 均属企业级暂缓 |
 | 日志与运行监控 | [可观测性 TODO](docs/todos/observability.md) | 单实例监控、端到端流式聚合诊断、上下文降级可观测性、消息持久化关联、完整日志到期治理、Trace 语义治理与 `QA-004` 脱敏回放均已完成 |
 | 用户体验与会话 | [前端会话 TODO](docs/todos/frontend-sessions.md) | 桌面端关键工作流、无障碍治理和视觉回归已完成；移动端 `UX-029` 由用户暂缓 |
-| 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接、运行快照治理和受保护的远程 CI 质量门已完成；其余项均为企业级暂缓 |
+| 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接、运行快照治理、受保护的远程 CI 质量门和跨平台本地模型启动器（`DEPLOY-019`）已完成；其余项均为企业级暂缓 |
 | 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 至 QA-009 已完成；QA-010 本地完整 Live 通过、远程验收暂缓 |
 | 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 至 REF-024、REF-027 至 REF-034 已完成；REF-035 已完成；`REF-025`、`REF-026` 仍为 `OPTIONAL` |
-| 模块化与内网迁移（另计） | [模块化追踪](docs/todos/modularization.md) | MOD-001～019 已验证；MOD-020～028 计划中，不计入产品 227 项统计 |
+| 模块化与内网迁移（另计） | [模块化追踪](docs/todos/modularization.md) | MOD-001～019 已验证；MOD-020～028 计划中，不计入产品 228 项统计 |
 
 ## 更新要求
 

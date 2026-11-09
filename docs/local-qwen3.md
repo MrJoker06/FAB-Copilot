@@ -1,7 +1,7 @@
 # 本地模型接入（Qwen3.8-27B / llama.cpp）
 
 Fab Insight Agent 默认按 OpenAI 兼容协议调用模型。本机已经部署了 Qwen3.8-27B 的 GGUF 版本，
-通过 `llama-server` 暴露 `/v1`，因此不需要任何云端凭据，也不需要 WSL。
+通过 `llama-server` 暴露 `/v1`，因此不需要任何云端凭据；Windows 与 Linux 使用同一个启动器。
 
 ## 机型与模型
 
@@ -10,7 +10,7 @@ Fab Insight Agent 默认按 OpenAI 兼容协议调用模型。本机已经部署
 | GPU | NVIDIA A10 / 23 GB |
 | 模型（主） | `models/Qwen3.8-27B-Q4_K_M-GGUF/Qwen3.8-27B-Q4_K_M.gguf`（15.66 GB） |
 | 模型（备） | `models/Qwen3.8-27B-Ridge-3.7bpw/Qwen3.8-27B-Ridge-3.7bpw.gguf`（11.73 GB） |
-| 运行时 | `runtimes/llama-cpp/llama-server.exe`（CUDA 构建） |
+| 运行时 | `runtimes/llama-cpp/llama-server.exe`（Windows CUDA 构建）；Linux 为同目录的 `llama-server` |
 
 这两个 GGUF 的架构是 `qwen35`：65 层、`full_attention_interval=4`（只有约 17 层带 KV，其余是 SSM）、
 4 个 KV 头、key/value 长度 256。因此长上下文比同尺寸 dense 模型便宜得多：
@@ -24,8 +24,11 @@ KV/token ≈ 2 × 17 × 4 × 256 × (q8 ≈ 1 B) ≈ 34 KB
 
 ## 启动
 
+启动器是一个只用标准库的 Python 脚本 `scripts/start_local_model.py`，Windows 和 Linux 共用；
+`scripts/start-local-model.ps1` 只是把 PowerShell 参数转给它的薄包装，原有命令不变。
+
 ```powershell
-# 默认：Q4_K_M + 80K 上下文 + 2 并发槽
+# Windows：默认 Q4_K_M + 80K 上下文 + 2 并发槽
 .\scripts\start-local-model.ps1
 
 # 备选：Ridge 3.7bpw + 32K 单槽，显存更宽松
@@ -35,7 +38,35 @@ KV/token ≈ 2 × 17 × 4 × 256 × (q8 ≈ 1 B) ≈ 34 KB
 .\scripts\start-local-model.ps1 -Vision
 ```
 
-脚本会等待 `/v1/models` 就绪后打印模型 id，并给出需要写进 `.env` 的四行配置。
+```bash
+# Linux：同一套参数，选项改为小写连字符
+python3 scripts/start_local_model.py
+python3 scripts/start_local_model.py --model ridge --profile 32k --port 8081
+python3 scripts/start_local_model.py --vision
+
+# 只校验路径并打印将要执行的命令，不启动
+python3 scripts/start_local_model.py --dry-run
+```
+
+| PowerShell | Python | 说明 |
+| --- | --- | --- |
+| `-Model` / `-Profile` / `-Port` | `--model` / `--profile` / `--port` | 取值相同 |
+| `-BindHost` | `--host` | 绑定 `0.0.0.0` 时就绪检测和提示的地址用 `127.0.0.1` |
+| `-Vision` / `-Alias` / `-NoMtp` / `-Thinking` | `--vision` / `--alias` / `--no-mtp` / `--thinking` | |
+| `-DeploymentRoot` | `--deployment-root` | 含 `models/` 与 `runtimes/` 的工作区 |
+| `-Server` | `--server` | 显式指定 llama-server 路径 |
+| `-ReadyTimeoutSeconds` | `--ready-timeout` | 默认 180 秒 |
+| `-DryRun` | `--dry-run` | |
+
+llama-server 的查找顺序：`--server` → `<部署根>/runtimes/llama-cpp/llama-server(.exe)` →
+`PATH`。Windows 用 `llama-server.exe`，Linux 用 `llama-server`；Linux 下二进制必须可执行
+（`chmod +x`），启动时会把二进制所在目录加到 `LD_LIBRARY_PATH` 前面，以便加载随发行包
+放在同目录的 `.so`。服务在独立的进程组/会话中运行，启动器退出后继续提供服务；日志写在
+`runtime/local-model/`。
+
+脚本会等待 `/v1/models` 就绪后打印模型 id，并给出需要写进 `.env` 的四行配置。进程提前退出
+或超时都返回退出码 1 并给出错误日志路径；超时时会先停掉半启动的进程，避免继续占用显存和
+端口（旧 PowerShell 版本会留下它）。
 
 > 如果模型在管理端声明了 `native_multimodal = true`，兼容性探针会发送一张图片。
 > 此时必须用 `-Vision` 启动；否则 llama.cpp 会返回 HTTP 500
@@ -249,7 +280,7 @@ FAB_MODEL_API_KEY__QWEN38_27B_Q4KM=another-local-key
 
 修复后：
 
-- `app/planning_runtime/scope.py::call_scope` 是唯一的"参数 → 结果 scope"规则，计划与校验器共用；
+- `app/core/call_scope.py::call_scope` 是唯一的"参数 → 结果 scope"规则，计划（`planning_runtime/scope.py`）与校验器共用；
 - `validator._step_matches` 比较**声明的结果 scope**与执行参数推导出的 scope，不再要求参数逐字相等；
 - `permitted_source_refs` 包含 `source_semantics` 的全部 `TOOL:Sxx`；未计入证据的步骤会以
   "引用 TOOL:Sxx 没有可追溯的证据检查"明确拒绝，不再误报成"只能引用 TOOL:Sxx"；
