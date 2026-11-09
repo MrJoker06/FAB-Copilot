@@ -312,7 +312,9 @@ def run(samples: int, batches: int, formal: bool) -> dict[str, Any]:
 # questions and complete business rows; version/source metadata may differ.
 QUESTIONS = {
     "ready_success": "分析 2026-08-01 至 2026-08-07 CMP Cpk 不合格",
-    "loop_success": "分析 2026-08-01 至 2026-08-07 CMP 划伤缺陷 Pareto",
+    # A question without a deterministic playbook keeps the legacy loop path;
+    # the scripted model call below still exercises get_defect_pareto.
+    "loop_success": "数据接口有哪些",
     "knowledge_retrieval_success": "解释一下化学机械抛光的基本原理",
 }
 ROWS = {
