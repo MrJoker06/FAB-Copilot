@@ -23,6 +23,20 @@ class ModelCapabilitiesTests(unittest.TestCase):
         self.assertEqual(_decode_model(row)["capabilities"], MODEL_CAPABILITY_DEFAULTS)
         self.assertEqual(_decode_model({"status": "published", "capabilities_json": "{"})["capabilities"], MODEL_CAPABILITY_DEFAULTS)
 
+    def test_decode_partial_rows_does_not_resolve_credentials(self):
+        from unittest.mock import patch
+
+        for identity in ({}, {"model_id": "legacy"}, {"provider": "test"}):
+            with self.subTest(identity=identity), patch(
+                "app.model_gateway.registry.credential_status"
+            ) as status:
+                decoded = _decode_model({
+                    "status": "published", "capabilities_json": "{}", **identity,
+                })
+                self.assertFalse(decoded["credential_configured"])
+                self.assertEqual(decoded["credential_source"], "missing")
+                status.assert_not_called()
+
     def test_migration_is_idempotent_and_preserves_existing_values(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "catalog.db"

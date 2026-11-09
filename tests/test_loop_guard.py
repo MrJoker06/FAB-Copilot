@@ -20,6 +20,15 @@ def _plan(question: str):
     return create_execution_plan(question, route, select_playbook(route))
 
 
+def _unsupported_plan(question: str):
+    """Force the generic Agent path even when the question now has a playbook."""
+    route = replace(
+        route_question(question, current_date=date(2026, 7, 18)),
+        intent="unmapped_intent",
+    )
+    return create_execution_plan(question, route, select_playbook(route))
+
+
 class ToolLoopGuardTests(unittest.TestCase):
     def test_duplicate_arguments_are_blocked_before_execution(self):
         guard = ToolLoopGuard(_plan("分析 CMP-03 最近7天 Cpk 不合格"))
@@ -35,7 +44,7 @@ class ToolLoopGuardTests(unittest.TestCase):
         self.assertEqual(guard.summary()["blocked_reasons"], {"duplicate_arguments": 1})
 
     def test_total_and_per_tool_limits_are_enforced(self):
-        generic_plan = _plan("分析 CMP 划伤缺陷 Pareto")
+        generic_plan = _unsupported_plan("分析 CMP 划伤缺陷 Pareto")
         per_tool_guard = ToolLoopGuard(generic_plan)
         for limit in (5, 10, 15):
             self.assertTrue(per_tool_guard.check_call("get_defect_pareto", {"limit": limit}).allowed)
@@ -61,11 +70,11 @@ class ToolLoopGuardTests(unittest.TestCase):
         self.assertEqual(blocked.reason_code, "unplanned_tool")
         self.assertEqual(ready_guard.total_calls, 0)
 
-        generic_guard = ToolLoopGuard(_plan("分析 CMP 划伤缺陷 Pareto"))
+        generic_guard = ToolLoopGuard(_unsupported_plan("分析 CMP 划伤缺陷 Pareto"))
         self.assertTrue(generic_guard.check_call("search_knowledge", {"query": "CMP 划伤"}).allowed)
 
     def test_repeated_evidence_triggers_no_progress_synthesis(self):
-        guard = ToolLoopGuard(_plan("分析 CMP 划伤缺陷 Pareto"))
+        guard = ToolLoopGuard(_unsupported_plan("分析 CMP 划伤缺陷 Pareto"))
 
         guard.begin_round()
         self.assertTrue(guard.check_call("get_defect_pareto", {"limit": 5}).allowed)
@@ -158,6 +167,7 @@ class ToolLoopGuardTests(unittest.TestCase):
             patch("app.agent_runtime.service.get_settings", return_value=settings),
             patch("app.agent_runtime.service._stream_completion", new=fake_stream),
             patch.dict(agent_module.TOOL_HANDLERS, {"get_process_capability": fake_handler}),
+            patch.dict("app.manufacturing.named_playbooks.NAMED_DOMAIN_PLAYBOOKS", {}, clear=True),
         ):
             result = asyncio.run(
                 agent_module._run_agent_impl(
@@ -185,3 +195,6 @@ class ToolLoopGuardTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+

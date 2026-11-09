@@ -9,7 +9,7 @@ Each port lists only the arguments its runtime consumers actually pass.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, runtime_checkable
 
 if TYPE_CHECKING:
@@ -166,6 +166,7 @@ class AnswerContractFactory(Protocol):
         allow_model_knowledge_fallback: bool = False,
         question: str = "",
         resolved_question: str = "",
+        extra_limitations: Sequence[str] = (),
     ) -> AnswerContract: ...
 
 

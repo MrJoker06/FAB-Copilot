@@ -30,7 +30,7 @@ def text_hygiene_errors(paths: list[Path]) -> list[str]:
             continue
         if b"\0" in content:
             continue
-        relative = path.relative_to(PROJECT_DIR)
+        relative = path.relative_to(PROJECT_DIR).as_posix()
         if b"\r" in content:
             errors.append(f"{relative}: use LF line endings")
         if text and not text.endswith("\n"):

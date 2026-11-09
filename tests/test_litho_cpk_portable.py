@@ -56,7 +56,11 @@ SOURCE_FILES = (
     "app/bootstrap/loop_assembly.py",
     "app/bootstrap/ready_assembly.py",
     "app/bootstrap/skill_assembly.py",
+    "app/core/__init__.py",
+    "app/core/call_scope.py",
+    "app/core/tool_result_projection.py",
     "app/evidence/__init__.py",
+    "app/evidence/evidence_truncation.py",
     "app/evidence/semantics.py",
     "app/evidence/serialization.py",
     "app/evidence/skill_policy.py",
@@ -151,7 +155,7 @@ blocked = ('app.agent_runtime.service', 'app.agent_runtime.compatibility',
  'app.agent_runtime.execution.agent_loop', 'app.agent_runtime.tools.catalog',
  'app.agent_runtime.execution.loop_answer', 'app.agent_runtime.execution.loop_model_call', 'app.agent_runtime.execution.loop_request',
  'app.agent_runtime.execution.loop_round_validation', 'app.agent_runtime.execution.loop_state', 'app.agent_runtime.execution.loop_tool_round',
- 'app.agent_runtime.tools.registry', 'app.core', 'app.model_gateway', 'app.persistence',
+ 'app.agent_runtime.tools.registry', 'app.model_gateway', 'app.persistence',
  'app.telemetry', 'app.conversation')
 events = []
 class BlockedFinder(importlib.abc.MetaPathFinder):

@@ -84,7 +84,9 @@ _SKILL_MODES = ("off", "file", "release")
 _VOLATILE = frozenset({"run_id", "started_at", "completed_at", "traceback"})
 _HANG = "hang"
 
-_LOOP_QUESTION = "分析 2026-08-01 至 2026-08-07 CMP 划伤缺陷 Pareto"
+# A generic data-interface question keeps the legacy loop path: manufacturing
+# playbooks (for example PB-DEFECT-001) now build deterministic ready plans.
+_LOOP_QUESTION = "数据接口有哪些"
 _READY_QUESTION = "查询 LOT-001 的批次信息"
 _CONTEXT_QUESTION = "继续"
 _CONTEXT_HISTORY = (

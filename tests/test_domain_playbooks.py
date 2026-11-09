@@ -8,15 +8,16 @@ from unittest.mock import patch
 
 from app.agent_runtime import service as agent_module
 from app.manufacturing.playbooks import DOMAIN_PLAYBOOKS, playbook_system_message, select_playbook
-from app.manufacturing.named_playbooks import NAMED_DOMAIN_PLAYBOOKS
+from app.manufacturing.named_playbooks import NAMED_DOMAIN_PLAYBOOKS, select_named_playbook
+from app.planning_runtime.named_planner import create_named_execution_plan
 from app.intent_runtime.routing import route_question
 
 
 class DomainPlaybookTests(unittest.TestCase):
-    def test_registry_contains_six_versioned_playbooks(self):
+    def test_registry_contains_every_versioned_playbook(self):
         self.assertEqual(
             set(DOMAIN_PLAYBOOKS),
-            {"capability_excursion", "yield_decline", "equipment_fault", "lot_trace", "sop_lookup", "fab_diagnostic"},
+            {"capability_excursion", "yield_decline", "equipment_fault", "lot_trace", "sop_lookup", "fab_diagnostic", "defect_analysis"},
         )
         playbook_ids: set[str] = set()
         for intent, playbook in DOMAIN_PLAYBOOKS.items():
@@ -98,12 +99,27 @@ class DomainPlaybookTests(unittest.TestCase):
         self.assertIn("不得混合执行候选模板", playbook_system_message(selection))
 
     def test_unsupported_route_keeps_generic_agent_path(self):
-        selection = select_playbook(route_question("分析 CMP 划伤缺陷 Pareto"))
+        selection = select_playbook(route_question("预测下个月产能"))
 
         self.assertEqual(selection.status, "unsupported")
         self.assertIsNone(selection.selected_playbook)
         self.assertEqual(selection.candidate_playbooks, ())
 
+    def test_defect_analysis_selects_the_defect_playbook(self):
+        question = "最近缺陷类型占比最高的是哪些，和哪些设备相关？"
+        route = route_question(question)
+        self.assertEqual(route.intent, "defect_analysis")
+
+        selection = select_named_playbook(route)
+        self.assertEqual(selection.status, "selected")
+        self.assertEqual(selection.selected_playbook.playbook_id, "PB-DEFECT-001")
+
+        plan = create_named_execution_plan(question, route)
+        self.assertEqual(plan.status, "ready")
+        tools = [step.tool for step in plan.steps]
+        self.assertIn("get_defect_pareto", tools)
+        self.assertIn("get_recent_excursions", tools)
+        self.assertIn("get_equipment_health", tools)
     def test_agent_loop_injects_selected_playbook_and_returns_version(self):
         captured: dict = {}
         progress_events: list[dict] = []
@@ -152,3 +168,5 @@ class DomainPlaybookTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

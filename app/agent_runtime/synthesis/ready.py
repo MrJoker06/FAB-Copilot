@@ -9,6 +9,8 @@ import traceback
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
+from ...core.tool_result_projection import project_result, truncation_prompt_note
+
 
 READY_SYNTHESIS_MAX_TOKENS = 8192
 DEEPSEEK_THINKING_READY_SYNTHESIS_MAX_TOKENS = 32768
@@ -206,16 +208,24 @@ def ready_synthesis_messages(
     *,
     deps: ReadySynthesisDependencies,
 ) -> list[dict[str, str]]:
-    evidence = [
-        {
+    evidence: list[dict[str, Any]] = []
+    for item in observations:
+        result = item.result if item.status == "success" else None
+        meta: dict[str, Any] | None = None
+        if item.status == "success":
+            result, meta = project_result(item.tool, result)
+        entry: dict[str, Any] = {
             "source_ref": item.source_ref,
             "tool": item.tool,
             "status": item.status,
-            "result": item.result if item.status == "success" else None,
+            "result": result,
             "error": item.error,
         }
-        for item in observations
-    ]
+        if meta is not None:
+            entry["truncation"] = dict(
+                meta, note=truncation_prompt_note(item.tool, meta)
+            )
+        evidence.append(entry)
     task = {
         "question": question,
         "plan_id": plan.plan_id,

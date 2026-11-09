@@ -90,7 +90,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertEqual(properties["analysis_protocol_version"]["enum"], ["2.0"])
         self.assertNotIn("required", properties["conclusion_claim"])
         fact_required = properties["facts"]["items"]["required"]
-        self.assertEqual(fact_required, ["statement", "evidence_refs", "semantic_id", "scope", "time_range", "claim_role"])
+        self.assertEqual(fact_required, ["statement", "evidence_refs"])
         inference = properties["inferences"]["items"]
         self.assertEqual(inference["required"], ["statement"])
         self.assertTrue({"fact_indices", "basis", "uncertainty", "scope", "time_range", "claim_role"} <= set(inference["properties"]))
@@ -359,6 +359,147 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertEqual(support["support"], "unsupported")
         self.assertIn("未验证", "".join(support["reasons"]))
 
+    def test_contract_permits_every_advertised_step_reference(self):
+        contract, _ = _supported_yield_contract()
+
+        self.assertTrue(set(contract.source_semantics) <= set(contract.permitted_source_refs))
+
+    def test_v2_fact_reports_unpermitted_and_untraced_references(self):
+        contract, _ = _supported_yield_contract()
+        unpermitted = synthesize_submission({
+            "analysis_protocol_version": "2.0", "conclusion": "", "conclusion_evidence_refs": [],
+            "conclusion_claim": {}, "facts": [{
+                "statement": "总体良率为 91.2%。", "evidence_refs": ["TOOL:S99"],
+            }], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }, contract)
+        fact = next(item for item in unpermitted.report.claim_support if item["category"] == "fact")
+        self.assertEqual(fact["support"], "unsupported")
+        self.assertIn("含未许可引用", "".join(fact["reasons"]))
+
+        semantics = {
+            "TOOL:S09": {
+                "kind": "metric", "semantic_id": "final_wafer_yield", "grain": "fab",
+                "scope": {"fab_ids": ("FAB",)}, "start": "2026-06-21", "end": "2026-07-18",
+                "filter_provenance": "fixed_report", "scope_role": "primary",
+            },
+        }
+        untraced = replace(
+            contract, permitted_source_refs=("TOOL:S09",), source_semantics=semantics,
+            reference_evidence={},
+        )
+        result = synthesize_submission({
+            "analysis_protocol_version": "2.0", "conclusion": "", "conclusion_evidence_refs": [],
+            "conclusion_claim": {}, "facts": [{
+                "statement": "总体良率为 91.2%。", "evidence_refs": ["TOOL:S09"],
+            }], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }, untraced)
+        fact = next(item for item in result.report.claim_support if item["category"] == "fact")
+        self.assertEqual(fact["support"], "unsupported")
+        self.assertIn("没有可追溯的证据检查", "".join(fact["reasons"]))
+
+    def _empty_result_contract(self):
+        contract, _ = _supported_yield_contract()
+        semantics = {
+            "TOOL:S05": {
+                "kind": "event", "semantic_id": "process_excursion", "grain": "event",
+                "scope": {"fab_ids": ("FAB",)}, "start": "2026-06-21", "end": "2026-07-18",
+                "filter_provenance": "fixed_report", "scope_role": "primary",
+            },
+        }
+        evidence = {"TOOL:S05": {
+            "statuses": {"YLD-03": "partial"}, "risk_codes": (),
+            "critical_risk_codes": ("empty_result",), "conflict_codes": (),
+        }}
+        return replace(
+            contract, permitted_source_refs=("TOOL:S05",), source_semantics=semantics,
+            source_scope_roles={"TOOL:S05": "primary"}, reference_evidence=evidence,
+            allowed_conclusion_strength="hypothesis_only",
+        )
+
+    def test_v2_absence_fact_from_empty_result_is_limited_not_rejected(self):
+        contract = self._empty_result_contract()
+        for statement in (
+            "最近四周内未检索到任何工艺异常事件。",
+            "同期该设备未返回任何过程异常事件记录。",
+        ):
+            with self.subTest(statement=statement):
+                result = synthesize_submission({
+                    "analysis_protocol_version": "2.0", "conclusion": statement,
+                    "conclusion_evidence_refs": [], "conclusion_claim": {"inference_indices": []},
+                    "facts": [{"statement": statement, "evidence_refs": ["TOOL:S05"]}],
+                    "inferences": [], "hypotheses": [], "recommendations": [],
+                    "limitations": [], "source_refs": [],
+                }, contract)
+
+                fact = next(item for item in result.report.claim_support if item["category"] == "fact")
+                self.assertEqual(fact["support"], "limited")
+                self.assertIn("**事实**", result.answer)
+                self.assertIn(statement, result.answer)
+                self.assertIn("空结果仅表示该查询范围内未检索到记录", result.answer)
+
+        positive = synthesize_submission({
+            "analysis_protocol_version": "2.0", "conclusion": "",
+            "conclusion_evidence_refs": [], "conclusion_claim": {},
+            "facts": [{
+                "statement": "同期发生 3 次工艺异常事件。", "evidence_refs": ["TOOL:S05"],
+            }], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }, contract)
+        fact = next(item for item in positive.report.claim_support if item["category"] == "fact")
+        self.assertEqual(fact["support"], "unsupported")
+        self.assertIn("empty_result", "".join(fact["reasons"]))
+
+        # A limited fact caused by truncation must not be disclosed as an empty
+        # result, even when its wording happens to be an absence statement.
+        warned_contract = replace(contract, reference_evidence={
+            "TOOL:S05": {
+                "statuses": {"YLD-03": "covered"}, "risk_codes": ("result_truncated",),
+                "critical_risk_codes": (), "conflict_codes": (),
+            },
+        })
+        warned = synthesize_submission({
+            "analysis_protocol_version": "2.0", "conclusion": "",
+            "conclusion_evidence_refs": [], "conclusion_claim": {},
+            "facts": [{
+                "statement": "最近四周内未检索到任何工艺异常事件。",
+                "evidence_refs": ["TOOL:S05"],
+            }], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }, warned_contract)
+        fact = next(item for item in warned.report.claim_support if item["category"] == "fact")
+        self.assertEqual(fact["support"], "limited")
+        self.assertNotIn("空结果仅表示", warned.answer)
+
+    def test_adopted_conclusion_is_labelled_when_hedged_or_limited(self):
+        contract, _ = _supported_yield_contract()
+        reference = next(
+            ref for ref, item in (contract.reference_evidence or {}).items()
+            if ref.startswith("TOOL:S") and not item.get("critical_risk_codes")
+        )
+        hedged = synthesize_submission({
+            "conclusion": "可能仍需检查设备稳定性。",
+            "conclusion_evidence_refs": [reference],
+            "conclusion_claim": _structured_claim(contract, reference, "可能仍需检查设备稳定性。"),
+            "facts": [], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }, contract)
+        self.assertIn("推测（未经证实）：", hedged.answer)
+
+        limited_contract = replace(contract, reference_evidence={
+            **contract.reference_evidence,
+            reference: {**contract.reference_evidence[reference], "risk_codes": ("small_sample",)},
+        })
+        limited = synthesize_submission({
+            "conclusion": "设备稳定性需要进一步检查。",
+            "conclusion_evidence_refs": [reference],
+            "conclusion_claim": _structured_claim(contract, reference, "设备稳定性需要进一步检查。"),
+            "facts": [], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }, limited_contract)
+        self.assertIn("证据有限：", limited.answer)
+
     def test_clause_level_causal_assessment_preserves_caution_and_rejects_assertions(self):
         contract, _ = _supported_yield_contract()
         contract = replace(contract, causal_claims_allowed=False)
@@ -525,7 +666,8 @@ class AnswerSynthesizerTests(unittest.TestCase):
         production_result = synthesize_submission(production_payload, knowledge_contract)
         production = next(item for item in production_result.report.claim_support if item["category"] == "inference")
         self.assertEqual(production["support"], "unsupported")
-        self.assertIn("待验证内容：一般而言，当前 CMP-03 漂移导致良率下降。 [模型通用知识]", production_result.answer)
+        self.assertIn("**待验证内容**", production_result.answer)
+        self.assertIn("一般而言，当前 CMP-03 漂移导致良率下降。 [模型通用知识]", production_result.answer)
         self.assertNotIn("模型通用知识：一般而言，当前 CMP-03 漂移导致良率下降。", production_result.answer)
 
     def test_presentation_selection_obeys_current_request(self):
@@ -580,6 +722,315 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertIn("| 类型 | 内容 |", table.answer)
         self.assertEqual(brief.report.source_refs, table.report.source_refs)
 
+    def test_brief_caps_items_and_limitations(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "conclusion": "整体良率约 92%。",
+            "conclusion_evidence_refs": [],
+            "facts": [
+                {"statement": f"条目{index}。", "evidence_refs": []}
+                for index in range(6)
+            ],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [f"限制{index}。" for index in range(9)],
+            "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="brief"), sources)
+        self.assertIn("条目0", result.answer)
+        self.assertIn("条目1", result.answer)
+        self.assertNotIn("条目2", result.answer)
+        self.assertIn("限制0", result.answer)
+        self.assertIn("限制2", result.answer)
+        self.assertNotIn("限制3", result.answer)
+        self.assertLess(len(result.answer), 900)
+
+    def test_brief_prompt_states_the_short_budget(self):
+        contract, _ = _supported_yield_contract()
+        message = synthesizer_system_message(replace(contract, presentation="brief"))
+        self.assertIn("presentation=brief", message)
+        self.assertIn("最多 2 条", message)
+    def test_submit_schema_exposes_presentation_enum(self):
+        props = SUBMIT_ANALYSIS_TOOL["function"]["parameters"]["properties"]
+        self.assertEqual(props["presentation"]["enum"], ["brief", "compact", "report", "table"])
+        self.assertNotIn("presentation", SUBMIT_ANALYSIS_TOOL["function"]["parameters"]["required"])
+
+    def test_model_presentation_is_honoured_and_budgeted(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "presentation": "table",
+            "conclusion": "当前证据支持方向性判断。",
+            "conclusion_evidence_refs": [],
+            "facts": [
+                {"statement": f"条目{index}。", "evidence_refs": []} for index in range(12)
+            ],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="brief"), sources)
+        self.assertEqual(result.report.presentation, "table")
+        self.assertEqual(result.report.presentation_source, "model")
+
+    def test_invalid_presentation_falls_back_to_contract(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "presentation": "novel",
+            "conclusion": "结论", "conclusion_evidence_refs": [],
+            "facts": [], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        self.assertEqual(result.report.presentation, "compact")
+        self.assertEqual(result.report.presentation_source, "fallback")
+
+    def test_rule_mode_ignores_the_model_choice(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "presentation": "report",
+            "conclusion": "结论", "conclusion_evidence_refs": [],
+            "facts": [], "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        with patch.dict("os.environ", {"FAB_PRESENTATION_MODE": "rule"}):
+            result = synthesize_submission(payload, replace(contract, presentation="brief"), sources)
+        self.assertEqual(result.report.presentation, "brief")
+        self.assertEqual(result.report.presentation_source, "rule")
+
+    def test_compact_budget_drops_excess_claims_and_reports_it(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "conclusion": "结论", "conclusion_evidence_refs": [],
+            "facts": [
+                {"statement": f"条目{index}。", "evidence_refs": []} for index in range(12)
+            ],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        self.assertIn("已省略", result.answer)
+        self.assertLessEqual(result.answer.count("条目"), 8)
+
+    def test_presentation_guidance_is_appended_last(self):
+        contract, _ = _supported_yield_contract()
+        message = synthesizer_system_message(contract)
+        self.assertLess(message.index("presentation 字段"), message.index("answer_contract="))
+    def test_fact_metadata_is_derived_from_evidence(self):
+        contract, sources = _supported_yield_contract()
+        reference = next(ref for ref in contract.permitted_source_refs if ref.startswith("TOOL:S"))
+        payload = {
+            "analysis_protocol_version": "2.0",
+            "conclusion": "整体良率约为 91.2%。",
+            "conclusion_evidence_refs": [reference],
+            "facts": [{"statement": "整体良率为 91.2%。", "evidence_refs": [reference]}],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        fact_support = [item for item in result.report.claim_support if item["category"] == "fact"]
+        self.assertTrue(fact_support)
+        self.assertEqual(fact_support[0]["support"], "supported")
+        self.assertIn("**事实**", result.answer)
+
+    def test_fact_scope_contradiction_stays_unsupported(self):
+        contract, sources = _supported_yield_contract()
+        reference = next(ref for ref in contract.permitted_source_refs if ref.startswith("TOOL:S"))
+        payload = {
+            "analysis_protocol_version": "2.0",
+            "conclusion": "整体良率约为 91.2%。",
+            "conclusion_evidence_refs": [reference],
+            "facts": [{
+                "statement": "ETCH-04 的良率为 91.2%。",
+                "evidence_refs": [reference],
+                "scope": {"equipment_ids": ["ETCH-04"]},
+            }],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        fact_support = [item for item in result.report.claim_support if item["category"] == "fact"]
+        self.assertTrue(fact_support)
+        self.assertNotEqual(fact_support[0]["support"], "supported")
+
+    def test_fact_schema_only_requires_statement_and_refs(self):
+        facts = SUBMIT_ANALYSIS_TOOL["function"]["parameters"]["properties"]["facts"]
+        self.assertEqual(facts["items"]["required"], ["statement", "evidence_refs"])
+    def _v2_inference_payload(self, contract):
+        references = [ref for ref in contract.permitted_source_refs if ref.startswith("TOOL:S")][:2]
+        return references, {
+            "analysis_protocol_version": "2.0",
+            "conclusion": "当前缺陷构成与设备异常存在相关性，设备级根因仍需分层证据确认。",
+            "conclusion_evidence_refs": [],
+            "facts": [
+                {"statement": "整体良率为 91.2%。", "evidence_refs": [references[0]]},
+                {"statement": "Particle 缺陷占比 24%。", "evidence_refs": [references[1]]},
+            ],
+            "inferences": [{
+                "statement": "缺陷构成与设备异常在同一范围和时间内同时出现，两者存在相关性。",
+                "fact_indices": [0, 1],
+                "basis": "两条事实的范围与时间一致。",
+                "uncertainty": "缺少设备级缺陷占比。",
+            }],
+            "hypotheses": [], "recommendations": [], "limitations": [], "source_refs": [],
+            "conclusion_claim": {"inference_indices": [0]},
+        }
+
+    def test_inference_metadata_is_derived_from_its_facts(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        inferences = [item for item in result.report.claim_support if item["category"] == "inference"]
+        self.assertTrue(inferences)
+        self.assertIn(inferences[0]["support"], {"supported", "limited"})
+        self.assertNotIn("必须声明目标 scope", "".join(inferences[0]["reasons"]))
+
+    def test_inference_with_contradictory_scope_stays_unsupported(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        payload["inferences"][0]["scope"] = {"equipment_ids": ["ETCH-04"]}
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        inferences = [item for item in result.report.claim_support if item["category"] == "inference"]
+        self.assertTrue(inferences)
+        self.assertEqual(inferences[0]["support"], "unsupported")
+
+    def test_conclusion_metadata_is_derived_from_verified_inferences(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        conclusions = [item for item in result.report.claim_support if item["category"] == "conclusion"]
+        self.assertTrue(conclusions)
+        self.assertIn(conclusions[0]["support"], {"supported", "limited"})
+        self.assertNotIn("当前证据未能验证模型提交的结论。", result.answer)
+
+    def test_conclusion_without_valid_inference_stays_unsupported(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        payload["conclusion_claim"] = {"inference_indices": [5]}
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        conclusions = [item for item in result.report.claim_support if item["category"] == "conclusion"]
+        self.assertEqual(conclusions[0]["support"], "unsupported")
+    def test_fact_kind_contradiction_stays_unsupported(self):
+        contract, sources = _supported_yield_contract()
+        reference = next(ref for ref in contract.permitted_source_refs if ref.startswith("TOOL:S"))
+        payload = {
+            "analysis_protocol_version": "2.0",
+            "conclusion": "整体良率约为 91.2%。",
+            "conclusion_evidence_refs": [],
+            "facts": [{
+                "statement": "整体良率为 91.2%。",
+                "evidence_refs": [reference],
+                "claim_kind": "event",
+            }],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        facts = [item for item in result.report.claim_support if item["category"] == "fact"]
+        self.assertEqual(facts[0]["support"], "unsupported")
+        self.assertIn("矛盾", "".join(facts[0]["reasons"]))
+
+    def test_conclusion_scope_contradiction_stays_unsupported(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        payload["conclusion_claim"] = {
+            "inference_indices": [0],
+            "scope": {"equipment_ids": ["ETCH-04"]},
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        conclusions = [item for item in result.report.claim_support if item["category"] == "conclusion"]
+        self.assertEqual(conclusions[0]["support"], "unsupported")
+    def test_knowledge_fact_ignores_a_time_range_the_source_lacks(self):
+        contract, sources = _supported_yield_contract()
+        reference = next(
+            ref for ref, meta in contract.source_semantics.items() if meta["kind"] == "document"
+        )
+        payload = {
+            "analysis_protocol_version": "2.0",
+            "conclusion": "知识库给出良率分析的常见方向。",
+            "conclusion_evidence_refs": [],
+            "facts": [{
+                "statement": "知识库提示良率分析应先分层到产品和制程。",
+                "evidence_refs": [reference],
+                "time_range": {"start": "2026-06-21", "end": "2026-07-18"},
+            }],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": [], "source_refs": [],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        facts = [item for item in result.report.claim_support if item["category"] == "fact"]
+        self.assertTrue(facts)
+        self.assertEqual(facts[0]["support"], "supported")
+    def test_single_fact_inference_is_limited_and_reaches_the_conclusion(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        payload["inferences"][0]["fact_indices"] = [0]
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        inferences = [item for item in result.report.claim_support if item["category"] == "inference"]
+        self.assertEqual(inferences[0]["support"], "limited")
+        self.assertIn("单条事实", "".join(inferences[0]["reasons"]))
+        conclusions = [item for item in result.report.claim_support if item["category"] == "conclusion"]
+        self.assertIn(conclusions[0]["support"], {"limited", "supported"})
+        self.assertNotIn("当前证据未能验证模型提交的结论。", result.answer)
+
+    def test_duplicate_fact_indices_stay_unsupported(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        payload["inferences"][0]["fact_indices"] = [0, 0]
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        inferences = [item for item in result.report.claim_support if item["category"] == "inference"]
+        self.assertEqual(inferences[0]["support"], "unsupported")
+
+    def test_empty_fact_indices_stay_unsupported(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        payload["inferences"][0]["fact_indices"] = []
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        inferences = [item for item in result.report.claim_support if item["category"] == "inference"]
+        self.assertEqual(inferences[0]["support"], "unsupported")
+    def test_conclusion_uses_the_verified_subset_when_some_references_fail(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        payload["inferences"][0]["fact_indices"] = [0]
+        payload["inferences"].append({
+            "statement": "第二条推断依赖重复事实。",
+            "fact_indices": [0, 0],
+            "basis": "依据。",
+            "uncertainty": "不确定性。",
+        })
+        payload["conclusion_claim"] = {"inference_indices": [0, 1]}
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        conclusions = [item for item in result.report.claim_support if item["category"] == "conclusion"]
+        self.assertIn(conclusions[0]["support"], {"limited", "supported"})
+        self.assertNotIn("当前证据未能验证模型提交的结论。", result.answer)
+        self.assertIn("未通过校验的推断", result.answer)
+
+    def test_conclusion_with_only_rejected_inferences_is_replaced_and_explained(self):
+        contract, sources = _supported_yield_contract()
+        _, payload = self._v2_inference_payload(contract)
+        payload["inferences"][0]["fact_indices"] = [0, 0]
+        payload["conclusion_claim"] = {"inference_indices": [0]}
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        conclusions = [item for item in result.report.claim_support if item["category"] == "conclusion"]
+        self.assertEqual(conclusions[0]["support"], "unsupported")
+        self.assertIn("当前证据未能验证模型提交的结论。", result.answer)
+        self.assertIn("结论未被采纳", result.answer)
+    def test_compact_renders_one_bullet_per_item(self):
+        contract, sources = _supported_yield_contract()
+        payload = {
+            "conclusion": "当前证据支持方向性判断。",
+            "conclusion_evidence_refs": ["TOOL:get_fab_overview"],
+            "facts": [
+                {"statement": "第一条证据。", "evidence_refs": ["TOOL:get_fab_overview"]},
+                {"statement": "第二条证据。", "evidence_refs": ["TOOL:get_yield_trend"]},
+            ],
+            "inferences": [], "hypotheses": [], "recommendations": [],
+            "limitations": ["比较范围需要进一步复核。"], "source_refs": ["KB-1"],
+        }
+        result = synthesize_submission(payload, replace(contract, presentation="compact"), sources)
+        self.assertIn("**结论**", result.answer)
+        self.assertTrue(any(f"**{title}**" in result.answer for title in ("事实", "待验证")))
+        self.assertIn("\n- 第一条证据", result.answer)
+        self.assertIn("\n- 第二条证据", result.answer)
+        # Long lists must not collapse into one semicolon-joined paragraph.
+        self.assertNotIn("；第二条证据", result.answer)
     def test_compact_has_no_empty_placeholders_or_report_headings(self):
         contract, sources = _supported_yield_contract()
         payload = {
@@ -697,7 +1148,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         result = synthesize_submission(payload, contract)
 
         self.assertIn("不能形成诊断性结论", result.answer)
-        self.assertIn("待验证：", result.answer)
+        self.assertIn("**待验证**", result.answer)
         self.assertNotIn("## 已确认事实\n- CMP-03", result.answer)
         self.assertGreaterEqual(result.report.moved_claims, 1)
         self.assertTrue(result.report.wording_adjustments)
@@ -728,7 +1179,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertTrue(contract.model_knowledge_fallback)
         self.assertIn(MODEL_KNOWLEDGE_DISCLOSURE, result.answer)
         self.assertIn("GaN 的宽禁带", result.answer)
-        self.assertIn("模型通用知识：", result.answer)
+        self.assertIn("**模型通用知识**", result.answer)
         self.assertIn("[模型通用知识]", result.answer)
         self.assertNotIn("## 来源", result.answer)
         self.assertNotIn("不能形成诊断性结论", result.answer)
@@ -822,7 +1273,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertEqual(repaired.report.status, "repaired")
         self.assertIn("证据限制：", repaired.answer)
 
-        selection, plan = _context("分析 CMP 划伤缺陷 Pareto")
+        selection, plan = _context("你好")
         validation = validate_evidence(plan, selection.selected_playbook, [])
         generic = synthesize_legacy_answer("保持原样", create_answer_contract(validation))
         self.assertEqual(generic.answer, "保持原样")
@@ -908,7 +1359,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         streamed = "".join(event.get("delta", "") for event in events if event.get("event") == "answer_delta")
         self.assertEqual(streamed, result["answer"])
         self.assertEqual(result["answer_synthesis"]["status"], "structured")
-        self.assertIn("待验证：", result["answer"])
+        self.assertIn("**待验证**", result["answer"])
         self.assertIn("submit_analysis", {tool["function"]["name"] for tool in requests[0]["tools"]})
         prompt_contract = next(
             json.loads(item["content"].split("answer_contract=", 1)[1])
@@ -1044,3 +1495,17 @@ class AnswerSynthesizerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+

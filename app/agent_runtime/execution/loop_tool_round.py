@@ -8,6 +8,7 @@ import traceback
 from typing import TYPE_CHECKING, Any
 
 from .loop_dispatch import execute_dispatched_loop_round
+from ...core.tool_result_projection import prompt_content
 
 if TYPE_CHECKING:
     from .agent_loop import AgentLoopContext
@@ -237,9 +238,7 @@ async def _execute_legacy_call(context: AgentLoopContext, call: dict) -> None:
             rows=row_count,
             full_content={"result": result},
         )
-        content = json.dumps(
-            {"ok": True, "data": result}, ensure_ascii=False, default=str
-        )
+        content = prompt_content(name, result)
     except Exception as exc:
         loop_guard.record_result(name or "unknown", None, False)
         evidence_observations.append(

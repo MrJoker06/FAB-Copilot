@@ -69,7 +69,9 @@ class EvidenceDescriptor:
 def scope_relation(evidence: EvidenceScope, claim: EvidenceScope) -> ScopeRelation:
     """Compare multi-dimensional scope sets without special-casing process names."""
     if claim.is_empty():
-        return ScopeRelation.UNKNOWN
+        # An unscoped claim neither narrows nor broadens an unscoped observation;
+        # a scoped observation still cannot support a broad, unscoped claim.
+        return ScopeRelation.EXACT if evidence.is_empty() else ScopeRelation.UNKNOWN
     if evidence.is_empty():
         return ScopeRelation.UNKNOWN
     narrower = broader = False

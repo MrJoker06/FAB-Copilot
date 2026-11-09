@@ -329,6 +329,7 @@ def build_context(
         allow_model_knowledge_fallback,
         question,
         resolved_question,
+        extra_limitations=(),
     ):
         recorder.add(
             "create_answer_contract",

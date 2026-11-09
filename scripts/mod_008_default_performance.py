@@ -312,7 +312,9 @@ def run(samples: int, batches: int, formal: bool) -> dict[str, Any]:
 # questions and complete business rows; version/source metadata may differ.
 QUESTIONS = {
     "ready_success": "分析 2026-08-01 至 2026-08-07 CMP Cpk 不合格",
-    "loop_success": "分析 2026-08-01 至 2026-08-07 CMP 划伤缺陷 Pareto",
+    # A question without a deterministic playbook keeps the legacy loop path;
+    # the scripted model call below still exercises get_defect_pareto.
+    "loop_success": "数据接口有哪些",
     "knowledge_retrieval_success": "解释一下化学机械抛光的基本原理",
 }
 ROWS = {
@@ -680,7 +682,14 @@ def _operation(side, scene, runner=None):
         )
 
     token = set_principal(Principal("demo", "perf"))
+    loop = None
     try:
+        if runner is None:
+            # Create the loop before the socket guard below.  On Windows the
+            # Proactor loop builds its self-pipe through socket.socketpair(),
+            # which would otherwise be recorded as forbidden socket access.
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         with ExitStack() as stack:
             stack.enter_context(
                 patch.object(service, "get_settings", return_value=settings)
@@ -713,9 +722,15 @@ def _operation(side, scene, runner=None):
             result, clocks = (
                 runner.run(measured(), context=copy_context())
                 if runner is not None
-                else asyncio.run(measured())
+                else loop.run_until_complete(measured())
             )
     finally:
+        if loop is not None:
+            try:
+                loop.run_until_complete(loop.shutdown_asyncgens())
+            finally:
+                loop.close()
+                asyncio.set_event_loop(None)
         reset_principal(token)
     if any(audit.calls.values()):
         raise AssertionError(f"forbidden source access: {audit.calls}")

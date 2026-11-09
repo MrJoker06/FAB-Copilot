@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import Any, Literal
 
@@ -17,6 +19,40 @@ from .validator import EvidenceValidation
 
 SynthesisStatus = Literal["structured", "repaired", "not_applicable"]
 PresentationMode = Literal["brief", "table", "report", "compact"]
+
+PRESENTATION_MODES = ("brief", "compact", "report", "table")
+
+# Server-side caps per mode.  The model chooses the mode; the server still bounds
+# how much a mode may render, so a wrong "report" choice cannot produce a novel.
+_MODE_BUDGETS: dict[str, dict[str, int]] = {
+    "compact": {
+        "facts": 8, "inferences": 5, "hypotheses": 5, "recommendations": 4,
+        "limitations": 6, "item_chars": 240,
+    },
+    "report": {
+        "facts": 8, "inferences": 8, "hypotheses": 8, "recommendations": 8,
+        "limitations": 8, "item_chars": 240,
+    },
+    "table": {
+        "facts": 8, "inferences": 8, "hypotheses": 8, "recommendations": 8,
+        "limitations": 8, "item_chars": 200,
+    },
+}
+
+
+def presentation_mode() -> str:
+    """Deployment switch: ``model`` lets submit_analysis choose, ``rule`` keeps heuristics."""
+    return (os.getenv("FAB_PRESENTATION_MODE", "model").strip().lower() or "model")
+
+
+def resolve_presentation(payload: dict[str, Any], contract: "AnswerContract") -> tuple[str, str]:
+    """Return ``(mode, source)`` where source is ``model``, ``rule`` or ``fallback``."""
+    if presentation_mode() != "model":
+        return contract.presentation, "rule"
+    value = payload.get("presentation") if isinstance(payload, dict) else None
+    if isinstance(value, str) and value.strip().lower() in PRESENTATION_MODES:
+        return value.strip().lower(), "model"
+    return contract.presentation, "fallback"
 
 REQUIRED_SECTIONS = (
     "结论",
@@ -48,6 +84,14 @@ SUBMIT_ANALYSIS_TOOL = {
                     "enum": [ANALYSIS_PROTOCOL_VERSION],
                     "description": "可选。2.0 采用调用级直接事实和基于事实索引的综合推断；省略时按旧协议兼容处理。",
                 },
+                "presentation": {
+                    "type": "string",
+                    "enum": ["brief", "compact", "report", "table"],
+                    "description": (
+                        "可选。输出格式：brief=只给结论；compact=默认分条；"
+                        "table=横向对比表；report=完整分节报告。按用户意图与证据量选择。"
+                    ),
+                },
                 "conclusion": {"type": "string", "maxLength": 600},
                 "conclusion_evidence_refs": {"type": "array", "maxItems": 8, "items": {"type": "string"}},
                 "conclusion_claim": {"type": "object", "properties": {"claim_kind": {"type": "string", "enum": ["metric", "record", "event", "document", "sample"]}, "semantic_id": {"type": "string"}, "scope": {"type": "object"}, "grain": {"type": "string"}, "time_range": {"type": "object"}, "claim_role": {"type": "string", "enum": ["primary", "background"]}, "inference_indices": {"type": "array", "minItems": 1, "maxItems": 5, "items": {"type": "integer", "minimum": 0}}}, "additionalProperties": False},
@@ -66,7 +110,7 @@ SUBMIT_ANALYSIS_TOOL = {
                             "grain": {"type": "string"},
                             "claim_role": {"type": "string", "enum": ["primary", "background"]},
                         },
-                        "required": ["statement", "evidence_refs", "semantic_id", "scope", "time_range", "claim_role"],
+                        "required": ["statement", "evidence_refs"],
                         "additionalProperties": False,
                     },
                 },
@@ -78,7 +122,7 @@ SUBMIT_ANALYSIS_TOOL = {
                         "properties": {
                             "statement": {"type": "string"},
                             "evidence_refs": {"type": "array", "items": {"type": "string"}},
-                            "fact_indices": {"type": "array", "minItems": 2, "maxItems": 8, "items": {"type": "integer", "minimum": 0}},
+                            "fact_indices": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"type": "integer", "minimum": 0}},
                             "basis": {"type": "string", "maxLength": 500, "description": "面向用户的简短依据，不得包含隐藏思维链。"},
                             "uncertainty": {"type": "string", "maxLength": 500},
                             "claim_kind": {"type": "string", "enum": ["metric", "record", "event", "document", "sample"]},
@@ -171,6 +215,13 @@ _PRODUCTION_SCOPE_PATTERN = re.compile(
 )
 _DIAGNOSTIC_TARGET_PATTERN = re.compile(r"原因|根因|问题|失效|故障")
 _HIGH_RISK_PATTERN = re.compile(r"停机|报废|放行|返工|配方(?:修改|变更)|恢复量产")
+# A claim may legitimately report that a scoped query returned no records.  The
+# wording must stay an absence assertion; anything else cannot use empty results.
+_ABSENCE_PATTERN = re.compile(
+    r"未检索到|未返回|未发现|未检出|未出现|未命中|无(?:任何)?(?:异常|事件|记录|数据|超规)"
+    r"|没有(?:检索到|发现|检出|记录|异常|事件)"
+    r"|返回空|为空|空结果"
+)
 
 
 @dataclass(frozen=True)
@@ -219,6 +270,9 @@ class AnswerSynthesisReport:
     # Public, auditable repair metadata.  This deliberately describes only
     # parser/service actions, never model reasoning.
     repair_events: tuple[dict[str, Any], ...] = ()
+    # Which layout was actually rendered and who chose it (model/rule/fallback).
+    presentation: str = "compact"
+    presentation_source: str = "rule"
 
     def to_dict(self) -> dict[str, Any]:
         return json_dataclass_payload(self)
@@ -303,6 +357,7 @@ def create_answer_contract(
     allow_model_knowledge_fallback: bool = False,
     question: str = "",
     resolved_question: str = "",
+    extra_limitations: Sequence[str] = (),
 ) -> AnswerContract:
     matched_tools = {
         tool
@@ -317,6 +372,11 @@ def create_answer_contract(
     }
     permitted_items = {*(f"TOOL:{tool}" for tool in matched_tools), *source_refs}
     permitted_items.update(validation.observed_source_refs)
+    # Every call-level reference the contract advertises as a source semantic is
+    # also citable.  Otherwise the model is shown a valid step reference and then
+    # rejected for using it.  Unmatched calls still fail at evidence support with
+    # an explicit "no traceable evidence" reason.
+    permitted_items.update(validation.source_semantics)
     if allow_model_knowledge_fallback:
         permitted_items.add(MODEL_KNOWLEDGE_REF)
     permitted = tuple(sorted(permitted_items))
@@ -328,6 +388,7 @@ def create_answer_contract(
         ]
     else:
         limitations = list(_validation_limitations(validation))
+    limitations.extend(item for item in extra_limitations if item)
     required = validation.status == "validated"
     return AnswerContract(
         schema_version="1.2",
@@ -392,9 +453,13 @@ def synthesizer_system_message(contract: AnswerContract) -> str:
         f"使用 {MODEL_KNOWLEDGE_REF} 并遵循既有模型通用知识提交约定。"
         if contract.model_knowledge_fallback
         else (
-            f"使用 analysis_protocol_version={ANALYSIS_PROTOCOL_VERSION}：facts 是调用级直接事实，必须使用 TOOL:Sxx 引用并声明 semantic_id、scope、time_range、claim_role；服务端只补全已知的 kind 和 grain。"
-            "inferences 必须用至少两个已验证 facts 的从零开始 fact_indices，填写简短 basis 和 uncertainty；其引用由服务端从事实推导，不要重复填报来源元数据。"
-            "conclusion_claim 必须引用已验证综合推断的 inference_indices，并声明目标 scope、time_range、claim_role；不得把综合结论伪装成某一个原始指标。"
+            f"使用 analysis_protocol_version={ANALYSIS_PROTOCOL_VERSION}：facts 是调用级直接事实，只写 statement 与 TOOL:Sxx 引用即可；"
+            "claim_kind、semantic_id、scope、time_range、grain、claim_role 由服务端从被引用证据推导，"
+            "如果你显式填写则必须与证据一致，否则该声明会被判为不支持。"
+            "一条事实只引用同一种语义的调用级证据；不同工具或不同语义（例如近期异常明细与历史异常记录）不要合并成一条事实，"
+            "请拆成多条事实，或在推断中基于这些事实综合。"
+            "inferences 用已验证 facts 的从零开始 fact_indices（1 条为单源推断，最多给出受限结论；2 条及以上为复合推断），并填写简短 basis 和 uncertainty；其引用由服务端从事实推导，不要重复填报来源元数据。"
+            "conclusion_claim 必须引用已验证综合推断的 inference_indices；其目标 scope、time_range、claim_role 由服务端从所引用的推断推导，不得把综合结论伪装成某一个原始指标。"
             "不得把背景来源混入综合推断，范围或时间不兼容时改为 hypotheses。"
         )
     )
@@ -410,6 +475,12 @@ def synthesizer_system_message(contract: AnswerContract) -> str:
         "inferences 是基于事实的解释，hypotheses 必须包含验证方法，recommendations 必须说明依据与复核要求。"
         "保持精炼：只保留对决策最重要的条目，不要逐行复述工具结果或穷举全部设备。"
         + (
+            "presentation=brief 时必须极简：conclusion 不超过 60 字；facts 最多 2 条且每条不超过 80 字；"
+            "不要提交 inferences、hypotheses、recommendations；limitations 最多 3 条。"
+            if contract.presentation == "brief"
+            else ""
+        )
+        + (
             f"知识库检索没有返回可用内容，允许使用 {MODEL_KNOWLEDGE_REF} 作为模型通用知识标识。"
             "应直接回答用户的一般性技术问题，将通用知识放入 inferences；"
             "conclusion 直接概括技术回答，不要重复知识库无结果声明，服务端会统一添加；"
@@ -423,6 +494,11 @@ def synthesizer_system_message(contract: AnswerContract) -> str:
         "conclusion_evidence_refs 必须列出结论依据；仅由 context_only 来源支持的整厂背景不得表述为主范围自身指标。"
         "allowed_conclusion_strength 约束任务级诊断和根因；逐声明验证的直接观测可保留。"
         "causal_claims_allowed=false 时不得声称已证明因果。\n"
+        # Fixed guidance sits before the per-request contract so the shared prompt
+        # prefix (role, protocol, guidance) stays stable for slot-level caching.
+        "输出格式：在 submit_analysis 的 presentation 字段选择 brief（只给结论）、"
+        "compact（默认分条）、table（横向对比）、report（完整分节）；"
+        "按用户意图与证据量选择，服务端会按所选模式裁剪条目。\n"
         f"answer_contract={contract.to_prompt()}"
     )
 
@@ -562,6 +638,11 @@ def _fact_wording_mismatch(statement: str) -> bool:
     return asserted_causal or asserted_definitive or non_assertive_risk or generic_mechanism
 
 
+def _absence_statement(statement: str) -> bool:
+    """True when the claim only asserts that its scoped query found no records."""
+    return bool(_ABSENCE_PATTERN.search(statement))
+
+
 def _inference_wording_mismatch(statement: str, *, model_knowledge: bool) -> bool:
     """Questions and hypotheses belong in the verification bucket, not inferences."""
     _, _, non_assertive_risk, generic_mechanism = _speech_act(statement)
@@ -619,7 +700,7 @@ def _structured_claim_mismatch(claim: _Claim, contract: AnswerContract) -> bool:
         return True
     if not (claim.claim_kind or claim.semantic_id or claim.scope or claim.time_range or claim.grain):
         return manufacturing
-    if not claim.claim_kind or not claim.semantic_id or not claim.scope or not claim.grain or claim.time_range is None or not claim.evidence_refs:
+    if not claim.claim_kind or not claim.semantic_id or claim.scope is None or not claim.grain or claim.time_range is None or not claim.evidence_refs:
         return True
     claim_scope = _claim_scope(claim)
     if claim_scope is None:
@@ -642,31 +723,144 @@ def _structured_claim_mismatch(claim: _Claim, contract: AnswerContract) -> bool:
     return True
 
 
-def _v2_direct_fact(claim: _Claim, contract: AnswerContract) -> tuple[_Claim, tuple[str, ...]]:
-    """Fill only known descriptor fields for a v2 direct observation.
+def _agree(values: list[Any]) -> Any | None:
+    """Return the single shared value, or None when the references disagree."""
+    distinct = {value for value in values}
+    return next(iter(distinct)) if len(distinct) == 1 else None
 
-    The model still declares the meaning, scope, time range and role.  Kind and
-    grain are copied only when every call-level reference agrees, so a supplied
-    contradiction or mixed source metadata cannot alter a user's declaration.
+
+def _scope_payload(scope: EvidenceScope) -> dict[str, list[str]]:
+    return {
+        name: list(getattr(scope, name))
+        for name in EvidenceScope.__dataclass_fields__
+        if getattr(scope, name)
+    }
+
+
+def _shared_time_range(claims: list[_Claim]) -> dict[str, Any] | None:
+    """Return the single time range shared by every claim, or None."""
+    serialized = {
+        json.dumps(claim.time_range or {}, sort_keys=True, ensure_ascii=False)
+        for claim in claims
+    }
+    if len(serialized) != 1:
+        return None
+    return json.loads(next(iter(serialized)))
+
+
+def _v2_conclusion_claim(
+    claim: _Claim, payload: dict[str, Any], dependencies: list[_Claim],
+) -> tuple[_Claim, tuple[str, ...]]:
+    """Derive a v2 conclusion's target metadata from its verified inferences.
+
+    Scope, time range and role default to the inferences the conclusion cites;
+    an explicitly supplied value must agree with them.
     """
-    required = {"semantic_id", "scope", "time_range", "claim_role"}
-    if not required <= claim.explicit_fields:
-        return claim, ("直接事实必须声明 semantic_id、scope、time_range 和 claim_role。",)
+    scope = _claim_scope(claim) if claim.scope else None
+    if scope is None:
+        shared_scope = _agree([_claim_scope(item) for item in dependencies if item.scope])
+        if shared_scope is None:
+            return claim, ("v2 结论的依赖推断范围不一致。",)
+        scope = shared_scope
+    time_range = claim.time_range if claim.time_range else _shared_time_range(dependencies)
+    if time_range is None:
+        return claim, ("v2 结论的依赖推断时间范围不一致。",)
+    if "claim_role" in payload:
+        claim_role = claim.claim_role
+    else:
+        claim_role = (
+            "background"
+            if all(item.claim_role == "background" for item in dependencies)
+            else "primary"
+        )
+    if claim_role not in {"primary", "background"}:
+        return claim, ("v2 结论的角色无效。",)
+    for item in dependencies:
+        if (
+            _claim_scope(item) != scope
+            or (item.time_range or {}) != (time_range or {})
+            or (claim_role == "primary" and item.claim_role != "primary")
+        ):
+            return claim, ("v2 结论声明的范围、时间或角色与综合推断不一致。",)
+    return _Claim(
+        **{
+            **claim.__dict__,
+            "scope": _scope_payload(scope),
+            "time_range": time_range,
+            "claim_role": claim_role,
+        }
+    ), ()
+
+
+def _v2_direct_fact(claim: _Claim, contract: AnswerContract) -> tuple[_Claim, tuple[str, ...]]:
+    """Derive the semantic metadata of a v2 direct observation from its sources.
+
+    The model only writes the statement and the references: kind, grain,
+    semantic id, scope, time range and role are copied from the referenced
+    call-level sources when every reference agrees.  Values the model does
+    supply are still validated, so an explicit contradiction stays unsupported.
+    """
+    if claim.invalid_refs:
+        # Report the real cause first: a reference the contract did not permit is
+        # not a formatting problem, and v2 used to hide this behind the TOOL:Sxx
+        # guard (the legacy path reported the invalid reference directly).
+        return claim, (f"含未许可引用：{', '.join(claim.invalid_refs)}。",)
     if not claim.evidence_refs or any(not ref.startswith("TOOL:S") for ref in claim.evidence_refs):
         return claim, ("直接事实只能引用调用级 TOOL:Sxx 证据。",)
     descriptors = [_descriptor_for_reference(ref, contract) for ref in claim.evidence_refs]
     if any(item is None for item in descriptors):
         return claim, ("直接事实引用缺少可用来源描述。",)
     resolved = [item for item in descriptors if item is not None]
-    kinds = {item.kind for item in resolved}
-    grains = {item.grain for item in resolved}
-    if len(kinds) != 1 or len(grains) != 1 or "unknown" in kinds or "unknown" in grains:
+    kind = _agree([item.kind for item in resolved])
+    grain = _agree([item.grain for item in resolved])
+    if kind in (None, "unknown") or grain in (None, "unknown"):
         return claim, ("直接事实的调用级来源元数据不一致或未知。",)
-    kind, grain = next(iter(kinds)), next(iter(grains))
-    if (claim.claim_kind and claim.claim_kind != kind) or (claim.grain and claim.grain != grain):
-        return claim, ("模型提供的 kind 或 grain 与调用级来源描述矛盾。",)
+    if claim.claim_kind and claim.claim_kind != kind:
+        return claim, ("模型提供的 kind 与调用级来源描述矛盾。",)
+    if claim.grain and claim.grain != grain:
+        return claim, ("模型提供的 grain 与调用级来源描述矛盾。",)
+
+    semantic_id = claim.semantic_id or _agree([item.semantic_id for item in resolved])
+    if not semantic_id:
+        return claim, ("直接事实的调用级来源语义不一致。",)
+
+    scope = claim.scope if claim.scope else None
+    if scope is None:
+        shared_scope = _agree([item.scope for item in resolved])
+        if shared_scope is None:
+            return claim, ("直接事实的调用级来源范围不一致。",)
+        scope = _scope_payload(shared_scope)
+
+    shared_start = _agree([item.start for item in resolved])
+    shared_end = _agree([item.end for item in resolved])
+    time_range = claim.time_range if claim.time_range else None
+    if time_range is None:
+        if (shared_start is None) != (shared_end is None):
+            return claim, ("直接事实的调用级来源时间范围不一致。",)
+        time_range = {"start": shared_start, "end": shared_end} if shared_start and shared_end else {}
+    elif shared_start is None and shared_end is None:
+        # Some sources have no time dimension at all (knowledge documents).  A
+        # time range supplied for those is unverifiable, not a contradiction.
+        time_range = {}
+
+    if "claim_role" in claim.explicit_fields:
+        claim_role = claim.claim_role
+    else:
+        shared_role = _agree([item.scope_role for item in resolved])
+        if shared_role is None:
+            return claim, ("直接事实的调用级来源角色不一致。",)
+        claim_role = "background" if shared_role == "context_only" else "primary"
+
     return _Claim(
-        **{**claim.__dict__, "claim_kind": kind, "grain": grain}
+        **{
+            **claim.__dict__,
+            "claim_kind": kind,
+            "grain": grain,
+            "semantic_id": semantic_id,
+            "scope": scope,
+            "time_range": time_range,
+            "claim_role": claim_role,
+        }
     ), ()
 
 
@@ -687,7 +881,7 @@ def _v2_direct_fact_status(claim: _Claim, contract: AnswerContract) -> tuple[str
             claim_role=resolved.claim_role,
         ):
             return "unsupported", ("直接事实的调用级来源不支持其声明范围、时间或语义。",)
-    return _final_claim_status(resolved, contract)
+    return _final_claim_status(resolved, contract, allow_absence=True)
 
 
 def _v2_composite_inference(
@@ -695,15 +889,12 @@ def _v2_composite_inference(
 ) -> tuple[_Claim, tuple[str, ...]]:
     if claim.invalid_fact_indices:
         return claim, ("综合推断的 fact_indices 必须是整数数组。",)
-    if len(claim.fact_indices) < 2 or len(set(claim.fact_indices)) != len(claim.fact_indices):
-        return claim, ("综合推断必须关联至少两个不同的已验证事实索引。",)
+    if not claim.fact_indices:
+        return claim, ("综合推断必须关联至少一个已验证事实索引。",)
+    if len(set(claim.fact_indices)) != len(claim.fact_indices):
+        return claim, ("综合推断的 fact_indices 不能重复。",)
     if not claim.basis or not claim.uncertainty:
         return claim, ("综合推断必须提供面向用户的依据和不确定性说明。",)
-    if not {"scope", "time_range", "claim_role"} <= claim.explicit_fields:
-        return claim, ("综合推断必须声明目标 scope、time_range 和 claim_role。",)
-    target_scope = _claim_scope(claim)
-    if target_scope is None or claim.claim_role not in {"primary", "background"}:
-        return claim, ("综合推断的目标范围或角色无效。",)
     dependencies = [facts.get(index) for index in claim.fact_indices]
     if any(item is None for item in dependencies):
         return claim, ("综合推断引用了未验证或不存在的事实索引。",)
@@ -712,21 +903,61 @@ def _v2_composite_inference(
     if claim.evidence_refs and set(claim.evidence_refs) != set(refs):
         return claim, ("综合推断的引用必须等于其依赖事实的调用级引用并由服务端推导。",)
     descriptors = [_descriptor_for_reference(ref, contract) for ref in refs]
-    if any(item is None for item in descriptors) or not compatible_for_composite_inference(
+    if any(item is None for item in descriptors):
+        return claim, ("综合推断的依赖事实存在不兼容的范围、时间或背景来源。",)
+    if len(resolved_dependencies) >= 2 and not compatible_for_composite_inference(
         [item for item in descriptors if item is not None]
     ):
         return claim, ("综合推断的依赖事实存在不兼容的范围、时间或背景来源。",)
-    target_start = str((claim.time_range or {}).get("start") or "") or None
-    target_end = str((claim.time_range or {}).get("end") or "") or None
+
+    # Target scope, time range and role default to the dependency facts; an
+    # explicitly supplied value is still checked against them below.
+    target_scope = _claim_scope(claim) if claim.scope else None
+    if target_scope is None:
+        shared_scope = _agree([_claim_scope(item) for item in resolved_dependencies if item.scope])
+        if shared_scope is None:
+            return claim, ("综合推断的依赖事实范围不一致。",)
+        target_scope = shared_scope
+    if claim.time_range:
+        target_range = claim.time_range
+    else:
+        target_range = _shared_time_range(resolved_dependencies)
+        if target_range is None:
+            return claim, ("综合推断的依赖事实时间范围不一致。",)
+    if "claim_role" in claim.explicit_fields:
+        claim_role = claim.claim_role
+    else:
+        claim_role = (
+            "background"
+            if all(item.claim_role == "background" for item in resolved_dependencies)
+            else "primary"
+        )
+    if claim_role not in {"primary", "background"}:
+        return claim, ("综合推断的目标范围或角色无效。",)
+    if len(resolved_dependencies) == 1:
+        single = descriptors[0] if descriptors else None
+        if single is None or single.filter_provenance == "unknown":
+            return claim, ("综合推断的依赖事实来源不可用。",)
+
+    target_start = str((target_range or {}).get("start") or "") or None
+    target_end = str((target_range or {}).get("end") or "") or None
     for descriptor in (item for item in descriptors if item is not None):
         if (
             descriptor.scope != target_scope
             or descriptor.start != target_start
             or descriptor.end != target_end
-            or (claim.claim_role == "primary" and descriptor.scope_role != "primary")
+            or (claim_role == "primary" and descriptor.scope_role != "primary")
         ):
             return claim, ("综合推断声明的目标范围、时间或角色与依赖事实不一致。",)
-    return _Claim(**{**claim.__dict__, "evidence_refs": refs}), ()
+    return _Claim(
+        **{
+            **claim.__dict__,
+            "scope": _scope_payload(target_scope),
+            "time_range": target_range,
+            "claim_role": claim_role,
+            "evidence_refs": refs,
+        }
+    ), ()
 
 
 def _v2_composite_status(claim: _Claim, contract: AnswerContract) -> tuple[str, tuple[str, ...]]:
@@ -739,11 +970,21 @@ def _v2_composite_status(claim: _Claim, contract: AnswerContract) -> tuple[str, 
         model_knowledge=contract.model_knowledge_fallback,
     ):
         return "unsupported", (*reasons, "声明包含不允许的因果或确定性措辞。")
+    if support == "supported" and 0 < len(set(claim.fact_indices)) < 2:
+        # A single observation can explain itself but cannot cross-validate a
+        # conclusion the way two independent observations can.
+        return "limited", (*reasons, "仅由单条事实支撑的推断，只能给出受限结论。")
     return support, reasons
 
 
-def _claim_support(claim: _Claim, contract: AnswerContract) -> tuple[str, tuple[str, ...]]:
-    """Return fail-closed support status for one submitted declaration."""
+def _claim_support(
+    claim: _Claim, contract: AnswerContract, *, allow_absence: bool = False,
+) -> tuple[str, tuple[str, ...]]:
+    """Return fail-closed support status for one submitted declaration.
+
+    ``allow_absence`` is used only for v2 direct facts: a call that returned no
+    rows can support an explicit "未检索到" statement, never a positive claim.
+    """
     if claim.invalid_refs:
         return "unsupported", (f"含未许可引用：{', '.join(claim.invalid_refs)}。",)
     if contract.model_knowledge_fallback and (
@@ -756,6 +997,8 @@ def _claim_support(claim: _Claim, contract: AnswerContract) -> tuple[str, tuple[
     evidence = contract.reference_evidence or {}
     reasons: list[str] = []
     limited = False
+    absence_only = allow_absence and _absence_statement(claim.statement)
+    saw_empty = saw_data = False
     for reference in claim.evidence_refs:
         item = evidence.get(reference)
         if not item:
@@ -769,21 +1012,34 @@ def _claim_support(claim: _Claim, contract: AnswerContract) -> tuple[str, tuple[
         critical = tuple(item.get("critical_risk_codes") or ())
         conflicts = tuple(item.get("conflict_codes") or ())
         if critical or conflicts:
+            if absence_only and not conflicts and set(critical) <= {"empty_result"}:
+                saw_empty = True
+                limited = True
+                reasons.append(f"引用 {reference} 仅能说明该查询范围内未检索到记录。")
+                continue
             codes = ", ".join((*critical, *conflicts))
             return "unsupported", (f"引用 {reference} 存在关键风险或冲突：{codes}。",)
         partial = [evidence_id for evidence_id, state in statuses.items() if state == "partial"]
         if partial:
+            if absence_only and saw_empty:
+                limited = True
+                continue
             return "unsupported", (f"引用 {reference} 关联证据字段不完整：{', '.join(partial)}。",)
         warning_codes = tuple(item.get("risk_codes") or ())
         if warning_codes:
             limited = True
             reasons.append(f"引用 {reference} 存在限制：{', '.join(warning_codes)}。")
+        saw_data = True
+    if absence_only and saw_empty and saw_data:
+        return "unsupported", ("空结果陈述不能同时引用有数据的结果。",)
     return ("limited", tuple(dict.fromkeys(reasons))) if limited else ("supported", ())
 
 
-def _final_claim_status(claim: _Claim, contract: AnswerContract) -> tuple[str, tuple[str, ...]]:
+def _final_claim_status(
+    claim: _Claim, contract: AnswerContract, *, allow_absence: bool = False,
+) -> tuple[str, tuple[str, ...]]:
     """Combine evidence support with semantic, scope, and wording guards."""
-    support, reasons = _claim_support(claim, contract)
+    support, reasons = _claim_support(claim, contract, allow_absence=allow_absence)
     if _structured_claim_mismatch(claim, contract):
         return "unsupported", (*reasons, "结构化语义、范围、时间或粒度与引用不一致。")
     if _scope_mismatch(claim.statement, claim.evidence_refs, contract):
@@ -828,6 +1084,50 @@ def _render_populated_sections(items: list[tuple[str, list[str]]]) -> tuple[str,
     ), tuple(title for title, _ in rendered)
 
 
+def _clip_brief(value: str, limit: int) -> str:
+    """Collapse whitespace and cap one brief-mode line at a sentence boundary."""
+    text = " ".join(str(value).split())
+    if len(text) <= limit:
+        return text
+    window = text[:limit]
+    for separator in ("。", "；", "，", " "):
+        index = window.rfind(separator)
+        if index >= limit // 2:
+            return window[: index + 1].rstrip()
+    return window[: limit - 1].rstrip() + "…"
+
+
+_BUDGET_GROUP_KEYS = {
+    "fact_lines": "facts",
+    "inference_lines": "inferences",
+    "hypothesis_lines": "hypotheses",
+    "recommendation_lines": "recommendations",
+    "limitation_lines": "limitations",
+}
+
+
+def _apply_mode_budget(mode: str, **groups: list[str]) -> tuple[dict[str, list[str]], int]:
+    """Clip every claim group to the mode budget; returns (groups, dropped count)."""
+    budget = _MODE_BUDGETS.get(mode)
+    if budget is None:
+        return {key: list(value) for key, value in groups.items()}, 0
+    bounded: dict[str, list[str]] = {}
+    dropped = 0
+    for key, lines in groups.items():
+        values = list(lines)
+        if key == "limitation_lines":
+            # Limitations carry compliance disclosures; clip but never drop them.
+            bounded[key] = [_clip_brief(line, budget["item_chars"]) for line in values]
+            continue
+        cap = budget.get(_BUDGET_GROUP_KEYS.get(key, key))
+        if cap is None:
+            bounded[key] = values
+            continue
+        bounded[key] = [_clip_brief(line, budget["item_chars"]) for line in values[:cap]]
+        dropped += max(0, len(values) - cap)
+    return bounded, dropped
+
+
 def _render_presentation(
     contract: AnswerContract, conclusion: str, fact_lines: list[str], inference_lines: list[str],
     hypothesis_lines: list[str], recommendation_lines: list[str], limitations: list[str],
@@ -838,11 +1138,23 @@ def _render_presentation(
         ("建议", recommendation_lines), ("证据限制", limitation_lines),
     ]
     if contract.presentation == "brief":
-        parts = [conclusion]
-        parts.extend(f"{title}：{'；'.join(lines)}" for title, lines in labeled if lines)
-        # One paragraph per category: a single joined line turns long multi-claim
-        # answers into an unreadable block.
-        return "\n\n".join(parts), ("结论", *(title for title, lines in labeled if lines))
+        # Brief means brief: one short conclusion, at most two facts and three
+        # limitations.  Long category joins were the reason "一句话总结" answers
+        # still ran to thousands of characters.
+        parts = [_clip_brief(conclusion, 160)]
+        brief_facts = [_clip_brief(line, 90) for line in fact_lines[:2]]
+        if brief_facts:
+            parts.append("事实：" + "；".join(brief_facts))
+        else:
+            brief_hypotheses = [_clip_brief(line, 90) for line in hypothesis_lines[:2]]
+            if brief_hypotheses:
+                parts.append("待验证：" + "；".join(brief_hypotheses))
+        if limitation_lines:
+            parts.append("证据限制：" + "；".join(_clip_brief(line, 120) for line in limitation_lines[:3]))
+        sections = ("结论",) + (("事实",) if brief_facts else ("待验证",) if hypothesis_lines else ())
+        if limitation_lines:
+            sections = sections + ("证据限制",)
+        return "\n\n".join(parts), sections
     if contract.presentation == "table":
         rows = [("结论", conclusion)]
         rows.extend(("事实", line) for line in fact_lines)
@@ -856,9 +1168,12 @@ def _render_presentation(
             return table + "\n\n## 证据限制\n" + "\n".join(f"- {line}" for line in limitation_lines), ("表格", "证据限制")
         return table, ("表格",)
     if contract.presentation == "compact":
-        lines = [conclusion]
-        lines.extend(f"{title}：{'；'.join(values)}" for title, values in labeled if values)
-        return "\n\n".join(lines), ("结论", *(title for title, values in labeled if values))
+        blocks = [f"**结论**\n{conclusion}"]
+        for title, values in labeled:
+            if not values:
+                continue
+            blocks.append("\n".join([f"**{title}**", *(f"- {line}" for line in values)]))
+        return "\n\n".join(blocks), ("结论", *(title for title, values in labeled if values))
     body, sections = _render_populated_sections([
         ("结论", [conclusion]), ("已确认事实", fact_lines), ("分析推断", inference_lines),
         ("待验证假设", hypothesis_lines), ("建议", recommendation_lines), ("证据限制", limitation_lines),
@@ -902,6 +1217,8 @@ def synthesize_submission(
         ))
 
     allowed = {item.upper(): item for item in contract.permitted_source_refs}
+    presentation, presentation_source = resolve_presentation(payload, contract)
+    contract = replace(contract, presentation=presentation)
     protocol_version = payload.get("analysis_protocol_version")
     v2_protocol = protocol_version == ANALYSIS_PROTOCOL_VERSION
     unsupported_protocol = protocol_version is not None and not v2_protocol
@@ -925,6 +1242,8 @@ def synthesize_submission(
 
     verified_facts: list[_Claim] = []
     verified_fact_indices: dict[int, _Claim] = {}
+    absence_facts = 0
+    limited_inferences = 0
     for fact_index, claim in enumerate(facts):
         uses_model_knowledge = not claim.invalid_refs and contract.model_knowledge_fallback and (
             not claim.evidence_refs or set(claim.evidence_refs) == {MODEL_KNOWLEDGE_REF}
@@ -956,6 +1275,12 @@ def synthesize_submission(
             if support != "unsupported" and _fact_wording_mismatch(resolved_claim.statement):
                 support, reasons = "unsupported", (*reasons, "直接事实不能使用因果、确定性、疑问或假设性措辞。")
             record_support("fact", resolved_claim, support, reasons)
+            if (
+                support == "limited"
+                and _absence_statement(resolved_claim.statement)
+                and any("未检索到记录" in reason for reason in reasons)
+            ):
+                absence_facts += 1
             if support == "unsupported":
                 hypotheses.append(_Claim(
                     resolved_claim.statement, resolved_claim.evidence_refs,
@@ -1020,6 +1345,8 @@ def synthesize_submission(
             ):
                 support, reasons = "unsupported", (*reasons, "疑问或假设性因果表述必须归入待验证内容。")
             record_support("inference", composite_claim, support, reasons)
+            if support == "limited" and any("单条事实" in reason for reason in reasons):
+                limited_inferences += 1
             if support == "unsupported":
                 hypotheses.append(_Claim(
                     composite_claim.statement, composite_claim.evidence_refs,
@@ -1065,6 +1392,7 @@ def synthesize_submission(
         claim_role=_clean_text(conclusion_claim_payload.get("claim_role"), 20) or "primary",
         invalid_refs=tuple(sorted(invalid_conclusion_refs)),
     )
+    conclusion_notes: list[str] = []
     if unsupported_protocol:
         conclusion_support, conclusion_reasons = "unsupported", (f"不支持的 analysis_protocol_version：{protocol_version}。",)
     elif v2_protocol:
@@ -1076,36 +1404,41 @@ def synthesize_submission(
             or len(set(indices)) != len(indices)
         )
         dependencies = [] if invalid_indices else [verified_inference_indices.get(index) for index in indices]
-        required_conclusion_fields = {"scope", "time_range", "claim_role"}
-        conclusion_scope = _claim_scope(conclusion_claim)
-        if invalid_indices or any(item is None for item in dependencies):
+        resolved_dependencies = [item for item in dependencies if item is not None]
+        dropped_dependencies = len(dependencies) - len(resolved_dependencies)
+        if invalid_indices:
             conclusion_support, conclusion_reasons = "unsupported", ("v2 结论必须引用已验证综合推断的 inference_indices。",)
-        elif not required_conclusion_fields <= frozenset(conclusion_claim_payload) or conclusion_scope is None or conclusion_claim.claim_role not in {"primary", "background"}:
-            conclusion_support, conclusion_reasons = "unsupported", ("v2 结论必须声明 scope、time_range 和 claim_role。",)
-        elif invalid_conclusion_refs:
-            conclusion_support, conclusion_reasons = "unsupported", ("v2 结论含未许可引用。",)
+        elif not resolved_dependencies:
+            conclusion_support, conclusion_reasons = "unsupported", ("v2 结论引用的综合推断均未通过校验。",)
         else:
-            resolved_dependencies = [item for item in dependencies if item is not None]
-            derived_refs = tuple(dict.fromkeys(ref for item in resolved_dependencies for ref in item.evidence_refs))
-            if conclusion_refs and set(conclusion_refs) != set(derived_refs):
-                conclusion_support, conclusion_reasons = "unsupported", ("v2 结论引用必须由已验证综合推断服务端推导。",)
-            elif any(
-                item.scope != conclusion_claim.scope
-                or item.time_range != conclusion_claim.time_range
-                or (conclusion_claim.claim_role == "primary" and item.claim_role != "primary")
-                for item in resolved_dependencies
-            ):
-                conclusion_support, conclusion_reasons = "unsupported", ("v2 结论声明的范围、时间或角色与综合推断不一致。",)
-            else:
-                conclusion_claim = _Claim(**{**conclusion_claim.__dict__, "evidence_refs": derived_refs})
-                conclusion_refs = list(derived_refs)
-                conclusion_scope_mismatch = _scope_mismatch(
-                    submitted_conclusion, conclusion_claim.evidence_refs, contract,
+            if dropped_dependencies:
+                # The model cannot know which inference the server will accept.
+                # Keep the verified subset instead of discarding the conclusion.
+                conclusion_notes.append(
+                    f"结论引用了 {dropped_dependencies} 条未通过校验的推断，"
+                    f"已按其余 {len(resolved_dependencies)} 条已验证推断重新限定依据。"
                 )
-                if conclusion_scope_mismatch:
-                    conclusion_support, conclusion_reasons = "unsupported", ("引用未支持主范围声明。",)
+            conclusion_claim, derivation_reasons = _v2_conclusion_claim(
+                conclusion_claim, conclusion_claim_payload, resolved_dependencies
+            )
+            if derivation_reasons:
+                conclusion_support, conclusion_reasons = "unsupported", derivation_reasons
+            elif invalid_conclusion_refs:
+                conclusion_support, conclusion_reasons = "unsupported", ("v2 结论含未许可引用。",)
+            else:
+                derived_refs = tuple(dict.fromkeys(ref for item in resolved_dependencies for ref in item.evidence_refs))
+                if not dropped_dependencies and conclusion_refs and set(conclusion_refs) != set(derived_refs):
+                    conclusion_support, conclusion_reasons = "unsupported", ("v2 结论引用必须由已验证综合推断服务端推导。",)
                 else:
-                    conclusion_support, conclusion_reasons = _v2_composite_status(conclusion_claim, contract)
+                    conclusion_claim = _Claim(**{**conclusion_claim.__dict__, "evidence_refs": derived_refs})
+                    conclusion_refs = list(derived_refs)
+                    conclusion_scope_mismatch = _scope_mismatch(
+                        submitted_conclusion, conclusion_claim.evidence_refs, contract,
+                    )
+                    if conclusion_scope_mismatch:
+                        conclusion_support, conclusion_reasons = "unsupported", ("引用未支持主范围声明。",)
+                    else:
+                        conclusion_support, conclusion_reasons = _v2_composite_status(conclusion_claim, contract)
     else:
         conclusion_scope_mismatch = conclusion_scope_mismatch or _structured_claim_mismatch(conclusion_claim, contract)
         if contract.model_knowledge_fallback:
@@ -1146,6 +1479,8 @@ def synthesize_submission(
             adjustments.append("将范围证据不匹配或未获声明级证据支持的结论降级为待验证假设。")
     elif conclusion_scope_mismatch or conclusion_support == "unsupported":
         conclusion = "当前证据未能验证模型提交的结论。"
+        if conclusion_reasons:
+            conclusion_notes.append("结论未被采纳：" + "；".join(conclusion_reasons))
         if submitted_conclusion:
             hypotheses.append(_Claim(
                 submitted_conclusion,
@@ -1169,6 +1504,18 @@ def synthesize_submission(
             moved += 1
             adjustments.append("移除结论中的因果性措辞并转入待验证假设。")
 
+    # A conclusion the server adopts must never read as confirmed when it is
+    # hedged or only backed by limited evidence.  The same text feeds every
+    # presentation mode, so the marker survives brief/compact/report/table.
+    if submitted_conclusion and conclusion == submitted_conclusion:
+        if _speech_act(conclusion)[2]:
+            conclusion = f"推测（未经证实）：{conclusion}"
+            conclusion_notes.append("结论含推测性表述，已明确标注，不能视为已确认结论。")
+            adjustments.append("将模型提交的推测性结论明确标注为未经证实。")
+        elif conclusion_support == "limited":
+            conclusion = f"证据有限：{conclusion}"
+            conclusion_notes.append("结论受证据限制，已按有限结论呈现。")
+
     submitted_limitations = (
         []
         if contract.model_knowledge_fallback
@@ -1179,7 +1526,11 @@ def synthesize_submission(
         if isinstance(payload.get("limitations"), list)
         else []
     )
-    limitations = list(dict.fromkeys([*contract.mandatory_limitations, *submitted_limitations]))
+    limitations = list(dict.fromkeys([*contract.mandatory_limitations, *submitted_limitations, *conclusion_notes]))
+    if absence_facts:
+        limitations.append("空结果仅表示该查询范围内未检索到记录，不代表该现象绝对不存在。")
+    if limited_inferences:
+        limitations.append("部分推断仅有单条事实支撑，已按受限口径呈现。")
     supplied_sources = payload.get("source_refs") if isinstance(payload.get("source_refs"), list) else []
     used_refs = {
         reference
@@ -1208,7 +1559,21 @@ def synthesize_submission(
     ]
     if contract.model_knowledge_fallback:
         model_limitations = limitations or [MODEL_KNOWLEDGE_DISCLOSURE]
+        bounded, _truncated_model = _apply_mode_budget(
+            contract.presentation,
+            inference_lines=inference_lines,
+            hypothesis_lines=hypothesis_lines,
+            recommendation_lines=recommendation_lines,
+            limitation_lines=model_limitations,
+        )
+        inference_lines = bounded.get("inference_lines", inference_lines)
+        hypothesis_lines = bounded.get("hypothesis_lines", hypothesis_lines)
+        recommendation_lines = bounded.get("recommendation_lines", recommendation_lines)
+        model_limitations = bounded.get("limitation_lines", model_limitations)
         if contract.presentation == "brief":
+            # Model-knowledge answers keep every retained category: dropping a
+            # disclosure or a verification step would hide that the answer is not
+            # plant evidence.
             parts = [conclusion]
             for title, lines in (
                 ("模型通用知识", inference_lines), ("待验证内容", hypothesis_lines),
@@ -1234,15 +1599,16 @@ def synthesize_submission(
             answer = table
             sections = ("表格",)
         elif contract.presentation == "compact":
-            parts = [conclusion]
-            if inference_lines:
-                parts.append("模型通用知识：" + "；".join(inference_lines))
-            if hypothesis_lines:
-                parts.append("待验证内容：" + "；".join(hypothesis_lines))
-            if recommendation_lines:
-                parts.append("建议：" + "；".join(recommendation_lines))
-            parts.append("使用限制：" + "；".join(model_limitations))
-            answer = "\n\n".join(parts)
+            blocks = [f"**结论**\n{conclusion}"]
+            for title, values in (
+                ("模型通用知识", inference_lines),
+                ("待验证内容", hypothesis_lines),
+                ("建议", recommendation_lines),
+                ("使用限制", model_limitations),
+            ):
+                if values:
+                    blocks.append("\n".join([f"**{title}**", *(f"- {line}" for line in values)]))
+            answer = "\n\n".join(blocks)
             sections = ("结论", "模型通用知识", "待验证内容", "建议", "使用限制")
             sections = tuple(title for title in sections if title == "结论" or {
                 "模型通用知识": inference_lines, "待验证内容": hypothesis_lines,
@@ -1255,6 +1621,21 @@ def synthesize_submission(
                 ("使用限制", model_limitations),
             ])
     else:
+        bounded, truncated_items = _apply_mode_budget(
+            contract.presentation,
+            fact_lines=fact_lines,
+            inference_lines=inference_lines,
+            hypothesis_lines=hypothesis_lines,
+            recommendation_lines=recommendation_lines,
+            limitation_lines=limitations,
+        )
+        fact_lines = bounded.get("fact_lines", fact_lines)
+        inference_lines = bounded.get("inference_lines", inference_lines)
+        hypothesis_lines = bounded.get("hypothesis_lines", hypothesis_lines)
+        recommendation_lines = bounded.get("recommendation_lines", recommendation_lines)
+        limitations = bounded.get("limitation_lines", limitations)
+        if truncated_items:
+            limitations = limitations + [f"为控制篇幅，已省略 {truncated_items} 条声明。"]
         answer, sections = _render_presentation(
             contract, conclusion, fact_lines, inference_lines, hypothesis_lines,
             recommendation_lines, limitations,
@@ -1273,6 +1654,8 @@ def synthesize_submission(
         claim_support=tuple(claim_support),
         analysis_protocol_version=(ANALYSIS_PROTOCOL_VERSION if v2_protocol else "1.1"),
         repair_events=tuple(repair_events),
+        presentation=contract.presentation,
+        presentation_source=presentation_source,
     )
     return SynthesizedAnswer(answer, report)
 
@@ -1383,3 +1766,10 @@ def synthesize_legacy_answer(
         synthesized.report,
         sections=("待验证原文（未经结构化验证）", "证据限制"),
     ))
+
+
+
+
+
+
+

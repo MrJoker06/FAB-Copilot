@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-import re
 from typing import Any
 
+from ..core.call_scope import call_scope
 from ..intent_runtime.contracts import IntentRoute
 from ..manufacturing.processes import PROCESS_ALIASES
 from .contracts import AnalysisScopeContract, ScopeRole
+
+# Backwards-compatible private alias for internal planner callers.
+_step_scope = call_scope
 
 
 def _analysis_scope_contract(route: IntentRoute, resolved: dict[str, Any] | None = None) -> AnalysisScopeContract:
@@ -76,42 +79,6 @@ def _step_semantics(tool: str, parameters: dict[str, Any], evidence_ids: tuple[s
     return semantics.get(tool, ("unknown", "unknown", "unknown"))
 
 
-def _step_scope(tool: str, parameters: dict[str, Any], evidence_ids: tuple[str, ...]) -> dict[str, tuple[str, ...]]:
-    """Actual result scope derived from handler parameters/template filters only."""
-    values = {"fab_ids": (), "process_steps": (), "equipment_ids": (), "products": (), "lot_ids": (), "wafer_ids": (), "chambers": (), "recipes": ()}
-    if tool in {"get_fab_overview", "get_process_capability", "get_equipment_health", "get_equipment_productivity", "get_defect_pareto", "get_recent_excursions", "get_sensor_summary"} and not parameters.get("process_step") and not parameters.get("equipment_id"):
-        values["fab_ids"] = ("FAB",)
-    if tool == "get_yield_trend" and not parameters.get("product"):
-        values["fab_ids"] = ("FAB",)
-    if tool == "get_product_yield_breakdown" and not parameters.get("product"):
-        values["fab_ids"] = ("FAB",)
-    # Equipment handlers select equipment first, so do not imply a second
-    # process filter merely because the planner also knows the route process.
-    if parameters.get("equipment_id"):
-        values["equipment_ids"] = (str(parameters["equipment_id"]).upper(),)
-    elif parameters.get("process_step"):
-        values["process_steps"] = (str(parameters["process_step"]).upper(),)
-    if parameters.get("product"): values["products"] = (str(parameters["product"]).upper(),)
-    if parameters.get("lot_id"): values["lot_ids"] = (str(parameters["lot_id"]).upper(),)
-    if tool == "get_equipment_excursion_history" and parameters.get("process_step"):
-        values["process_steps"] = (str(parameters["process_step"]).upper(),)
-    if tool == "query_manufacturing_data":
-        sql = str(parameters.get("sql", ""))
-        lot = re.search(r"\blot_id\s*=\s*'([^']+)'", sql, re.I)
-        process = re.search(r"\bprocess_step\s*=\s*'([^']+)'", sql, re.I)
-        equipment = re.search(r"\bequipment_id\s*=\s*'([^']+)'", sql, re.I)
-        product = re.search(r"\bproduct\s*=\s*'([^']+)'", sql, re.I)
-        if lot: values["lot_ids"] = (lot.group(1).upper(),)
-        if process: values["process_steps"] = (process.group(1).upper(),)
-        if equipment: values["equipment_ids"] = (equipment.group(1).upper(),)
-        if product:
-            values["products"] = (product.group(1).upper(),)
-            values["fab_ids"] = ()
-        if not any((lot, process, equipment, product)) and "FROM lots" in sql:
-            values["fab_ids"] = ("FAB",)
-    return values
-
-
 def _target_scope(route: IntentRoute, resolved: dict[str, Any]) -> dict[str, tuple[str, ...]]:
     scope = {"fab_ids": (), "process_steps": (), "equipment_ids": (), "products": (), "lot_ids": (), "wafer_ids": (), "chambers": (), "recipes": ()}
     if route.scope_resolution.scope_type == "fab": scope["fab_ids"] = ("FAB",)
@@ -124,4 +91,9 @@ def _target_scope(route: IntentRoute, resolved: dict[str, Any]) -> dict[str, tup
 
 
 def _scope_role(actual: dict[str, tuple[str, ...]], target: dict[str, tuple[str, ...]]) -> ScopeRole:
+    # No narrower scope was requested: the question is about the fab as a whole,
+    # so nothing can be "broader than the target" and every step is primary.
+    if not any(target.values()):
+        return "primary"
     return "primary" if actual == target else "context_only"
+

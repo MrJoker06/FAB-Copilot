@@ -6,7 +6,14 @@ from dataclasses import replace
 from datetime import datetime, timezone
 
 from ..core.model_capabilities import MODEL_CAPABILITY_DEFAULTS, normalize_capabilities
-from ..core.settings import ALLOWED_MODELS, MODEL_API_NAMES, ModelConnection, Settings, get_settings
+from ..core.model_credentials import credential_status, resolve_model_api_key
+from ..core.settings import (
+    ALLOWED_MODELS,
+    MODEL_API_NAMES,
+    ModelConnection,
+    Settings,
+    get_settings,
+)
 from ..core.storage_identity_ports import PrincipalView, storage_identity_bindings
 from .health import ensure_model_health
 
@@ -47,15 +54,24 @@ def ensure_model_catalog() -> None:
         for model_id in ALLOWED_MODELS
     ]
     with db_session() as connection:
-        connection.executemany(
-            """INSERT OR IGNORE INTO agent.model_catalog(
-                   model_id, display_name, provider, provider_model, base_url, status,
-                   capabilities_json, created_by, created_at, updated_at, published_at
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            rows,
-        )
+        existing = {
+            row[0]
+            for row in connection.execute("SELECT model_id FROM agent.model_catalog")
+        }
+        # Seed the built-ins only for an empty catalog.  An administrator may
+        # intentionally delete one; it must not reappear on the next restart.
+        if not existing:
+            connection.executemany(
+                """INSERT OR IGNORE INTO agent.model_catalog(
+                       model_id, display_name, provider, provider_model, base_url, status,
+                       capabilities_json, created_by, created_at, updated_at, published_at
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                rows,
+            )
+            existing = {row[0] for row in rows}
         for model_id, *_ in rows:
-            ensure_model_health(model_id, connection)
+            if model_id in existing:
+                ensure_model_health(model_id, connection)
         connection.commit()
 
 
@@ -81,6 +97,13 @@ def _decode_model(row) -> dict:
         "last_error_category": item.pop("health_error_category", None),
     }
     item["selectable"] = item["status"] == "published"
+    configured, source = (
+        credential_status(item["model_id"], item["provider"])
+        if item.get("model_id") and item.get("provider")
+        else (False, "missing")
+    )
+    item["credential_configured"] = configured
+    item["credential_source"] = source
     return item
 
 
@@ -140,7 +163,9 @@ def public_user_model_config(principal: PrincipalView | None = None) -> dict:
     principal = principal or current_principal()
     selected = _selected_model(principal)
     models = list_models()
-    api_key_configured = bool(get_settings().model_connection.api_key)
+    api_key_configured = bool(
+        resolve_model_api_key(selected["model_id"], selected["provider"])
+    )
     return {
         "model": selected["model_id"],
         "display_name": selected["display_name"],
@@ -197,7 +222,7 @@ def effective_agent_settings(settings):
         settings,
         model_connection=ModelConnection(
             provider=selected["provider"],
-            api_key=settings.model_connection.api_key,
+            api_key=resolve_model_api_key(selected["model_id"], selected["provider"]),
             base_url=selected["base_url"].rstrip("/"),
             model=selected["provider_model"],
         ),
@@ -302,6 +327,37 @@ def set_model_status(model_id: str, status: str) -> dict:
     return _decode_model(row)
 
 
+def delete_model(model_id: str) -> dict:
+    """Remove one catalog entry and every row that references it.
+
+    The last published model is kept: deleting it would leave the application
+    without any selectable model.  A retired model can always be deleted.
+    """
+    with db_session() as connection:
+        row = connection.execute(
+            "SELECT * FROM model_catalog WHERE model_id = ?", (model_id,)
+        ).fetchone()
+        if row is None:
+            raise ValueError("模型不存在")
+        if row["status"] == "published":
+            published_count = connection.execute(
+                "SELECT COUNT(*) FROM model_catalog WHERE status = 'published'"
+            ).fetchone()[0]
+            if published_count <= 1:
+                raise ValueError("至少保留一个已发布模型")
+        connection.execute(
+            "DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,)
+        )
+        connection.execute("DELETE FROM agent.model_health WHERE model_id = ?", (model_id,))
+        deleted = connection.execute(
+            "DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,)
+        )
+        if deleted.rowcount != 1:
+            raise ValueError("模型不存在或状态已变化")
+        connection.commit()
+    return _decode_model(row)
+
+
 def update_model_capabilities(model_id: str, capabilities: dict) -> dict:
     """Persist the administrator's complete capability declaration without probing."""
     if set(capabilities) != set(MODEL_CAPABILITY_DEFAULTS) or not all(
@@ -322,6 +378,29 @@ def update_model_capabilities(model_id: str, capabilities: dict) -> dict:
         connection.commit()
         row = connection.execute("SELECT * FROM model_catalog WHERE model_id = ?", (model_id,)).fetchone()
     return _decode_model(row)
+
+
+def invalidate_model_compatibility(
+    model_id: str, summary: str = "凭据已更新，请重新测试兼容性"
+) -> None:
+    """Mark a stored probe stale after its credential changes."""
+    timestamp = _now()
+    unverified = {"status": "unverified", "summary": summary}
+    with db_session() as connection:
+        cursor = connection.execute(
+            """UPDATE agent.model_catalog
+               SET compatibility_json = ?, compatibility_checked_at = NULL,
+                   updated_at = ?
+               WHERE model_id = ?""",
+            (
+                json.dumps(unverified, separators=(",", ":")),
+                timestamp,
+                model_id,
+            ),
+        )
+        if cursor.rowcount == 0:
+            raise ValueError("模型不存在")
+        connection.commit()
 
 
 def save_model_compatibility_report(model_id: str, report: dict) -> dict:

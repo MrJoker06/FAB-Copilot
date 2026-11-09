@@ -608,6 +608,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/core/model_credentials.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/core/settings.py",
       "primary_module": "core_contracts_configuration",
       "artifact_group": "platform_core",
@@ -618,6 +623,16 @@
       ],
       "reason": "configuration loading remains coupled to application assembly pending compatibility consumer migration. Retained at MOD-015 closeout (015e): Settings/get_settings remain the public configuration anchor patched through the run_agent live namespace and named by REF-027 exceptions; separating configuration loading from application assembly belongs to the MOD-027 minimal complete application.",
       "exit_task": "MOD-027"
+    },
+    {
+      "path": "app/core/call_scope.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/core/tool_result_projection.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
     },
     {
       "path": "app/core/sqlite_support.py",
@@ -631,6 +646,11 @@
     },
     {
       "path": "app/evidence/__init__.py",
+      "primary_module": "evidence",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/evidence/evidence_truncation.py",
       "primary_module": "evidence",
       "artifact_group": "platform_core"
     },
@@ -1635,6 +1655,11 @@
   ],
   "portable_overlaps": [
     {
+      "path": "app/core/__init__.py",
+      "reason": "isolated ZIP validation currently duplicates package anchors/shared pure vocabulary",
+      "unique_owner": "platform_core"
+    },
+    {
       "path": "app/__init__.py",
       "reason": "isolated ZIP validation currently duplicates package anchors/shared pure vocabulary",
       "unique_owner": "application_bundle"
@@ -2286,7 +2311,9 @@
       "imports": [
         "sqlite3"
       ],
-      "calls": [],
+      "calls": [
+        "connection.execute"
+      ],
       "table_hints": [],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
@@ -2446,6 +2473,7 @@
       ],
       "table_hints": [
         "agent.model_catalog",
+        "agent.model_health",
         "agent.user_model_preferences",
         "model_catalog",
         "user_model_preferences"

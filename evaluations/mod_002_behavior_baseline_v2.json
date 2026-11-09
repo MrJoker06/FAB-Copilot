@@ -34,6 +34,18 @@
               "title": "AdminModelCapabilitiesRequest",
               "type": "object"
             },
+            "AdminModelCredentialRequest": {
+              "additionalProperties": false,
+              "properties": {
+                "api_key": {
+                  "default": "",
+                  "title": "Api Key",
+                  "type": "string"
+                }
+              },
+              "title": "AdminModelCredentialRequest",
+              "type": "object"
+            },
             "AdminModelPublishRequest": {
               "additionalProperties": false,
               "properties": {
@@ -677,6 +689,61 @@
             }
           },
           "/api/admin/models/{model_id}": {
+            "delete": {
+              "operationId": "admin_delete_model_api_admin_models__model_id__delete",
+              "parameters": [
+                {
+                  "in": "path",
+                  "name": "model_id",
+                  "required": true,
+                  "schema": {
+                    "title": "Model Id",
+                    "type": "string"
+                  }
+                },
+                {
+                  "in": "header",
+                  "name": "authorization",
+                  "required": false,
+                  "schema": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Authorization"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "additionalProperties": true,
+                        "title": "Response Admin Delete Model Api Admin Models  Model Id  Delete",
+                        "type": "object"
+                      }
+                    }
+                  },
+                  "description": "Successful Response"
+                },
+                "422": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/HTTPValidationError"
+                      }
+                    }
+                  },
+                  "description": "Validation Error"
+                }
+              },
+              "summary": "Admin Delete Model"
+            },
             "patch": {
               "operationId": "admin_update_model_status_api_admin_models__model_id__patch",
               "parameters": [
@@ -865,6 +932,128 @@
                 }
               },
               "summary": "Admin Check Model Compatibility"
+            }
+          },
+          "/api/admin/models/{model_id}/credential": {
+            "delete": {
+              "operationId": "admin_clear_model_credential_api_admin_models__model_id__credential_delete",
+              "parameters": [
+                {
+                  "in": "path",
+                  "name": "model_id",
+                  "required": true,
+                  "schema": {
+                    "title": "Model Id",
+                    "type": "string"
+                  }
+                },
+                {
+                  "in": "header",
+                  "name": "authorization",
+                  "required": false,
+                  "schema": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Authorization"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "additionalProperties": true,
+                        "title": "Response Admin Clear Model Credential Api Admin Models  Model Id  Credential Delete",
+                        "type": "object"
+                      }
+                    }
+                  },
+                  "description": "Successful Response"
+                },
+                "422": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/HTTPValidationError"
+                      }
+                    }
+                  },
+                  "description": "Validation Error"
+                }
+              },
+              "summary": "Admin Clear Model Credential"
+            },
+            "put": {
+              "operationId": "admin_set_model_credential_api_admin_models__model_id__credential_put",
+              "parameters": [
+                {
+                  "in": "path",
+                  "name": "model_id",
+                  "required": true,
+                  "schema": {
+                    "title": "Model Id",
+                    "type": "string"
+                  }
+                },
+                {
+                  "in": "header",
+                  "name": "authorization",
+                  "required": false,
+                  "schema": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Authorization"
+                  }
+                }
+              ],
+              "requestBody": {
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/AdminModelCredentialRequest"
+                    }
+                  }
+                },
+                "required": true
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "additionalProperties": true,
+                        "title": "Response Admin Set Model Credential Api Admin Models  Model Id  Credential Put",
+                        "type": "object"
+                      }
+                    }
+                  },
+                  "description": "Successful Response"
+                },
+                "422": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/HTTPValidationError"
+                      }
+                    }
+                  },
+                  "description": "Validation Error"
+                }
+              },
+              "summary": "Admin Set Model Credential"
             }
           },
           "/api/admin/overview": {
@@ -3361,6 +3550,12 @@
           "success_status": 201
         },
         {
+          "method": "DELETE",
+          "name": "admin_delete_model",
+          "path": "/api/admin/models/{model_id}",
+          "success_status": 200
+        },
+        {
           "method": "PATCH",
           "name": "admin_update_model_status",
           "path": "/api/admin/models/{model_id}",
@@ -3376,6 +3571,18 @@
           "method": "POST",
           "name": "admin_check_model_compatibility",
           "path": "/api/admin/models/{model_id}/compatibility-check",
+          "success_status": 200
+        },
+        {
+          "method": "DELETE",
+          "name": "admin_clear_model_credential",
+          "path": "/api/admin/models/{model_id}/credential",
+          "success_status": 200
+        },
+        {
+          "method": "PUT",
+          "name": "admin_set_model_credential",
+          "path": "/api/admin/models/{model_id}/credential",
           "success_status": 200
         },
         {
@@ -3659,10 +3866,14 @@
           "adminToken",
           "adminWorkspace",
           "cancelCapabilities",
+          "cancelModelCredential",
           "cancelPublishModel",
+          "clearModelCredential",
           "closeCapabilities",
+          "closeModelCredential",
           "closePublishModel",
           "confirmCapabilities",
+          "confirmModelCredential",
           "confirmPublishModel",
           "editCapabilitiesDialog",
           "editCapabilitiesForm",
@@ -3678,6 +3889,13 @@
           "logPolicyPanel",
           "modelCatalogBody",
           "modelCatalogCount",
+          "modelCredentialApiKey",
+          "modelCredentialDialog",
+          "modelCredentialForm",
+          "modelCredentialMessage",
+          "modelCredentialModelId",
+          "modelCredentialSource",
+          "modelCredentialTitle",
           "modelNotice",
           "modelsView",
           "openPublishModel",
@@ -3889,7 +4107,7 @@
           "execution_layer": "policy_replay",
           "question": "分析 2026-08-01 至 2026-08-07 CMP 制程能力异常",
           "result": {
-            "answer": "脱敏回放证据覆盖了当前计划要求，结论仅用于链路契约验证。\n\n事实：回放使用的证据来自固定离线夹具。 [数据 S01]\n\n建议：仅将该结果用于自动化回归；依据：数据为脱敏合成夹具\n\n证据限制：该回放不代表真实生产数据或模型质量。",
+            "answer": "**结论**\n脱敏回放证据覆盖了当前计划要求，结论仅用于链路契约验证。\n\n**事实**\n- 回放使用的证据来自固定离线夹具。 [数据 S01]\n\n**建议**\n- 仅将该结果用于自动化回归；依据：数据为脱敏合成夹具\n\n**证据限制**\n- 该回放不代表真实生产数据或模型质量。",
             "answer_contract": {
               "allowed_conclusion_strength": "supported",
               "causal_claims_allowed": false,
@@ -3906,7 +4124,7 @@
                 "TOOL:get_sensor_summary",
                 "TOOL:search_knowledge"
               ],
-              "plan_id": "plan-b7bb033c8a568f67",
+              "plan_id": "plan-ae5ad2c12c19802b",
               "presentation": "compact",
               "primary_scope_ids": [
                 "CMP"
@@ -4143,7 +4361,9 @@
               ],
               "invalid_source_refs": [],
               "moved_claims": 0,
-              "plan_id": "plan-b7bb033c8a568f67",
+              "plan_id": "plan-ae5ad2c12c19802b",
+              "presentation": "compact",
+              "presentation_source": "fallback",
               "repair_events": [],
               "schema_version": "1.2",
               "sections": [
@@ -4427,7 +4647,7 @@
                 "TOOL:get_sensor_summary",
                 "TOOL:search_knowledge"
               ],
-              "plan_id": "plan-b7bb033c8a568f67",
+              "plan_id": "plan-ae5ad2c12c19802b",
               "primary_scope_ids": [
                 "CMP"
               ],
@@ -4648,7 +4868,7 @@
               },
               "clarification_questions": [],
               "missing_inputs": [],
-              "plan_id": "plan-b7bb033c8a568f67",
+              "plan_id": "plan-ae5ad2c12c19802b",
               "planner_version": "1.1.0",
               "playbook_id": "PB-CAPABILITY-001",
               "playbook_version": "1.0.0",
@@ -4874,11 +5094,12 @@
             },
             "intent_route": {
               "candidate_intents": [
-                "capability_excursion"
+                "capability_excursion",
+                "equipment_fault"
               ],
               "clarification_needed": false,
               "clarification_questions": [],
-              "confidence": 0.99,
+              "confidence": 0.92,
               "data_requirements": [
                 "get_process_capability",
                 "get_recent_excursions",
@@ -4927,11 +5148,12 @@
                   "message": "路由完成",
                   "route": {
                     "candidate_intents": [
-                      "capability_excursion"
+                      "capability_excursion",
+                      "equipment_fault"
                     ],
                     "clarification_needed": false,
                     "clarification_questions": [],
-                    "confidence": 0.99,
+                    "confidence": 0.92,
                     "data_requirements": [
                       "get_process_capability",
                       "get_recent_excursions",
@@ -4988,7 +5210,7 @@
                     },
                     "clarification_questions": [],
                     "missing_inputs": [],
-                    "plan_id": "plan-b7bb033c8a568f67",
+                    "plan_id": "plan-ae5ad2c12c19802b",
                     "planner_version": "1.1.0",
                     "playbook_id": "PB-CAPABILITY-001",
                     "playbook_version": "1.0.0",
@@ -5328,7 +5550,11 @@
                   "stage": "synthesis"
                 },
                 {
-                  "delta": "脱敏回放证据覆盖了当前计划要求，结论仅用于链路契约验证。\n\n事实：回放使用的证据来自固定离线夹具。 [数据 S01]\n\n建议：仅将该结果用于自动化回归；依据：数据为脱敏合成夹具\n\n证据限制：该回放不代表真实生产数据或模型质量。",
+                  "delta": "**结论**\n脱敏回放证据覆盖了当前计划要求，结论仅用于链路契约验证。\n\n**事实**\n- 回放使用的证据来自固定离线夹具。 [数据 S01]\n\n**建议**\n- 仅将该结果用于自动化回归；依据：数据为脱敏合成夹具\n\n**证据限制**\n- ",
+                  "event": "answer_delta"
+                },
+                {
+                  "delta": "该回放不代表真实生产数据或模型质量。",
                   "event": "answer_delta"
                 }
               ],
@@ -5431,7 +5657,7 @@
               "active_flow": "task:capability_excursion",
               "candidates": [
                 {
-                  "confidence": 0.99,
+                  "confidence": 0.92,
                   "kind": "route",
                   "origin": "original_text",
                   "reason": "explicit_original_task",
@@ -5439,7 +5665,7 @@
                   "value": "capability_excursion"
                 },
                 {
-                  "confidence": 0.99,
+                  "confidence": 0.92,
                   "kind": "route",
                   "origin": "model_expansion",
                   "reason": "lower_priority_or_guard",
@@ -5462,7 +5688,7 @@
           "execution_layer": "policy_replay",
           "question": "诊断 2026-08-01 至 2026-08-07 全厂制造状况",
           "result": {
-            "answer": "脱敏回放证据覆盖了当前计划要求，结论仅用于链路契约验证。\n\n事实：回放使用的证据来自固定离线夹具。 [数据 S01]\n\n建议：仅将该结果用于自动化回归；依据：数据为脱敏合成夹具\n\n证据限制：该回放不代表真实生产数据或模型质量。",
+            "answer": "**结论**\n脱敏回放证据覆盖了当前计划要求，结论仅用于链路契约验证。\n\n**事实**\n- 回放使用的证据来自固定离线夹具。 [数据 S01]\n\n**建议**\n- 仅将该结果用于自动化回归；依据：数据为脱敏合成夹具\n\n**证据限制**\n- 该回放不代表真实生产数据或模型质量。",
             "answer_contract": {
               "allowed_conclusion_strength": "supported",
               "causal_claims_allowed": false,
@@ -5853,6 +6079,8 @@
               "invalid_source_refs": [],
               "moved_claims": 0,
               "plan_id": "plan-3e0f400b19a46f26",
+              "presentation": "compact",
+              "presentation_source": "fallback",
               "repair_events": [],
               "schema_version": "1.2",
               "sections": [
@@ -7501,7 +7729,11 @@
                   "stage": "synthesis"
                 },
                 {
-                  "delta": "脱敏回放证据覆盖了当前计划要求，结论仅用于链路契约验证。\n\n事实：回放使用的证据来自固定离线夹具。 [数据 S01]\n\n建议：仅将该结果用于自动化回归；依据：数据为脱敏合成夹具\n\n证据限制：该回放不代表真实生产数据或模型质量。",
+                  "delta": "**结论**\n脱敏回放证据覆盖了当前计划要求，结论仅用于链路契约验证。\n\n**事实**\n- 回放使用的证据来自固定离线夹具。 [数据 S01]\n\n**建议**\n- 仅将该结果用于自动化回归；依据：数据为脱敏合成夹具\n\n**证据限制**\n- ",
+                  "event": "answer_delta"
+                },
+                {
+                  "delta": "该回放不代表真实生产数据或模型质量。",
                   "event": "answer_delta"
                 }
               ],
@@ -7682,6 +7914,8 @@
               "invalid_source_refs": [],
               "moved_claims": 0,
               "plan_id": "plan-76ad8fbe1b5c4c0a",
+              "presentation": "compact",
+              "presentation_source": "rule",
               "repair_events": [],
               "schema_version": "1.0",
               "sections": [],
@@ -7976,7 +8210,7 @@
           "execution_layer": "policy_replay",
           "question": "查一下 CMP SOP/规范",
           "result": {
-            "answer": "当前证据未能验证模型提交的结论。\n\n待验证：回放使用的证据来自固定离线夹具。 [数据 S01] 验证：结构化语义、范围、时间或粒度与引用不一致。；脱敏回放证据覆盖了当前计划要求，结论仅用于链路契约验证。 [数据 S01] 验证：结构化语义、范围、时间或粒度与引用不一致。\n\n建议：仅将该结果用于自动化回归；依据：数据为脱敏合成夹具\n\n证据限制：该回放不代表真实生产数据或模型质量。",
+            "answer": "**结论**\n当前证据未能验证模型提交的结论。\n\n**待验证**\n- 回放使用的证据来自固定离线夹具。 [数据 S01] 验证：结构化语义、范围、时间或粒度与引用不一致。\n- 脱敏回放证据覆盖了当前计划要求，结论仅用于链路契约验证。 [数据 S01] 验证：结构化语义、范围、时间或粒度与引用不一致。\n\n**建议**\n- 仅将该结果用于自动化回归；依据：数据为脱敏合成夹具\n\n**证据限制**\n- 该回放不代表真实生产数据或模型质量。\n- 结论未被采纳：结构化语义、范围、时间或粒度与引用不一致。",
             "answer_contract": {
               "allowed_conclusion_strength": "supported",
               "causal_claims_allowed": false,
@@ -8008,22 +8242,28 @@
                   "critical_risk_codes": [],
                   "evidence_ids": [
                     "SOP-01",
-                    "SOP-02"
+                    "SOP-02",
+                    "SOP-03"
                   ],
                   "risk_codes": [],
                   "statuses": {
                     "SOP-01": "covered",
-                    "SOP-02": "covered"
+                    "SOP-02": "covered",
+                    "SOP-03": "covered"
                   }
                 },
                 "TOOL:S02": {
                   "conflict_codes": [],
                   "critical_risk_codes": [],
                   "evidence_ids": [
+                    "SOP-01",
+                    "SOP-02",
                     "SOP-03"
                   ],
                   "risk_codes": [],
                   "statuses": {
+                    "SOP-01": "covered",
+                    "SOP-02": "covered",
                     "SOP-03": "covered"
                   }
                 },
@@ -8135,6 +8375,8 @@
               "invalid_source_refs": [],
               "moved_claims": 2,
               "plan_id": "plan-087238a223e07d63",
+              "presentation": "compact",
+              "presentation_source": "fallback",
               "repair_events": [],
               "schema_version": "1.2",
               "sections": [
@@ -8309,9 +8551,9 @@
                     "retrieval"
                   ],
                   "required": true,
-                  "row_count": 1,
+                  "row_count": 2,
                   "status": "covered",
-                  "successful_calls": 1
+                  "successful_calls": 2
                 },
                 {
                   "evidence_id": "SOP-02",
@@ -8329,9 +8571,9 @@
                     "equipment_families"
                   ],
                   "required": true,
-                  "row_count": 1,
+                  "row_count": 2,
                   "status": "covered",
-                  "successful_calls": 1
+                  "successful_calls": 2
                 },
                 {
                   "evidence_id": "SOP-03",
@@ -8350,9 +8592,9 @@
                     "retrieval"
                   ],
                   "required": false,
-                  "row_count": 1,
+                  "row_count": 2,
                   "status": "covered",
-                  "successful_calls": 1
+                  "successful_calls": 2
                 }
               ],
               "observed_source_refs": [
@@ -8378,22 +8620,28 @@
                   "critical_risk_codes": [],
                   "evidence_ids": [
                     "SOP-01",
-                    "SOP-02"
+                    "SOP-02",
+                    "SOP-03"
                   ],
                   "risk_codes": [],
                   "statuses": {
                     "SOP-01": "covered",
-                    "SOP-02": "covered"
+                    "SOP-02": "covered",
+                    "SOP-03": "covered"
                   }
                 },
                 "TOOL:S02": {
                   "conflict_codes": [],
                   "critical_risk_codes": [],
                   "evidence_ids": [
+                    "SOP-01",
+                    "SOP-02",
                     "SOP-03"
                   ],
                   "risk_codes": [],
                   "statuses": {
+                    "SOP-01": "covered",
+                    "SOP-02": "covered",
                     "SOP-03": "covered"
                   }
                 },
@@ -8919,11 +9167,15 @@
                   "stage": "synthesis"
                 },
                 {
-                  "delta": "当前证据未能验证模型提交的结论。\n\n待验证：回放使用的证据来自固定离线夹具。 [数据 S01] 验证：结构化语义、范围、时间或粒度与引用不一致。；脱敏回放证据覆盖了当前计划要求，结论仅用于链路契约验证。 [数据 S01] 验证：结构化语义、",
+                  "delta": "**结论**\n当前证据未能验证模型提交的结论。\n\n**待验证**\n- 回放使用的证据来自固定离线夹具。 [数据 S01] 验证：结构化语义、范围、时间或粒度与引用不一致。\n- 脱敏回放证据覆盖了当前计划要求，结论仅用于链路契约验证。 [数据",
                   "event": "answer_delta"
                 },
                 {
-                  "delta": "范围、时间或粒度与引用不一致。\n\n建议：仅将该结果用于自动化回归；依据：数据为脱敏合成夹具\n\n证据限制：该回放不代表真实生产数据或模型质量。",
+                  "delta": " S01] 验证：结构化语义、范围、时间或粒度与引用不一致。\n\n**建议**\n- 仅将该结果用于自动化回归；依据：数据为脱敏合成夹具\n\n**证据限制**\n- 该回放不代表真实生产数据或模型质量。\n- 结论未被采纳：结构化语义、范围、时间或粒",
+                  "event": "answer_delta"
+                },
+                {
+                  "delta": "度与引用不一致。",
                   "event": "answer_delta"
                 }
               ],
@@ -9080,6 +9332,8 @@
               "invalid_source_refs": [],
               "moved_claims": 0,
               "plan_id": "plan-acbc5ecef6150391",
+              "presentation": "compact",
+              "presentation_source": "rule",
               "repair_events": [],
               "schema_version": "1.0",
               "sections": [],
@@ -9392,6 +9646,8 @@
               "invalid_source_refs": [],
               "moved_claims": 0,
               "plan_id": "plan-7939d14d85ac3554",
+              "presentation": "compact",
+              "presentation_source": "rule",
               "repair_events": [],
               "schema_version": "1.0",
               "sections": [],
@@ -9704,6 +9960,8 @@
               "invalid_source_refs": [],
               "moved_claims": 0,
               "plan_id": "plan-eb66ebec3ce26409",
+              "presentation": "compact",
+              "presentation_source": "rule",
               "repair_events": [],
               "schema_version": "1.0",
               "sections": [],
@@ -10631,11 +10889,7 @@
                   },
                   "required": [
                     "statement",
-                    "evidence_refs",
-                    "semantic_id",
-                    "scope",
-                    "time_range",
-                    "claim_role"
+                    "evidence_refs"
                   ],
                   "type": "object"
                 },
@@ -10736,7 +10990,7 @@
                         "type": "integer"
                       },
                       "maxItems": 8,
-                      "minItems": 2,
+                      "minItems": 1,
                       "type": "array"
                     },
                     "grain": {
@@ -10773,6 +11027,16 @@
                 },
                 "maxItems": 5,
                 "type": "array"
+              },
+              "presentation": {
+                "description": "可选。输出格式：brief=只给结论；compact=默认分条；table=横向对比表；report=完整分节报告。按用户意图与证据量选择。",
+                "enum": [
+                  "brief",
+                  "compact",
+                  "report",
+                  "table"
+                ],
+                "type": "string"
               },
               "recommendations": {
                 "items": {
@@ -10877,6 +11141,8 @@
         "invalid_source_refs": [],
         "moved_claims": 0,
         "plan_id": "plan-05447b61a9f9b66f",
+        "presentation": "compact",
+        "presentation_source": "rule",
         "repair_events": [],
         "schema_version": "1.0",
         "sections": [],
@@ -11422,6 +11688,8 @@
         "invalid_source_refs": [],
         "moved_claims": 0,
         "plan_id": "plan-05447b61a9f9b66f",
+        "presentation": "compact",
+        "presentation_source": "rule",
         "repair_events": [],
         "schema_version": "1.0",
         "sections": [],
@@ -11996,6 +12264,8 @@
         "invalid_source_refs": [],
         "moved_claims": 0,
         "plan_id": "plan-89383d99691eaa12",
+        "presentation": "compact",
+        "presentation_source": "rule",
         "repair_events": [],
         "schema_version": "1.0",
         "sections": [],
@@ -12958,6 +13228,8 @@
         "invalid_source_refs": [],
         "moved_claims": 0,
         "plan_id": "plan-89383d99691eaa12",
+        "presentation": "compact",
+        "presentation_source": "rule",
         "repair_events": [],
         "schema_version": "1.0",
         "sections": [],
@@ -13512,7 +13784,12 @@
           "必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。"
         ],
         "model_knowledge_fallback": false,
-        "permitted_source_refs": [],
+        "permitted_source_refs": [
+          "TOOL:S01",
+          "TOOL:S02",
+          "TOOL:S03",
+          "TOOL:S04"
+        ],
         "plan_id": "plan-df43d516285105ca",
         "presentation": "compact",
         "primary_scope_ids": [
@@ -13650,6 +13927,8 @@
         "invalid_source_refs": [],
         "moved_claims": 0,
         "plan_id": "plan-df43d516285105ca",
+        "presentation": "compact",
+        "presentation_source": "fallback",
         "repair_events": [
           {
             "affected_field": "display_blocks",
@@ -13778,7 +14057,8 @@
               "CAP-01"
             ],
             "message": "get_process_capability 调用状态为 error，未产生可验证证据。",
-            "severity": "warning"
+            "severity": "warning",
+            "source_ref": "TOOL:get_process_capability"
           },
           {
             "code": "tool_not_completed",
@@ -13786,7 +14066,8 @@
               "CAP-02"
             ],
             "message": "get_recent_excursions 调用状态为 blocked，未产生可验证证据。",
-            "severity": "warning"
+            "severity": "warning",
+            "source_ref": "TOOL:get_recent_excursions"
           },
           {
             "code": "tool_not_completed",
@@ -13794,7 +14075,8 @@
               "CAP-03"
             ],
             "message": "get_sensor_summary 调用状态为 blocked，未产生可验证证据。",
-            "severity": "warning"
+            "severity": "warning",
+            "source_ref": "TOOL:get_sensor_summary"
           },
           {
             "code": "tool_not_completed",
@@ -13802,7 +14084,8 @@
               "CAP-04"
             ],
             "message": "search_knowledge 调用状态为 blocked，未产生可验证证据。",
-            "severity": "warning"
+            "severity": "warning",
+            "source_ref": "TOOL:search_knowledge"
           }
         ],
         "schema_version": "1.2",
@@ -14236,7 +14519,7 @@
             "role": "system"
           },
           {
-            "content": "最终回答必须通过 submit_analysis 提交，不要直接输出最终正文。服务端会按 presentation=compact 呈现已验证声明；facts 只放工具结果直接支持的事实且必须填写 permitted_source_refs；inferences 是基于事实的解释，hypotheses 必须包含验证方法，recommendations 必须说明依据与复核要求。保持精炼：只保留对决策最重要的条目，不要逐行复述工具结果或穷举全部设备。使用 analysis_protocol_version=2.0：facts 是调用级直接事实，必须使用 TOOL:Sxx 引用并声明 semantic_id、scope、time_range、claim_role；服务端只补全已知的 kind 和 grain。inferences 必须用至少两个已验证 facts 的从零开始 fact_indices，填写简短 basis 和 uncertainty；其引用由服务端从事实推导，不要重复填报来源元数据。conclusion_claim 必须引用已验证综合推断的 inference_indices，并声明目标 scope、time_range、claim_role；不得把综合结论伪装成某一个原始指标。不得把背景来源混入综合推断，范围或时间不兼容时改为 hypotheses。仅当省略 analysis_protocol_version、使用旧协议时，制造域的 facts、inferences 和 conclusion_claim 才必须从 answer_contract.source_semantics 逐项复制 claim_kind、semantic_id、scope、grain 和 time_range；不得根据用户目标范围猜测证据范围。不得提交隐藏思维链、逐 token 推理或未在 permitted_source_refs 中的来源。conclusion_evidence_refs 必须列出结论依据；仅由 context_only 来源支持的整厂背景不得表述为主范围自身指标。allowed_conclusion_strength 约束任务级诊断和根因；逐声明验证的直接观测可保留。causal_claims_allowed=false 时不得声称已证明因果。\nanswer_contract={\"allowed_conclusion_strength\":\"insufficient\",\"causal_claims_allowed\":false,\"mandatory_limitations\":[\"CAP-01 设备级制程能力 为missing，缺少字段：equipment_id, samples, mean_value, sigma, cpk, metric_name, metric_unit, spec_lsl, spec_usl。\",\"CAP-02 异常批次明细 为missing，缺少字段：run_time, lot_id, process_step, equipment_id, excursion_code, measurement_name, measurement_value, measurement_unit, spec_lsl, spec_usl。\",\"CAP-04 控制计划与历史案例 为missing，缺少字段：reference_id, source_type, source, section, retrieval。\",\"get_process_capability 调用状态为 error，未产生可验证证据。\",\"get_recent_excursions 调用状态为 blocked，未产生可验证证据。\",\"get_sensor_summary 调用状态为 blocked，未产生可验证证据。\",\"search_knowledge 调用状态为 blocked，未产生可验证证据。\",\"必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。\"],\"model_knowledge_fallback\":false,\"permitted_source_refs\":[],\"plan_id\":\"plan-df43d516285105ca\",\"presentation\":\"compact\",\"primary_scope_ids\":[\"CMP-03\"],\"primary_scope_labels\":[\"CMP-03\"],\"primary_scope_type\":\"equipment\",\"reference_evidence\":{},\"required_sections\":[\"结论\",\"已确认事实\",\"分析推断\",\"待验证假设\",\"建议\",\"证据限制\"],\"schema_version\":\"1.2\",\"source_scope_roles\":{\"TOOL:S01\":\"context_only\",\"TOOL:S02\":\"primary\",\"TOOL:S03\":\"primary\",\"TOOL:S04\":\"primary\",\"TOOL:get_process_capability\":\"context_only\",\"TOOL:get_recent_excursions\":\"primary\",\"TOOL:get_sensor_summary\":\"primary\",\"TOOL:search_knowledge\":\"primary\"},\"source_semantics\":{\"TOOL:S01\":{\"end\":\"2026-08-07\",\"filter_provenance\":\"planner\",\"grain\":\"equipment_distribution\",\"kind\":\"metric\",\"scope\":{\"chambers\":[],\"equipment_ids\":[],\"fab_ids\":[],\"lot_ids\":[],\"process_steps\":[\"CMP\"],\"products\":[],\"recipes\":[],\"wafer_ids\":[]},\"scope_role\":\"context_only\",\"semantic_id\":\"process_capability_cpk\",\"start\":\"2026-08-01\"},\"TOOL:S02\":{\"end\":\"2026-08-07\",\"filter_provenance\":\"planner\",\"grain\":\"event\",\"kind\":\"event\",\"scope\":{\"chambers\":[],\"equipment_ids\":[\"CMP-03\"],\"fab_ids\":[],\"lot_ids\":[],\"process_steps\":[],\"products\":[],\"recipes\":[],\"wafer_ids\":[]},\"scope_role\":\"primary\",\"semantic_id\":\"process_excursion\",\"start\":\"2026-08-01\"},\"TOOL:S03\":{\"end\":\"2026-08-07\",\"filter_provenance\":\"planner\",\"grain\":\"equipment_signal\",\"kind\":\"metric\",\"scope\":{\"chambers\":[],\"equipment_ids\":[\"CMP-03\"],\"fab_ids\":[],\"lot_ids\":[],\"process_steps\":[],\"products\":[],\"recipes\":[],\"wafer_ids\":[]},\"scope_role\":\"primary\",\"semantic_id\":\"sensor_summary\",\"start\":\"2026-08-01\"},\"TOOL:S04\":{\"end\":null,\"filter_provenance\":\"planner\",\"grain\":\"document\",\"kind\":\"document\",\"scope\":{\"chambers\":[],\"equipment_ids\":[\"CMP-03\"],\"fab_ids\":[],\"lot_ids\":[],\"process_steps\":[],\"products\":[],\"recipes\":[],\"wafer_ids\":[]},\"scope_role\":\"primary\",\"semantic_id\":\"knowledge_document\",\"start\":null}},\"status\":\"required\",\"submission_tool\":\"submit_analysis\",\"synthesizer_version\":\"1.2.0\"}",
+            "content": "最终回答必须通过 submit_analysis 提交，不要直接输出最终正文。服务端会按 presentation=compact 呈现已验证声明；facts 只放工具结果直接支持的事实且必须填写 permitted_source_refs；inferences 是基于事实的解释，hypotheses 必须包含验证方法，recommendations 必须说明依据与复核要求。保持精炼：只保留对决策最重要的条目，不要逐行复述工具结果或穷举全部设备。使用 analysis_protocol_version=2.0：facts 是调用级直接事实，只写 statement 与 TOOL:Sxx 引用即可；claim_kind、semantic_id、scope、time_range、grain、claim_role 由服务端从被引用证据推导，如果你显式填写则必须与证据一致，否则该声明会被判为不支持。一条事实只引用同一种语义的调用级证据；不同工具或不同语义（例如近期异常明细与历史异常记录）不要合并成一条事实，请拆成多条事实，或在推断中基于这些事实综合。inferences 用已验证 facts 的从零开始 fact_indices（1 条为单源推断，最多给出受限结论；2 条及以上为复合推断），并填写简短 basis 和 uncertainty；其引用由服务端从事实推导，不要重复填报来源元数据。conclusion_claim 必须引用已验证综合推断的 inference_indices；其目标 scope、time_range、claim_role 由服务端从所引用的推断推导，不得把综合结论伪装成某一个原始指标。不得把背景来源混入综合推断，范围或时间不兼容时改为 hypotheses。仅当省略 analysis_protocol_version、使用旧协议时，制造域的 facts、inferences 和 conclusion_claim 才必须从 answer_contract.source_semantics 逐项复制 claim_kind、semantic_id、scope、grain 和 time_range；不得根据用户目标范围猜测证据范围。不得提交隐藏思维链、逐 token 推理或未在 permitted_source_refs 中的来源。conclusion_evidence_refs 必须列出结论依据；仅由 context_only 来源支持的整厂背景不得表述为主范围自身指标。allowed_conclusion_strength 约束任务级诊断和根因；逐声明验证的直接观测可保留。causal_claims_allowed=false 时不得声称已证明因果。\n输出格式：在 submit_analysis 的 presentation 字段选择 brief（只给结论）、compact（默认分条）、table（横向对比）、report（完整分节）；按用户意图与证据量选择，服务端会按所选模式裁剪条目。\nanswer_contract={\"allowed_conclusion_strength\":\"insufficient\",\"causal_claims_allowed\":false,\"mandatory_limitations\":[\"CAP-01 设备级制程能力 为missing，缺少字段：equipment_id, samples, mean_value, sigma, cpk, metric_name, metric_unit, spec_lsl, spec_usl。\",\"CAP-02 异常批次明细 为missing，缺少字段：run_time, lot_id, process_step, equipment_id, excursion_code, measurement_name, measurement_value, measurement_unit, spec_lsl, spec_usl。\",\"CAP-04 控制计划与历史案例 为missing，缺少字段：reference_id, source_type, source, section, retrieval。\",\"get_process_capability 调用状态为 error，未产生可验证证据。\",\"get_recent_excursions 调用状态为 blocked，未产生可验证证据。\",\"get_sensor_summary 调用状态为 blocked，未产生可验证证据。\",\"search_knowledge 调用状态为 blocked，未产生可验证证据。\",\"必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。\"],\"model_knowledge_fallback\":false,\"permitted_source_refs\":[\"TOOL:S01\",\"TOOL:S02\",\"TOOL:S03\",\"TOOL:S04\"],\"plan_id\":\"plan-df43d516285105ca\",\"presentation\":\"compact\",\"primary_scope_ids\":[\"CMP-03\"],\"primary_scope_labels\":[\"CMP-03\"],\"primary_scope_type\":\"equipment\",\"reference_evidence\":{},\"required_sections\":[\"结论\",\"已确认事实\",\"分析推断\",\"待验证假设\",\"建议\",\"证据限制\"],\"schema_version\":\"1.2\",\"source_scope_roles\":{\"TOOL:S01\":\"context_only\",\"TOOL:S02\":\"primary\",\"TOOL:S03\":\"primary\",\"TOOL:S04\":\"primary\",\"TOOL:get_process_capability\":\"context_only\",\"TOOL:get_recent_excursions\":\"primary\",\"TOOL:get_sensor_summary\":\"primary\",\"TOOL:search_knowledge\":\"primary\"},\"source_semantics\":{\"TOOL:S01\":{\"end\":\"2026-08-07\",\"filter_provenance\":\"planner\",\"grain\":\"equipment_distribution\",\"kind\":\"metric\",\"scope\":{\"chambers\":[],\"equipment_ids\":[],\"fab_ids\":[],\"lot_ids\":[],\"process_steps\":[\"CMP\"],\"products\":[],\"recipes\":[],\"wafer_ids\":[]},\"scope_role\":\"context_only\",\"semantic_id\":\"process_capability_cpk\",\"start\":\"2026-08-01\"},\"TOOL:S02\":{\"end\":\"2026-08-07\",\"filter_provenance\":\"planner\",\"grain\":\"event\",\"kind\":\"event\",\"scope\":{\"chambers\":[],\"equipment_ids\":[\"CMP-03\"],\"fab_ids\":[],\"lot_ids\":[],\"process_steps\":[],\"products\":[],\"recipes\":[],\"wafer_ids\":[]},\"scope_role\":\"primary\",\"semantic_id\":\"process_excursion\",\"start\":\"2026-08-01\"},\"TOOL:S03\":{\"end\":\"2026-08-07\",\"filter_provenance\":\"planner\",\"grain\":\"equipment_signal\",\"kind\":\"metric\",\"scope\":{\"chambers\":[],\"equipment_ids\":[\"CMP-03\"],\"fab_ids\":[],\"lot_ids\":[],\"process_steps\":[],\"products\":[],\"recipes\":[],\"wafer_ids\":[]},\"scope_role\":\"primary\",\"semantic_id\":\"sensor_summary\",\"start\":\"2026-08-01\"},\"TOOL:S04\":{\"end\":null,\"filter_provenance\":\"planner\",\"grain\":\"document\",\"kind\":\"document\",\"scope\":{\"chambers\":[],\"equipment_ids\":[\"CMP-03\"],\"fab_ids\":[],\"lot_ids\":[],\"process_steps\":[],\"products\":[],\"recipes\":[],\"wafer_ids\":[]},\"scope_role\":\"primary\",\"semantic_id\":\"knowledge_document\",\"start\":null}},\"status\":\"required\",\"submission_tool\":\"submit_analysis\",\"synthesizer_version\":\"1.2.0\"}",
             "role": "system"
           },
           {
@@ -14930,7 +15213,8 @@
                   "CAP-01"
                 ],
                 "message": "get_process_capability 调用状态为 error，未产生可验证证据。",
-                "severity": "warning"
+                "severity": "warning",
+                "source_ref": "TOOL:get_process_capability"
               },
               {
                 "code": "tool_not_completed",
@@ -14938,7 +15222,8 @@
                   "CAP-02"
                 ],
                 "message": "get_recent_excursions 调用状态为 blocked，未产生可验证证据。",
-                "severity": "warning"
+                "severity": "warning",
+                "source_ref": "TOOL:get_recent_excursions"
               },
               {
                 "code": "tool_not_completed",
@@ -14946,7 +15231,8 @@
                   "CAP-03"
                 ],
                 "message": "get_sensor_summary 调用状态为 blocked，未产生可验证证据。",
-                "severity": "warning"
+                "severity": "warning",
+                "source_ref": "TOOL:get_sensor_summary"
               },
               {
                 "code": "tool_not_completed",
@@ -14954,7 +15240,8 @@
                   "CAP-04"
                 ],
                 "message": "search_knowledge 调用状态为 blocked，未产生可验证证据。",
-                "severity": "warning"
+                "severity": "warning",
+                "source_ref": "TOOL:search_knowledge"
               }
             ],
             "schema_version": "1.2",
@@ -15456,6 +15743,8 @@
         "invalid_source_refs": [],
         "moved_claims": 0,
         "plan_id": "plan-df43d516285105ca",
+        "presentation": "compact",
+        "presentation_source": "fallback",
         "repair_events": [
           {
             "affected_field": "display_blocks",
@@ -16119,7 +16408,7 @@
             "role": "system"
           },
           {
-            "content": "最终回答必须通过 submit_analysis 提交，不要直接输出最终正文。服务端会按 presentation=compact 呈现已验证声明；facts 只放工具结果直接支持的事实且必须填写 permitted_source_refs；inferences 是基于事实的解释，hypotheses 必须包含验证方法，recommendations 必须说明依据与复核要求。保持精炼：只保留对决策最重要的条目，不要逐行复述工具结果或穷举全部设备。使用 analysis_protocol_version=2.0：facts 是调用级直接事实，必须使用 TOOL:Sxx 引用并声明 semantic_id、scope、time_range、claim_role；服务端只补全已知的 kind 和 grain。inferences 必须用至少两个已验证 facts 的从零开始 fact_indices，填写简短 basis 和 uncertainty；其引用由服务端从事实推导，不要重复填报来源元数据。conclusion_claim 必须引用已验证综合推断的 inference_indices，并声明目标 scope、time_range、claim_role；不得把综合结论伪装成某一个原始指标。不得把背景来源混入综合推断，范围或时间不兼容时改为 hypotheses。仅当省略 analysis_protocol_version、使用旧协议时，制造域的 facts、inferences 和 conclusion_claim 才必须从 answer_contract.source_semantics 逐项复制 claim_kind、semantic_id、scope、grain 和 time_range；不得根据用户目标范围猜测证据范围。不得提交隐藏思维链、逐 token 推理或未在 permitted_source_refs 中的来源。conclusion_evidence_refs 必须列出结论依据；仅由 context_only 来源支持的整厂背景不得表述为主范围自身指标。allowed_conclusion_strength 约束任务级诊断和根因；逐声明验证的直接观测可保留。causal_claims_allowed=false 时不得声称已证明因果。\nanswer_contract={\"allowed_conclusion_strength\":\"insufficient\",\"causal_claims_allowed\":false,\"mandatory_limitations\":[\"CAP-01 设备级制程能力 为partial，缺少字段：equipment_id, samples, mean_value, sigma, cpk, metric_name, metric_unit, spec_lsl, spec_usl。\",\"CAP-02 异常批次明细 为partial，缺少字段：run_time, lot_id, process_step, equipment_id, excursion_code, measurement_name, measurement_value, measurement_unit, spec_lsl, spec_usl。\",\"CAP-03 设备传感器上下文 为partial，缺少字段：process_step, equipment_id, signal_name, samples, missing_samples, flagged_outliers, mean_value, min_value, max_value。\",\"CAP-04 控制计划与历史案例 为partial，缺少字段：source, section。\",\"必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。\"],\"model_knowledge_fallback\":false,\"permitted_source_refs\":[\"KB-MOD002-001\",\"TOOL:S01\",\"TOOL:S02\",\"TOOL:S03\",\"TOOL:S04\",\"TOOL:get_process_capability\",\"TOOL:get_recent_excursions\",\"TOOL:get_sensor_summary\",\"TOOL:search_knowledge\"],\"plan_id\":\"plan-df43d516285105ca\",\"presentation\":\"compact\",\"primary_scope_ids\":[\"CMP-03\"],\"primary_scope_labels\":[\"CMP-03\"],\"primary_scope_type\":\"equipment\",\"reference_evidence\":{\"TOOL:S01\":{\"conflict_codes\":[],\"critical_risk_codes\":[],\"evidence_ids\":[\"CAP-01\"],\"risk_codes\":[],\"statuses\":{\"CAP-01\":\"partial\"}},\"TOOL:S02\":{\"conflict_codes\":[],\"critical_risk_codes\":[],\"evidence_ids\":[\"CAP-02\"],\"risk_codes\":[],\"statuses\":{\"CAP-02\":\"partial\"}},\"TOOL:S03\":{\"conflict_codes\":[],\"critical_risk_codes\":[],\"evidence_ids\":[\"CAP-03\"],\"risk_codes\":[],\"statuses\":{\"CAP-03\":\"partial\"}},\"TOOL:S04\":{\"conflict_codes\":[],\"critical_risk_codes\":[],\"evidence_ids\":[\"CAP-04\"],\"risk_codes\":[],\"statuses\":{\"CAP-04\":\"partial\"}},\"TOOL:get_process_capability\":{\"conflict_codes\":[],\"critical_risk_codes\":[],\"evidence_ids\":[\"CAP-01\"],\"risk_codes\":[],\"statuses\":{\"CAP-01\":\"partial\"}},\"TOOL:get_recent_excursions\":{\"conflict_codes\":[],\"critical_risk_codes\":[],\"evidence_ids\":[\"CAP-02\"],\"risk_codes\":[],\"statuses\":{\"CAP-02\":\"partial\"}},\"TOOL:get_sensor_summary\":{\"conflict_codes\":[],\"critical_risk_codes\":[],\"evidence_ids\":[\"CAP-03\"],\"risk_codes\":[],\"statuses\":{\"CAP-03\":\"partial\"}},\"TOOL:search_knowledge\":{\"conflict_codes\":[],\"critical_risk_codes\":[],\"evidence_ids\":[\"CAP-04\"],\"risk_codes\":[],\"statuses\":{\"CAP-04\":\"partial\"}}},\"required_sections\":[\"结论\",\"已确认事实\",\"分析推断\",\"待验证假设\",\"建议\",\"证据限制\"],\"schema_version\":\"1.2\",\"source_scope_roles\":{\"TOOL:S01\":\"context_only\",\"TOOL:S02\":\"primary\",\"TOOL:S03\":\"primary\",\"TOOL:S04\":\"primary\",\"TOOL:get_process_capability\":\"context_only\",\"TOOL:get_recent_excursions\":\"primary\",\"TOOL:get_sensor_summary\":\"primary\",\"TOOL:search_knowledge\":\"primary\"},\"source_semantics\":{\"TOOL:S01\":{\"end\":\"2026-08-07\",\"filter_provenance\":\"planner\",\"grain\":\"equipment_distribution\",\"kind\":\"metric\",\"scope\":{\"chambers\":[],\"equipment_ids\":[],\"fab_ids\":[],\"lot_ids\":[],\"process_steps\":[\"CMP\"],\"products\":[],\"recipes\":[],\"wafer_ids\":[]},\"scope_role\":\"context_only\",\"semantic_id\":\"process_capability_cpk\",\"start\":\"2026-08-01\"},\"TOOL:S02\":{\"end\":\"2026-08-07\",\"filter_provenance\":\"planner\",\"grain\":\"event\",\"kind\":\"event\",\"scope\":{\"chambers\":[],\"equipment_ids\":[\"CMP-03\"],\"fab_ids\":[],\"lot_ids\":[],\"process_steps\":[],\"products\":[],\"recipes\":[],\"wafer_ids\":[]},\"scope_role\":\"primary\",\"semantic_id\":\"process_excursion\",\"start\":\"2026-08-01\"},\"TOOL:S03\":{\"end\":\"2026-08-07\",\"filter_provenance\":\"planner\",\"grain\":\"equipment_signal\",\"kind\":\"metric\",\"scope\":{\"chambers\":[],\"equipment_ids\":[\"CMP-03\"],\"fab_ids\":[],\"lot_ids\":[],\"process_steps\":[],\"products\":[],\"recipes\":[],\"wafer_ids\":[]},\"scope_role\":\"primary\",\"semantic_id\":\"sensor_summary\",\"start\":\"2026-08-01\"},\"TOOL:S04\":{\"end\":null,\"filter_provenance\":\"planner\",\"grain\":\"document\",\"kind\":\"document\",\"scope\":{\"chambers\":[],\"equipment_ids\":[\"CMP-03\"],\"fab_ids\":[],\"lot_ids\":[],\"process_steps\":[],\"products\":[],\"recipes\":[],\"wafer_ids\":[]},\"scope_role\":\"primary\",\"semantic_id\":\"knowledge_document\",\"start\":null}},\"status\":\"required\",\"submission_tool\":\"submit_analysis\",\"synthesizer_version\":\"1.2.0\"}",
+            "content": "最终回答必须通过 submit_analysis 提交，不要直接输出最终正文。服务端会按 presentation=compact 呈现已验证声明；facts 只放工具结果直接支持的事实且必须填写 permitted_source_refs；inferences 是基于事实的解释，hypotheses 必须包含验证方法，recommendations 必须说明依据与复核要求。保持精炼：只保留对决策最重要的条目，不要逐行复述工具结果或穷举全部设备。使用 analysis_protocol_version=2.0：facts 是调用级直接事实，只写 statement 与 TOOL:Sxx 引用即可；claim_kind、semantic_id、scope、time_range、grain、claim_role 由服务端从被引用证据推导，如果你显式填写则必须与证据一致，否则该声明会被判为不支持。一条事实只引用同一种语义的调用级证据；不同工具或不同语义（例如近期异常明细与历史异常记录）不要合并成一条事实，请拆成多条事实，或在推断中基于这些事实综合。inferences 用已验证 facts 的从零开始 fact_indices（1 条为单源推断，最多给出受限结论；2 条及以上为复合推断），并填写简短 basis 和 uncertainty；其引用由服务端从事实推导，不要重复填报来源元数据。conclusion_claim 必须引用已验证综合推断的 inference_indices；其目标 scope、time_range、claim_role 由服务端从所引用的推断推导，不得把综合结论伪装成某一个原始指标。不得把背景来源混入综合推断，范围或时间不兼容时改为 hypotheses。仅当省略 analysis_protocol_version、使用旧协议时，制造域的 facts、inferences 和 conclusion_claim 才必须从 answer_contract.source_semantics 逐项复制 claim_kind、semantic_id、scope、grain 和 time_range；不得根据用户目标范围猜测证据范围。不得提交隐藏思维链、逐 token 推理或未在 permitted_source_refs 中的来源。conclusion_evidence_refs 必须列出结论依据；仅由 context_only 来源支持的整厂背景不得表述为主范围自身指标。allowed_conclusion_strength 约束任务级诊断和根因；逐声明验证的直接观测可保留。causal_claims_allowed=false 时不得声称已证明因果。\n输出格式：在 submit_analysis 的 presentation 字段选择 brief（只给结论）、compact（默认分条）、table（横向对比）、report（完整分节）；按用户意图与证据量选择，服务端会按所选模式裁剪条目。\nanswer_contract={\"allowed_conclusion_strength\":\"insufficient\",\"causal_claims_allowed\":false,\"mandatory_limitations\":[\"CAP-01 设备级制程能力 为partial，缺少字段：equipment_id, samples, mean_value, sigma, cpk, metric_name, metric_unit, spec_lsl, spec_usl。\",\"CAP-02 异常批次明细 为partial，缺少字段：run_time, lot_id, process_step, equipment_id, excursion_code, measurement_name, measurement_value, measurement_unit, spec_lsl, spec_usl。\",\"CAP-03 设备传感器上下文 为partial，缺少字段：process_step, equipment_id, signal_name, samples, missing_samples, flagged_outliers, mean_value, min_value, max_value。\",\"CAP-04 控制计划与历史案例 为partial，缺少字段：source, section。\",\"必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。\"],\"model_knowledge_fallback\":false,\"permitted_source_refs\":[\"KB-MOD002-001\",\"TOOL:S01\",\"TOOL:S02\",\"TOOL:S03\",\"TOOL:S04\",\"TOOL:get_process_capability\",\"TOOL:get_recent_excursions\",\"TOOL:get_sensor_summary\",\"TOOL:search_knowledge\"],\"plan_id\":\"plan-df43d516285105ca\",\"presentation\":\"compact\",\"primary_scope_ids\":[\"CMP-03\"],\"primary_scope_labels\":[\"CMP-03\"],\"primary_scope_type\":\"equipment\",\"reference_evidence\":{\"TOOL:S01\":{\"conflict_codes\":[],\"critical_risk_codes\":[],\"evidence_ids\":[\"CAP-01\"],\"risk_codes\":[],\"statuses\":{\"CAP-01\":\"partial\"}},\"TOOL:S02\":{\"conflict_codes\":[],\"critical_risk_codes\":[],\"evidence_ids\":[\"CAP-02\"],\"risk_codes\":[],\"statuses\":{\"CAP-02\":\"partial\"}},\"TOOL:S03\":{\"conflict_codes\":[],\"critical_risk_codes\":[],\"evidence_ids\":[\"CAP-03\"],\"risk_codes\":[],\"statuses\":{\"CAP-03\":\"partial\"}},\"TOOL:S04\":{\"conflict_codes\":[],\"critical_risk_codes\":[],\"evidence_ids\":[\"CAP-04\"],\"risk_codes\":[],\"statuses\":{\"CAP-04\":\"partial\"}},\"TOOL:get_process_capability\":{\"conflict_codes\":[],\"critical_risk_codes\":[],\"evidence_ids\":[\"CAP-01\"],\"risk_codes\":[],\"statuses\":{\"CAP-01\":\"partial\"}},\"TOOL:get_recent_excursions\":{\"conflict_codes\":[],\"critical_risk_codes\":[],\"evidence_ids\":[\"CAP-02\"],\"risk_codes\":[],\"statuses\":{\"CAP-02\":\"partial\"}},\"TOOL:get_sensor_summary\":{\"conflict_codes\":[],\"critical_risk_codes\":[],\"evidence_ids\":[\"CAP-03\"],\"risk_codes\":[],\"statuses\":{\"CAP-03\":\"partial\"}},\"TOOL:search_knowledge\":{\"conflict_codes\":[],\"critical_risk_codes\":[],\"evidence_ids\":[\"CAP-04\"],\"risk_codes\":[],\"statuses\":{\"CAP-04\":\"partial\"}}},\"required_sections\":[\"结论\",\"已确认事实\",\"分析推断\",\"待验证假设\",\"建议\",\"证据限制\"],\"schema_version\":\"1.2\",\"source_scope_roles\":{\"TOOL:S01\":\"context_only\",\"TOOL:S02\":\"primary\",\"TOOL:S03\":\"primary\",\"TOOL:S04\":\"primary\",\"TOOL:get_process_capability\":\"context_only\",\"TOOL:get_recent_excursions\":\"primary\",\"TOOL:get_sensor_summary\":\"primary\",\"TOOL:search_knowledge\":\"primary\"},\"source_semantics\":{\"TOOL:S01\":{\"end\":\"2026-08-07\",\"filter_provenance\":\"planner\",\"grain\":\"equipment_distribution\",\"kind\":\"metric\",\"scope\":{\"chambers\":[],\"equipment_ids\":[],\"fab_ids\":[],\"lot_ids\":[],\"process_steps\":[\"CMP\"],\"products\":[],\"recipes\":[],\"wafer_ids\":[]},\"scope_role\":\"context_only\",\"semantic_id\":\"process_capability_cpk\",\"start\":\"2026-08-01\"},\"TOOL:S02\":{\"end\":\"2026-08-07\",\"filter_provenance\":\"planner\",\"grain\":\"event\",\"kind\":\"event\",\"scope\":{\"chambers\":[],\"equipment_ids\":[\"CMP-03\"],\"fab_ids\":[],\"lot_ids\":[],\"process_steps\":[],\"products\":[],\"recipes\":[],\"wafer_ids\":[]},\"scope_role\":\"primary\",\"semantic_id\":\"process_excursion\",\"start\":\"2026-08-01\"},\"TOOL:S03\":{\"end\":\"2026-08-07\",\"filter_provenance\":\"planner\",\"grain\":\"equipment_signal\",\"kind\":\"metric\",\"scope\":{\"chambers\":[],\"equipment_ids\":[\"CMP-03\"],\"fab_ids\":[],\"lot_ids\":[],\"process_steps\":[],\"products\":[],\"recipes\":[],\"wafer_ids\":[]},\"scope_role\":\"primary\",\"semantic_id\":\"sensor_summary\",\"start\":\"2026-08-01\"},\"TOOL:S04\":{\"end\":null,\"filter_provenance\":\"planner\",\"grain\":\"document\",\"kind\":\"document\",\"scope\":{\"chambers\":[],\"equipment_ids\":[\"CMP-03\"],\"fab_ids\":[],\"lot_ids\":[],\"process_steps\":[],\"products\":[],\"recipes\":[],\"wafer_ids\":[]},\"scope_role\":\"primary\",\"semantic_id\":\"knowledge_document\",\"start\":null}},\"status\":\"required\",\"submission_tool\":\"submit_analysis\",\"synthesizer_version\":\"1.2.0\"}",
             "role": "system"
           },
           {

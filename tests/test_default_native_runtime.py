@@ -206,10 +206,13 @@ class DefaultNativeRuntimeTests(unittest.TestCase):
                 patch.dict(
                     service.TOOL_HANDLERS, {"query_manufacturing_data": sql_spy}
                 ),
+                patch.dict(
+                    "app.manufacturing.named_playbooks.NAMED_DOMAIN_PLAYBOOKS", {}, clear=True
+                ),
             ):
                 result = asyncio.run(
                     service._run_agent_impl(
-                        "分析 2026-08-01 至 2026-08-07 CMP 划伤缺陷 Pareto",
+                        "分析 CMP 划伤缺陷 Pareto",
                         [],
                         "default-native-sql-denial",
                     )
@@ -264,10 +267,13 @@ class DefaultNativeRuntimeTests(unittest.TestCase):
                     "app.agent_runtime.service.get_model_health",
                     return_value={"status": "healthy"},
                 ),
+                patch.dict(
+                    "app.manufacturing.named_playbooks.NAMED_DOMAIN_PLAYBOOKS", {}, clear=True
+                ),
             ):
                 result = asyncio.run(
                     service._run_agent_impl(
-                        "分析 2026-08-01 至 2026-08-07 CMP 划伤缺陷 Pareto",
+                        "分析 CMP 划伤缺陷 Pareto",
                         [],
                         "default-native-loop-success",
                     )
@@ -364,3 +370,6 @@ class DefaultNativeRuntimeTests(unittest.TestCase):
         self.assertEqual(trace[0]["raw_rows"], 1)
         self.assertEqual(trace[0]["rows"], 1)
         self.assertTrue(result["sources"])
+
+
+

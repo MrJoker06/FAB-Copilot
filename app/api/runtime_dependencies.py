@@ -13,7 +13,18 @@ from ..telemetry.audit import (
     monitoring_summary,
     read_events,
 )
-from ..core.settings import APP_VERSION, PROJECT_DIR, ModelConnection, get_settings
+from ..core.model_credentials import (
+    clear_stored_model_api_key,
+    resolve_model_api_key,
+    set_stored_model_api_key,
+)
+from ..core.settings import (
+    APP_VERSION,
+    PROJECT_DIR,
+    ModelConnection,
+    get_settings,
+    model_api_key,
+)
 from ..persistence.database import db_session, department_paths, ensure_department_databases
 from ..manufacturing.enterprise_data import EnterpriseDataError, get_enterprise_provider
 from ..persistence.execution_store import (
@@ -24,7 +35,9 @@ from ..persistence.execution_store import (
 from ..core.identity import PrincipalContextMiddleware, current_principal
 from ..model_gateway.compatibility import ModelCompatibilityError, check_model_compatibility
 from ..model_gateway.registry import (
+    delete_model,
     ensure_model_catalog,
+    invalidate_model_compatibility,
     list_models,
     public_user_model_config,
     publish_model,
@@ -155,12 +168,14 @@ __all__ = (
     "cached_agent_result",
     "chat_router",
     "check_model_compatibility",
+    "clear_stored_model_api_key",
     "client_message_content",
     "create_personal_upload",
     "create_session",
     "current_principal",
     "current_request_id",
     "db_session",
+    "delete_model",
     "delete_session_permanently",
     "delete_sessions_permanently",
     "department_paths",
@@ -180,6 +195,7 @@ __all__ = (
     "get_run_audit",
     "get_session",
     "get_settings",
+    "invalidate_model_compatibility",
     "iter_personal_job_events",
     "knowledge_router",
     "list_historical_cases",
@@ -191,6 +207,7 @@ __all__ = (
     "models_router",
     "monitor_router",
     "monitoring_summary",
+    "model_api_key",
     "os",
     "pending_personal_jobs",
     "personal_document_file",
@@ -208,6 +225,7 @@ __all__ = (
     "rename_session",
     "report_bundle",
     "reports_router",
+    "resolve_model_api_key",
     "restore_session",
     "retry_personal_document",
     "run_agent",
@@ -219,6 +237,7 @@ __all__ = (
     "session_history",
     "sessions_router",
     "set_model_status",
+    "set_stored_model_api_key",
     "system_router",
     "update_model_capabilities",
     "update_personal_document",

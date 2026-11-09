@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 
 from app.telemetry.audit import sanitize
 from app.agent_runtime import service as agent_module
+from app.core.model_credentials import get_stored_model_api_key, model_credentials_path
 from app.core.settings import ModelConnection, get_settings
 from app.persistence.database import db_session
 from app.main import app
@@ -96,6 +97,9 @@ class ModelGovernanceSystemTests(unittest.TestCase):
         try:
             with patch.dict(os.environ, {
                 "FAB_ADMIN_API_TOKEN": admin_token,
+                "FAB_MODEL_PROVIDER": "deepseek",
+                "FAB_MODEL_NAME": "deepseek-v4-flash",
+                "FAB_MODEL_API_KEY": "local",
                 "DEEPSEEK_API_KEY": "server-managed-test-key",
             }), patch("app.main.check_model_compatibility", new=AsyncMock(return_value={"status": "passed", "checked_at": "2026-08-11T00:00:00+00:00", "checks": []})), TestClient(app) as client:
                 self.assertEqual(client.get("/api/admin/models").status_code, 401)
@@ -142,6 +146,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                 self.assertEqual(selected.status_code, 200, selected.text)
                 self.assertEqual(selected.json()["model"], model_id)
                 self.assertEqual(selected.json()["credential_scope"], "server_managed")
+                self.assertTrue(selected.json()["api_key_configured"])
                 self.assertNotEqual(client.get("/api/settings/model", headers=user_b).json()["model"], model_id)
 
                 captured = {}
@@ -282,20 +287,122 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             "checks": [{"name": "structured_context", "status": "passed"}, {"name": "limits", "status": "passed"}],
         }
         try:
-            with patch.dict(os.environ, {"FAB_ADMIN_API_TOKEN": token}), patch(
-                "app.main.check_model_compatibility", new=AsyncMock(return_value=report)
-            ), TestClient(app) as client:
+            probe = AsyncMock(return_value=report)
+            with patch.dict(os.environ, {
+                "FAB_ADMIN_API_TOKEN": token,
+                "FAB_MODEL_API_KEY": "local",
+                "DEEPSEEK_API_KEY": "cloud-test-key",
+            }), patch("app.main.check_model_compatibility", new=probe), TestClient(app) as client:
                 payload = {"model_id": model_id, "display_name": "Model 018 Success", "provider": "deepseek", "provider_model": "model-018", "base_url": "https://models.example.test/v1", "capabilities": {"streaming": True, "tool_calls": True, "thinking": True, "native_multimodal": False}}
                 self.assertEqual(client.post("/api/admin/models", headers=headers, json=payload).status_code, 201)
                 before = next(item for item in client.get("/api/admin/models", headers=headers).json() if item["model_id"] == model_id)
                 response = client.post(f"/api/admin/models/{model_id}/compatibility-check", headers=headers)
                 self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual(probe.await_args.args[0].api_key, "cloud-test-key")
                 model = next(item for item in client.get("/api/admin/models", headers=headers).json() if item["model_id"] == model_id)
                 self.assertEqual(model["status"], before["status"])
                 self.assertEqual(model["capabilities"], before["capabilities"])
                 self.assertEqual(model["health"], before["health"])
                 self.assertEqual(model["compatibility"], report)
         finally:
+            with db_session() as connection:
+                connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
+                connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
+                connection.commit()
+
+    def test_admin_can_store_and_clear_per_model_credentials(self):
+        model_id, token = "model-020-credential", "model-020-credential-token"
+        credentials_path = model_credentials_path()
+        credentials_path.unlink(missing_ok=True)
+        with db_session() as connection:
+            connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
+            connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
+            connection.commit()
+        headers = {"Authorization": f"Bearer {token}"}
+        report = {
+            "status": "passed", "checked_at": "2026-08-12T00:00:00.000+00:00", "duration_ms": 1.0,
+            "checks": [{"name": "connectivity_streaming", "status": "passed"}],
+        }
+        probe = AsyncMock(return_value=report)
+        try:
+            with patch.dict(os.environ, {
+                "FAB_ADMIN_API_TOKEN": token,
+                "FAB_MODEL_API_KEY": "global-secret",
+                "DEEPSEEK_API_KEY": "",
+            }), patch("app.main.check_model_compatibility", new=probe), TestClient(app) as client:
+                payload = {"model_id": model_id, "display_name": "Model 020 Credential", "provider": "deepseek", "provider_model": "model-020", "base_url": "https://models.example.test/v1", "capabilities": {"streaming": True, "tool_calls": True, "thinking": False, "native_multimodal": False}}
+                self.assertEqual(client.post("/api/admin/models", headers=headers, json=payload).status_code, 201)
+                initial = next(item for item in client.get("/api/admin/models", headers=headers).json() if item["model_id"] == model_id)
+                self.assertEqual(initial["credential_source"], "environment")
+                self.assertTrue(initial["credential_configured"])
+
+                checked = client.post(f"/api/admin/models/{model_id}/compatibility-check", headers=headers)
+                self.assertEqual(checked.status_code, 200, checked.text)
+                self.assertEqual(probe.await_args.args[0].api_key, "global-secret")
+
+                saved = client.put(f"/api/admin/models/{model_id}/credential", headers=headers, json={"api_key": "local-file-secret"})
+                self.assertEqual(saved.status_code, 200, saved.text)
+                self.assertEqual(saved.json()["credential_source"], "local_file")
+                self.assertEqual(saved.json()["compatibility"]["status"], "unverified")
+                self.assertNotIn("local-file-secret", saved.text)
+
+                checked = client.post(f"/api/admin/models/{model_id}/compatibility-check", headers=headers)
+                self.assertEqual(checked.status_code, 200, checked.text)
+                self.assertEqual(probe.await_args.args[0].api_key, "local-file-secret")
+
+                listed = client.get("/api/admin/models", headers=headers)
+                self.assertNotIn("local-file-secret", listed.text)
+                model = next(item for item in listed.json() if item["model_id"] == model_id)
+                self.assertEqual(model["credential_source"], "local_file")
+                self.assertFalse(any("api_key" in item for item in model.get("health", {})))
+
+                cleared = client.delete(f"/api/admin/models/{model_id}/credential", headers=headers)
+                self.assertEqual(cleared.status_code, 200, cleared.text)
+                self.assertEqual(cleared.json()["credential_source"], "environment")
+                self.assertEqual(cleared.json()["compatibility"]["status"], "unverified")
+                self.assertIsNone(get_stored_model_api_key(model_id))
+                self.assertEqual(json.loads(credentials_path.read_text(encoding="utf-8"))["credentials"], {})
+        finally:
+            credentials_path.unlink(missing_ok=True)
+            with db_session() as connection:
+                connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
+                connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
+                connection.commit()
+
+    def test_admin_can_delete_a_configured_model(self):
+        model_id, token = "model-021-delete", "model-021-delete-token"
+        credentials_path = model_credentials_path()
+        credentials_path.unlink(missing_ok=True)
+        with db_session() as connection:
+            connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
+            connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
+            connection.commit()
+        headers = {"Authorization": f"Bearer {token}"}
+        user_headers = {"X-Tenant-ID": "delete-fab", "X-User-ID": "delete-user"}
+        try:
+            with patch.dict(os.environ, {
+                "FAB_ADMIN_API_TOKEN": token,
+                "FAB_MODEL_API_KEY": "global-secret",
+                "DEEPSEEK_API_KEY": "",
+            }), TestClient(app) as client:
+                payload = {"model_id": model_id, "display_name": "Model 021 Delete", "provider": "deepseek", "provider_model": "model-021", "base_url": "https://models.example.test/v1", "capabilities": {"streaming": True, "tool_calls": True, "thinking": False, "native_multimodal": False}}
+                self.assertEqual(client.post("/api/admin/models", headers=headers, json=payload).status_code, 201)
+                self.assertEqual(client.post("/api/settings/model", headers=user_headers, json={"model": model_id}).status_code, 200)
+                self.assertEqual(client.put(f"/api/admin/models/{model_id}/credential", headers=headers, json={"api_key": "delete-me-secret"}).status_code, 200)
+                self.assertEqual(get_stored_model_api_key(model_id), "delete-me-secret")
+
+                deleted = client.delete(f"/api/admin/models/{model_id}", headers=headers)
+                self.assertEqual(deleted.status_code, 200, deleted.text)
+                self.assertEqual(deleted.json()["model_id"], model_id)
+                self.assertNotIn(model_id, [item["model_id"] for item in client.get("/api/admin/models", headers=headers).json()])
+                self.assertNotEqual(client.get("/api/settings/model", headers=user_headers).json()["model"], model_id)
+                self.assertIsNone(get_stored_model_api_key(model_id))
+                with db_session() as connection:
+                    self.assertIsNone(connection.execute("SELECT 1 FROM agent.model_catalog WHERE model_id = ?", (model_id,)).fetchone())
+                    self.assertIsNone(connection.execute("SELECT 1 FROM agent.user_model_preferences WHERE model_id = ?", (model_id,)).fetchone())
+                self.assertEqual(client.delete(f"/api/admin/models/{model_id}", headers=headers).status_code, 404)
+        finally:
+            credentials_path.unlink(missing_ok=True)
             with db_session() as connection:
                 connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))
                 connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
@@ -396,6 +503,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
     def _health_patches(self, settings, claim):
         with ExitStack() as stack:
             stack.enter_context(patch("app.agent_runtime.service.get_settings", return_value=settings))
+            stack.enter_context(patch("app.agent_runtime.service.effective_agent_settings", return_value=settings))
             stack.enter_context(patch("app.agent_runtime.service.public_user_model_config", return_value={"model": "test-model"}))
             stack.enter_context(patch("app.agent_runtime.service.get_model_health", return_value={"status": "unknown"}))
             stack.enter_context(patch("app.agent_runtime.service.claim_model_call", side_effect=claim))

@@ -45,6 +45,20 @@ class IntentRouterTests(unittest.TestCase):
         self.assertEqual(route.time_range.source, "explicit")
         self.assertFalse(route.time_range.assumed)
 
+    def test_extracts_equipment_followups_adjacent_to_chinese_text(self):
+        for question in (
+            "特别看一下ETCH-04机台这三个月发生异常的时间",
+            "特别看一下ETCH-04这三个月发生异常的时间",
+            "特别看一下ETCH-04这三个发生异常的时间",
+        ):
+            with self.subTest(question=question):
+                route = route_question(question, current_date=date(2026, 11, 6))
+                self.assertEqual(route.intent, "equipment_fault")
+                self.assertEqual(route.equipment_ids, ("ETCH-04",))
+                self.assertEqual(route.process_steps, ("ETCH",))
+                self.assertEqual(route.scope_resolution.scope_type, "equipment")
+                self.assertFalse(route.clarification_needed)
+
     def test_routes_supported_domain_intents(self):
         cases = (
             ("最近四周工厂良率下降趋势", "yield_decline", "get_yield_trend"),

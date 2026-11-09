@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 from scripts import build_modularization_reference as reference
+from tests.support import requires_symlinks
 
 
 class ModularizationReferenceTests(unittest.TestCase):
@@ -136,6 +137,7 @@ class ModularizationReferenceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             reference.base_members(self.project, git)
 
+    @requires_symlinks
     def test_overlay_symlink_escape_is_rejected(self) -> None:
         outside = Path(self.temporary.name) / "outside"
         outside.mkdir()
@@ -169,6 +171,7 @@ class ModularizationReferenceTests(unittest.TestCase):
             )
         git.assert_not_called()
 
+    @requires_symlinks
     def test_write_reference_preflight_rejects_invalid_targets_before_git(self) -> None:
         dangling = self.project / "dangling.zip"
         dangling.symlink_to(self.project / "missing.zip")

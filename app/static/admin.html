@@ -52,7 +52,7 @@
         <div id="modelNotice" class="admin-notice" role="status" hidden></div>
         <section class="admin-panel model-catalog-panel">
           <div class="panel-heading"><div><h2>模型版本</h2><p id="modelCatalogCount">正在加载</p></div><button id="refreshModels" class="quiet-button" type="button">刷新</button></div>
-          <div class="admin-table-wrap model-catalog-wrap"><table class="model-catalog-table"><colgroup><col class="model-catalog-name"><col class="model-catalog-id"><col class="model-catalog-provider"><col class="model-catalog-provider-model"><col class="model-catalog-capabilities"><col class="model-catalog-compatibility"><col class="model-catalog-health"><col class="model-catalog-users"><col class="model-catalog-status"><col class="model-catalog-published"><col class="model-catalog-actions"></colgroup><thead><tr><th scope="col">显示名称</th><th scope="col">模型编号</th><th scope="col">提供方</th><th scope="col">提供方模型</th><th scope="col">能力</th><th scope="col">兼容性</th><th scope="col">健康</th><th scope="col">使用用户</th><th scope="col">状态</th><th scope="col">发布时间</th><th scope="col">操作</th></tr></thead><tbody id="modelCatalogBody"></tbody></table></div>
+          <div class="admin-table-wrap model-catalog-wrap"><table class="model-catalog-table"><colgroup><col class="model-catalog-model"><col class="model-catalog-provider"><col class="model-catalog-credential"><col class="model-catalog-capabilities"><col class="model-catalog-compatibility"><col class="model-catalog-health"><col class="model-catalog-users"><col class="model-catalog-status"><col class="model-catalog-published"><col class="model-catalog-actions"></colgroup><thead><tr><th scope="col">模型</th><th scope="col">提供方</th><th scope="col">凭据</th><th scope="col">能力</th><th scope="col">兼容性</th><th scope="col">健康</th><th scope="col">使用用户</th><th scope="col">状态</th><th scope="col">发布时间</th><th scope="col">操作</th></tr></thead><tbody id="modelCatalogBody"></tbody></table></div>
         </section>
       </section>
     </main>
@@ -88,6 +88,22 @@
       <div class="dialog-heading"><div><p class="admin-eyebrow">CAPABILITY DECLARATION</p><h2 id="editCapabilitiesTitle">编辑能力</h2></div><button id="closeCapabilities" class="icon-button" type="button" aria-label="关闭">×</button></div>
       <div class="dialog-body"><input id="editCapabilitiesModelId" type="hidden"><p class="field-hint">这是管理员声明；保存不会联网，并会使此前兼容性测试结果失效。</p><div class="capability-options"><label><input id="editStreaming" type="checkbox"> Streaming</label><label><input id="editToolCalls" type="checkbox"> Tool calls</label><label><input id="editThinking" type="checkbox"> Thinking</label><label><input id="editNativeMultimodal" type="checkbox"> 原生多模态</label></div><div id="editCapabilitiesMessage" class="form-message" role="alert" hidden></div></div>
       <div class="dialog-actions"><button id="cancelCapabilities" class="quiet-button" type="button">取消</button><button id="confirmCapabilities" class="primary-button" type="submit">保存声明</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="modelCredentialDialog" class="admin-dialog publish-dialog" aria-labelledby="modelCredentialTitle">
+    <form id="modelCredentialForm">
+      <div class="dialog-heading"><div><p class="admin-eyebrow">MODEL CREDENTIAL</p><h2 id="modelCredentialTitle">配置模型凭据</h2></div><button id="closeModelCredential" class="icon-button" type="button" aria-label="关闭">×</button></div>
+      <div class="dialog-body">
+        <input id="modelCredentialModelId" type="hidden">
+        <p class="field-hint">凭据只保存在服务器本地文件中，不写入数据库、不返回浏览器。保存后该模型的兼容性结果会失效，请重新测试。</p>
+        <p id="modelCredentialSource" class="field-hint"></p>
+        <label for="modelCredentialApiKey">API Key</label>
+        <input id="modelCredentialApiKey" type="password" maxlength="4096" autocomplete="new-password" spellcheck="false" placeholder="本地模型可填 local">
+        <p class="field-hint">本地模型没有鉴权要求时可填 <code>local</code>。清除本地凭据后会回退到环境变量。</p>
+        <div id="modelCredentialMessage" class="form-message" role="alert" hidden></div>
+      </div>
+      <div class="dialog-actions"><button id="clearModelCredential" class="quiet-button" type="button">清除本地凭据</button><button id="cancelModelCredential" class="quiet-button" type="button">取消</button><button id="confirmModelCredential" class="primary-button" type="submit">保存凭据</button></div>
     </form>
   </dialog>
 

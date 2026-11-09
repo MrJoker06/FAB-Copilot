@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from .model import build_result
 from ..coordinator_state import CoordinatorRunState
+from ...core.tool_result_projection import truncation_details, truncation_notices
 
 if TYPE_CHECKING:
     from ..dependencies import CoordinatorDependencies
@@ -42,11 +43,15 @@ async def execute_ready_synthesis(
     state.knowledge_fallback = deps.knowledge_fallback_state(
         state.intent_route, state.evidence_observations, state.sources,
     )
+    truncation = truncation_details(state.evidence_observations)
+    if truncation:
+        deps.emit("evidence_truncated", state.run_id, tools=truncation)
     state.answer_contract = deps.create_answer_contract(
         state.evidence_validation, list(state.sources.values()),
         allow_model_knowledge_fallback=state.knowledge_fallback["used"],
         question=state.question,
         resolved_question=state.analysis_question,
+        extra_limitations=truncation_notices(state.evidence_observations),
     )
     deps.emit_evidence_validation(state.run_id, 1, state.evidence_validation.to_dict())
     await deps.notify(state.progress, {

@@ -31,8 +31,8 @@ _INTENT_RULES: dict[str, tuple[tuple[str, int], ...]] = {
         ("产品组合", 2), ("趋势", 1),
     ),
     "equipment_fault": (
-        ("设备", 2), ("故障", 4), ("报警", 3), ("alarm", 3),
-        ("宕机", 4), ("停机", 3), ("健康", 3), ("稼动", 3),
+        ("设备", 2), ("机台", 2), ("故障", 4), ("报警", 3), ("alarm", 3),
+        ("异常", 1), ("宕机", 4), ("停机", 3), ("健康", 3), ("稼动", 3),
         ("oee", 3), ("维护", 2), ("pm", 2), ("设备风险", 4),
     ),
     "lot_trace": (
@@ -112,7 +112,7 @@ _DATA_REQUIREMENTS: dict[str, tuple[str, ...]] = {
 
 _INTENT_PRIORITY = tuple(_INTENT_RULES)
 _EQUIPMENT_PATTERN = re.compile(
-    rf"\b(?:{'|'.join(MANUFACTURING_STEPS)})-[0-9]{{1,3}}[A-Z]?\b",
+    rf"(?<![0-9A-Za-z])(?:{'|'.join(MANUFACTURING_STEPS)})-[0-9]{{1,3}}[A-Z]?(?![0-9A-Za-z])",
     re.IGNORECASE,
 )
 _LOT_PATTERN = re.compile(

@@ -48,6 +48,8 @@ function showAuth(message = '') {
   $('#adminWorkspace').hidden = true;
   if ($('#publishModelDialog').open) $('#publishModelDialog').close();
   if ($('#editCapabilitiesDialog').open) $('#editCapabilitiesDialog').close();
+  if ($('#modelCredentialDialog').open) $('#modelCredentialDialog').close();
+  $('#modelCredentialApiKey').value = '';
   $('#adminToast').hidden = true;
   setConnection(false);
   $('#adminAuthMessage').textContent = message;
@@ -152,7 +154,13 @@ function renderModels(models) {
     return `<details class="compatibility-details"><summary>${escapeHtml(summary)}</summary><ul>${items}</ul></details>`;
   };
   const health = model => { const item = model.health || {}; const names = {unknown:'未知',healthy:'正常',degraded:'降级',open:'熔断中',half_open:'恢复试探'}; const detail = item.status === 'open' && item.open_until ? `至 ${formatDate(item.open_until)}` : item.consecutive_failures ? `${item.consecutive_failures} 次失败` : ''; return `<div class="model-health"><span class="health-chip health-${escapeHtml(item.status || 'unknown')}">${escapeHtml(names[item.status] || '未知')}</span>${detail ? `<small>${escapeHtml(detail)}</small>` : ''}</div>`; };
-  $('#modelCatalogBody').innerHTML = models.map(model => `<tr><td data-label="显示名称"><div class="identity-cell"><strong>${escapeHtml(model.display_name)}</strong><span>${escapeHtml(model.base_url)}</span></div></td><td data-label="模型编号">${escapeHtml(model.model_id)}</td><td data-label="提供方">${escapeHtml(model.provider)}</td><td data-label="提供方模型">${escapeHtml(model.provider_model)}</td><td data-label="能力"><div class="capability-chips">${capabilityChips(model)}</div></td><td data-label="兼容性">${compatibility(model)}</td><td data-label="健康">${health(model)}</td><td data-label="使用用户">${formatNumber(model.selected_user_count)}</td><td data-label="状态">${statusChip(model.status)}</td><td data-label="发布时间">${formatDate(model.published_at)}</td><td data-label="操作"><div class="catalog-actions"><button class="quiet-button" type="button" data-action="status" data-model-id="${escapeHtml(model.model_id)}" data-model-status="${model.status === 'published' ? 'retired' : 'published'}">${model.status === 'published' ? '停用' : '重新发布'}</button><button class="quiet-button" type="button" data-action="capabilities" data-model-id="${escapeHtml(model.model_id)}">编辑能力</button><button class="quiet-button" type="button" data-action="compatibility" data-model-id="${escapeHtml(model.model_id)}">兼容性探针</button></div></td></tr>`).join('') || '<tr><td class="empty-row" colspan="11">模型目录为空</td></tr>';
+  const credentialLabels = {local_file:'本地凭据', environment:'环境变量', missing:'未配置'};
+  const credential = model => {
+    const source = model.credential_source || 'missing';
+    const label = credentialLabels[source] || '未配置';
+    return `<div class="model-credential"><span class="credential-chip credential-${escapeHtml(source)}">${escapeHtml(label)}</span><button class="quiet-button" type="button" data-action="credential" data-model-id="${escapeHtml(model.model_id)}">配置</button></div>`;
+  };
+  $('#modelCatalogBody').innerHTML = models.map(model => `<tr><td data-label="模型"><div class="identity-cell model-identity"><strong>${escapeHtml(model.display_name)}</strong><code>${escapeHtml(model.model_id)}</code><span>${escapeHtml(model.base_url)}</span></div></td><td data-label="提供方"><div class="identity-cell provider-identity"><strong>${escapeHtml(model.provider)}</strong><span>${escapeHtml(model.provider_model)}</span></div></td><td data-label="凭据">${credential(model)}</td><td data-label="能力"><div class="capability-chips">${capabilityChips(model)}</div></td><td data-label="兼容性">${compatibility(model)}</td><td data-label="健康">${health(model)}</td><td data-label="使用用户">${formatNumber(model.selected_user_count)}</td><td data-label="状态">${statusChip(model.status)}</td><td data-label="发布时间">${formatDate(model.published_at)}</td><td data-label="操作"><div class="catalog-actions"><button class="quiet-button" type="button" data-action="status" data-model-id="${escapeHtml(model.model_id)}" data-model-status="${model.status === 'published' ? 'retired' : 'published'}">${model.status === 'published' ? '停用' : '重新发布'}</button><button class="quiet-button" type="button" data-action="capabilities" data-model-id="${escapeHtml(model.model_id)}">编辑能力</button><button class="quiet-button" type="button" data-action="compatibility" data-model-id="${escapeHtml(model.model_id)}">兼容性探针</button><button class="quiet-button" type="button" data-action="delete" data-model-id="${escapeHtml(model.model_id)}" data-model-name="${escapeHtml(model.display_name)}">删除</button></div></td></tr>`).join('') || '<tr><td class="empty-row" colspan="10">模型目录为空</td></tr>';
 }
 
 async function loadModels() {
@@ -203,11 +211,75 @@ async function saveCapabilities(event) {
   finally { button.disabled = false; }
 }
 
+function openCredential(modelId) {
+  const model = adminState.models.find(item => item.model_id === modelId); if (!model) return;
+  const source = model.credential_source || 'missing';
+  const labels = {local_file:'本地凭据文件', environment:'环境变量', missing:'未配置'};
+  $('#modelCredentialModelId').value = modelId;
+  $('#modelCredentialTitle').textContent = `配置模型凭据：${model.display_name}`;
+  $('#modelCredentialApiKey').value = '';
+  $('#modelCredentialSource').textContent = source === 'environment'
+    ? `当前来源：${labels[source]}（清除本地条目不会删除环境变量）`
+    : `当前来源：${labels[source] || '未配置'}`;
+  $('#clearModelCredential').disabled = source !== 'local_file';
+  $('#modelCredentialMessage').hidden = true;
+  $('#modelCredentialDialog').showModal();
+  $('#modelCredentialApiKey').focus();
+}
+
+async function saveCredential(event) {
+  event.preventDefault();
+  const button = $('#confirmModelCredential'); button.disabled = true;
+  const modelId = $('#modelCredentialModelId').value;
+  const apiKey = $('#modelCredentialApiKey').value.trim();
+  $('#modelCredentialMessage').hidden = true;
+  if (!apiKey) {
+    $('#modelCredentialMessage').textContent = 'API Key 不能为空';
+    $('#modelCredentialMessage').hidden = false; button.disabled = false; return;
+  }
+  try {
+    await adminApi(`/api/admin/models/${encodeURIComponent(modelId)}/credential`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({api_key:apiKey})});
+    $('#modelCredentialApiKey').value = '';
+    $('#modelCredentialDialog').close();
+    await loadModels();
+    showToast('模型凭据已保存；兼容性结果已失效，请重新测试');
+  } catch (error) {
+    $('#modelCredentialMessage').textContent = error.message;
+    $('#modelCredentialMessage').hidden = false;
+  } finally { button.disabled = false; }
+}
+
+async function clearCredential() {
+  const modelId = $('#modelCredentialModelId').value;
+  if (!window.confirm('清除该模型的本地凭据？清除后会回退到环境变量。')) return;
+  const button = $('#clearModelCredential'); button.disabled = true;
+  $('#modelCredentialMessage').hidden = true;
+  try {
+    await adminApi(`/api/admin/models/${encodeURIComponent(modelId)}/credential`, {method:'DELETE'});
+    $('#modelCredentialApiKey').value = '';
+    $('#modelCredentialDialog').close();
+    await loadModels();
+    showToast('本地凭据已清除');
+  } catch (error) {
+    $('#modelCredentialMessage').textContent = error.message;
+    $('#modelCredentialMessage').hidden = false;
+  } finally { button.disabled = false; }
+}
+
 async function runCompatibilityCheck(modelId, button) {
   button.disabled = true; const original = button.textContent; button.textContent = '探针中…';
   try { await adminApi(`/api/admin/models/${encodeURIComponent(modelId)}/compatibility-check`, {method:'POST'}); await loadModels(); showToast('能力探针通过', {centered:true}); }
   catch (error) { try { await loadModels(); } catch {} showNotice('#modelNotice', `能力探针失败：${error.message}`, true); }
   finally { button.disabled = false; button.textContent = original; }
+}
+
+async function deleteModel(modelId, displayName) {
+  if (!window.confirm(`删除模型“${displayName}”？这会移除目录记录、用户选择和本地凭据，且无法撤销。`)) return;
+  try {
+    await adminApi(`/api/admin/models/${encodeURIComponent(modelId)}`, {method:'DELETE'});
+    await loadModels();
+    showToast('模型已删除');
+  } catch (error) { showNotice('#modelNotice', error.message, true); }
 }
 
 function showView(name) {
@@ -247,7 +319,12 @@ function init() {
   $('#closeCapabilities').addEventListener('click', () => $('#editCapabilitiesDialog').close());
   $('#cancelCapabilities').addEventListener('click', () => $('#editCapabilitiesDialog').close());
   $('#editCapabilitiesForm').addEventListener('submit', saveCapabilities);
-  $('#modelCatalogBody').addEventListener('click', event => { const button = event.target.closest('[data-action]'); if (!button) return; if (button.dataset.action === 'status') updateModelStatus(button.dataset.modelId, button.dataset.modelStatus, button); else if (button.dataset.action === 'capabilities') openCapabilities(button.dataset.modelId); else if (button.dataset.action === 'compatibility') runCompatibilityCheck(button.dataset.modelId, button); });
+  $('#closeModelCredential').addEventListener('click', () => $('#modelCredentialDialog').close());
+  $('#cancelModelCredential').addEventListener('click', () => $('#modelCredentialDialog').close());
+  $('#modelCredentialForm').addEventListener('submit', saveCredential);
+  $('#clearModelCredential').addEventListener('click', clearCredential);
+  $('#modelCredentialDialog').addEventListener('close', () => { $('#modelCredentialApiKey').value = ''; });
+  $('#modelCatalogBody').addEventListener('click', event => { const button = event.target.closest('[data-action]'); if (!button) return; if (button.dataset.action === 'status') updateModelStatus(button.dataset.modelId, button.dataset.modelStatus, button); else if (button.dataset.action === 'capabilities') openCapabilities(button.dataset.modelId); else if (button.dataset.action === 'credential') openCredential(button.dataset.modelId); else if (button.dataset.action === 'compatibility') runCompatibilityCheck(button.dataset.modelId, button); else if (button.dataset.action === 'delete') deleteModel(button.dataset.modelId, button.dataset.modelName); });
   if (adminState.token) loadOverview().then(showWorkspace).catch(() => {}); else showAuth();
   adminState.refreshTimer = window.setInterval(() => adminState.token && adminState.activeView === 'runtime' && loadOverview().catch(() => {}), 10000);
 }

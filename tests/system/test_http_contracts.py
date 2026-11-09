@@ -108,6 +108,8 @@ class HttpContractsSystemTests(unittest.TestCase):
     def test_admin_frontend_is_separate_from_user_workspace(self):
         with TestClient(app) as client:
             response = client.get("/admin")
+            asset = client.get("/static/admin.js")
+        self.assertEqual(asset.headers["cache-control"], "no-cache, must-revalidate")
         self.assertEqual(response.status_code, 200)
         for element_id in (
             "adminAuthDialog",

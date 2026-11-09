@@ -23,6 +23,8 @@
       "description": "Deterministic intent routing, planning, playbooks, and evidence semantics.",
       "files": [
         "app/__init__.py",
+        "app/core/__init__.py",
+        "app/core/call_scope.py",
         "app/manufacturing/__init__.py",
         "app/manufacturing/processes.py",
         "app/manufacturing/playbooks.py",

@@ -64,6 +64,7 @@ SOURCE_FILES = (
     "app/bootstrap/tool_sources_demo.py",
     "app/core/__init__.py",
     "app/core/sqlite_support.py",
+    "app/core/tool_result_projection.py",
     "app/integrations/__init__.py",
     "app/integrations/knowledge/__init__.py",
     "app/integrations/knowledge/backend_search.py",

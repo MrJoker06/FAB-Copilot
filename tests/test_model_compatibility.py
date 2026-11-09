@@ -265,6 +265,31 @@ class ModelCompatibilityTests(unittest.TestCase):
             self.assertEqual(error.category, category)
             self.assertEqual(error.retryable, retryable)
 
+    def test_missing_multimodal_projector_is_reported_clearly(self):
+        def success_response(body):
+            delta = ({"content": '{"relation":"standalone","resolved_question":"介绍光刻基本原理","topic_anchor":"","target_message_ids":[],"confidence":1,"intent_hint":"general_knowledge"}'}
+                     if body.get("response_format") else ({"tool_calls": [{"index": 0, "id": "call-1", "type": "function", "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'}}]}
+                     if body.get("tools") else {"content": "ok"}))
+            stream = f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\ndata: [DONE]\n\n"
+            return httpx.Response(200, text=stream, headers={"content-type": "text/event-stream"})
+
+        def handler(request):
+            body = json.loads(request.content)
+            if isinstance(body["messages"][0]["content"], list):
+                return httpx.Response(500, json={"error": {"code": 500, "message": "image input is not supported - hint: you may need to provide the mmproj", "type": "server_error"}})
+            return success_response(body)
+
+        async def run():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                with self.assertRaises(ModelCompatibilityError) as raised:
+                    await check_model_compatibility(self.connection(), {"streaming": True, "tool_calls": True, "native_multimodal": True}, client=client, context_chars=1024)
+            error = raised.exception
+            self.assertEqual(error.category, "multimodal")
+            self.assertEqual(error.summary, "模型服务未加载多模态投影（启动 llama-server 时需要 --mmproj）")
+            self.assertFalse(error.retryable)
+            self.assertEqual(error.http_status, 500)
+        asyncio.run(run())
+
     def test_multimodal_content_must_recognize_image(self):
         def handler(request):
             body = json.loads(request.content)

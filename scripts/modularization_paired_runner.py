@@ -27,6 +27,36 @@ FIXTURE_CLOCK = {
 }
 MAX_LINE = 8 * 1024 * 1024
 COMMAND_TIMEOUT = 120.0
+
+
+def _wait_readable(fd: int, timeout: float) -> bool:
+    """Wait until the pipe has data or reaches EOF.
+
+    ``select.select`` only supports sockets on Windows, and anonymous pipe
+    handles do not report readable state through ``WaitForSingleObject``, so
+    ``PeekNamedPipe`` is polled with a small interval.
+    """
+    if os.name != "nt":
+        readable, _, _ = select.select([fd], [], [], timeout)
+        return bool(readable)
+    import ctypes
+    import msvcrt
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    handle = msvcrt.get_osfhandle(fd)
+    available = ctypes.c_ulong()
+    deadline = time.monotonic() + timeout
+    while True:
+        ok = kernel32.PeekNamedPipe(
+            ctypes.c_void_p(handle), None, 0, None, ctypes.byref(available), None
+        )
+        if not ok or available.value:
+            # A broken pipe or EOF is reported through the read call itself.
+            return True
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(0.01, remaining))
 STATIC_SUFFIXES = frozenset(
     {
         ".css",
@@ -223,8 +253,7 @@ class Child:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError("worker response deadline exceeded")
-            readable, _, _ = select.select([fd], [], [], remaining)
-            if not readable:
+            if not _wait_readable(fd, remaining):
                 raise TimeoutError("worker response deadline exceeded")
             chunk = os.read(fd, min(65536, MAX_LINE + 1 - len(self.buffer)))
             if not chunk:

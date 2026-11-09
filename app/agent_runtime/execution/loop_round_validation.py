@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ...core.tool_result_projection import truncation_notices
+
 if TYPE_CHECKING:
     from .agent_loop import AgentLoopContext
     from .loop_dispatch import LoopDispatchBinding
@@ -50,6 +52,7 @@ async def validate_round(
         allow_model_knowledge_fallback=knowledge_fallback["used"],
         question=context.question,
         resolved_question=context.analysis_question,
+        extra_limitations=truncation_notices(context.evidence_observations),
     )
     state.answer_contract = answer_contract
     messages.append(

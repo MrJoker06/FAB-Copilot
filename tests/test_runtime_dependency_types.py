@@ -619,6 +619,10 @@ class LightImportTests(unittest.TestCase):
             "app.agent_runtime.coordinator_state",
             "app.agent_runtime.dependencies",
             "app.agent_runtime.stages",
+            # Prompt truncation helpers are pure stdlib (json/dataclasses) and
+            # are deliberately pulled in by the loop stage's tool messages.
+            "app.core",
+            "app.core.tool_result_projection",
             *(
                 f"app.agent_runtime.stages.{name}"
                 for name in ("availability", "loop", "model", "prepare", "ready")
@@ -637,7 +641,7 @@ class LightImportTests(unittest.TestCase):
                         (
                             "app.model_gateway",
                             "app.persistence",
-                            "app.core",
+                            "app.core.settings",
                             "app.telemetry",
                         )
                     ),

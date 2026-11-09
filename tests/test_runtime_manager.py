@@ -15,6 +15,7 @@ from scripts.manage_runtime import (
     inspect_instance,
     remove_inactive_instance,
 )
+from tests.support import requires_symlinks
 
 
 class RuntimeManagerTests(unittest.TestCase):
@@ -102,6 +103,7 @@ class RuntimeManagerTests(unittest.TestCase):
             self.assertEqual(decisions[boundary.name], ("keep", "explicitly_protected"))
             self.assertFalse(inspect_instance(boundary).active)
 
+    @requires_symlinks
     def test_apply_refuses_symlink_outside_root_and_id_path_mismatch(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "runtime"

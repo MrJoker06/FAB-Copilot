@@ -22,7 +22,7 @@ class PlanningRuntimeBoundaryTests(unittest.TestCase):
         self.assertEqual(contracts.PlanStep.__module__, "app.planning_runtime.contracts")
         self.assertEqual(queries._manufacturing_queries.__module__, "app.planning_runtime.queries")
         self.assertEqual(scope._analysis_scope_contract.__module__, "app.planning_runtime.scope")
-        self.assertEqual(scope._step_scope.__module__, "app.planning_runtime.scope")
+        self.assertEqual(scope._step_scope.__module__, "app.core.call_scope")
         self.assertEqual(steps._ready_steps.__module__, "app.planning_runtime.steps")
         self.assertEqual(steps._tool_invocations.__module__, "app.planning_runtime.steps")
         self.assertEqual(service.create_execution_plan.__module__, "app.planning_runtime.service")

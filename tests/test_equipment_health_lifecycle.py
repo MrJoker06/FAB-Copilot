@@ -63,6 +63,9 @@ class RealConnectionProxy:
         self.callback = callback
         self.connection.set_progress_handler(callback, count)
 
+    def create_function(self, *args, **kwargs):
+        self.connection.create_function(*args, **kwargs)
+
     def assert_timeout(self):
         if self.failure == "timeout" and self.callback() != 1:
             raise AssertionError("progress did not interrupt")

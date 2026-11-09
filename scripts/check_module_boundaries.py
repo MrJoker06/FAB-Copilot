@@ -319,7 +319,7 @@ def consumer_inventory(project_dir: Path = PROJECT_DIR) -> dict[str, dict[str, l
     for directory, bucket in ((app_dir, "production"), (project_dir / "scripts", "scripts"), (project_dir / "tests", "tests")):
         for path in sorted(directory.rglob("*.py")):
             text = path.read_text(encoding="utf-8")
-            relative = str(path.relative_to(project_dir))
+            relative = path.relative_to(project_dir).as_posix()
             if bucket == "production":
                 targets = [edge.target for edge in imported_modules(path, app_dir)]
             else:
@@ -395,7 +395,7 @@ def retired_module_errors(project_dir: Path, manifest: dict[str, object]) -> lis
     for directory in (app_dir, project_dir / "scripts", project_dir / "tests"):
         for path in directory.rglob("*.py"):
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-            relative = path.relative_to(project_dir)
+            relative = path.relative_to(project_dir).as_posix()
             source = module_name(path, app_dir) if path.is_relative_to(app_dir) else ""
             package = source if path.name == "__init__.py" else source.rsplit(".", 1)[0]
             importlib_aliases = {"importlib"}

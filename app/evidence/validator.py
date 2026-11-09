@@ -6,6 +6,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
+from ..core.call_scope import call_scope
 from .semantics import EvidenceScope, descriptor_for_tool
 from .serialization import json_dataclass_payload
 
@@ -163,6 +164,9 @@ class ValidationIssue:
     severity: Literal["info", "warning", "critical"]
     evidence_ids: tuple[str, ...]
     message: str
+    # Call-level attribution.  ``None`` keeps requirement-level semantics for
+    # risks that genuinely span several calls (for example a fact conflict).
+    source_ref: str | None = None
 
 
 @dataclass(frozen=True)
@@ -234,6 +238,14 @@ def _source_semantics(plan: ExecutionPlanView) -> dict[str, dict[str, Any]]:
     return result
 
 
+def _declared_scope(step: PlanStepView) -> dict[str, tuple[str, ...]]:
+    return {
+        name: tuple(str(item).upper() for item in values)
+        for name, values in (step.evidence_scope or {}).items()
+        if values
+    }
+
+
 def _step_matches(step: PlanStepView, observation: EvidenceObservation) -> bool:
     if step.tool != observation.tool:
         return False
@@ -244,6 +256,19 @@ def _step_matches(step: PlanStepView, observation: EvidenceObservation) -> bool:
             for key in keys
             if key in step.parameters or key in observation.arguments
         )
+    declared = _declared_scope(step)
+    if declared:
+        # The native dispatcher reports the result's own source scope instead of
+        # the submitted filters, so compare the declared result scope with the
+        # scope implied by the executed arguments rather than raw parameters.
+        actual = {
+            name: tuple(values)
+            for name, values in call_scope(
+                step.tool, observation.arguments, step.evidence_ids
+            ).items()
+            if values
+        }
+        return declared == actual
     for key in _SCOPE_PARAMETERS:
         if key not in step.parameters:
             continue
@@ -278,9 +303,9 @@ def _has_value(row: dict[str, Any], field: str) -> bool:
 
 
 def _deduplicate_issues(issues: list[ValidationIssue]) -> tuple[ValidationIssue, ...]:
-    unique: dict[tuple[str, tuple[str, ...], str], ValidationIssue] = {}
+    unique: dict[tuple[str, tuple[str, ...], str, str | None], ValidationIssue] = {}
     for issue in issues:
-        unique[(issue.code, issue.evidence_ids, issue.message)] = issue
+        unique[(issue.code, issue.evidence_ids, issue.message, issue.source_ref)] = issue
     return tuple(unique.values())
 
 
@@ -306,6 +331,7 @@ def _scope_risks(
             severity="critical",
             evidence_ids=source_ids,
             message=f"{observation.tool} 的实际参数与计划时间或分析范围不一致，结果未计入证据。",
+            source_ref=f"TOOL:{observation.tool}",
         ))
     return risks
 
@@ -323,6 +349,7 @@ def _sample_and_source_risks(
                 severity="critical",
                 evidence_ids=ids,
                 message=f"{observation.tool} 返回空结果。",
+                source_ref=f"TOOL:{observation.tool}",
             ))
             continue
 
@@ -335,6 +362,7 @@ def _sample_and_source_risks(
                     severity="warning",
                     evidence_ids=ids,
                     message=f"{observation.tool} 的 {field} 最小样本为 {min(positive):g}，低于 30，仅适合形成有限结论。",
+                    source_ref=f"TOOL:{observation.tool}",
                 ))
 
         limit = observation.arguments.get("limit")
@@ -344,6 +372,7 @@ def _sample_and_source_risks(
                 severity="warning",
                 evidence_ids=ids,
                 message=f"{observation.tool} 返回 {len(observation.result)} 行并达到 limit={limit}，频次或分布可能受截断影响。",
+                source_ref=f"TOOL:{observation.tool}",
             ))
 
         confidences = [
@@ -357,6 +386,7 @@ def _sample_and_source_risks(
                 severity="critical",
                 evidence_ids=ids,
                 message=f"{observation.tool} 的检索结果全部为低置信度，不能支持确定性结论。",
+                source_ref=f"TOOL:{observation.tool}",
             ))
         elif "low" in confidences:
             risks.append(ValidationIssue(
@@ -364,6 +394,7 @@ def _sample_and_source_risks(
                 severity="warning",
                 evidence_ids=ids,
                 message=f"{observation.tool} 包含低置信度来源，引用时必须逐项区分。",
+                source_ref=f"TOOL:{observation.tool}",
             ))
     return risks
 
@@ -395,6 +426,7 @@ def _execution_risks(
                 severity="warning",
                 evidence_ids=tuple(sorted(evidence_ids)),
                 message=f"{observation.tool} 调用状态为 {observation.status}，未产生可验证证据。",
+                source_ref=f"TOOL:{observation.tool}",
             ))
     return risks
 
@@ -449,6 +481,7 @@ def _reference_evidence(
     """Map each observed call reference to its concrete evidence obligations."""
     status_by_id = {item.evidence_id: item.status for item in checks}
     refs: dict[str, set[str]] = {}
+    call_refs: dict[str, set[str]] = {}
     for observation, evidence_ids in matched:
         targets = {f"TOOL:{observation.tool}"}
         targets.update(
@@ -458,12 +491,18 @@ def _reference_evidence(
             targets.add(observation.source_ref)
         for reference in targets:
             refs.setdefault(reference, set()).update(evidence_ids)
+            call_refs.setdefault(reference, set()).update(targets)
+
+    def applies(issue: ValidationIssue, reference: str, evidence_ids: set[str]) -> bool:
+        if issue.source_ref:
+            return issue.source_ref in call_refs.get(reference, ()) or issue.source_ref == reference
+        return bool(set(issue.evidence_ids).intersection(evidence_ids))
 
     result: dict[str, dict[str, Any]] = {}
     for reference, evidence_ids in refs.items():
         ids = tuple(sorted(evidence_ids))
         related_risks = tuple(
-            item.code for item in risks if set(item.evidence_ids).intersection(evidence_ids)
+            item.code for item in risks if applies(item, reference, evidence_ids)
         )
         related_conflicts = tuple(
             item.code for item in conflicts if set(item.evidence_ids).intersection(evidence_ids)
@@ -475,7 +514,7 @@ def _reference_evidence(
             "conflict_codes": related_conflicts,
             "critical_risk_codes": tuple(
                 item.code for item in risks
-                if item.severity == "critical" and set(item.evidence_ids).intersection(evidence_ids)
+                if item.severity == "critical" and applies(item, reference, evidence_ids)
             ),
         }
     return result

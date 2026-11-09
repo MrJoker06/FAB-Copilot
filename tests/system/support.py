@@ -52,6 +52,7 @@ def isolated_system_environment() -> Path:
             "FAB_DATABASE_PATH": str(temporary_directory / "fab_history.db"),
             **{key: str(value) for key, value in department_paths.items()},
             "FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH": str(temporary_directory / "personal_knowledge"),
+            "FAB_MODEL_CREDENTIALS_PATH": str(temporary_directory / "model_credentials.json"),
             "AGENT_LOG_PATH": str(temporary_directory / "agent_events.jsonl"),
             "AGENT_RUN_LOG_DIR": str(temporary_directory / "agent"),
         })

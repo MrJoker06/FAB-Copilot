@@ -5,12 +5,13 @@ import unittest
 from dataclasses import FrozenInstanceError
 from unittest.mock import patch
 
-from app.core.settings import ModelConnection, get_settings
+from app.core.settings import ModelConnection, get_settings, model_api_key
 
 
 MODEL_ENVIRONMENT = {
     "FAB_MODEL_PROVIDER",
     "FAB_MODEL_API_KEY",
+    "FAB_MODEL_API_KEY__QWEN38_27B_Q4KM",
     "FAB_MODEL_BASE_URL",
     "FAB_MODEL_NAME",
     "DEEPSEEK_API_KEY",
@@ -76,6 +77,41 @@ class ModelConnectionTests(unittest.TestCase):
             self.assertEqual(get_settings().model_context_timeout_seconds, 1.0)
         with self._environment({"MODEL_CONTEXT_TIMEOUT_MS": "999999"}):
             self.assertEqual(get_settings().model_context_timeout_seconds, 60.0)
+
+    def test_model_api_key_prefers_a_normalized_per_model_override(self):
+        with self._environment({
+            "FAB_MODEL_API_KEY": "local",
+            "DEEPSEEK_API_KEY": "cloud",
+            "FAB_MODEL_API_KEY__QWEN38_27B_Q4KM": "override",
+        }):
+            self.assertEqual(
+                model_api_key(" qwen38-27b-q4km ", "openai-compatible"), "override"
+            )
+
+    def test_model_api_key_keeps_local_and_cloud_credentials_coexisting(self):
+        with self._environment({
+            "FAB_MODEL_API_KEY": "local",
+            "DEEPSEEK_API_KEY": "cloud",
+        }):
+            self.assertEqual(
+                model_api_key("qwen38-27b-q4km", "openai-compatible"), "local"
+            )
+            self.assertEqual(model_api_key("deepseekv4-pro", "deepseek"), "cloud")
+            self.assertEqual(model_api_key("deepseekv4-pro", " DeepSeek "), "cloud")
+
+    def test_model_api_key_ignores_blank_overrides_and_falls_back(self):
+        with self._environment({
+            "FAB_MODEL_API_KEY": "  local  ",
+            "DEEPSEEK_API_KEY": "cloud",
+            "FAB_MODEL_API_KEY__QWEN38_27B_Q4KM": "   ",
+        }):
+            self.assertEqual(
+                model_api_key("qwen38-27b-q4km", "openai-compatible"), "local"
+            )
+        with self._environment({"DEEPSEEK_API_KEY": "cloud"}):
+            self.assertEqual(
+                model_api_key("qwen38-27b-q4km", "openai-compatible"), "cloud"
+            )
 
 
 if __name__ == "__main__":

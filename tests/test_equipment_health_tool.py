@@ -20,6 +20,7 @@ from app.agent_runtime.tools.contracts import (
     ToolSourceKind,
 )
 from app.agent_runtime.tools.definition import ToolDefinition
+from app.core.sqlite_support import install_sqlite_functions
 from app.integrations.manufacturing.fake_equipment_health import (
     FakeEquipmentHealthAdapter,
 )
@@ -37,6 +38,7 @@ from app.manufacturing.equipment_health.contracts import (
     EquipmentHealthInputError,
     EquipmentHealthQuery,
 )
+from tests.support import sqlite_session
 
 
 @dataclass(frozen=True)
@@ -388,19 +390,19 @@ class EquipmentHealthToolTests(unittest.TestCase):
             # The legacy report uses one attached application connection; this
             # disposable fixture deliberately exposes the same two tables.
             legacy = root / "legacy.db"
-            with sqlite3.connect(legacy) as connection:
+            with sqlite_session(legacy) as connection:
                 connection.execute(
                     "CREATE TABLE process_runs (equipment_id, process_step, run_time, excursion_code, defect_density, pass_flag)"
                 )
                 connection.execute(
                     "CREATE TABLE equipment_events (equipment_id, event_time, duration_minutes)"
                 )
-                with sqlite3.connect(manufacturing) as source:
+                with sqlite_session(manufacturing) as source:
                     connection.executemany(
                         "INSERT INTO process_runs VALUES (?,?,?,?,?,?)",
                         source.execute("SELECT * FROM process_runs"),
                     )
-                with sqlite3.connect(equipment) as source:
+                with sqlite_session(equipment) as source:
                     connection.executemany(
                         "INSERT INTO equipment_events VALUES (?,?,?)",
                         source.execute("SELECT * FROM equipment_events"),
@@ -410,6 +412,7 @@ class EquipmentHealthToolTests(unittest.TestCase):
             def session():
                 connection = sqlite3.connect(legacy)
                 connection.row_factory = sqlite3.Row
+                install_sqlite_functions(connection)
                 try:
                     yield connection
                 finally:

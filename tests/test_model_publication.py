@@ -5,7 +5,7 @@ isolated_system_environment()
 
 from app.bootstrap.storage_identity_assembly import install_default_storage_identity  # noqa: E402
 from app.persistence.database import db_session, ensure_department_databases
-from app.model_gateway.registry import publish_model, save_model_compatibility_report, set_model_status, update_model_capabilities
+from app.model_gateway.registry import delete_model, publish_model, save_model_compatibility_report, set_model_status, update_model_capabilities
 
 
 def setUpModule():
@@ -49,6 +49,31 @@ class ModelPublicationTests(unittest.TestCase):
         self.assertEqual(saved["status"], "retired")
         self.assertEqual(saved["capabilities"]["thinking"], False)
         self.assertEqual(saved["compatibility"]["status"], "failed")
+
+    def test_delete_removes_catalog_entry_and_user_selection(self):
+        publish_model(*self.args())
+        with db_session() as connection:
+            connection.execute(
+                """INSERT INTO agent.user_model_preferences(tenant_id, user_id, model_id, updated_at)
+                   VALUES ('delete-tenant', 'delete-user', ?, '2026-08-11T00:00:00+00:00')""",
+                (self.model_id,),
+            )
+            connection.commit()
+        deleted = delete_model(self.model_id)
+        self.assertEqual(deleted["model_id"], self.model_id)
+        with db_session() as connection:
+            self.assertIsNone(
+                connection.execute(
+                    "SELECT 1 FROM agent.model_catalog WHERE model_id = ?", (self.model_id,)
+                ).fetchone()
+            )
+            self.assertIsNone(
+                connection.execute(
+                    "SELECT 1 FROM agent.user_model_preferences WHERE model_id = ?", (self.model_id,)
+                ).fetchone()
+            )
+        with self.assertRaisesRegex(ValueError, "模型不存在"):
+            delete_model(self.model_id)
 
     def test_capability_update_preserves_status_and_invalidates_report(self):
         publish_model(*self.args()); set_model_status(self.model_id, "retired")

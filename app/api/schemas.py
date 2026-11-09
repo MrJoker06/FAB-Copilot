@@ -64,6 +64,13 @@ class AdminModelStatusRequest(BaseModel):
     status: str = Field(pattern=r"^(published|retired)$")
 
 
+class AdminModelCredentialRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # Length/content checks live in the credential store so validation errors
+    # never echo a submitted secret back to the caller.
+    api_key: str = ""
+
+
 class AdminModelCapabilitiesRequest(BaseModel):
     """An explicit, complete administrator declaration (no extension keys)."""
     model_config = ConfigDict(extra="forbid")

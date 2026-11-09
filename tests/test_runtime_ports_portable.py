@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -23,7 +24,7 @@ class RuntimePortsPortableTests(unittest.TestCase):
             "dispatcher_pilot"
         ]["files"]
         files = tuple(listed) + RUNTIME_FILES
-        self.assertEqual(len(files), 42)
+        self.assertEqual(len(files), 45)
         self.assertEqual(len(set(files)), len(files))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
@@ -73,6 +74,9 @@ def audit(event, args):
     if event in {'sqlite3.connect', 'socket.connect', 'socket.getaddrinfo', 'socket.gethostbyname'}:
         guard_events.append((event, args))
         raise AssertionError(event)
+# Windows Proactor loops create a loopback self-pipe; build it before the audit hook.
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 sys.addaudithook(audit)
 for operation in (
     lambda: importlib.import_module('app.manufacturing.reports'),
@@ -141,7 +145,9 @@ async def main():
     assert tool_stage.value.data and tool_stage.value.sources[0].scope.tenant_id == 'tenant'
     assert tool_stage.event.call_id == 'server'
 
-asyncio.run(main())
+loop.run_until_complete(main())
+loop.run_until_complete(loop.shutdown_asyncgens())
+loop.close()
 for name, module in list(sys.modules.items()):
     if name == 'app' or name.startswith('app.'):
         origin = Path(module.__file__).resolve()
@@ -153,8 +159,13 @@ assert not any(name == item or name.startswith(item + '.') for name in sys.modul
             completed = subprocess.run(
                 [sys.executable, "-I", "-S", "-c", code, str(unit), *files],
                 cwd=Path(tempfile.gettempdir()),
-                env={},
+                # Windows sockets need SystemRoot even in a scrubbed environment.
+                env={
+                    "SystemRoot": os.environ.get("SystemRoot", r"C:\Windows"),
+                    "WINDIR": os.environ.get("WINDIR", r"C:\Windows"),
+                },
                 text=True,
+                errors="replace",
                 capture_output=True,
                 check=False,
             )

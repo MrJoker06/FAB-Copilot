@@ -10,6 +10,8 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
+from tests.support import requires_symlinks
+
 PROJECT = Path(__file__).resolve().parent.parent
 SPEC = importlib.util.spec_from_file_location(
     "paired_runner", PROJECT / "scripts/modularization_paired_runner.py"
@@ -152,6 +154,7 @@ class FilesystemTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "symlink"):
                 runner._copy_current_app(root, output)
 
+    @requires_symlinks
     def test_main_rejects_dangling_report_symlink(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "missing.json"
