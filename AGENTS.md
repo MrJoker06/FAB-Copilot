@@ -1,41 +1,78 @@
-# Sol-Terra Development Workflow
+# FAB-Agent 开发约定
 
-The primary Sol agent acts as the technical lead, planner, and reviewer.
+FAB-Agent 是面向制造分析的 Agent 项目，目标是支持能力独立开发、验收和公司内网迁移。架构与实现方式可随需求演进；当前事实以源码和已有契约为准，任务状态以台账及验收证据为准。
 
-For any task that requires code changes:
+本文参考 [Yuxi 的开发约定](https://github.com/xerrors/Yuxi/blob/main/AGENTS.md)，结合本项目需求与工程实践制定，不绑定特定模型、代理分工或最终架构。
 
-1. Inspect the repository and understand the existing implementation before editing.
-2. Produce a concrete implementation plan that identifies:
-   - affected files and symbols;
-   - required behavior changes;
-   - constraints and compatibility requirements;
-   - validation and test commands;
-   - rollback or risk considerations where relevant.
-3. Delegate implementation to the `terra_worker` custom agent only after the plan is complete.
-4. Give `terra_worker` the approved plan, relevant context, acceptance criteria, and test requirements.
-5. Wait for `terra_worker` to finish before reviewing the implementation.
-6. Independently review the resulting diff and actual test results.
-7. If changes are incomplete or incorrect, send a bounded follow-up task to `terra_worker`.
-8. The primary Sol agent owns final validation and the final response.
+## 会话开始与按需阅读
 
-## Separation Of Responsibilities
+- 每次会话开始，先查找并阅读 `OVERALL.md` 或同类项目总览；当前没有该文件时，阅读 [项目索引](PROJECT_INDEX.md)。不要仅根据旧对话恢复项目状态。
+- 查看当前分支、工作树及与任务有关的最新提交，保留已有修改；共享目录内不得覆盖或回退他人的工作。
+- 修改某个子目录前，检查是否存在适用的子目录 `AGENTS.md`；子目录约定补充局部规则，不复制回根文件。
+- 小型文案、机械修正和局部缺陷只读取适用指令与直接相关文件，避免无关的全仓库扫描。
+- 涉及跨模块设计、状态、权限、持久化或外部副作用时，先读 [解耦总方案](docs/architecture-modularization-master-plan.md) 与 [当前结构](docs/current-project-structure.md)，再按符号查实际实现。
+- 继续计划任务时，核对 [TODO](TODO.md)、[模块化追踪](docs/todos/modularization.md) 和 [执行计划](docs/todos/execution-plan.md)；涉及验证时读 [测试策略](docs/testing-strategy.md)，涉及交付时读 [模块搬迁说明](docs/module-portability.md)。历史报告保留当时结论，不能直接当成当前状态。
+- 用户当前的明确指令优先；“只分析”“先列出”“不要修改”限定本轮动作，不能顺势开始开发。
 
-### Primary Sol Agent
+## 任务与设计
 
-- Requirements clarification
-- Repository-level reasoning
-- Architecture and implementation planning
-- Risk analysis
-- Diff review
-- Final validation and explanation
+1. 实现前明确可验证的目标、范围、兼容要求和验收方式；多步任务给出简短计划，并指出受影响的文件与符号。
+2. 从真实需求梳理最小完整流程，区分用户要求、已有承诺和自行增加的保证。优先检查现有能力能否满足需求。
+3. 按业务语义确定职责归属。调用者使用一个能力，不代表该能力应归入调用者模块；共享规则应由拥有该事实的模块维护。
+4. 新增抽象、Coordinator、Registry、配置、状态机或兼容层，必须能说明当前消费者、解决的问题和采用它的必要性；没有实际需求时优先采用直接实现。
+5. 对不影响验收和外部状态的实现细节作合理判断并继续。只有缺失信息会改变需求、数据、安全或外部结果时才询问，说明候选解释及其影响，不重复索取已经明确的授权。
+6. 用户提供的“参考”“例如”“类似”用于理解方向；移植时适配当前项目，不将其他项目的依赖、部署拓扑和业务保证直接变成本项目要求。
+7. 一次处理一个有界任务，只改验收需要的范围。新增机制和修复分别说明原因，不夹带无关重构、批量格式化或提前实现待办。
+8. 非平凡决定在已有架构文档或对应验收报告中记录问题、方案、必要替代项、影响和验证。复用现有台账，避免为同一事实再建一套可手工维护的清单。
+9. 任务方案必须能交给其他开发者或 Agent 独立执行：写明目标、标准依据、范围、交付物、验收与交接信息，区分规范要求、推荐约定和项目扩展；不依赖本次对话、固定模型或代理角色。仓库路径、类名和数量作为带基线的现状附录，执行前重新核对，不当作通用标准或不可调整的实现要求。
 
-### terra_worker
+## 架构演进与数据处理原则
 
-- Targeted code implementation
-- Refactoring explicitly required by the approved plan
-- Test and validation execution
-- Reporting concrete results and blockers
+- 当前目录、模块划分、调用链、接口形式和存储后端是设计基线，不是不可更改的约束。架构文档用于理解现状与已有决定；新需求需要调整时，说明取舍、实施变更并同步相关文档。
+- 从业务流程、实际消费者和验收目标确定边界，不预设必须采用某种分层、Port、Repository、Dispatcher 或 Tool/Skill 组合。评估方案时关注依赖是否可理解、替换成本和实际隔离效果。
+- 允许合并、拆分、重命名或替换现有模块。改变接口前核实真实消费者、持久数据和部署承诺，说明迁移影响；没有保留价值的内部兼容层可以删除，不为维持旧结构无限叠加适配。
+- 权限、预算和数据访问约束必须在实际执行路径上生效，具体由哪个组件承担可随设计调整；不能只依赖 prompt、说明文本、Schema 或前端隐藏来实现授权。
+- 数据访问按来源能力、业务口径、权限和生命周期选择方案，不预先限定数据库、API、工具或内部服务。区分公司业务数据与应用自有状态的所有权、读写权限及迁移责任。
+- 保留用户已明确的使用约束：面向量化小模型，不让模型自行生成并执行任意 SQL。可采用固定查询、具名操作、报表接口或其他受控方案，具体机制由任务设计确定。
+- 初始化、迁移、模拟生成及有副作用的操作必须有清楚的触发条件和作用范围。数据缺失、权限不足或能力不可用时明确报告；降级或替代来源须有业务依据且可观察，不能伪装成原来源成功。
+- 按实际交付主张验收。Fake、编译成功、源码入包、独立模块可运行、完整应用可运行和真实环境接入分别提供相应证据，不因当前采用某种交付形态而固定后续架构。
 
-The primary agent should not directly implement substantial code changes when
-`terra_worker` is available. Avoid multiple write-enabled agents editing
-overlapping files concurrently.
+## 验证与证据
+
+- 从最小相关测试集合开始，按受影响的业务链路扩大；纯文档改动检查链接、事实、UTF-8/LF 与 diff，不要求应用回归。
+- 测试优先断言实际返回结果、已提交数据、文件内容、协议消息或页面状态。日志、HTTP 200、mock 次数和代理完成报告只能作为辅助证据。
+- 新增权限、路径、预算、隔离或其他关键边界检查时，覆盖实际拒绝场景，证明错误不会被吞掉或伪装成成功；不为低影响机械变更增加只重复实现的测试。
+- 涉及存储、HTTP、执行编排、取消或流式行为时，补相关真实链路；涉及模块交付时，在无仓库依赖的新环境运行真实交付物并检查导入来源。
+- Golden、snapshot、fixture、冻结契约和性能阈值的更新必须有明确原因并独立审阅；不得让同一段被测逻辑生成期望值来证明自己正确。
+- 既有失败、环境问题、跳过和未运行项目单独记录。与基线一致不等于全绿；本地通过不等于远程 CI 已通过；不能重试到一次通过后抹去先前失败。
+- 阶段结束、依赖升级及 Schema/API/认证/RAG/流式链路重大变化等完整门触发条件按执行计划执行，不用定向结果替代必需的阶段验收。
+- 真实模型、真实公司接口及 Live 测试按用户授权范围执行；离线测试不得因读取本地配置而意外调用外部服务。
+
+仓库根目录现有检查入口如下；使用当前任务选定环境的 `python`，按改动范围选择，不将全部命令作为每次任务的固定成本：
+
+```bash
+python scripts/check_repository.py
+python scripts/check_module_boundaries.py
+python scripts/check_modularization_boundaries.py
+git diff --check
+```
+
+针对性 Python 测试使用 `python -m unittest` 指定相关测试模块；质量门入口为 `python scripts/run_quality_gate.py quick` 和 `python scripts/run_quality_gate.py full`，浏览器入口为 `npm run test:e2e`。具体适用条件和环境见测试策略，不自动启动 Live。
+
+## 环境、文件与交付
+
+- 开发默认沿用用户已选的 WSL 环境，不在每轮重复询问终端。应用须保持原生 Windows 与 Linux/WSL 启动能力，解释器和依赖分别使用各平台环境。
+- 当前启动入口是 `run.py`、`run.bat` 和 `run.sh`；后续可以调整，变更时同步启动说明并验证支持的平台。不能因当前在 WSL 开发而引入仅能在 WSL 启动的默认行为。
+- 当前工作树的 Git 元数据若使用 WSL 路径，通过 WSL Git 操作；不要为了让原生 Git 可用而改写 `.git`。报告时明确实际解释器、平台和测试范围。
+- 所有文本使用 UTF-8、LF，末尾保留一个换行；在 Windows 编辑同样遵守 [换行规则](.gitattributes)。
+- 不输出或提交 `.env`、Token、凭据、业务数据、数据库副本、日志、缓存与构建产物。临时计划、原始日志与机器报告放入被忽略的 `runtime/quality/`，完成结论保存在受跟踪的报告和台账中。
+- 用户路径、模型/Tool 参数、外部响应与持久化输入在实际边界校验；报错与报告不得泄露凭据、内部连接信息或隐藏推理。
+- 制品按版本、成员清单、唯一归属与目标依赖锁验收；遵循用户要求，不新增自建 SHA-256 内容校验门。
+- 有授权时一个任务一个提交，明确暂存文件范围；提交前审阅实际 diff，推送后核实远程分支及工作树状态。未提交、未推送或 CI 状态缺失时如实说明，不自动关闭 Issue 或将暂缓任务标为完成。
+
+## 实施与审查
+
+- 不规定模型或代理的固定角色，不要求将代码实现委派给特定代理。复杂任务先形成具体计划，再实施、检查实际 diff 并验证结果。
+- 如使用协作代理，明确每个任务的文件责任和验收标准，避免重叠写入；最终结论必须依据实际产物与验证结果，不能只转述代理报告。
+- 审查既要检查实现正确性，也要检查方案是否必要、职责是否清晰、能否采用更简单的实现。测试通过不能证明新增机制本身合理。
+- 最终交付说明实际修改、验证结果、未验证范围和必要的迁移影响，不把计划或推测写成已完成事实。

@@ -8,6 +8,8 @@
 
 最新检查点（2026-11-10，MOD-024）：首批版本一致源码交付已验证。五个唯一所有者 ZIP 覆盖 286 个受管 app 文件及 4 个 Skill 资源；tools/Skill/model_transport 三个 Profile 可一次组合安装。WSL 与原生 Windows 各 11 项专项及独立运行报告通过，实际 44 路工具、光刻双路径、Skill 发布/禁用、离线模型传输通过。296 个既有文件逐字节未变，边界清单仍为 286 文件/零错误。下一项 MOD-025；MOD-020～023、MOD-025～028 共 8 项待办，不改变产品 228/183/45 统计。Windows 旧 Dispatcher 编码失败与未运行的全量质量门单独记录，见 [报告](../reports/mod-024-module-delivery.md)。下文既有检查点为历史记录。
 
+最新排期调整（2026-11-10，用户继续明确）：新增 **MOD-030：Skill 业务交付包与 Tool 标准化**，合并 Issue #1 第 3/4/6 条，以 Agent Skills、MCP Tools 和 JSON Schema 为外部依据；当前只讨论标准、写计划，不实施。第 8 条 Validator 独立讨论，之后再修订 MOD-029；029 暂缓，原预算和实现草案不自动沿用。见 [标准计划](../skill-tool-standardization-plan.md)。模块化未完成现为 10 项，产品 228/183/45 不变；下文历史“下一项”不覆盖本次安排。
+
 ## 执行规则
 
 1. 严格按顺序一次只实现一个任务编号，不并行混合多个功能。
@@ -30,6 +32,17 @@
 | 可选候选 | 4 | `RAG-024`、`AGENT-039`、`REF-025`、`REF-026` `OPTIONAL`，不计入主任务统计 |
 
 ## 当前串行队列
+
+| 顺序 | 工作包 | 当前安排 |
+| --- | --- | --- |
+| 当前优先 | MOD-030 | 合并 Issue 第 3/4/6 条；讨论通用标准与业务包归属，待审核，不实施 |
+| 设计评审 | Issue #1 第 8 条 | 单独确认 Validator 职责，不自动创建或执行重构工作包 |
+| 后续重审 | MOD-029 | 等上述讨论后修订旧草案，再决定实施安排，当前暂缓 |
+| 2 | MOD-025 → MOD-026 → MOD-027 → MOD-028 | 原迁移链顺延，保持已有依赖与验收要求 |
+| 按需求启用 | MOD-020 → MOD-021 → MOD-022 → MOD-023 | 保持恢复链依赖；029 的临时快照不代表持久化/恢复完成 |
+
+以下为历史检查点，不能据此覆盖上述待审核状态。
+
 
 最新检查点（2026-11-07，MOD-015e）：MOD-015 全部五批已验证。015e 新增 `tests/test_runtime_convergence_acceptance.py`（11 项），对类型化应用（Skill 关闭、Skill 文件根、Skill 发布库）× Ready/Loop 和旧 `service.run_agent` 的 Loop/Ready/上下文解析，分别跑成功、模型调用中取消（类型化 Ready 为计划执行中取消）、模型异常、工具异常和 Skill 重新校验失败（组装后禁用发布或改动 manifest，`new_run` 在预算工厂之前拒绝）。每次失败后无残留任务，脚本模型和网关会话全部退出/关闭，每 Run 新建预算与 Dispatcher，发布库状态和 Skill 快照、`runtime_status`、身份 ContextVar、存储/身份绑定、`service.TOOLS`/`TOOL_HANDLERS` 身份与内容不变，后续运行与首次干净运行逐项相等；三种注入泄漏的变异自检均被发现。未发现运行时泄漏（测试中的 SQLite `ResourceWarning` 经 tracemalloc 追溯全部来自测试夹具）。`decision_arbiter` 改用只读 `DecisionContext`，`evidence.validator` 改用五个只读计划/Playbook 视图，债务 14→11；其余 MOD-015 台账项（6 条债务、3 个过渡文件、7 个兼容入口、19 条 DB 来源、`legacy_sql_tool`、2 条边界例外）保留并改挂 MOD-027，台账中不再有 exit_task 为 MOD-015 的条目。WSL 全部 169 个模块 1301 项与 HEAD 逐模块对照无新增失败，Windows 定向 37 模块 412 项只剩与 HEAD 一致的既有环境失败（反斜杠断言 19、WinError 32 ×8、WinError 1314 ×1）；新测试两端各连续 3 次通过；282 文件/零边界错误，7 入口、消费记录 92→94、26 DB 候选；ruff check 无新增，新文件 format 0 偏差。未运行性能门。保留的 `run_agent` facade 与配置锚点归 MOD-027，见 [报告](../reports/mod-015-runtime-convergence.md)。以下保留历史检查点。
 

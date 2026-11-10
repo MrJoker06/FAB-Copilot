@@ -18,3 +18,5 @@
 - 当前进度（2026-11-10 核对；应用源码合入 local-Qwen `5e2d3f4`，制品工具基线 `a4739e0`，DEPLOY-019 已完成）：MOD-001～019 及 MOD-024 均已验证，包含 MOD-012 模型网关与 MOD-015a～e Runtime 收口；受管源码 287 文件（259 Python + 28 静态）、依赖债务 11 条、兼容入口 7 个。MOD-024 已交付五类唯一所有者制品及三个可组合 Profile，两端各 11 项测试与独立运行报告通过，见 [交付报告](docs/reports/mod-024-module-delivery.md)。MOD-020～023（Checkpoint/只读恢复）与 MOD-025～028（Adapter/演示/内网集成）仍待完成，保留的兼容 facade 与配置锚点归 MOD-027。产品 TODO 为完成 183（含 2026-11-09 `DEPLOY-019` 跨平台本地模型启动器）、待做 45（用户暂缓 2、企业级暂缓 43），另有 4 项 OPTIONAL。当前任务状态见 [模块化追踪](docs/todos/modularization.md) 和 [产品执行计划](docs/todos/execution-plan.md)，实际验证范围、既有环境失败及 MOD-015d 历史统计待核实项见 [Runtime 收口报告](docs/reports/mod-015-runtime-convergence.md)。后续纯文档提交不改变该源码基线。
 
 - local-Qwen Thinking 合并：按模型配置档位与方言、管理端设置、Windows 夹具适配及必要冲突修正已验证，见 [合并报告](docs/reports/local-qwen-thinking-merge.md)。
+
+- 当前优先计划：[MOD-030 Skill 业务交付包与 Tool 标准化](docs/skill-tool-standardization-plan.md)，合并 Issue #1 第 3/4/6 条，以 Agent Skills、MCP Tools 和 JSON Schema 为依据；设计待审核，未实施。第 8 条 Validator 单独讨论后再修订暂缓的 [MOD-029](docs/tool-result-offloading-plan.md)。模块化未完成共 10 项，产品任务统计不变。
