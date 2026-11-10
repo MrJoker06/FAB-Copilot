@@ -10,12 +10,12 @@ from app.agent_runtime.tools.contracts import (
     ToolSource,
     ToolSourceKind,
 )
-from app.manufacturing.operational_reports.binding import (
+from app.tools.operational_reports.binding import (
     prepare_defect_pareto,
     prepare_equipment_productivity,
     prepare_recent_excursions,
 )
-from app.manufacturing.operational_reports.contracts import (
+from app.tools.operational_reports.contracts import (
     DefectParetoInput,
     EquipmentProductivityInput,
     OperationalReportDataError,
@@ -27,7 +27,7 @@ from app.manufacturing.operational_reports.contracts import (
     validate_equipment_productivity_output,
     validate_recent_excursions_output,
 )
-from app.manufacturing.operational_reports.handler import (
+from app.tools.operational_reports.handler import (
     OperationalReportsDependencies,
     defect_pareto_handler,
     equipment_productivity_handler,

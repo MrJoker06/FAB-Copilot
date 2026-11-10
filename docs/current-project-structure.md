@@ -307,10 +307,10 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/tools/production_reports/contracts.py` | 纯 | 三种结构化输入、固定 Query/Snapshot、消费方 Port、错误与结果字段契约。 |
 | `app/tools/production_reports/handler.py` | 纯 | 调用 Port、核对查询和实际范围，生成对象或列表形式的 ToolResult；不执行 SQL。 |
 | `app/tools/production_reports/binding.py` | 纯 | 三个 1.0.0 Definition/Binding 工厂；冻结日期和有效过滤条件。 |
-| `app/manufacturing/operational_reports/__init__.py` | 包 | 运行报表包锚点，无默认注册副作用。 |
-| `app/manufacturing/operational_reports/contracts.py` | 纯 | 三项业务输入、固定 Query/Snapshot、消费方 Port、有效范围与输出契约；不接受自由 SQL。 |
-| `app/manufacturing/operational_reports/handler.py` | 纯 | 核对来源与行级范围，区分生产率设备优先和异常联合筛选，产生 ToolResult。 |
-| `app/manufacturing/operational_reports/binding.py` | 纯 | 三个 1.0.0 Definition/Binding，准备实际日期、过滤条件和 limit 后再授权执行。 |
+| `app/tools/operational_reports/__init__.py` | 包 | 运行报表包锚点，无默认注册副作用。 |
+| `app/tools/operational_reports/contracts.py` | 纯 | 三项业务输入、固定 Query/Snapshot、消费方 Port、有效范围与输出契约；不接受自由 SQL。 |
+| `app/tools/operational_reports/handler.py` | 纯 | 核对来源与行级范围，区分生产率设备优先和异常联合筛选，产生 ToolResult。 |
+| `app/tools/operational_reports/binding.py` | 纯 | 三个 1.0.0 Definition/Binding，准备实际日期、过滤条件和 limit 后再授权执行。 |
 | `app/manufacturing/enterprise_tools/__init__.py` | 包 | 企业工具包锚点，无默认注册副作用。 |
 | `app/manufacturing/enterprise_tools/contracts.py` | 纯 | 三项输入、可信时间窗口、固定 Query/Snapshot、消费方 EnterpriseDataPort 与完整业务结果校验。 |
 | `app/manufacturing/enterprise_tools/handler.py` | 纯 | 核对查询、租户、实际范围、模拟标记与记录，保留统计和样本口径，生成对象 ToolResult。 |
@@ -327,8 +327,8 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/tools/process_diagnostics/data_source.py` | Adapter | 两条固定参数化报表查询，按工具只开一个相关库，处理只读/期限/关闭及错误脱敏。 |
 | `app/demo_data/tool_sources/production_reports.py` | Adapter | 精确生产查询夹具、租户核对与返回值复制，来源明确标记 FAKE。 |
 | `app/tools/production_reports/data_source.py` | Adapter | 三类固定参数化生产报表，只访问显式制造库；只读、超时、连接释放和公开错误脱敏。 |
-| `app/integrations/manufacturing/fake_operational_reports.py` | Adapter | 运行报表的精确 Query 夹具、租户核对和独立复制结果；无隐式来源回退。 |
-| `app/integrations/manufacturing/sqlite_operational_reports.py` | Adapter | 固定生产率/Pareto/异常 SQL；每次只开一个相关设备/质量/制造库，保持窗口分母、舍入和过滤口径。 |
+| `app/demo_data/tool_sources/operational_reports.py` | Adapter | 运行报表的精确 Query 夹具、租户核对和独立复制结果；无隐式来源回退。 |
+| `app/tools/operational_reports/data_source.py` | Adapter | 固定生产率/Pareto/异常 SQL；每次只开一个相关设备/质量/制造库，保持窗口分母、舍入和过滤口径。 |
 | `app/integrations/manufacturing/fake_enterprise_tools.py` | Adapter | 按完整企业 Query 返回深复制的精确夹具，核对租户并明确标记 FAKE。 |
 | `app/integrations/manufacturing/provider_enterprise_tools.py` | Adapter | 固定调用注入的 EnterpriseDataProvider，核对来源头部、脱敏错误；不使用全局选择或故障回退。 |
 | `app/integrations/manufacturing/fake_named_queries.py` | Adapter | 精确 Query 的具名查询夹具、深复制及租户核对，无查询或来源回退。 |

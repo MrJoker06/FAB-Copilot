@@ -504,7 +504,7 @@ def _source_patches(stack, side, business):
         DiagnosticsSnapshot,
         diagnostics_scope,
     )
-    from app.manufacturing.operational_reports.contracts import (
+    from app.tools.operational_reports.contracts import (
         OperationalReportSnapshot,
         operational_report_scope,
     )
@@ -583,7 +583,7 @@ def _source_patches(stack, side, business):
     )
     stack.enter_context(
         patch(
-            "app.integrations.manufacturing.sqlite_operational_reports.SQLiteOperationalReportsAdapter",
+            "app.tools.operational_reports.data_source.SQLiteOperationalReportsAdapter",
             Operational,
         )
     )

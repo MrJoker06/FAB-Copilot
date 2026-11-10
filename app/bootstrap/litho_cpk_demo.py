@@ -32,7 +32,7 @@ from ..agent_runtime.tools.contracts import (
 from ..agent_runtime.tools.dispatch_policy import DemoToolPolicy
 from ..evidence.validator import EvidenceObservation
 from ..integrations.knowledge.fake_search import FakeKnowledgeSearchAdapter
-from ..integrations.manufacturing.fake_operational_reports import (
+from app.demo_data.tool_sources.operational_reports import (
     FakeOperationalReportsAdapter,
 )
 from app.demo_data.tool_sources.process_diagnostics import (
@@ -46,8 +46,8 @@ from ..knowledge.search_tool.contracts import (
     KnowledgeSearchSnapshot,
     knowledge_scope,
 )
-from ..manufacturing.operational_reports.binding import create_recent_excursions_binding
-from ..manufacturing.operational_reports.contracts import RecentExcursionsInput
+from app.tools.operational_reports.binding import create_recent_excursions_binding
+from app.tools.operational_reports.contracts import RecentExcursionsInput
 from app.tools.process_diagnostics.binding import (
     create_process_capability_binding,
     create_sensor_summary_binding,

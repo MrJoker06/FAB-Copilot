@@ -10,13 +10,13 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from app.bootstrap import operational_reports_demo
-from app.integrations.manufacturing.fake_operational_reports import (
+from app.demo_data.tool_sources.operational_reports import (
     FakeOperationalReportsAdapter,
 )
-from app.integrations.manufacturing.sqlite_operational_reports import (
+from app.tools.operational_reports.data_source import (
     SQLiteOperationalReportsAdapter,
 )
-from app.manufacturing.operational_reports.contracts import OperationalReportDataError
+from app.tools.operational_reports.contracts import OperationalReportDataError
 
 
 def _run(*values: str) -> dict[str, object]:

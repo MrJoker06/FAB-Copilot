@@ -66,7 +66,7 @@ from app.evidence.validator import EvidenceObservation
 from app.integrations.manufacturing.sqlite_named_queries import SQLiteNamedQueryAdapter
 from app.intent_runtime.routing import route_question
 from app.knowledge.decision import usable_result
-from app.manufacturing.operational_reports.binding import create_defect_pareto_binding
+from app.tools.operational_reports.binding import create_defect_pareto_binding
 from app.memory_system.contracts import ContextResolution
 from app.skills.catalog import SkillReference
 from app.skills.frontmatter import parse_skill_document

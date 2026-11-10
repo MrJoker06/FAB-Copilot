@@ -5,13 +5,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import date
 
-from ...agent_runtime.tools.contracts import ToolExecutionContext
-from ...agent_runtime.tools.definition import (
+from app.agent_runtime.tools.contracts import ToolExecutionContext
+from app.agent_runtime.tools.definition import (
     ToolBinding,
     ToolDefinition,
     ToolPreparation,
 )
-from .contracts import (
+from app.tools.operational_reports.contracts import (
+    OPERATIONAL_OUTPUT_SCHEMAS,
     DefectParetoInput,
     EquipmentProductivityInput,
     OperationalReportsPort,
@@ -21,7 +22,7 @@ from .contracts import (
     validate_equipment_productivity_output,
     validate_recent_excursions_output,
 )
-from .handler import (
+from app.tools.operational_reports.handler import (
     OperationalReportsDependencies,
     defect_pareto_handler,
     equipment_productivity_handler,
@@ -34,6 +35,8 @@ EQUIPMENT_PRODUCTIVITY_DEFINITION = ToolDefinition(
     "查询设备生产、待机、工程和停机时间占比，可按站点或设备过滤",
     EquipmentProductivityInput,
     validate_equipment_productivity_output,
+    title="设备生产效率",
+    output_schema=OPERATIONAL_OUTPUT_SCHEMAS["productivity"],
 )
 DEFECT_PARETO_DEFINITION = ToolDefinition(
     "get_defect_pareto",
@@ -41,6 +44,8 @@ DEFECT_PARETO_DEFINITION = ToolDefinition(
     "查询缺陷类型 Pareto 和受影响批次数，可按站点过滤",
     DefectParetoInput,
     validate_defect_pareto_output,
+    title="缺陷 Pareto",
+    output_schema=OPERATIONAL_OUTPUT_SCHEMAS["defects"],
 )
 RECENT_EXCURSIONS_DEFINITION = ToolDefinition(
     "get_recent_excursions",
@@ -48,6 +53,8 @@ RECENT_EXCURSIONS_DEFINITION = ToolDefinition(
     "查询最近的制程异常批次及量测值，可按站点或设备过滤",
     RecentExcursionsInput,
     validate_recent_excursions_output,
+    title="最近制程异常",
+    output_schema=OPERATIONAL_OUTPUT_SCHEMAS["excursions"],
 )
 
 

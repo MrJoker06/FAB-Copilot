@@ -78,6 +78,20 @@ python -m unittest tests.test_tool_output_schemas tests.test_production_reports 
 
 WSL repository、两端 module/modularization 边界及 diff 检查通过，298 文件/0 错误。已迁生产组旧路径扫描无残留；重新导出起点，四类目录字节一致（`c3-catalog-*`）。完整报表拆分对照仍留至 030d。
 
+## c4：operational_reports
+
+- `manufacturing/operational_reports/{__init__,binding,contracts,handler}.py` → `app/tools/operational_reports/`；SQLite 来源 → `data_source.py`；Fake → `app/demo_data/tool_sources/operational_reports.py`。
+- 更新演示、定义/装配、默认来源、输入/输出与来源测试、所有显式切片及 MOD-003/009/024 和边界路径清单。
+- 设备效率、缺陷 Pareto、最近异常补 title/output_schema，沿用既有数值、NULL、排序与限额语义；真实处理器输出由 JSON Schema 校验。运营报表便携切片为 83 个唯一文件，其余制品数量不变。
+
+两端各 21 项通过：
+
+```text
+python -m unittest tests.test_tool_output_schemas tests.test_operational_reports tests.test_operational_reports_adapters tests.test_operational_reports_portable tests.test_tool_sources_portable
+```
+
+WSL repository、两端 module/modularization 边界及 diff 检查通过，298 文件/0 错误。已迁运营组扫描无旧路径，重新导出起点的四类目录字节一致（`c4-catalog-*`）。含已知 Windows 临时 SQLite 文件占用问题的 runtime 模块留到全量阶段记录，不将本批定向通过表述为该模块全绿。
+
 ## 后续批次
 
-c4～c7 尚未完成；后续批次继续追加本报告。完整交付物、应用启动、Windows 全量及与起点失败集合对照，留至 030d/030e，不以本批定向结果替代。
+c5～c7 尚未完成；后续批次继续追加本报告。完整交付物、应用启动、Windows 全量及与起点失败集合对照，留至 030d/030e，不以本批定向结果替代。

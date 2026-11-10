@@ -10,14 +10,14 @@ from unittest.mock import patch
 
 from app.agent_runtime.tools.contracts import ToolSourceKind
 from app.core.sqlite_support import install_sqlite_functions
-from app.integrations.manufacturing.fake_operational_reports import (
+from app.demo_data.tool_sources.operational_reports import (
     FakeOperationalReportsAdapter,
 )
-from app.integrations.manufacturing.sqlite_operational_reports import (
+from app.tools.operational_reports.data_source import (
     SQLiteOperationalReportsAdapter,
 )
 from app.manufacturing import reports
-from app.manufacturing.operational_reports.contracts import (
+from app.tools.operational_reports.contracts import (
     OperationalReportDataError,
     OperationalReportQuery,
     OperationalReportTimeoutError,
@@ -420,7 +420,7 @@ class OperationalReportsAdapterTests(unittest.TestCase):
         self.assertTrue(equipment_only.fetch(query, self.principal).rows)
         self.assertFalse(missing.exists())
         with patch(
-            "app.integrations.manufacturing.sqlite_operational_reports.sqlite3.connect"
+            "app.tools.operational_reports.data_source.sqlite3.connect"
         ) as connect:
             with self.assertRaisesRegex(OperationalReportDataError, "unavailable"):
                 self.adapter.fetch(
@@ -466,7 +466,7 @@ class OperationalReportsAdapterTests(unittest.TestCase):
             ),
         )
         with patch(
-            "app.integrations.manufacturing.sqlite_operational_reports.sqlite3.connect"
+            "app.tools.operational_reports.data_source.sqlite3.connect"
         ) as connect:
             for adapter, query in cases:
                 with (
@@ -491,7 +491,7 @@ class OperationalReportsAdapterTests(unittest.TestCase):
         )
         with (
             patch(
-                "app.integrations.manufacturing.sqlite_operational_reports.sqlite3.connect",
+                "app.tools.operational_reports.data_source.sqlite3.connect",
                 side_effect=connect,
             ),
             self.assertRaisesRegex(OperationalReportDataError, "unavailable") as error,
@@ -560,7 +560,7 @@ class OperationalReportsAdapterTests(unittest.TestCase):
             "productivity", date(2026, 1, 1), date(2026, 1, 3)
         )
         with patch(
-            "app.integrations.manufacturing.sqlite_operational_reports.sqlite3.connect",
+            "app.tools.operational_reports.data_source.sqlite3.connect",
             side_effect=connect,
         ):
             self.adapter.fetch(query, self.principal)
@@ -578,7 +578,7 @@ class OperationalReportsAdapterTests(unittest.TestCase):
 
         with (
             patch(
-                "app.integrations.manufacturing.sqlite_operational_reports.sqlite3.connect",
+                "app.tools.operational_reports.data_source.sqlite3.connect",
                 side_effect=close_fail,
             ),
             self.assertRaisesRegex(OperationalReportDataError, "unavailable"),
@@ -591,11 +591,11 @@ class OperationalReportsAdapterTests(unittest.TestCase):
         )
         with (
             patch(
-                "app.integrations.manufacturing.sqlite_operational_reports.sqlite3.connect",
+                "app.tools.operational_reports.data_source.sqlite3.connect",
                 return_value=timeout,
             ),
             patch(
-                "app.integrations.manufacturing.sqlite_operational_reports.time.monotonic",
+                "app.tools.operational_reports.data_source.time.monotonic",
                 side_effect=(0.0, 1.0),
             ),
             self.assertRaises(OperationalReportTimeoutError),
@@ -605,11 +605,11 @@ class OperationalReportsAdapterTests(unittest.TestCase):
         timeout_close = _TimeoutCloseFailConnection()
         with (
             patch(
-                "app.integrations.manufacturing.sqlite_operational_reports.sqlite3.connect",
+                "app.tools.operational_reports.data_source.sqlite3.connect",
                 return_value=timeout_close,
             ),
             patch(
-                "app.integrations.manufacturing.sqlite_operational_reports.time.monotonic",
+                "app.tools.operational_reports.data_source.time.monotonic",
                 side_effect=(0.0, 1.0),
             ),
             self.assertRaises(OperationalReportTimeoutError),

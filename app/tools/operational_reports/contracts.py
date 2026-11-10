@@ -8,13 +8,13 @@ from datetime import date, datetime, timedelta
 from math import isfinite
 from typing import Literal, Protocol
 
-from ...agent_runtime.tools.contracts import ToolPrincipal, ToolScope, ToolSource
-from ...agent_runtime.tools.dispatch_contracts import (
+from app.agent_runtime.tools.contracts import ToolPrincipal, ToolScope, ToolSource
+from app.agent_runtime.tools.dispatch_contracts import (
     ToolDataSourceError,
     ToolInputError,
     ToolSourceTimeout,
 )
-from ..processes import MANUFACTURING_STEPS
+from app.manufacturing.processes import MANUFACTURING_STEPS
 
 
 class OperationalReportInputError(ToolInputError):
@@ -374,6 +374,34 @@ def _number(
         raise OperationalReportDataError(f"invalid {name} from source")
     if nonnegative and value < 0:
         raise OperationalReportDataError(f"invalid {name} from source")
+
+
+_OUTPUT_PROPERTIES = {
+    "productivity": {
+        "equipment_id": {"type": "string", "minLength": 1},
+        **{name: {"type": "number", "minimum": 0} for name in ("recorded_minutes", "productive_minutes", "unscheduled_down_minutes", "scheduled_down_minutes")},
+        "productive_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+    },
+    "defects": {
+        "defect_type": {"type": "string", "minLength": 1},
+        "process_steps": {"type": "string", "minLength": 1},
+        "defect_count": {"type": "integer", "minimum": 0},
+        "affected_lots": {"type": "integer", "minimum": 0},
+        "share_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+    },
+    "excursions": {
+        **{name: {"type": "string"} for name in ("run_time", "lot_id", "equipment_id", "excursion_code", "measurement_name", "measurement_unit")},
+        "process_step": {"enum": list(MANUFACTURING_STEPS)},
+        **{name: {"type": ["number", "null"]} for name in ("thickness_nm", "uniformity_pct", "defect_density", "measurement_value", "spec_lsl", "spec_usl")},
+    },
+}
+OPERATIONAL_OUTPUT_SCHEMAS = {
+    kind: {
+        "type": "array",
+        "items": {"type": "object", "properties": properties, "required": list(properties), "additionalProperties": False},
+    }
+    for kind, properties in _OUTPUT_PROPERTIES.items()
+}
 
 
 def validate_equipment_productivity_output(value: object) -> object:

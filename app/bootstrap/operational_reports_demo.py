@@ -27,18 +27,18 @@ from ..agent_runtime.execution.runtime_contracts import (
 from ..agent_runtime.execution.tool_budget import LoopGuardToolBudget
 from ..agent_runtime.tools.contracts import ToolExecutionLimits, ToolStatus
 from ..agent_runtime.tools.dispatch_policy import DemoToolPolicy
-from ..integrations.manufacturing.fake_operational_reports import (
+from app.demo_data.tool_sources.operational_reports import (
     FakeOperationalReportsAdapter,
 )
-from ..integrations.manufacturing.sqlite_operational_reports import (
+from app.tools.operational_reports.data_source import (
     SQLiteOperationalReportsAdapter,
 )
-from ..manufacturing.operational_reports.binding import (
+from app.tools.operational_reports.binding import (
     create_defect_pareto_binding,
     create_equipment_productivity_binding,
     create_recent_excursions_binding,
 )
-from ..manufacturing.operational_reports.contracts import (
+from app.tools.operational_reports.contracts import (
     DefectParetoInput,
     EquipmentProductivityInput,
     OperationalReportInputError,

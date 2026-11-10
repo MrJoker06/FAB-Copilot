@@ -30,12 +30,12 @@ from app.tools.equipment_health.summary import (
 )
 from ..manufacturing.named_queries.binding import create_named_query_bindings
 from ..manufacturing.named_queries.contracts import NamedQueryPort
-from ..manufacturing.operational_reports.binding import (
+from app.tools.operational_reports.binding import (
     create_defect_pareto_binding,
     create_equipment_productivity_binding,
     create_recent_excursions_binding,
 )
-from ..manufacturing.operational_reports.contracts import OperationalReportsPort
+from app.tools.operational_reports.contracts import OperationalReportsPort
 from app.tools.process_diagnostics.binding import (
     create_process_capability_binding,
     create_sensor_summary_binding,

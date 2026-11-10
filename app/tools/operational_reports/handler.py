@@ -6,14 +6,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from ...agent_runtime.tools.contracts import (
+from app.agent_runtime.tools.contracts import (
     ToolExecutionContext,
     ToolExecutionState,
     ToolResult,
     ToolSource,
     ToolStatus,
 )
-from .contracts import (
+from app.tools.operational_reports.contracts import (
     DefectParetoInput,
     EquipmentProductivityInput,
     OperationalReportDataError,

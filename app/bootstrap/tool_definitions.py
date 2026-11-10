@@ -10,7 +10,7 @@ from ..manufacturing.enterprise_tools.binding import (
 )
 from app.tools.equipment_health.binding import EQUIPMENT_HEALTH_DEFINITION
 from ..manufacturing.named_queries.binding import NAMED_QUERY_DEFINITIONS
-from ..manufacturing.operational_reports.binding import (
+from app.tools.operational_reports.binding import (
     DEFECT_PARETO_DEFINITION,
     EQUIPMENT_PRODUCTIVITY_DEFINITION,
     RECENT_EXCURSIONS_DEFINITION,

@@ -34,7 +34,7 @@ from app.tools.equipment_health.data_source import (
     SQLiteEquipmentHealthAdapter,
 )
 from ..integrations.manufacturing.sqlite_named_queries import SQLiteNamedQueryAdapter
-from ..integrations.manufacturing.sqlite_operational_reports import (
+from app.tools.operational_reports.data_source import (
     SQLiteOperationalReportsAdapter,
 )
 from app.tools.process_diagnostics.data_source import (
