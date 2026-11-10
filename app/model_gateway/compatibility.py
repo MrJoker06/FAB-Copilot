@@ -268,7 +268,7 @@ async def check_model_compatibility(
             checks.append({"name": "thinking_tool_roundtrip", "status": "passed"})
         if capabilities.get("native_multimodal"):
             try:
-                image = await _stream_probe(client, endpoint, headers, {"model": connection.model, "messages": [{"role": "user", "content": [{"type": "text", "text": "Identify the 1px black image. Reply exactly BLACK."}, {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL1JwAAAABJRU5ErkJggg=="}}]}], "max_tokens": 8, **standard_probe_options})
+                image = await _stream_probe(client, endpoint, headers, {"model": connection.model, "messages": [{"role": "user", "content": [{"type": "text", "text": "Identify the 16x16 black image. Reply exactly BLACK."}, {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAEElEQVR42mNgGAWjYBTAAAADEAAB1y2EYwAAAABJRU5ErkJggg=="}}]}], "max_tokens": 8, **standard_probe_options})
             except ModelCompatibilityError as exc:
                 if exc.category == "http" and exc.http_status in {400, 404, 415, 422}:
                     raise ModelCompatibilityError("模型不具备原生多模态能力（图片输入被模型拒绝）", False, "multimodal", exc.http_status) from exc
