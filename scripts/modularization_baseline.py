@@ -57,14 +57,16 @@ from fastapi.routing import APIRoute
 
 from app.agent_runtime import service as agent
 from app.bootstrap.legacy_agent_assembly import build_legacy_coordinator_dependencies
-from app.bootstrap.tool_catalog import LEGACY_TOOLS
 from app.main import app
 from scripts.evaluate_trace_replay import load_dataset, replay_case
 from scripts.modularization_fixture_clock import (
     CAPTURE_ENVIRONMENT_DATE,
     fixed_capture_clock,
 )
-from scripts.refactor_contracts import collect_frontend_contract
+from scripts.refactor_contracts import collect_frontend_contract, load_legacy_tools
+
+# Loaded once so the timed replay region never includes catalog file I/O.
+LEGACY_TOOLS = load_legacy_tools()
 
 
 def canonical(v: Any) -> str:

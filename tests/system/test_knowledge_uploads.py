@@ -18,7 +18,6 @@ from app.agent_runtime import service as agent_module
 from app.persistence.database import db_session, get_active_defect_aliases, initialize, replace_defect_type_aliases
 from app.main import app
 from app.knowledge.rag import _infer_filters, search_knowledge
-from app.manufacturing.reports import safe_select
 from app.manufacturing.seed import seed_reference_data
 
 class KnowledgeUploadsSystemTests(unittest.TestCase):
@@ -478,14 +477,6 @@ class KnowledgeUploadsSystemTests(unittest.TestCase):
             }
             self.assertTrue(required.issubset(detail.json()))
             self.assertTrue(all(detail.json()[field] for field in required))
-
-    def test_sql_guard_rejects_writes(self):
-        with self.assertRaises(ValueError):
-            safe_select("DELETE FROM lots")
-        with self.assertRaises(ValueError):
-            safe_select("SELECT * FROM sqlite_master")
-        with self.assertRaises(ValueError):
-            safe_select("SELECT scenario_id FROM process_runs")
 
 if __name__ == "__main__":
     unittest.main()

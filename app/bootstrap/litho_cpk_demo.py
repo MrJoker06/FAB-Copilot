@@ -56,6 +56,9 @@ from ..manufacturing.process_diagnostics.contracts import (
     ProcessCapabilityInput,
     SensorSummaryInput,
 )
+from ..tools.capability_trend.contracts import CapabilityTrendInput
+from ..tools.capability_trend.fake_source import FakeCapabilityTrendSource
+from ..tools.capability_trend.tool import create_capability_trend_binding
 from .agent_assembly import assemble_agent
 from .litho_cpk_workflow import LithoCpkWorkflow
 from .loop_assembly import bind_loop_run
@@ -65,6 +68,7 @@ from .skill_assembly import SkillAssemblyConfiguration, SkillExecutionRequest
 _QUESTION = "分析 LITHO 在 2026-10-01 到 2026-10-08 的 Cpk 和制程异常"
 _TOOLS = (
     "get_process_capability",
+    "get_capability_trend",
     "get_recent_excursions",
     "get_sensor_summary",
     "search_knowledge",
@@ -149,6 +153,39 @@ def _diagnostics_rows(tool: str) -> tuple[dict[str, object], ...]:
     )
 
 
+def _trend_rows() -> tuple[dict[str, object], ...]:
+    common = {
+        "process_step": "LITHO",
+        "equipment_id": "LITHO-01",
+        "metric_name": "cd",
+        "metric_unit": "nm",
+        "spec_lsl": 9.0,
+        "spec_usl": 12.0,
+    }
+    return (
+        {
+            "week_start": "2026-09-28",
+            "period_start": "2026-10-01",
+            "period_end": "2026-10-04",
+            "samples": 20,
+            "mean_value": 10.5,
+            "sigma": 0.3,
+            "cpk": 1.67,
+            **common,
+        },
+        {
+            "week_start": "2026-10-05",
+            "period_start": "2026-10-05",
+            "period_end": "2026-10-08",
+            "samples": 20,
+            "mean_value": 10.5,
+            "sigma": 0.6,
+            "cpk": 0.83,
+            **common,
+        },
+    )
+
+
 def _excursion_rows() -> tuple[dict[str, object], ...]:
     return (
         {
@@ -177,6 +214,10 @@ def _bindings(plan: object, as_of: date, principal: _Principal):
     sensors = SensorSummaryInput.from_arguments(
         steps["get_sensor_summary"].parameters
     ).resolve(as_of)
+    trend = CapabilityTrendInput.from_arguments(
+        steps["get_capability_trend"].parameters
+    ).resolve(as_of)
+    trends = FakeCapabilityTrendSource("demo", {trend: _trend_rows()})
     excursions = RecentExcursionsInput.from_arguments(
         steps["get_recent_excursions"].parameters
     ).resolve(as_of)
@@ -228,7 +269,8 @@ def _bindings(plan: object, as_of: date, principal: _Principal):
         create_recent_excursions_binding(reports, today=lambda: as_of),
         create_sensor_summary_binding(diagnostics, today=lambda: as_of),
         create_knowledge_search_binding(knowledge, default_tenant_id="demo"),
-    ), (diagnostics, reports, knowledge)
+        create_capability_trend_binding(trends, today=lambda: as_of),
+    ), (diagnostics, reports, knowledge, trends)
 
 
 async def run_litho_cpk_demo(
@@ -255,13 +297,10 @@ async def run_litho_cpk_demo(
         tuple(ComponentReference(name, "1.0.0") for name in _TOOLS),
         ComponentReference("litho-demo-model", "1.0.0"),
         ComponentReference("litho-demo-policy", "1.0.0"),
-        (ComponentReference("litho-cpk-diagnostic", "1.0.0"),),
+        (ComponentReference("litho-cpk-diagnostic", "1.1.0"),),
     )
     default_root = str(
-        Path(__file__).resolve().parents[1]
-        / "skills"
-        / "lithography"
-        / "cpk_diagnostic"
+        Path(__file__).resolve().parents[1] / "skills" / "litho-cpk-diagnostic"
     )
     configuration = SkillAssemblyConfiguration(
         (package_root or default_root,), (workflow,)
@@ -358,15 +397,14 @@ async def run_litho_cpk_demo(
             EvidenceObservation(**item) for item in outcome.observation_payloads
         )
         trace = outcome.trace
-    validation = app.skill_binding.workflow.evidence_validator(
-        plan, app.skill_binding.selection.selected_playbook, list(observations)
-    )
+    evidence = app.skill_binding.check_evidence(list(observations))
     return {
         "plan": plan,
         "trace": trace,
         "observations": observations,
         "playbook": app.skill_binding.selection.selected_playbook,
-        "validation": validation,
+        "evidence": evidence,
+        "validation": evidence.validation,
         "metadata": dict(run.skill_metadata),
         "model_context": run.skill_context,
         "model_calls": getattr(app.model, "_calls", 0),
@@ -376,6 +414,7 @@ async def run_litho_cpk_demo(
             "process_diagnostics": len(adapters[0].calls),
             "operational_reports": len(adapters[1].calls),
             "knowledge_search": len(adapters[2].calls),
+            "capability_trend": len(adapters[3].calls),
         },
     }
 
@@ -432,7 +471,11 @@ def main(argv: list[str] | None = None) -> int:
         "model_calls": result["model_calls"],
         "source_calls": result["source_calls"],
         "guard": result["guard"].summary(),
-        "validation": result["validation"].to_dict(),
+        "evidence_status": result["evidence"].status,
+        "evidence_sufficient": result["evidence"].evidence_sufficient,
+        "validation": (
+            result["validation"].to_dict() if result["validation"] is not None else None
+        ),
     }
     print(json.dumps(payload, ensure_ascii=False, default=str))
     return 0 if all(item["status"] == "ok" for item in result["trace"]) else 2

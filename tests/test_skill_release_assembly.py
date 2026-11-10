@@ -107,8 +107,7 @@ class SkillReleaseAssemblyTests(unittest.TestCase):
             Path(__file__).parents[1]
             / "app"
             / "skills"
-            / "lithography"
-            / "cpk_diagnostic"
+            / "litho-cpk-diagnostic"
         )
 
     @staticmethod
@@ -117,7 +116,8 @@ class SkillReleaseAssemblyTests(unittest.TestCase):
             handle.write(text)
 
     def _package(self, parent: Path, version: str, marker: str) -> Path:
-        target = parent / version
+        # A standard Skill's name must equal its directory name.
+        target = parent / version / self.source.name
         shutil.copytree(self.source, target)
         manifest_path = target / "manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -125,6 +125,8 @@ class SkillReleaseAssemblyTests(unittest.TestCase):
         self._write_text(manifest_path, json.dumps(manifest))
         self._write_text(
             target / "SKILL.md",
+            "---\nname: litho-cpk-diagnostic\n"
+            f"description: Released Cpk {marker}.\n---\n\n"
             f"# Released Cpk {marker}\n\n{marker} instructions only.\n",
         )
         self._write_text(

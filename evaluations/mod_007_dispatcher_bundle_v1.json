@@ -21,6 +21,7 @@
         "app/agent_runtime/tools/contracts.py",
         "app/agent_runtime/tools/dispatch_contracts.py",
         "app/agent_runtime/tools/definition.py",
+        "app/agent_runtime/tools/projection.py",
         "app/agent_runtime/tools/tool_registry.py",
         "app/agent_runtime/tools/dispatch_policy.py",
         "app/agent_runtime/tools/dispatcher.py",

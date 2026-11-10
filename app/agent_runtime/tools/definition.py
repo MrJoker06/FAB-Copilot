@@ -8,7 +8,7 @@ them to the legacy runtime.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Generic, Protocol, TypeVar
 
 from .contracts import ToolExecutionContext, ToolResult, ToolScope
@@ -50,6 +50,10 @@ class ToolDefinition(Generic[InputT]):
     input_model: type[InputT]
     output_validator: OutputValidator
     read_only: bool = True
+    title: str | None = None
+    # JSON Schema of the handler's ``data``; projections expose it, while
+    # ``output_validator`` remains the enforcing check.
+    output_schema: Mapping[str, object] | None = field(default=None, hash=False)
 
     def __post_init__(self) -> None:
         if not all(
@@ -57,6 +61,15 @@ class ToolDefinition(Generic[InputT]):
             for value in (self.name, self.version, self.description)
         ):
             raise ValueError("tool definition metadata must be non-empty strings")
+        if self.title is not None and (
+            not isinstance(self.title, str) or not self.title.strip()
+        ):
+            raise ValueError("tool definition title must be a non-empty string")
+        if self.output_schema is not None and (
+            not isinstance(self.output_schema, Mapping)
+            or not isinstance(self.output_schema.get("type"), str)
+        ):
+            raise TypeError("output_schema must be a JSON Schema object with a type")
         if not callable(
             getattr(self.input_model, "from_arguments", None)
         ) or not callable(getattr(self.input_model, "json_schema", None)):

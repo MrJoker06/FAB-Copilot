@@ -57,9 +57,9 @@ class SkillCatalogTests(unittest.TestCase):
             for item in (low / "SKILL.md", high / "SKILL.md"):
                 item.unlink()
             with mock.patch(
-                "app.skills.catalog.read_resource_text",
+                "app.skills.manifest.read_resource_text",
                 wraps=__import__(
-                    "app.skills.catalog", fromlist=["read_resource_text"]
+                    "app.skills.manifest", fromlist=["read_resource_text"]
                 ).read_resource_text,
             ) as read:
                 catalog = SkillCatalog.build((high, low), INVENTORY)

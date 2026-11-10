@@ -12,6 +12,7 @@ from ...agent_runtime.tools.definition import (
     ToolPreparation,
 )
 from .contracts import (
+    PROCESS_CAPABILITY_OUTPUT_SCHEMA,
     ProcessCapabilityInput,
     ProcessDiagnosticsPort,
     SensorSummaryInput,
@@ -31,6 +32,8 @@ PROCESS_CAPABILITY_DEFINITION = ToolDefinition(
     description="查询制程能力、规格范围与 Cpk，可按制程站点过滤",
     input_model=ProcessCapabilityInput,
     output_validator=validate_process_capability_output,
+    title="制程能力 Cpk",
+    output_schema=PROCESS_CAPABILITY_OUTPUT_SCHEMA,
 )
 SENSOR_SUMMARY_DEFINITION = ToolDefinition(
     name="get_sensor_summary",

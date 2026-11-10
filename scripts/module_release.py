@@ -21,7 +21,7 @@ TOOL_SOURCES = ROOT / "evaluations" / "mod_009_tool_sources_v1.json"
 PORTABLE_UNITS = ROOT / "evaluations" / "portable_units_v1.json"
 ARTIFACT_MANIFEST = "module-artifact.json"
 RELEASE_MANIFEST = "module-release.json"
-ASSET_ROOT = "app/skills/lithography/cpk_diagnostic"
+ASSET_ROOT = "app/skills/litho-cpk-diagnostic"
 
 
 def _json(path: Path) -> dict[str, Any]:
@@ -92,7 +92,7 @@ def ownership() -> tuple[dict[str, str], list[str]]:
         if not isinstance(relative, str):
             raise TypeError("skill asset must be a path")
         _safe(relative)
-        source = ROOT / "app" / "skills" / "lithography" / "cpk_diagnostic" / relative
+        source = ROOT / ASSET_ROOT / relative
         member = f"{ASSET_ROOT}/{relative}"
         if not source.is_file() or member in result:
             raise ValueError(f"missing skill asset: {relative}")
@@ -175,14 +175,7 @@ def build(output: Path, *, build_id: str | None = None) -> dict[str, Any]:
             )
             for member in members:
                 if member.startswith(ASSET_ROOT + "/"):
-                    source = (
-                        ROOT
-                        / "app"
-                        / "skills"
-                        / "lithography"
-                        / "cpk_diagnostic"
-                        / member.removeprefix(ASSET_ROOT + "/")
-                    )
+                    source = ROOT / member
                 else:
                     source = ROOT / member
                 _zip_write(archive, member, _source_bytes(source))

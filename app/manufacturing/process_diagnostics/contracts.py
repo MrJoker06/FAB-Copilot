@@ -295,6 +295,29 @@ _CAPABILITY_FIELDS = {
     "spec_lsl",
     "spec_usl",
 }
+_NULLABLE_NUMBER = {"type": ["number", "null"]}
+PROCESS_CAPABILITY_OUTPUT_SCHEMA: dict[str, object] = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)},
+            "equipment_id": {"type": "string", "minLength": 1},
+            "samples": {"type": "integer", "minimum": 1},
+            "mean_value": {"type": "number"},
+            "sigma": {"type": ["number", "null"], "minimum": 0},
+            "min_value": {"type": "number"},
+            "max_value": {"type": "number"},
+            "cpk": _NULLABLE_NUMBER,
+            "metric_name": {"type": ["string", "null"], "minLength": 1},
+            "metric_unit": {"type": ["string", "null"], "minLength": 1},
+            "spec_lsl": _NULLABLE_NUMBER,
+            "spec_usl": _NULLABLE_NUMBER,
+        },
+        "required": sorted(_CAPABILITY_FIELDS),
+        "additionalProperties": False,
+    },
+}
 _SENSOR_FIELDS = {
     "process_step",
     "equipment_id",

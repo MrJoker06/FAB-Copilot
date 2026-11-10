@@ -24,7 +24,7 @@ class RuntimePortsPortableTests(unittest.TestCase):
             "dispatcher_pilot"
         ]["files"]
         files = tuple(listed) + RUNTIME_FILES
-        self.assertEqual(len(files), 45)
+        self.assertEqual(len(files), 46)
         self.assertEqual(len(set(files)), len(files))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"

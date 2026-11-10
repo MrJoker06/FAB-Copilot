@@ -311,6 +311,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/agent_runtime/tools/projection.py",
+      "primary_module": "tool_system",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/agent_runtime/tools/registry.py",
       "primary_module": "tool_system",
       "artifact_group": "platform_core",
@@ -1431,6 +1436,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/skills/standard.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/skills/versions.py",
       "primary_module": "skills",
       "artifact_group": "platform_core"
@@ -1442,6 +1452,11 @@
     },
     {
       "path": "app/skills/discovery.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/frontmatter.py",
       "primary_module": "skills",
       "artifact_group": "platform_core"
     },
@@ -1479,6 +1494,36 @@
       "path": "app/telemetry/runtime_status.py",
       "primary_module": "observability",
       "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/tools/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/capability_trend/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/capability_trend/contracts.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/capability_trend/fake_source.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/tools/capability_trend/sqlite_source.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/tools/capability_trend/tool.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
     }
   ],
   "allowed_dependencies": {
@@ -2619,15 +2664,27 @@
         "chat_sessions"
       ],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/tools/capability_trend/sqlite_source.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "connection.execute",
+        "sqlite3.connect"
+      ],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     }
   ],
   "database_ledger": {
     "legacy_sql_tool": {
       "definition": "query_manufacturing_data(sql)",
-      "registry_binding": "retired from the default registry and 13-name compatibility handler map; app.manufacturing.reports.safe_select remains an explicit Python-only historical/internal callable",
-      "report_implementation": "app.manufacturing.reports.safe_select",
+      "registry_binding": "retired from the default registry and 13-name compatibility handler map; the former app.manufacturing.reports.safe_select callable was removed in MOD-030b",
+      "report_implementation": "removed in MOD-030b (formerly app.manufacturing.reports.safe_select)",
       "prompt_exposure": "retired from default SYSTEM_PROMPT; LEGACY_SYSTEM_PROMPT remains only for explicit historical replay",
-      "status": "retired from default model catalog, executable binding and prompt; historical replay callable retained",
+      "status": "retired from default model catalog, executable binding and prompt; safe_select callable removed in MOD-030b",
       "exit_tasks": [
         "MOD-003",
         "MOD-004",
@@ -2639,7 +2696,7 @@
         "MOD-015",
         "MOD-027"
       ],
-      "catalog_definition": "absent from default app.bootstrap.tool_catalog.TOOLS; app.bootstrap.tool_catalog.LEGACY_TOOLS remains replay-only",
+      "catalog_definition": "absent from default app.bootstrap.tool_catalog.TOOLS; the hand-written legacy-v1 catalog is frozen in evaluations/legacy_tool_catalog_v1.json for historical replay only and is never loaded by the application",
       "replacement": "Default Agent uses 21 named business tools with structured parameters; SQL construction remains server-controlled in Adapter/Repository. MOD-008 default cutover is verified separately; retained Python/API consumers require MOD-009 and legacy-facade cleanup was retained at MOD-015 closeout and belongs to MOD-027."
     },
     "scope_note": "Static candidates and incomplete table hints only; no data-flow/permissions proof. Separate company business reads from application-owned sessions/models/knowledge stores and demo initialization. No real enterprise integration accepted.",
@@ -2739,6 +2796,14 @@
         "stores": "process_runs, sensor_readings",
         "init_effects": "Explicit per-kind SQLite URI mode=ro adapter; opens only the selected supplied store, sets query_only, and never initializes, migrates, seeds, attaches, or falls back.",
         "exit_task": "MOD-009 conformance (retain adapter)"
+      },
+      {
+        "source_file": "app/tools/capability_trend/sqlite_source.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "process_runs",
+        "init_effects": "Explicit SQLite URI mode=ro source for the weekly capability trend; opens only the supplied manufacturing store, sets query_only, runs one fixed parameterized aggregation, and never initializes, migrates, seeds, attaches, or falls back.",
+        "exit_task": "MOD-030b (retain source)"
       },
       {
         "source_file": "app/integrations/manufacturing/sqlite_production_reports.py",

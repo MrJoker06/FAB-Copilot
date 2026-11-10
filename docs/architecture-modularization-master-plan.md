@@ -154,9 +154,9 @@ app/
 │   ├── releases.py                 # 进程内不可变发布、显式激活/禁用/回退
 │   ├── discovery.py                # 候选能力筛选
 │   ├── loader.py                   # 显式资源加载
-│   └── lithography/cpk_diagnostic/
+│   └── litho-cpk-diagnostic/       # MOD-030b 起的标准目录名
 │       ├── SKILL.md
-│       ├── manifest.yaml
+│       ├── manifest.json
 │       ├── references/
 │       └── scenarios/              # 引用既有 Workflow，避免重复定义
 ├── models/
@@ -440,7 +440,7 @@ DTO 明确范围、单位、时间边界、grain、统计口径、精度/空值�
 
 #### 5.9.3 旧 SQL 工具的迁移与验收
 
-迁移前 `query_manufacturing_data(sql)` 绑定 `manufacturing/reports.py:safe_select`；MOD-008 F2b 已从默认模型清单和 Dispatcher 执行绑定移除该能力。旧函数仅保留给内部历史消费者与显式 legacy-v1 回放，其 SELECT/表白名单与只读限制不构成生产接入资格。
+迁移前 `query_manufacturing_data(sql)` 绑定 `manufacturing/reports.py:safe_select`；MOD-008 F2b 已从默认模型清单和 Dispatcher 执行绑定移除该能力。MOD-030b 已删除 `safe_select` 函数；旧 Schema 只作为 `evaluations/legacy_tool_catalog_v1.json` 冻结样本供契约脚本读取，不构成运行工具来源。
 
 在 `MOD-003` 登记其定义、调用方、模型暴露点和退出条件；`MOD-004～007` 建立无 SQL 的工具契约与服务端能力限制；`MOD-008` 按实际业务用例用具名结构化工具覆盖所需能力，并从目标模型工具清单和可执行绑定中移除旧 SQL 能力。不要求另建同名万能替代工具，也不保留可由模型开启的 SQL 后门。`MOD-009/015` 验证替代工具、双执行路径及兼容台账；迁移未完成时不得宣称已满足无 SQL 目标。
 
@@ -844,7 +844,7 @@ P0、原生工具及 Ready/Loop 纵向切片已经完成；MOD-016～019 已验�
 
 会话、Checkpoint、知识上传/索引等应用内部写入使用 `Runtime / Memory / 知识管理用例 → Store 或 Repository Port → 数据库 Adapter`。这类内部保存不绕经模型工具系统。两条链路都要求 SQL、连接、事务和数据库方言留在 Adapter/Repository 中，核心 Runtime、Skill 和领域规则不直接写 SQL。
 
-面向量化小模型，模型仅表达业务工具调用和受验证参数，不编写或提交可执行 SQL。旧 `query_manufacturing_data(sql)` 的移除与替代按第 5.9 节追踪；F2b 已从默认模型清单和执行绑定移除该能力，完整验收状态见 MOD-008 报告。旧 SQL 模板和 `safe_select` 只保留给内部历史消费者，不代表默认模型可调用。
+面向量化小模型，模型仅表达业务工具调用和受验证参数，不编写或提交可执行 SQL。旧 `query_manufacturing_data(sql)` 的移除与替代按第 5.9 节追踪；F2b 已从默认模型清单和执行绑定移除该能力，完整验收状态见 MOD-008 报告。旧 SQL 模板只保留给内部历史消费者，不代表默认模型可调用；`safe_select` 已在 MOD-030b 删除。
 
 公司侧以业务契约为稳定边界，实际选择只读数据库或报表/API 由服务端显式绑定；两种接入不要求同时实现，也不互为隐式故障回退。公司业务数据、应用自有存储和演示数据分别管理，按第 5.10 节渐进处理现有数据库入口；具体接入前提见第 9.4 节。
 

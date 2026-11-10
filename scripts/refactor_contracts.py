@@ -15,12 +15,12 @@ from unittest.mock import patch
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONTRACT = PROJECT_DIR / "evaluations" / "refactor_contract_v1.json"
+LEGACY_TOOL_CATALOG = PROJECT_DIR / "evaluations" / "legacy_tool_catalog_v1.json"
 sys.path.insert(0, str(PROJECT_DIR))
 
 from fastapi.routing import APIRoute
 
 from app.agent_runtime.service import TOOLS
-from app.bootstrap.tool_catalog import LEGACY_TOOLS
 from app.main import app
 from scripts.evaluate_trace_replay import load_dataset, replay_case
 
@@ -56,10 +56,29 @@ class _PageContractParser(HTMLParser):
 TOOL_PROFILES = frozenset({"current-v2", "legacy-v1"})
 
 
+def load_legacy_tools(path: Path = LEGACY_TOOL_CATALOG) -> list[dict[str, Any]]:
+    """Load the frozen legacy-v1 tool sample used only by historical replay checks."""
+    document = json.loads(path.read_text(encoding="utf-8"))
+    tools = document.get("tools") if isinstance(document, dict) else None
+    if (
+        not isinstance(tools, list)
+        or not tools
+        or not all(
+            isinstance(item, dict)
+            and item.get("type") == "function"
+            and isinstance(item.get("function"), dict)
+            and isinstance(item["function"].get("name"), str)
+            for item in tools
+        )
+    ):
+        raise ValueError(f"invalid legacy tool catalog: {path.name}")
+    return tools
+
+
 def collect_tool_contract(tool_profile: str = "current-v2") -> dict[str, Any]:
     if tool_profile not in TOOL_PROFILES:
         raise ValueError(f"unknown tool profile: {tool_profile}")
-    tools = LEGACY_TOOLS if tool_profile == "legacy-v1" else TOOLS
+    tools = load_legacy_tools() if tool_profile == "legacy-v1" else TOOLS
     return {
         "names": [item["function"]["name"] for item in tools],
         "schema_sha256": _sha256(tools),

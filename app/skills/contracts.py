@@ -12,6 +12,11 @@ _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _STATUS = frozenset({"draft", "published", "disabled", "retired"})
 _MODES = frozenset({"ready", "loop"})
 _KINDS = frozenset({"instructions", "reference", "scenario"})
+SCHEMA_V1 = "1.0.0"
+# 2.0.0 takes name and description from the standard SKILL.md frontmatter and
+# makes every execution extension optional.
+SCHEMA_V2 = "2.0.0"
+_SCHEMAS = frozenset({SCHEMA_V1, SCHEMA_V2})
 
 
 class SkillPackageError(ValueError):
@@ -31,8 +36,12 @@ def require_identifier(value: object, field_name: str) -> str:
     return value
 
 
-def _unique(values: tuple[str, ...], field_name: str) -> None:
-    if not values or not all(isinstance(value, str) for value in values):
+def _unique(
+    values: tuple[str, ...], field_name: str, *, allow_empty: bool = False
+) -> None:
+    if (not values and not allow_empty) or not all(
+        isinstance(value, str) for value in values
+    ):
         raise SkillPackageError(
             "invalid_manifest", f"{field_name} must be a non-empty unique list"
         )
@@ -93,8 +102,8 @@ class SkillManifest:
     required_inputs: tuple[str, ...]
     tools: tuple[ToolRequirement, ...]
     execution_modes: tuple[str, ...]
-    workflow: ComponentReference
-    evidence_policy: ComponentReference
+    workflow: ComponentReference | None
+    evidence_policy: ComponentReference | None
     resources: tuple[ResourceDeclaration, ...]
 
     def __post_init__(self) -> None:
@@ -118,21 +127,31 @@ class SkillManifest:
             or not all(
                 isinstance(value, ResourceDeclaration) for value in self.resources
             )
-            or not isinstance(self.workflow, ComponentReference)
-            or not isinstance(self.evidence_policy, ComponentReference)
+            or not isinstance(self.workflow, (ComponentReference, type(None)))
+            or not isinstance(self.evidence_policy, (ComponentReference, type(None)))
         ):
             raise SkillPackageError(
                 "invalid_manifest", "manifest nested declarations have invalid types"
             )
-        if self.schema_version != "1.0.0":
+        if self.schema_version not in _SCHEMAS:
             raise SkillPackageError(
                 "unsupported_schema", "manifest schema version is unsupported"
             )
+        legacy = self.schema_version == SCHEMA_V1
+        if legacy and (self.workflow is None or self.evidence_policy is None):
+            raise SkillPackageError(
+                "invalid_manifest", "schema 1.0.0 requires workflow and evidence policy"
+            )
         require_identifier(self.skill_id, "skill id")
         parse_version(self.version)
-        if not all(
-            isinstance(value, str) and value.strip() and len(value) <= 512
-            for value in (self.title, self.description)
+        description_limit = 512 if legacy else 1024
+        if not (
+            isinstance(self.title, str)
+            and self.title.strip()
+            and len(self.title) <= 512
+            and isinstance(self.description, str)
+            and self.description.strip()
+            and len(self.description) <= description_limit
         ):
             raise SkillPackageError(
                 "invalid_manifest",
@@ -140,10 +159,10 @@ class SkillManifest:
             )
         if not isinstance(self.status, str) or self.status not in _STATUS:
             raise SkillPackageError("invalid_manifest", "manifest status is invalid")
-        _unique(self.process_steps, "process steps")
-        _unique(self.required_inputs, "required inputs")
+        _unique(self.process_steps, "process steps", allow_empty=not legacy)
+        _unique(self.required_inputs, "required inputs", allow_empty=not legacy)
         if (
-            not self.execution_modes
+            (legacy and not self.execution_modes)
             or not all(isinstance(value, str) for value in self.execution_modes)
             or len(self.execution_modes) != len(set(self.execution_modes))
             or not set(self.execution_modes) <= _MODES

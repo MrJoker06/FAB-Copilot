@@ -22,12 +22,15 @@ class LithoCpkSkillTests(unittest.TestCase):
                 "get_recent_excursions",
                 "get_sensor_summary",
                 "search_knowledge",
+                "get_capability_trend",
             ],
         )
         self.assertEqual(result["metadata"]["skill_id"], "litho-cpk-diagnostic")
+        self.assertEqual(result["metadata"]["skill_version"], "1.1.0")
+        self.assertEqual(result["metadata"]["evidence_policy_status"], "configured")
         self.assertEqual(len(result["model_context"]), 1)
         self.assertEqual(result["model_calls"], 0)
-        self.assertEqual(result["guard"].total_calls, 4)
+        self.assertEqual(result["guard"].total_calls, 5)
         self.assertEqual(result["validation"].status, "validated")
 
     def test_loop_uses_the_same_guarded_plan(self) -> None:
@@ -41,15 +44,8 @@ class LithoCpkSkillTests(unittest.TestCase):
         self.assertIn("lithography", result["model_context"][0].content.lower())
         request = result["model_requests"][1]
         self.assertEqual(
-            [message.role for message in request.messages[-6:]],
-            [
-                "user",
-                "assistant",
-                "tool",
-                "tool",
-                "tool",
-                "tool",
-            ],
+            [message.role for message in request.messages[-7:]],
+            ["user", "assistant", *["tool"] * 5],
         )
         self.assertEqual(
             result["source_calls"],
@@ -57,6 +53,7 @@ class LithoCpkSkillTests(unittest.TestCase):
                 "process_diagnostics": 2,
                 "operational_reports": 1,
                 "knowledge_search": 1,
+                "capability_trend": 1,
             },
         )
 
@@ -83,6 +80,7 @@ class LithoCpkSkillTests(unittest.TestCase):
                 "process_diagnostics": 0,
                 "operational_reports": 0,
                 "knowledge_search": 0,
+                "capability_trend": 0,
             },
         )
         self.assertTrue(all(item["status"] == "blocked" for item in result["trace"]))
@@ -93,8 +91,7 @@ class LithoCpkSkillTests(unittest.TestCase):
             Path(__file__).parents[1]
             / "app"
             / "skills"
-            / "lithography"
-            / "cpk_diagnostic"
+            / "litho-cpk-diagnostic"
             / "scenarios"
             / "acceptance.json"
         )

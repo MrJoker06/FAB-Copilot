@@ -15,7 +15,6 @@ from ...bootstrap.tool_bindings import (
     process_pass_rate,
     query_enterprise_data,
     recent_excursions,
-    safe_select,
     search_agent_knowledge,
     sensor_summary,
     yield_trend,

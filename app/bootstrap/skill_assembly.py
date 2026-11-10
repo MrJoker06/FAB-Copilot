@@ -11,12 +11,19 @@ from ..agent_runtime.execution.runtime_contracts import ModelMessage
 from ..agent_runtime.tools.definition import ToolBinding
 from ..intent_runtime.contracts import IntentRoute
 from ..skills.catalog import SkillCatalog, SkillReference
-from ..skills.contracts import DependencyInventory, SkillPackageError
+from ..skills.contracts import (
+    SCHEMA_V2,
+    ComponentReference,
+    DependencyInventory,
+    SkillPackageError,
+)
 from ..skills.discovery import DiscoveryQuery, discover
+from ..skills.frontmatter import parse_skill_document
 from ..skills.loader import SkillLoader, SkillSnapshot
 from .litho_cpk_workflow import LithoCpkWorkflow, LithoCpkWorkflowError
 
 if TYPE_CHECKING:
+    from ..evidence.validator import EvidenceObservation, EvidenceValidation
     from ..manufacturing.playbooks import PlaybookSelection
     from ..planning_runtime.contracts import ExecutionPlan
     from ..skills.releases import SkillReleaseStore
@@ -24,6 +31,42 @@ if TYPE_CHECKING:
 
 class SkillAssemblyError(ValueError):
     """A non-diagnostic failure at the controlled composition boundary."""
+
+    def __init__(self, message: str, *, reason: str = "invalid_assembly") -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
+EVIDENCE_NOT_CONFIGURED = "not_configured"
+EVIDENCE_CHECKED = "checked"
+EVIDENCE_CHECK_FAILED = "check_failed"
+# Strengths that mean the declared policy ran but the evidence cannot support
+# a diagnostic conclusion.
+_INSUFFICIENT_STRENGTHS = frozenset({"insufficient", "hypothesis_only"})
+
+
+@dataclass(frozen=True, slots=True)
+class SkillEvidenceOutcome:
+    """Domain evidence-policy result kept apart from basic tool execution checks.
+
+    A not_configured status never implies a pass. A declared policy that cannot
+    be parsed or resolved fails assembly (reason invalid_evidence_policy or a
+    dependency reason) instead of reaching this object.
+    """
+
+    status: str
+    policy: ComponentReference | None
+    validation: EvidenceValidation | None = None
+
+    @property
+    def evidence_sufficient(self) -> bool | None:
+        if self.status != EVIDENCE_CHECKED or self.validation is None:
+            return None
+        return (
+            self.validation.status == "validated"
+            and self.validation.allowed_conclusion_strength
+            not in _INSUFFICIENT_STRENGTHS
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,6 +128,20 @@ class SkillBinding:
     selection: PlaybookSelection
     metadata: tuple[tuple[str, str], ...]
     release_store: SkillReleaseStore | None = None
+    evidence_policy: ComponentReference | None = None
+
+    def check_evidence(
+        self, observations: list[EvidenceObservation]
+    ) -> SkillEvidenceOutcome:
+        if self.evidence_policy is None:
+            return SkillEvidenceOutcome(EVIDENCE_NOT_CONFIGURED, None)
+        try:
+            validation = self.workflow.evidence_validator(
+                self.plan, self.selection.selected_playbook, list(observations)
+            )
+        except Exception:  # noqa: BLE001 - reported as an unavailable check
+            return SkillEvidenceOutcome(EVIDENCE_CHECK_FAILED, self.evidence_policy)
+        return SkillEvidenceOutcome(EVIDENCE_CHECKED, self.evidence_policy, validation)
 
     def revalidate(self) -> None:
         try:
@@ -106,9 +163,13 @@ class SkillBinding:
     @property
     def model_context(self) -> tuple[ModelMessage, ...]:
         messages: list[ModelMessage] = []
+        standard = self.snapshot.manifest.schema_version == SCHEMA_V2
         for item in self.snapshot.loaded_resources:
             if item.path == "SKILL.md":
-                content = item.text
+                # Frontmatter is catalog metadata; activation loads the body.
+                content = (
+                    parse_skill_document(item.text).body if standard else item.text
+                )
             else:
                 # Resources are declared text context only.  This label keeps
                 # their origin visible to the model without granting code or
@@ -154,22 +215,35 @@ def resolve_skill_binding(
             catalog = loader.catalog
         entry = catalog.find(reference)
         if not entry.available:
-            raise SkillAssemblyError("skill is unavailable")
+            raise SkillAssemblyError(
+                "skill is unavailable", reason=entry.unavailable_reason or "unavailable"
+            )
+        declared_workflow = entry.manifest.workflow
+        declared_policy = entry.manifest.evidence_policy
+        if declared_workflow is None:
+            raise SkillAssemblyError(
+                "skill declares no controlled workflow", reason="no_workflow"
+            )
         workflow = next(
             (
                 item
                 for item in configuration.workflows
-                if item.workflow_id == entry.manifest.workflow.component_id
-                and item.version == entry.manifest.workflow.version
-                and item.evidence_policy_id
-                == entry.manifest.evidence_policy.component_id
-                and item.evidence_policy_version
-                == entry.manifest.evidence_policy.version
+                if item.workflow_id == declared_workflow.component_id
+                and item.version == declared_workflow.version
+                and (
+                    declared_policy is None
+                    or (
+                        item.evidence_policy_id == declared_policy.component_id
+                        and item.evidence_policy_version == declared_policy.version
+                    )
+                )
             ),
             None,
         )
         if workflow is None:
-            raise SkillAssemblyError("controlled workflow is unavailable")
+            raise SkillAssemblyError(
+                "controlled workflow is unavailable", reason="workflow_unavailable"
+            )
         required_inputs = {"process_step", "time_range"}
         query = DiscoveryQuery(
             workflow.workflow_id,
@@ -205,13 +279,21 @@ def resolve_skill_binding(
             f"{item.path}|{item.kind}|{len(item.text.encode('utf-8'))}"
             for item in snapshot.loaded_resources
         )
+        policy_metadata = (
+            (
+                ("evidence_policy_id", declared_policy.component_id),
+                ("evidence_policy_version", declared_policy.version),
+                ("evidence_policy_status", "configured"),
+            )
+            if declared_policy is not None
+            else (("evidence_policy_status", EVIDENCE_NOT_CONFIGURED),)
+        )
         metadata = (
             ("skill_id", reference.skill_id),
             ("skill_version", reference.version),
             ("workflow_id", workflow.workflow_id),
             ("workflow_version", workflow.version),
-            ("evidence_policy_id", workflow.evidence_policy_id),
-            ("evidence_policy_version", workflow.evidence_policy_version),
+            *policy_metadata,
             ("loaded_paths", ",".join(item.path for item in snapshot.loaded_resources)),
             ("loaded_resources", ",".join(resource_metadata)),
         )
@@ -224,11 +306,13 @@ def resolve_skill_binding(
             selection,
             metadata,
             configuration.release_store,
+            declared_policy,
         )
-    except (
-        SkillPackageError,
-        LithoCpkWorkflowError,
-        IndexError,
-        StopIteration,
-    ) as error:
+    except SkillAssemblyError:
+        raise
+    except SkillPackageError as error:
+        raise SkillAssemblyError(
+            "skill assembly is invalid", reason=error.code
+        ) from error
+    except (LithoCpkWorkflowError, IndexError, StopIteration) as error:
         raise SkillAssemblyError("skill assembly is invalid") from error

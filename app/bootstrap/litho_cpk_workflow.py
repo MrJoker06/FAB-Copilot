@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ..evidence.skill_policy import validate_skill_evidence
 from ..evidence.validator import EvidenceValidation
@@ -13,8 +13,70 @@ from ..manufacturing.named_playbooks import (
     select_named_playbook,
 )
 from ..manufacturing.playbooks import PlaybookSelection
-from ..planning_runtime.contracts import ExecutionPlan
+from ..planning_runtime.contracts import ExecutionPlan, PlanStep
 from ..planning_runtime.named_planner import create_named_execution_plan
+
+TREND_TOOL = "get_capability_trend"
+_TREND_STEP_ID = "S05"
+
+
+def _with_trend_step(plan: ExecutionPlan) -> ExecutionPlan:
+    """Add the Skill's weekly trend as optional context after the Cpk step.
+
+    The shared capability Playbook has no trend requirement, so the step carries
+    no evidence id and cannot change required coverage or conclusion strength.
+    """
+    capability = next(
+        (step for step in plan.steps if step.tool == "get_process_capability"), None
+    )
+    if capability is None or any(step.tool == TREND_TOOL for step in plan.steps):
+        raise LithoCpkWorkflowError("named capability plan is invalid")
+    parameters = {
+        key: capability.parameters[key]
+        for key in ("start", "end", "process_step")
+        if key in capability.parameters
+    }
+    step = PlanStep(
+        step_id=_TREND_STEP_ID,
+        title="设备级 Cpk 周趋势",
+        tool=TREND_TOOL,
+        parameters=parameters,
+        parameter_sources={
+            key: capability.parameter_sources[key]
+            for key in parameters
+            if key in capability.parameter_sources
+        },
+        evidence_ids=(),
+        depends_on=(capability.step_id,),
+        required=False,
+        success_criteria=(
+            "时间范围和制程与能力步骤一致。",
+            "按周区分 Cpk 是持续偏低还是集中在个别周。",
+        ),
+        estimated_result_limit=capability.estimated_result_limit,
+        scope_role="primary",
+        semantic_id="process_capability_cpk_trend",
+        grain="equipment_week",
+        filter_provenance=capability.filter_provenance,
+        evidence_kind="metric",
+        evidence_scope=capability.evidence_scope,
+        evidence_start=capability.evidence_start,
+        evidence_end=capability.evidence_end,
+    )
+    budget = plan.budget
+    budget = replace(
+        budget,
+        planned_tool_calls=budget.planned_tool_calls + 1,
+        max_tool_calls=budget.max_tool_calls + 1,
+        per_tool_limits={**budget.per_tool_limits, TREND_TOOL: 2},
+    )
+    # The extended plan differs from the shared named plan, so it gets its own id.
+    return replace(
+        plan,
+        plan_id=f"{plan.plan_id}-litho-trend",
+        steps=(*plan.steps, step),
+        budget=budget,
+    )
 
 
 class LithoCpkWorkflowError(ValueError):
@@ -26,14 +88,14 @@ class LithoCpkWorkflow:
     """A fixed registry entry; it does not load code from a Skill package."""
 
     workflow_id: str = "litho-cpk-workflow"
-    version: str = "2.0.0"
+    version: str = "2.1.0"
     evidence_policy_id: str = "capability-evidence"
     evidence_policy_version: str = "1.3.0"
 
     def __post_init__(self) -> None:
         if (
             self.workflow_id != "litho-cpk-workflow"
-            or self.version != "2.0.0"
+            or self.version != "2.1.0"
             or self.evidence_policy_id != "capability-evidence"
             or self.evidence_policy_version != "1.3.0"
         ):
@@ -67,7 +129,7 @@ class LithoCpkWorkflow:
             or any("sql" in step.parameters for step in plan.steps)
         ):
             raise LithoCpkWorkflowError("named capability plan is invalid")
-        return plan, selection
+        return _with_trend_step(plan), selection
 
     @property
     def evidence_validator(self) -> Callable[..., EvidenceValidation]:

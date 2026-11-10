@@ -72,7 +72,7 @@
     "query_manufacturing_data and its SQL parameter are retired from the default model-visible catalog.",
     "TOOL_HANDLERS remains a stable 13-handler legacy compatibility bridge, not the default executable set.",
     "Each default run assembles isolated native bindings and permits explicit live patches only for the 13 historical safe handlers.",
-    "Historical MOD-002 and refactor tool checks replay the legacy-v1 catalog separately and do not accept the default v2 catalog.",
+    "Historical MOD-002 and refactor tool checks replay the frozen legacy-v1 catalog sample evaluations/legacy_tool_catalog_v1.json separately and do not accept the default v2 catalog.",
     "General-knowledge plans authorize only search_knowledge; business runs retain the 21 declared native capabilities."
   ]
 }

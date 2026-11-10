@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 
 from .definition import ToolBinding, ToolDefinition
+from .projection import model_function_view
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,18 +161,10 @@ class ToolRegistry:
             raise ValueError(f"tool already has a legacy binding: {name}")
         if name in self._native_bindings:
             raise ValueError(f"tool already has a native binding: {name}")
-        schema = deepcopy(binding.definition.json_schema())
-        if not isinstance(schema, dict):
+        native_projection = model_function_view(binding.definition)
+        if not isinstance(native_projection["function"]["parameters"], dict):
             raise TypeError("native tool schema must be a dict")
         self._native_bindings[name] = binding
-        native_projection = {
-            "type": "function",
-            "function": {
-                "name": name,
-                "description": binding.definition.description,
-                "parameters": schema,
-            },
-        }
         protocol_index = next(
             (
                 index

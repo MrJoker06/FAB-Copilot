@@ -38,7 +38,7 @@ class ReadyDispatcherPortableTests(unittest.TestCase):
             "dispatcher_pilot"
         ]["files"]
         files = tuple(baseline) + RUNTIME_FILES + MODERN_FILES + READY_FILES
-        self.assertEqual((len(files), len(set(files))), (54, 54))
+        self.assertEqual((len(files), len(set(files))), (55, 55))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

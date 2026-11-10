@@ -17,7 +17,12 @@ INVENTORY = ROOT / "evaluations/mod_005_equipment_health_source_v1.json"
 class ToolRegistryPortableTests(unittest.TestCase):
     def test_registry_core_runs_with_the_mod005_source_inventory_only(self):
         files = json.loads(INVENTORY.read_text(encoding="utf-8"))["files"]
-        files.append("app/agent_runtime/tools/tool_registry.py")
+        files.extend(
+            (
+                "app/agent_runtime/tools/projection.py",
+                "app/agent_runtime/tools/tool_registry.py",
+            )
+        )
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

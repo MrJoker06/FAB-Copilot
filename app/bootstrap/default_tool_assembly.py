@@ -21,6 +21,7 @@ from ..agent_runtime.tools.contracts import (
 from ..agent_runtime.tools.definition import ToolBinding
 from ..agent_runtime.tools.dispatch_contracts import PolicyDecision
 from ..agent_runtime.tools.dispatcher import ToolDispatcher
+from ..agent_runtime.tools.projection import model_function_view
 from ..agent_runtime.tools.tool_registry import (
     LegacyBindingAdapter,
     LegacyToolDefinition,
@@ -59,17 +60,7 @@ _DECLARED_DEFINITIONS = {
     definition.name: definition for definition in BUSINESS_TOOL_DEFINITIONS
 }
 _NATIVE_CATALOG_JSON = json.dumps(
-    [
-        {
-            "type": "function",
-            "function": {
-                "name": definition.name,
-                "description": definition.description,
-                "parameters": definition.json_schema(),
-            },
-        }
-        for definition in BUSINESS_TOOL_DEFINITIONS
-    ],
+    [model_function_view(definition) for definition in BUSINESS_TOOL_DEFINITIONS],
     ensure_ascii=False,
     separators=(",", ":"),
 )

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import re
 import sqlite3
 import tempfile
 import unittest
-from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,7 +13,6 @@ from app.agent_runtime.tools.contracts import ToolExecutionContext, ToolSourceKi
 from app.core.sqlite_support import install_sqlite_functions
 from app.integrations.manufacturing.fake_named_queries import FakeNamedQueryAdapter
 from app.integrations.manufacturing.sqlite_named_queries import SQLiteNamedQueryAdapter
-from app.manufacturing import reports
 from app.manufacturing.named_queries.contracts import (
     EquipmentEventsInput,
     EquipmentExcursionsInput,
@@ -319,13 +318,17 @@ class NamedQueryAdapterTests(unittest.TestCase):
             )
 
     @staticmethod
-    @contextmanager
-    def _legacy_session(path: Path):
-        connection = sqlite3.connect(path)
+    def _legacy_reference(path: Path, sql: str) -> list[dict[str, object]]:
+        """Independent read-only oracle with the retired legacy 100-row cap."""
+        statement = sql.strip().rstrip(";")
+        if not re.search(r"(?i)\blimit\s+\d+\b", statement):
+            statement += " LIMIT 100"
+        connection = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
         connection.row_factory = sqlite3.Row
         install_sqlite_functions(connection)
         try:
-            yield connection
+            connection.execute("PRAGMA query_only = ON")
+            return [dict(row) for row in connection.execute(statement).fetchmany(100)]
         finally:
             connection.close()
 
@@ -507,12 +510,7 @@ class NamedQueryAdapterTests(unittest.TestCase):
                     equipment_ids=equipment,
                 )
                 sql = _manufacturing_queries(evidence, route, resolved)[index][1]
-                with patch.object(
-                    reports,
-                    "db_session",
-                    lambda source=source: self._legacy_session(source),
-                ):
-                    reference = reports.safe_select(sql)
+                reference = self._legacy_reference(source, sql)
                 query = input_value.resolve(kind, date(2026, 1, 2))
                 self.assertEqual(
                     self.adapter.fetch(query, self.principal).rows, tuple(reference)

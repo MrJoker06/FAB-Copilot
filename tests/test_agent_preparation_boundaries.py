@@ -13,9 +13,9 @@ from app.agent_runtime.preparation.context import (
     resolve_conversation_turn,
 )
 from app.bootstrap.legacy_agent_assembly import build_legacy_coordinator_dependencies
-from app.bootstrap.tool_catalog import LEGACY_TOOLS
 from app.memory_system.context.resolver import unresolved_context
 from app.model_gateway.gateway import HttpModelGateway
+from scripts.refactor_contracts import load_legacy_tools
 
 
 class AgentPreparationBoundaryTests(unittest.TestCase):
@@ -46,7 +46,7 @@ class AgentPreparationBoundaryTests(unittest.TestCase):
         def legacy_dependencies():
             namespace = dict(agent.__dict__)
             namespace["SYSTEM_PROMPT"] = agent.LEGACY_SYSTEM_PROMPT
-            namespace["TOOLS"] = LEGACY_TOOLS
+            namespace["TOOLS"] = load_legacy_tools()
             return build_legacy_coordinator_dependencies(namespace)
 
         with (

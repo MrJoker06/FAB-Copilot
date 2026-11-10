@@ -23,6 +23,7 @@ class SkillPortableTests(unittest.TestCase):
             names = (
                 "__init__.py",
                 "contracts.py",
+                "frontmatter.py",
                 "manifest.py",
                 "package.py",
                 "resources.py",

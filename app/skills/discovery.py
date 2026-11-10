@@ -68,7 +68,10 @@ def discover(catalog: SkillCatalog, query: DiscoveryQuery) -> DiscoveryResult:
         if (
             reason is None
             and query.workflow_id is not None
-            and manifest.workflow.component_id != query.workflow_id
+            and (
+                manifest.workflow is None
+                or manifest.workflow.component_id != query.workflow_id
+            )
         ):
             reason = "workflow_mismatch"
         if (

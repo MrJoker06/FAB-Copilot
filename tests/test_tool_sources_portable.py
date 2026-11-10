@@ -49,6 +49,7 @@ SOURCE_FILES = (
     "app/agent_runtime/tools/dispatch_contracts.py",
     "app/agent_runtime/tools/dispatch_policy.py",
     "app/agent_runtime/tools/dispatcher.py",
+    "app/agent_runtime/tools/projection.py",
     "app/agent_runtime/tools/tool_registry.py",
     "app/bootstrap/__init__.py",
     "app/bootstrap/agent_assembly.py",

@@ -69,6 +69,7 @@ from app.knowledge.decision import usable_result
 from app.manufacturing.operational_reports.binding import create_defect_pareto_binding
 from app.memory_system.contracts import ContextResolution
 from app.skills.catalog import SkillReference
+from app.skills.frontmatter import parse_skill_document
 from app.skills.releases import SkillReleaseStore
 from app.telemetry import runtime_status
 from tests import test_default_native_runtime as native_tests
@@ -78,8 +79,8 @@ ROOT = Path(__file__).resolve().parents[1]
 _AS_OF = date(2026, 10, 31)
 _EXTRA_TOOL = "get_defect_pareto"
 _ALL_TOOLS = (*_TOOLS, _EXTRA_TOOL)
-_SKILL = SkillReference("litho-cpk-diagnostic", "1.0.0")
-_SKILL_SOURCE = ROOT / "app" / "skills" / "lithography" / "cpk_diagnostic"
+_SKILL = SkillReference("litho-cpk-diagnostic", "1.1.0")
+_SKILL_SOURCE = ROOT / "app" / "skills" / "litho-cpk-diagnostic"
 _SKILL_MODES = ("off", "file", "release")
 _VOLATILE = frozenset({"run_id", "started_at", "completed_at", "traceback"})
 _HANG = "hang"
@@ -262,13 +263,13 @@ class TypedApplicationAcceptanceTests(unittest.TestCase):
         package_root = None
         configuration = None
         if skill == "file":
-            package_root = self.root / f"file-{id(workflow)}"
+            package_root = self.root / f"file-{id(workflow)}" / _SKILL.skill_id
             shutil.copytree(_SKILL_SOURCE, package_root)
             configuration = SkillAssemblyConfiguration(
                 (str(package_root),), (workflow,)
             )
         elif skill == "release":
-            package_root = self.root / f"release-{id(workflow)}"
+            package_root = self.root / f"release-{id(workflow)}" / _SKILL.skill_id
             shutil.copytree(_SKILL_SOURCE, package_root)
             store = SkillReleaseStore()
             store.publish(package_root, _inventory(bindings, (workflow,)))
@@ -559,7 +560,11 @@ class TypedApplicationAcceptanceTests(unittest.TestCase):
                         self.assertEqual(run.skill_context, binding.model_context)
                         self.assertEqual(
                             run.skill_context[0].content,
-                            (fx.package_root / "SKILL.md").read_text(encoding="utf-8"),
+                            parse_skill_document(
+                                (fx.package_root / "SKILL.md").read_text(
+                                    encoding="utf-8"
+                                )
+                            ).body,
                         )
                         metadata = dict(run.skill_metadata)
                         self.assertEqual(metadata["skill_id"], _SKILL.skill_id)
@@ -717,6 +722,7 @@ class TypedApplicationAcceptanceTests(unittest.TestCase):
                             "get_recent_excursions": "blocked",
                             "get_sensor_summary": "blocked",
                             "search_knowledge": "blocked",
+                            "get_capability_trend": "blocked",
                         }
                         if mode == "ready"
                         else {
@@ -724,6 +730,7 @@ class TypedApplicationAcceptanceTests(unittest.TestCase):
                             "get_recent_excursions": "ok",
                             "get_sensor_summary": "error",
                             "search_knowledge": "ok",
+                            "get_capability_trend": "ok",
                         }
                     )
                     self.assertEqual(statuses, expected)

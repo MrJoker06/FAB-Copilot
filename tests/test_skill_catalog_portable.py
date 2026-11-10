@@ -22,6 +22,7 @@ class SkillCatalogPortableTests(unittest.TestCase):
                 "__init__.py",
                 "contracts.py",
                 "versions.py",
+                "frontmatter.py",
                 "manifest.py",
                 "resources.py",
                 "package.py",

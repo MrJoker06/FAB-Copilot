@@ -52,14 +52,13 @@ class SkillAgentAssemblyTests(unittest.TestCase):
             tuple(ComponentReference(name, "1.0.0") for name in _TOOLS),
             ComponentReference("model", "1.0.0"),
             ComponentReference("policy", "1.0.0"),
-            (ComponentReference("litho-cpk-diagnostic", "1.0.0"),),
+            (ComponentReference("litho-cpk-diagnostic", "1.1.0"),),
         )
         root = (
             Path(__file__).parents[1]
             / "app"
             / "skills"
-            / "lithography"
-            / "cpk_diagnostic"
+            / "litho-cpk-diagnostic"
         )
         return (
             definition,
@@ -76,13 +75,13 @@ class SkillAgentAssemblyTests(unittest.TestCase):
         )
 
     @staticmethod
-    def _copied_package(destination: Path) -> Path:
+    def _copied_package(parent: Path) -> Path:
+        destination = parent / "litho-cpk-diagnostic"
         source = (
             Path(__file__).parents[1]
             / "app"
             / "skills"
-            / "lithography"
-            / "cpk_diagnostic"
+            / "litho-cpk-diagnostic"
         )
         for relative in (
             "manifest.json",
@@ -306,7 +305,7 @@ class SkillAgentAssemblyTests(unittest.TestCase):
             (),
             ComponentReference("model", "1.0.0"),
             ComponentReference("policy", "1.0.0"),
-            (ComponentReference("litho-cpk-diagnostic", "1.0.0"),),
+            (ComponentReference("litho-cpk-diagnostic", "1.1.0"),),
         )
         with self.assertRaises(AssemblyError):
             assemble_agent(

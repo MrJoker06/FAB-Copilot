@@ -20,7 +20,6 @@ from ..manufacturing.reports import (
     sensor_summary,
     yield_trend,
 )
-from ..manufacturing.reports import safe_select
 from . import tool_catalog
 
 if tool_catalog.TOOLS is not DEFAULT_TOOL_REGISTRY.model_tools:
@@ -57,7 +56,6 @@ __all__ = [
     "process_pass_rate",
     "query_enterprise_data",
     "recent_excursions",
-    "safe_select",
     "search_agent_knowledge",
     "sensor_summary",
     "yield_trend",

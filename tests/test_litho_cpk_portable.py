@@ -42,6 +42,7 @@ SOURCE_FILES = (
     "app/agent_runtime/tools/dispatch_contracts.py",
     "app/agent_runtime/tools/dispatch_policy.py",
     "app/agent_runtime/tools/dispatcher.py",
+    "app/agent_runtime/tools/projection.py",
     "app/agent_runtime/tools/tool_registry.py",
     "app/agent_runtime/stages/__init__.py",
     "app/agent_runtime/stages/availability.py",
@@ -110,11 +111,17 @@ SOURCE_FILES = (
     "app/skills/catalog.py",
     "app/skills/contracts.py",
     "app/skills/discovery.py",
+    "app/skills/frontmatter.py",
     "app/skills/loader.py",
     "app/skills/manifest.py",
     "app/skills/package.py",
     "app/skills/resources.py",
     "app/skills/versions.py",
+    "app/tools/__init__.py",
+    "app/tools/capability_trend/__init__.py",
+    "app/tools/capability_trend/contracts.py",
+    "app/tools/capability_trend/fake_source.py",
+    "app/tools/capability_trend/tool.py",
 )
 SKILL_ASSETS = (
     "manifest.json",
@@ -134,9 +141,9 @@ class LithoCpkPortableTests(unittest.TestCase):
                 self.assertTrue(source.is_file(), relative)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, destination)
-            copied_assets = unit / "skill_assets/cpk_diagnostic"
+            copied_assets = unit / "skill_assets/litho-cpk-diagnostic"
             for relative in SKILL_ASSETS:
-                source = ROOT / "app/skills/lithography/cpk_diagnostic" / relative
+                source = ROOT / "app/skills/litho-cpk-diagnostic" / relative
                 destination = copied_assets / relative
                 self.assertTrue(source.is_file(), relative)
                 destination.parent.mkdir(parents=True, exist_ok=True)
@@ -209,20 +216,21 @@ events.clear()
 from app.bootstrap.litho_cpk_demo import run_litho_cpk_demo_sync
 for mode, calls in (('ready', 0), ('loop', 2)):
  result = run_litho_cpk_demo_sync(mode, package_root=str(asset_root))
- assert [item['status'] for item in result['trace']] == ['ok'] * 4
+ assert [item['status'] for item in result['trace']] == ['ok'] * 5
  assert result['validation'].status == 'validated' and result['validation'].validator_version == '1.3.0'
  assert result['plan'].playbook_id == 'PB-CAPABILITY-001' and result['model_calls'] == calls
  assert result['metadata']['skill_id'] == 'litho-cpk-diagnostic'
  assert result['metadata']['evidence_policy_version'] == '1.3.0'
  assert 'SKILL.md' in result['metadata']['loaded_resources']
 viewer = run_litho_cpk_demo_sync('ready', role='viewer', package_root=str(asset_root))
-assert [item['status'] for item in viewer['trace']] == ['blocked'] * 4
-assert viewer['source_calls'] == {'process_diagnostics': 0, 'operational_reports': 0, 'knowledge_search': 0}
+assert [item['status'] for item in viewer['trace']] == ['blocked'] * 5
+assert viewer['source_calls'] == {'process_diagnostics': 0, 'operational_reports': 0, 'knowledge_search': 0, 'capability_trend': 0}
 import app.bootstrap.litho_cpk_demo as demo
 def forbidden_fetch(*args, **kwargs): raise AssertionError('invalid package fetched fixture data')
 demo.FakeProcessDiagnosticsAdapter.fetch = forbidden_fetch
 demo.FakeOperationalReportsAdapter.fetch = forbidden_fetch
 demo.FakeKnowledgeSearchAdapter.fetch = forbidden_fetch
+demo.FakeCapabilityTrendSource.fetch = forbidden_fetch
 import shutil
 missing = unit / 'missing-dependency'; shutil.copytree(asset_root, missing)
 manifest = json.loads((missing / 'manifest.json').read_text(encoding='utf-8'))

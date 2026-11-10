@@ -44,7 +44,7 @@ class NamedQueriesPortableTests(unittest.TestCase):
             + LOOP_FILES
             + FILES
         )
-        self.assertEqual((len(files), len(set(files))), (65, 65))
+        self.assertEqual((len(files), len(set(files))), (66, 66))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

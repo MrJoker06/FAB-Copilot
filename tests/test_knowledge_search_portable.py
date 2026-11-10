@@ -55,7 +55,7 @@ class KnowledgeSearchPortableTests(unittest.TestCase):
             + KNOWLEDGE_FILES
             + KNOWLEDGE_SUPPORT
         )
-        self.assertEqual((len(files), len(set(files))), (71, 71))
+        self.assertEqual((len(files), len(set(files))), (72, 72))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

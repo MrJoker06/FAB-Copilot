@@ -6,8 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .contracts import DependencyInventory, SkillManifest, SkillPackageError
-from .manifest import parse_manifest, validate_dependencies
-from .resources import MANIFEST_LIMIT, read_resource_text
+from .manifest import load_manifest, validate_dependencies
 from .versions import parse_version
 
 
@@ -69,9 +68,7 @@ def _catalog_root(value: Path | str) -> Path:
 
 
 def _manifest(root: Path) -> SkillManifest:
-    return parse_manifest(
-        read_resource_text(root, "manifest.json", limit=MANIFEST_LIMIT)
-    )
+    return load_manifest(root)
 
 
 def _entry(root: Path, inventory: DependencyInventory) -> CatalogEntry:

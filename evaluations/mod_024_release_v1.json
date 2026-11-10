@@ -43,6 +43,7 @@
         "app/agent_runtime/tools/dispatch_contracts.py",
         "app/agent_runtime/tools/dispatch_policy.py",
         "app/agent_runtime/tools/dispatcher.py",
+        "app/agent_runtime/tools/projection.py",
         "app/agent_runtime/tools/tool_registry.py",
         "app/bootstrap/__init__.py",
         "app/bootstrap/agent_assembly.py",
@@ -146,6 +147,7 @@
         "app/agent_runtime/tools/dispatch_contracts.py",
         "app/agent_runtime/tools/dispatch_policy.py",
         "app/agent_runtime/tools/dispatcher.py",
+        "app/agent_runtime/tools/projection.py",
         "app/agent_runtime/tools/tool_registry.py",
         "app/agent_runtime/stages/__init__.py",
         "app/agent_runtime/stages/availability.py",
@@ -214,18 +216,24 @@
         "app/skills/catalog.py",
         "app/skills/contracts.py",
         "app/skills/discovery.py",
+        "app/skills/frontmatter.py",
         "app/skills/loader.py",
         "app/skills/manifest.py",
         "app/skills/package.py",
         "app/skills/resources.py",
         "app/skills/versions.py",
-        "app/skills/releases.py"
+        "app/skills/releases.py",
+        "app/tools/__init__.py",
+        "app/tools/capability_trend/__init__.py",
+        "app/tools/capability_trend/contracts.py",
+        "app/tools/capability_trend/fake_source.py",
+        "app/tools/capability_trend/tool.py"
       ],
       "resource_files": [
-        "app/skills/lithography/cpk_diagnostic/manifest.json",
-        "app/skills/lithography/cpk_diagnostic/SKILL.md",
-        "app/skills/lithography/cpk_diagnostic/references/cpk_context.md",
-        "app/skills/lithography/cpk_diagnostic/scenarios/acceptance.json"
+        "app/skills/litho-cpk-diagnostic/manifest.json",
+        "app/skills/litho-cpk-diagnostic/SKILL.md",
+        "app/skills/litho-cpk-diagnostic/references/cpk_context.md",
+        "app/skills/litho-cpk-diagnostic/scenarios/acceptance.json"
       ],
       "external_dependencies": []
     },

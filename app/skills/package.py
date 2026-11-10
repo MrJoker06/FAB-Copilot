@@ -6,10 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .contracts import DependencyInventory, SkillManifest, SkillPackageError
-from .manifest import parse_manifest, validate_dependencies
+from .manifest import load_manifest, validate_dependencies
 from .resources import (
     AGGREGATE_LIMIT,
-    MANIFEST_LIMIT,
     RESOURCE_LIMIT,
     read_resource_text,
 )
@@ -37,9 +36,7 @@ class SkillPackage:
         require_published: bool = True,
     ) -> SkillPackage:
         package_root = Path(root)
-        manifest = parse_manifest(
-            read_resource_text(package_root, "manifest.json", limit=MANIFEST_LIMIT)
-        )
+        manifest = load_manifest(package_root)
         validate_dependencies(manifest, inventory, require_published=require_published)
         return cls(package_root, manifest, inventory)
 

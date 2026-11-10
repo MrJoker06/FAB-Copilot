@@ -30,7 +30,7 @@ class AgentAssemblyPortableTests(unittest.TestCase):
             "dispatcher_pilot"
         ]["files"]
         files = tuple(baseline) + RUNTIME_FILES + MODERN_FILES
-        self.assertEqual(len(files), 49)
+        self.assertEqual(len(files), 50)
         self.assertEqual(len(set(files)), len(files))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"

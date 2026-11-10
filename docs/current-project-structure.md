@@ -99,7 +99,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 12 路独立功能核验通过，包含完整批次计划与日期型证据子计划，详见 MOD-008 报告。
 旧 `select_playbook` / `create_execution_plan` 保留 v1 显式历史入口。F2b 已将默认消费链
 接到 v2，并从默认清单和执行绑定移除 SQL 能力；功能、拒绝路径、完整质量门与独立性能
-比较的实际结果见报告。仍保留的历史 SQL 模板与内部 `safe_select` 不应注册到默认模型链。
+比较的实际结果见报告。仍保留的历史 SQL 模板不应注册到默认模型链；`safe_select` 已在 MOD-030b 删除。
 
 ### MOD-009：显式批量来源替换
 
@@ -168,7 +168,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/api/services/history.py` | API/存储 | 会话历史 API 适配。 |
 | `app/api/services/personal_job_events.py` | API | 个人知识后台任务事件转换。 |
 | `app/bootstrap/__init__.py` | 包 | bootstrap 包锚点。 |
-| `app/bootstrap/tool_catalog.py` | 装配/兼容 | 默认 21 项原生 Schema 加 `SUBMIT_ANALYSIS_TOOL`，保持全局列表身份；另保存显式历史回放的 `LEGACY_TOOLS`。 |
+| `app/bootstrap/tool_catalog.py` | 装配/兼容 | 默认 21 项原生 Schema 加 `SUBMIT_ANALYSIS_TOOL`，保持全局列表身份；模型视图由 `agent_runtime/tools/projection.py` 从定义生成。历史 `LEGACY_TOOLS` 已冻结为 `evaluations/legacy_tool_catalog_v1.json`，只供契约脚本读取。 |
 | `app/bootstrap/tool_sources.py` | 装配 | 七类消费方 Port 的显式可选组合，复用原生绑定工厂；不发现配置、不读取来源，支持可选查询注册。 |
 | `app/bootstrap/tool_sources_demo.py` | 装配 | 统一来源演示及实际 Ready/两阶段 Fake Loop，显式 Fake 或 SQLite/Provider/Backend 夹具，输出完整 Scope/错误/Guard。 |
 | `app/bootstrap/tool_definitions.py` | 纯 | 默认能力版本与 21 项原生 ToolDefinition 的唯一清单；不创建来源或执行器。 |
@@ -290,7 +290,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/manufacturing/processes.py` | 纯 | 制程常量与分类。 |
 | `app/manufacturing/playbooks.py` | 业务 | DomainPlaybook、证据需求与固定业务规则。 |
 | `app/manufacturing/named_playbooks.py` | 纯/版本化业务 | 六类 v2 Playbook 和选择器；保留证据要求，仅把固定 SQL 能力替换为八项具名工具。 |
-| `app/manufacturing/reports.py` | 业务/存储 | 旧 SQLite 制造报告；含 `safe_select(sql)`。 |
+| `app/manufacturing/reports.py` | 业务/存储 | 旧 SQLite 制造报告（`safe_select` 已于 MOD-030b 删除）。 |
 | `app/manufacturing/seed.py` | 存储 | 合成 FAB/部门库建模与种子数据。 |
 | `app/manufacturing/data_contracts.py` | 纯 | EnterpriseDataProvider 和主体 Protocol。 |
 | `app/manufacturing/enterprise_data.py` | 业务/装配 | 合成企业 Provider、注册/选择与报告函数。 |
@@ -380,10 +380,14 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 `scripts/demo_skill_loading.py` 和 `evaluations/skills/catalog_discovery_v1/` 展示三阶段加载；
 两组夹具均不是光刻业务 Skill。演示和 API 用法见 [Catalog 报告](reports/mod-017-skill-catalog.md)。
 
-`app/skills/lithography/cpk_diagnostic/` 为 MOD-018 的光刻包，含 `manifest.json`、
-`SKILL.md`、`references/cpk_context.md`、`scenarios/acceptance.json` 四个文本资产。
+`app/skills/litho-cpk-diagnostic/` 为光刻包（MOD-018 建立，MOD-030b 改为标准目录并升级到 1.1.0），含 `manifest.json`（2.0.0 执行扩展）、
+带标准头部的 `SKILL.md`、`references/cpk_context.md`、`scenarios/acceptance.json` 四个文本资产。
 它们不计入 Python/静态源码数，不执行代码、不授予权限；实际装配位于 bootstrap，
-复用既有 Playbook/Planner。见 [试点报告](reports/mod-018-litho-cpk-skill.md)。
+复用既有 Playbook/Planner，并追加共享工具 `get_capability_trend` 步骤。`app/skills/frontmatter.py` 解析标准头部，
+`app/skills/standard.py` 检查只有 `SKILL.md` 的最小包。见 [MOD-018 报告](reports/mod-018-litho-cpk-skill.md) 与 [MOD-030b 报告](reports/mod-030b-litho-pilot.md)。
+
+`app/tools/` 存放跨 Skill 共享的业务 Tool。当前只有 `capability_trend/`（`get_capability_trend`，按周设备级 Cpk 趋势），
+含定义、契约、只读 SQLite 来源与 Fake 来源；不在默认 21 项模型工具中。
 
 `scripts/demo_skill_releases.py` 以 `evaluations/skills/release_lifecycle_v1/` 的两版中性夹具展示发布、禁用与回退；实际 Run、权限和版本固定验收见 [发布报告](reports/mod-019-skill-releases.md)。
 
@@ -515,7 +519,7 @@ MOD-016～018 已实现独立 Manifest、依赖校验、安全资源、显式 Ca
 
 F2b 从默认清单、提示和 Dispatcher 移除旧 SQL 能力，但历史代码仍保留：
 `planning_runtime/queries.py` 的旧模板、`steps.py` 的 v1 步骤、
-`scope.py` / `evidence.semantics.py` 的兼容语义，以及 `manufacturing.reports.safe_select(sql)`。
+`scope.py` / `evidence.semantics.py` 的兼容语义；`manufacturing.reports.safe_select(sql)` 已在 MOD-030b 删除。
 只有显式历史回放与内部 Python 消费者可以使用这些保留入口，不能据此恢复默认模型执行。
 默认业务读取已改走具名原生工具；API 报表、应用自有存储和历史 facade 的残余依赖
 仍须在 MOD-012/015 中逐项验证，不能声称整个项目的数据库访问已全部解耦。

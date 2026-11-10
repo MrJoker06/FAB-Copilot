@@ -238,6 +238,8 @@ description 五要素示例（基于现有 `get_process_capability`，仅为写�
 4. **manifest 字段**：`evidence_policy`、`process_steps`、`required_inputs` 改为可选，需与 Validator 评审结论一起确认。
 5. **`LEGACY_TOOLS`** 退出运行模块：迁到测试/基线夹具位置还是保留在 `tool_catalog.py`。
 
+决定（2026-11-10 需求方确认）：1 删除 `safe_select`；2 Skill 包放 `app/skills/<name>/`；3 光刻 Cpk 试点，并新增共享工具 `get_capability_trend`（与上文“无需新造工具”建议不同，由需求方选择）；4 证据策略未声明时不注入，已声明须完整解析并执行，未配置、解析失败、已检查与证据不足可区分；5 `LEGACY_TOOLS` 冻结为验收样本，默认工具集合不变。落实情况见 [030b 报告](mod-030b-litho-pilot.md)。
+
 ## 8. 验证记录
 
 - 规范：2026-11-10 读取 Agent Skills 规范与接入指南、MCP 2026-07-28 Tools 页与 Schema 中的 ToolAnnotations，条款摘录见第 1 节。
