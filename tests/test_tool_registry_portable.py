@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.support import scrubbed_environment
+
 ROOT = Path(__file__).resolve().parents[1]
 INVENTORY = ROOT / "evaluations/mod_005_equipment_health_source_v1.json"
 
@@ -80,7 +82,7 @@ assert not any(name in sys.modules for name in blocked)
             completed = subprocess.run(
                 [sys.executable, "-I", "-S", "-c", code, str(unit), *files],
                 cwd=unit,
-                env={},
+                env=scrubbed_environment(),
                 text=True,
                 capture_output=True,
                 check=False,

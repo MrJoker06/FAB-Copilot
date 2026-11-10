@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.support import scrubbed_environment
+
 ROOT = Path(__file__).resolve().parents[1]
 INVENTORY = ROOT / "evaluations/mod_007_dispatcher_bundle_v1.json"
 RUNTIME_FILES = (
@@ -52,13 +54,19 @@ class LoopDispatcherPortableTests(unittest.TestCase):
                 self.assertTrue(source.is_file(), relative)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, destination)
-            code = r"""import importlib, importlib.abc, json, os, socket, sqlite3, sys
+            code = r"""import asyncio, importlib, importlib.abc, json, os, socket, sqlite3, sys
 from pathlib import Path
 
 unit = Path(sys.argv[1]).resolve()
 allowed = set(sys.argv[2:])
 assert not any(str(unit) in item for item in sys.path)
 sys.path.insert(0, str(unit))
+# Create the Windows event loop before the audit hook.  Proactor's self-pipe
+# uses a loopback socketpair, which is local IPC rather than application
+# network access; creating it here keeps the audit focused on the app code.
+_loop = asyncio.new_event_loop()
+asyncio.set_event_loop(_loop)
+asyncio.run = _loop.run_until_complete
 blocked = (
     'app.agent_runtime.service', 'app.agent_runtime.compatibility',
     'app.agent_runtime.execution.agent_loop', 'app.agent_runtime.tools.catalog',
@@ -131,7 +139,7 @@ assert not any(name == item or name.startswith(item + '.') for name in sys.modul
             completed = subprocess.run(
                 [sys.executable, "-I", "-S", "-c", code, str(unit), *files],
                 cwd=Path(tempfile.gettempdir()),
-                env={},
+                env=scrubbed_environment(),
                 text=True,
                 capture_output=True,
                 check=False,
