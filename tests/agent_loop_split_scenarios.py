@@ -497,7 +497,7 @@ def build_context(
         ),
         offline_answer=offline_answer,
         evidence_observation_type=EvidenceObservation,
-        provider_request_options=lambda provider_name, thinking_value: (
+        provider_request_options=lambda provider_name, thinking_value, *_args: (
             {"reasoning_effort": "high"} if thinking_value else {}
         ),
         request_synthesis_correction=request_correction

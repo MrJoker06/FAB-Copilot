@@ -45,6 +45,8 @@ class CoordinatorRunState:
     run_id: str
     progress: ProgressCallback | None
     thinking: bool
+    thinking_effort: str = "off"
+    thinking_dialect: str = ""
     settings: RuntimeSettings | None = None
     preparation: PreparationResult | None = None
     context_resolution: ContextResolution | None = None

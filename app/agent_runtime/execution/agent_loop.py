@@ -111,10 +111,12 @@ class AgentLoopContext:
     emit_evidence_validation: Callable[[str, int, dict[str, Any]], None]
     offline_answer: OfflineAnswerer
     evidence_observation_type: type[EvidenceObservation]
-    provider_request_options: Callable[[str, bool], dict]
+    provider_request_options: Callable[..., dict]
     request_synthesis_correction: SynthesisCorrectionRequester
     dispatch_binding: LoopDispatchBinding | None = None
     native_fallback: Callable[[], Awaitable[dict]] | None = None
+    thinking_effort: str = "off"
+    thinking_dialect: str = ""
 
 
 def _resolve_dispatch_binding(

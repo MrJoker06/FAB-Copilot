@@ -6,7 +6,7 @@
   function createChatController(deps = {}) {
     const {
       state, $, escapeHtml, api, identityHeaders, FabApiError, apiError, thinkingControl, toolLabels,
-      presenter, createConversation, loadSessionLibrary, newClientMessageId, thinkingEnabled, chatDraftKey,
+      presenter, createConversation, loadSessionLibrary, newClientMessageId, thinkingEffort, chatDraftKey,
       windowImpl = root, documentImpl = root.document, localStorageImpl = root.localStorage,
       fetchImpl = root.fetch, TextDecoderImpl = root.TextDecoder, performanceImpl = root.performance,
       FabSmoothTextBufferImpl = root.FabSmoothTextBuffer,
@@ -200,10 +200,10 @@
     renderLiveAnalysis(live);
   }
 
-  async function streamAgent(message, clientMessageId, onProgress, diagnostics, useThinking = false) {
+  async function streamAgent(message, clientMessageId, onProgress, diagnostics, effort = 'off') {
     let response;
     try {
-      const payload = thinkingControl.requestPayload({message, session_id:state.sessionId, client_message_id:clientMessageId}, state.modelConfig, useThinking);
+      const payload = thinkingControl.requestPayload({message, session_id:state.sessionId, client_message_id:clientMessageId}, state.modelConfig, effort);
       const headers = identityHeaders({'Content-Type':'application/json'});
       response = await fetch('/api/chat/stream', {method:'POST', headers, body:JSON.stringify(payload)});
     } catch {
@@ -264,7 +264,7 @@
     live.el.querySelector('.live-indicator').textContent = '失败';
   }
 
-  async function sendChat(message, {clientMessageId = newClientMessageId(), isRetry = false, useThinking = thinkingEnabled()} = {}) {
+  async function sendChat(message, {clientMessageId = newClientMessageId(), isRetry = false, effort = thinkingEffort()} = {}) {
     const text = message.trim(); if (!text || state.streaming) return;
     if (!state.sessionId) await createConversation();
     $('.suggestions')?.remove();
@@ -276,7 +276,7 @@
     $('#sendButton').disabled = true; state.streaming = true;
     const live = createLiveAnalysis();
     try {
-      const result = await streamAgent(text, clientMessageId, event => updateLiveAnalysis(live, event), live.telemetry, useThinking);
+      const result = await streamAgent(text, clientMessageId, event => updateLiveAnalysis(live, event), live.telemetry, effort);
       await finishLiveAnswer(live, result.answer);
       reportStreamTelemetry(live, result.answer);
       renderAssistantInto(live.el, result.answer, result);
@@ -287,7 +287,7 @@
       updateLiveAnalysis(live, {event:'run_failed', message:error.message});
       renderAgentRequestError(live, error, () => {
         live.el.remove();
-        sendChat(text, {clientMessageId, isRetry:true, useThinking});
+        sendChat(text, {clientMessageId, isRetry:true, effort});
       });
     }
     finally {

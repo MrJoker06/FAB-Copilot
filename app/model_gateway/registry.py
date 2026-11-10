@@ -4,8 +4,20 @@ import json
 import re
 from dataclasses import replace
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
-from ..core.model_capabilities import MODEL_CAPABILITY_DEFAULTS, normalize_capabilities
+from ..core.local_model_config import (
+    get_local_model,
+    remove_local_model,
+    save_local_model,
+    update_local_model_capabilities,
+)
+from ..core.model_capabilities import (
+    MODEL_CAPABILITY_DEFAULTS,
+    normalize_capabilities,
+    normalize_capability_declaration,
+    thinking_settings,
+)
 from ..core.model_credentials import credential_status, resolve_model_api_key
 from ..core.settings import (
     ALLOWED_MODELS,
@@ -82,6 +94,18 @@ def _decode_model(row) -> dict:
     except (TypeError, json.JSONDecodeError):
         capabilities = {}
     item["capabilities"] = normalize_capabilities(capabilities)
+    local = get_local_model(item.get("model_id", "")) if item.get("model_id") else None
+    if local is not None:
+        # Local models are file-backed: an operator can edit the JSON and the
+        # next admin/user request sees the new values without a restart.
+        for key in ("display_name", "provider", "provider_model", "base_url"):
+            value = local.get(key)
+            if isinstance(value, str) and value.strip():
+                item[key] = value.strip().rstrip("/") if key == "base_url" else value.strip()
+        item["capabilities"] = normalize_capabilities(local.get("capabilities"))
+        item["config_source"] = "local_file"
+    else:
+        item["config_source"] = "database"
     try:
         item["compatibility"] = json.loads(item.pop("compatibility_json", "{}") or "{}")
     except (TypeError, json.JSONDecodeError):
@@ -173,6 +197,12 @@ def public_user_model_config(principal: PrincipalView | None = None) -> dict:
         "provider_model": selected["provider_model"],
         "base_url": selected["base_url"],
         "capabilities": selected["capabilities"],
+        "thinking": thinking_settings(
+            selected["capabilities"],
+            provider=selected["provider"],
+            provider_model=selected["provider_model"],
+        ),
+        "config_source": selected.get("config_source", "database"),
         "health": selected["health"],
         "allowed_models": [item["model_id"] for item in models],
         "model_options": [
@@ -182,6 +212,12 @@ def public_user_model_config(principal: PrincipalView | None = None) -> dict:
                 "provider": item["provider"],
                 "provider_model": item["provider_model"],
                 "capabilities": item["capabilities"],
+                "thinking": thinking_settings(
+                    item["capabilities"],
+                    provider=item["provider"],
+                    provider_model=item["provider_model"],
+                ),
+                "config_source": item.get("config_source", "database"),
                 "health": item["health"],
             }
             for item in models
@@ -248,6 +284,11 @@ def validate_model_definition(
     return cleaned_model_id, cleaned_display_name, cleaned_provider_model, cleaned_url
 
 
+def _is_loopback_url(base_url: str) -> bool:
+    host = (urlparse(base_url).hostname or "").lower()
+    return host in {"127.0.0.1", "localhost", "::1"}
+
+
 def publish_model(
     model_id: str,
     display_name: str,
@@ -259,6 +300,9 @@ def publish_model(
 ) -> dict:
     cleaned_model_id, cleaned_display_name, cleaned_provider_model, cleaned_url = validate_model_definition(model_id, display_name, provider, provider_model, base_url)
     timestamp = _now()
+    declaration = normalize_capability_declaration(
+        capabilities or {}, provider=provider, provider_model=cleaned_provider_model
+    )
     compatibility = {
         "status": "unverified", "summary": "尚未进行兼容性测试"
     }
@@ -280,7 +324,7 @@ def publish_model(
                 provider,
                 cleaned_provider_model,
                 cleaned_url,
-                json.dumps(normalize_capabilities(capabilities), separators=(",", ":")),
+                json.dumps(normalize_capabilities(declaration), separators=(",", ":")),
                 json.dumps(compatibility or {}, separators=(",", ":")),
                 (compatibility or {}).get("checked_at"),
                 created_by,
@@ -294,6 +338,15 @@ def publish_model(
             "SELECT * FROM model_catalog WHERE model_id = ?",
             (cleaned_model_id,),
         ).fetchone()
+    if cleaned_provider_model and provider == "openai-compatible" and _is_loopback_url(cleaned_url):
+        save_local_model(
+            cleaned_model_id,
+            display_name=cleaned_display_name,
+            provider=provider,
+            provider_model=cleaned_provider_model,
+            base_url=cleaned_url,
+            capabilities=declaration,
+        )
     return _decode_model(row)
 
 
@@ -355,28 +408,37 @@ def delete_model(model_id: str) -> dict:
         if deleted.rowcount != 1:
             raise ValueError("模型不存在或状态已变化")
         connection.commit()
+    remove_local_model(model_id)
     return _decode_model(row)
 
 
 def update_model_capabilities(model_id: str, capabilities: dict) -> dict:
     """Persist the administrator's complete capability declaration without probing."""
-    if set(capabilities) != set(MODEL_CAPABILITY_DEFAULTS) or not all(
-        isinstance(capabilities[key], bool) for key in MODEL_CAPABILITY_DEFAULTS
-    ):
-        raise ValueError("能力配置必须包含且仅包含四项布尔值")
     timestamp = _now()
     unverified = {"status": "unverified", "summary": "能力配置已变更，请按需重新测试"}
     with db_session() as connection:
+        existing = connection.execute(
+            "SELECT provider, provider_model FROM model_catalog WHERE model_id = ?",
+            (model_id,),
+        ).fetchone()
+        if existing is None:
+            raise ValueError("模型不存在")
+        declaration = normalize_capability_declaration(
+            capabilities,
+            provider=existing["provider"],
+            provider_model=existing["provider_model"],
+        )
         cursor = connection.execute(
             """UPDATE agent.model_catalog
                SET capabilities_json = ?, compatibility_json = ?, compatibility_checked_at = NULL,
                    updated_at = ? WHERE model_id = ?""",
-            (json.dumps(capabilities, separators=(",", ":")), json.dumps(unverified, separators=(",", ":")), timestamp, model_id),
+            (json.dumps(declaration, separators=(",", ":")), json.dumps(unverified, separators=(",", ":")), timestamp, model_id),
         )
         if cursor.rowcount == 0:
             raise ValueError("模型不存在")
         connection.commit()
         row = connection.execute("SELECT * FROM model_catalog WHERE model_id = ?", (model_id,)).fetchone()
+    update_local_model_capabilities(model_id, declaration)
     return _decode_model(row)
 
 

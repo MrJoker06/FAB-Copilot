@@ -97,10 +97,14 @@ async def execute_ready_synthesis(
             assistant, usage, _, _ = await deps.request_ready_synthesis(
                 session, state.connection, state.settings, messages, state.run_id,
                 state.thinking, retry_budget,
+                thinking_effort=state.thinking_effort,
+                thinking_dialect=state.thinking_dialect,
             )
         for key in state.total_usage:
             state.total_usage[key] += int(usage.get(key, 0) or 0)
-        state.thinking_answer_effective = state.thinking_answer_effective or state.thinking
+        state.thinking_answer_effective = state.thinking_answer_effective or bool(
+            str(assistant.get("reasoning_content") or "")
+        )
         if state.health_enabled:
             state.health, transition = deps.record_model_success(state.selected_model_id)
             if transition:

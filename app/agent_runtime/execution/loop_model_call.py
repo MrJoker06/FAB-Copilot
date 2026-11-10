@@ -166,6 +166,8 @@ async def call_model(
             )
             await asyncio.sleep(delay_seconds)
             continue
+        reasoning_length = int(stream_state.get("reasoning_length", 0))
+        thinking_effective = bool(thinking and reasoning_length > 0)
         emit(
             "model_call_finished",
             run_id,
@@ -186,11 +188,14 @@ async def call_model(
             content_delta_count=stream_state.get("content_delta_count", 0),
             content_chars=stream_state.get("content_chars", 0),
             stream_duration_ms=stream_state.get("stream_duration_ms"),
-            reasoning_length=int(stream_state.get("reasoning_length", 0)),
+            reasoning_length=reasoning_length,
             content_length=len(str(assistant.get("content") or "")),
             thinking_requested=thinking,
-            thinking_effective=thinking,
-            reasoning_effort=request_payload.get("reasoning_effort"),
+            thinking_effective=thinking_effective,
+            reasoning_effort=request_payload.get("reasoning_effort")
+            or (request_payload.get("chat_template_kwargs") or {}).get(
+                "reasoning_effort"
+            ),
             full_content=(
                 {"response": context.audit_assistant(assistant)}
                 if dispatch_binding is None
@@ -202,7 +207,8 @@ async def call_model(
                 }
             ),
         )
-        state.thinking_answer_effective = state.thinking_answer_effective or thinking
+        if thinking and reasoning_length > 0:
+            state.thinking_answer_effective = True
         if context.health_enabled:
             state.health, transition = context.record_model_success(
                 context.selected_model_id

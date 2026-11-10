@@ -40,13 +40,36 @@ class ModelCompatibilityError(ValueError):
         return self.summary
 
 
-def provider_request_options(provider: str, thinking: bool = False) -> dict:
+def provider_request_options(
+    provider: str,
+    thinking: bool = False,
+    effort: str = "",
+    model: str = "",
+    dialect: str = "",
+) -> dict:
     """The only provider-specific request options used by runtime and probes."""
-    if provider == "deepseek":
-        return {"thinking": {"type": "enabled" if thinking else "disabled"}} if not thinking else {
-            "thinking": {"type": "enabled"}, "reasoning_effort": "high"
+    if not thinking or effort == "off":
+        if provider == "deepseek":
+            return {"thinking": {"type": "disabled"}}
+        return {}
+    selected = effort if effort in {"low", "medium", "high", "xhigh"} else "high"
+    resolved = dialect or ("qwen" if "qwen" in str(model).lower() else provider)
+    if resolved == "qwen":
+        # Qwen's chat template supports ``enable_thinking`` and its own effort
+        # vocabulary.  llama.cpp ignores the top-level OpenAI effort field.
+        qwen_effort = "xhigh" if selected == "high" else selected
+        return {
+            "chat_template_kwargs": {
+                "enable_thinking": True,
+                "reasoning_effort": qwen_effort,
+            }
         }
-    return {"reasoning_effort": "high"} if thinking else {}
+    if provider == "deepseek":
+        return {
+            "thinking": {"type": "enabled"},
+            "reasoning_effort": selected,
+        }
+    return {"reasoning_effort": selected}
 
 
 def compatibility_limits(timeout_seconds: float | None, context_chars: int | None) -> tuple[float, int]:

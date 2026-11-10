@@ -53,7 +53,7 @@ def create_router(deps: NamespaceProvider, current_admin) -> RouterBundle:
                 request.provider,
                 request.provider_model,
                 request.base_url,
-                request.capabilities.model_dump(),
+                request.capabilities.model_dump(exclude_none=True),
                 admin_user,
             )
         except ValueError as exc:
@@ -104,7 +104,7 @@ def create_router(deps: NamespaceProvider, current_admin) -> RouterBundle:
     ) -> dict:
         runtime = deps()
         try:
-            model = runtime["update_model_capabilities"](model_id, request.model_dump())
+            model = runtime["update_model_capabilities"](model_id, request.model_dump(exclude_none=True))
         except ValueError as exc:
             raise runtime["http_problem"](
                 400, "MODEL_CAPABILITIES_UPDATE_FAILED", str(exc), False

@@ -27,9 +27,12 @@ def _coordinator_dependencies():
 async def _run_agent_impl(
     question: str, history: list[dict] | None, run_id: str,
     progress=None, thinking: bool = False,
+    thinking_effort: str = "off", thinking_dialect: str = "",
 ) -> dict:
     return await coordinate_agent_run(
-        AgentRunRequest(question, history, run_id, thinking),
+        AgentRunRequest(
+            question, history, run_id, thinking, thinking_effort, thinking_dialect
+        ),
         progress, deps=_coordinator_dependencies(),
     )
 
@@ -39,6 +42,8 @@ async def run_agent(
     progress: ProgressCallback | None = None,
     *,
     thinking: bool = False,
+    thinking_effort: str = "off",
+    thinking_dialect: str = "",
     session_id: str | None = None,
     user_message_id: int | None = None,
 ) -> dict:
@@ -60,7 +65,13 @@ async def run_agent(
         history_messages=len(history or []),
         session_id=session_id,
         user_message_id=user_message_id,
-        thinking_policy={"requested": thinking, "context_effective": False, "answer_effective": False},
+        thinking_policy={
+            "requested": thinking,
+            "reasoning_effort": thinking_effort,
+            "dialect": thinking_dialect,
+            "context_effective": False,
+            "answer_effective": False,
+        },
         full_content={"question": question, "history": history or []},
     )
     await tracked_progress({"event": "run_started", "run_id": run_id, "message": "分析任务已创建"})
@@ -71,9 +82,13 @@ async def run_agent(
             run_id,
             tracked_progress,
             thinking,
+            thinking_effort,
+            thinking_dialect,
         )
         result.setdefault("thinking_policy", {
             "requested": thinking,
+            "reasoning_effort": thinking_effort,
+            "dialect": thinking_dialect,
             "context_effective": False,
             "answer_effective": False,
         })

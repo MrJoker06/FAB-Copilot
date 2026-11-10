@@ -168,19 +168,51 @@ async function loadModels() {
   catch (error) { if (error.status === 401 || error.status === 503) showAuth(error.message); else showNotice('#modelNotice', error.message, true); throw error; }
 }
 
+function thinkingFormValues(prefix, enabled) {
+  const optionNames = ['low', 'medium', 'high', 'xhigh'];
+  const cap = value => value.charAt(0).toUpperCase() + value.slice(1);
+  return {
+    thinking_effort: enabled ? ($(`#${prefix}ThinkingEffort`).value || 'off') : 'off',
+    thinking_effort_options: enabled ? optionNames.filter(value => $(`#${prefix}Thinking${cap(value)}`).checked) : [],
+    reasoning_dialect: enabled ? ($(`#${prefix}ReasoningDialect`).value || '') : '',
+  };
+}
+
+function fillThinkingFields(prefix, capabilities = {}) {
+  const optionNames = ['low', 'medium', 'high', 'xhigh'];
+  const cap = value => value.charAt(0).toUpperCase() + value.slice(1);
+  const thinking = capabilities.thinking === true;
+  const effort = capabilities.thinking_effort || (thinking ? 'xhigh' : 'off');
+  const options = Array.isArray(capabilities.thinking_effort_options) ? capabilities.thinking_effort_options : (thinking ? ['low', 'medium', 'xhigh'] : []);
+  $(`#${prefix}ThinkingEffort`).value = effort;
+  $(`#${prefix}ReasoningDialect`).value = capabilities.reasoning_dialect || '';
+  optionNames.forEach(value => { $(`#${prefix}Thinking${cap(value)}`).checked = options.includes(value); });
+}
+
+function resetPublishThinking() {
+  $('#publishThinkingEffort').value = 'off';
+  $('#publishReasoningDialect').value = '';
+  ['Low', 'Medium', 'High'].forEach(name => { $(`#publishThinking${name}`).checked = true; });
+  $('#publishThinkingXhigh').checked = false;
+}
+
 async function publishModel(event) {
   event.preventDefault();
   const button = $('#confirmPublishModel'); button.disabled = true;
   $('#publishModelMessage').hidden = true;
+  const thinking = $('#publishThinking').checked;
   const payload = {
     model_id: $('#publishModelId').value.trim(), display_name: $('#publishDisplayName').value.trim(),
     provider: $('#publishProvider').value, provider_model: $('#publishProviderModel').value.trim(),
     base_url: $('#publishBaseUrl').value.trim(),
-    capabilities: FabModelCapabilities.publishPayload({streaming: $('#publishStreaming').checked, tool_calls: $('#publishToolCalls').checked, thinking: $('#publishThinking').checked, native_multimodal: $('#publishNativeMultimodal').checked}),
+    capabilities: {
+      ...FabModelCapabilities.publishPayload({streaming: $('#publishStreaming').checked, tool_calls: $('#publishToolCalls').checked, thinking, native_multimodal: $('#publishNativeMultimodal').checked}),
+      ...thinkingFormValues('publish', thinking),
+    },
   };
   try {
     await adminApi('/api/admin/models', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-    $('#publishModelDialog').close(); $('#publishModelForm').reset(); $('#publishBaseUrl').value = 'https://api.deepseek.com'; $('#publishStreaming').checked = true; $('#publishToolCalls').checked = true; $('#publishThinking').checked = false; $('#publishNativeMultimodal').checked = false;
+    $('#publishModelDialog').close(); $('#publishModelForm').reset(); $('#publishBaseUrl').value = 'https://api.deepseek.com'; $('#publishStreaming').checked = true; $('#publishToolCalls').checked = true; $('#publishThinking').checked = false; $('#publishNativeMultimodal').checked = false; resetPublishThinking();
     await loadModels(); showToast(`模型 ${payload.display_name} 已发布（尚未验证）`);
   } catch (error) { $('#publishModelMessage').textContent = error.message; $('#publishModelMessage').hidden = false; }
   finally { button.disabled = false; }
@@ -199,13 +231,20 @@ function openCapabilities(modelId) {
   $('#editCapabilitiesModelId').value = modelId;
   $('#editCapabilitiesTitle').textContent = `编辑能力：${model.display_name}`;
   ['Streaming','ToolCalls','Thinking','NativeMultimodal'].forEach(name => { $(`#edit${name}`).checked = !!model.capabilities?.[{Streaming:'streaming',ToolCalls:'tool_calls',Thinking:'thinking',NativeMultimodal:'native_multimodal'}[name]]; });
+  fillThinkingFields('edit', {
+    ...(model.capabilities || {}),
+    thinking_effort: model.thinking?.effort || model.capabilities?.thinking_effort,
+    thinking_effort_options: model.thinking?.options || model.capabilities?.thinking_effort_options,
+    reasoning_dialect: model.thinking?.dialect || model.capabilities?.reasoning_dialect,
+  });
   $('#editCapabilitiesMessage').hidden = true; $('#editCapabilitiesDialog').showModal();
 }
 
 async function saveCapabilities(event) {
   event.preventDefault(); const button = $('#confirmCapabilities'); button.disabled = true;
   const modelId = $('#editCapabilitiesModelId').value;
-  const payload = {streaming:$('#editStreaming').checked, tool_calls:$('#editToolCalls').checked, thinking:$('#editThinking').checked, native_multimodal:$('#editNativeMultimodal').checked};
+  const thinking = $('#editThinking').checked;
+  const payload = {streaming:$('#editStreaming').checked, tool_calls:$('#editToolCalls').checked, thinking, native_multimodal:$('#editNativeMultimodal').checked, ...thinkingFormValues('edit', thinking)};
   try { await adminApi(`/api/admin/models/${encodeURIComponent(modelId)}/capabilities`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)}); $('#editCapabilitiesDialog').close(); await loadModels(); showToast('能力声明已保存，兼容性状态已失效'); }
   catch (error) { $('#editCapabilitiesMessage').textContent = error.message; $('#editCapabilitiesMessage').hidden = false; }
   finally { button.disabled = false; }

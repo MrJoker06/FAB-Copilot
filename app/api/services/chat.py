@@ -53,14 +53,41 @@ class ChatService:
         runtime = self._deps()
         principal = runtime["current_principal"]()
         config = runtime["public_user_model_config"](principal)
-        if request.thinking and not config["capabilities"].get("thinking", False):
+        thinking = config.get("thinking") if isinstance(config.get("thinking"), dict) else {}
+        options = list(thinking.get("options") or [])
+        selected_effort = request.thinking_effort
+        if selected_effort is None:
+            if not request.thinking:
+                selected_effort = "off"
+            else:
+                configured = str(thinking.get("effort") or "off")
+                # An explicit "thinking": true must not silently become "off"
+                # merely because the model's default happens to be off.
+                selected_effort = (
+                    configured
+                    if configured != "off" and configured in options
+                    else (options[0] if options else "high")
+                )
+        if selected_effort != "off" and selected_effort not in options:
+            raise runtime["http_problem"](
+                400,
+                "MODEL_CAPABILITY_UNSUPPORTED",
+                "当前模型不支持该思考档位",
+                False,
+            )
+        if selected_effort != "off" and not config["capabilities"].get("thinking", False):
             raise runtime["http_problem"](
                 400,
                 "MODEL_CAPABILITY_UNSUPPORTED",
                 "当前模型不支持 Thinking 请求",
                 False,
             )
-        return principal, config["model"]
+        return (
+            principal,
+            config["model"],
+            selected_effort,
+            str(thinking.get("dialect") or ""),
+        )
 
     def model_status_error(self, exc: httpx.HTTPStatusError):
         status_code = exc.response.status_code
@@ -75,9 +102,12 @@ class ChatService:
 
     async def chat(self, request):
         runtime = self._deps()
-        principal, selected_model = runtime["_validate_chat_model_capabilities"](
-            request
-        )
+        validated = runtime["_validate_chat_model_capabilities"](request)
+        if len(validated) == 2:
+            principal, selected_model = validated
+            thinking_effort, thinking_dialect = "off", ""
+        else:
+            principal, selected_model, thinking_effort, thinking_dialect = validated
         session_id, history, cached, user_message = runtime["_prepare_chat"](request)
         if cached:
             cached["session_id"] = session_id
@@ -97,7 +127,9 @@ class ChatService:
                 request.message,
                 history or [item.model_dump() for item in request.history],
                 recorder.observe,
-                thinking=request.thinking,
+                thinking=thinking_effort != "off",
+                thinking_effort=thinking_effort,
+                thinking_dialect=thinking_dialect,
                 session_id=session_id,
                 user_message_id=user_message["message_id"] if user_message else None,
             )

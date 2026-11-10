@@ -12426,7 +12426,7 @@
      "response_id": "r-text",
      "status": "success",
      "stream_duration_ms": null,
-     "thinking_effective": true,
+     "thinking_effective": false,
      "thinking_requested": true,
      "total_tokens": 5
     },
@@ -12503,7 +12503,7 @@
      "repair_events": null
     },
     "thinking_policy": {
-     "answer_effective": true,
+     "answer_effective": false,
      "requested": true
     }
    }
