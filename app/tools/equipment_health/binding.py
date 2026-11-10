@@ -5,18 +5,19 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import date
 
-from ...agent_runtime.tools.contracts import ToolExecutionContext, ToolScope
-from ...agent_runtime.tools.definition import (
+from app.agent_runtime.tools.contracts import ToolExecutionContext, ToolScope
+from app.agent_runtime.tools.definition import (
     ToolBinding,
     ToolDefinition,
     ToolPreparation,
 )
-from .contracts import (
+from app.tools.equipment_health.contracts import (
+    EQUIPMENT_HEALTH_OUTPUT_SCHEMA,
     EquipmentHealthInput,
     EquipmentHealthPort,
     validate_equipment_health_output,
 )
-from .handler import EquipmentHealthDependencies, equipment_health_handler
+from app.tools.equipment_health.handler import EquipmentHealthDependencies, equipment_health_handler
 
 EQUIPMENT_HEALTH_DEFINITION = ToolDefinition(
     name="get_equipment_health",
@@ -24,6 +25,8 @@ EQUIPMENT_HEALTH_DEFINITION = ToolDefinition(
     description="查询设备运行数、异常数、缺陷密度、停机和健康状态，可按站点或设备过滤",
     input_model=EquipmentHealthInput,
     output_validator=validate_equipment_health_output,
+    title="设备健康",
+    output_schema=EQUIPMENT_HEALTH_OUTPUT_SCHEMA,
 )
 
 

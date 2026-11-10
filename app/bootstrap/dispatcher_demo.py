@@ -17,11 +17,11 @@ from ..agent_runtime.tools.contracts import ToolExecutionContext, ToolExecutionL
 from ..agent_runtime.tools.dispatch_policy import DemoToolPolicy
 from ..agent_runtime.tools.dispatcher import ToolDispatcher
 from ..agent_runtime.tools.tool_registry import ToolRegistry
-from ..integrations.manufacturing.fake_equipment_health import (
+from app.demo_data.tool_sources.equipment_health import (
     FakeEquipmentHealthAdapter,
 )
-from ..manufacturing.equipment_health.binding import create_equipment_health_binding
-from ..manufacturing.equipment_health.contracts import (
+from app.tools.equipment_health.binding import create_equipment_health_binding
+from app.tools.equipment_health.contracts import (
     EquipmentHealthAggregate,
     EquipmentHealthInput,
     EquipmentHealthInputError,
@@ -114,7 +114,7 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
     ):
         return {"error": "SQLite adapter requires both database paths."}
     if args.adapter == "sqlite":
-        from ..integrations.manufacturing.sqlite_equipment_health import (
+        from app.tools.equipment_health.data_source import (
             SQLiteEquipmentHealthAdapter,
         )
 

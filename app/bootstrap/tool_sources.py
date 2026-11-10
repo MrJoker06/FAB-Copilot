@@ -23,9 +23,9 @@ from ..manufacturing.enterprise_tools.contracts import (
     EnterpriseDataPort,
     EnterpriseWindow,
 )
-from ..manufacturing.equipment_health.binding import create_equipment_health_binding
-from ..manufacturing.equipment_health.contracts import EquipmentHealthPort
-from ..manufacturing.equipment_health.summary import (
+from app.tools.equipment_health.binding import create_equipment_health_binding
+from app.tools.equipment_health.contracts import EquipmentHealthPort
+from app.tools.equipment_health.summary import (
     create_equipment_health_summary_binding,
 )
 from ..manufacturing.named_queries.binding import create_named_query_bindings

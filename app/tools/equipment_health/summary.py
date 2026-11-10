@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import date
 
-from ...agent_runtime.tools.contracts import ToolExecutionContext, ToolResult
-from ...agent_runtime.tools.definition import ToolBinding, ToolDefinition
-from .binding import prepare_equipment_health
-from .contracts import EquipmentHealthInput, EquipmentHealthPort
-from .handler import EquipmentHealthDependencies, equipment_health_handler
+from app.agent_runtime.tools.contracts import ToolExecutionContext, ToolResult
+from app.agent_runtime.tools.definition import ToolBinding, ToolDefinition
+from app.tools.equipment_health.binding import prepare_equipment_health
+from app.tools.equipment_health.contracts import EquipmentHealthInput, EquipmentHealthPort
+from app.tools.equipment_health.handler import EquipmentHealthDependencies, equipment_health_handler
 
 
 def _validate_summary(value: object) -> object:
@@ -37,6 +37,13 @@ EQUIPMENT_HEALTH_SUMMARY_DEFINITION = ToolDefinition(
     "汇总设备健康等级数量；需由显式装配启用",
     EquipmentHealthInput,
     _validate_summary,
+    title="设备健康汇总",
+    output_schema={
+        "type": "object",
+        "properties": {name: {"type": "integer", "minimum": 0} for name in ("equipment_count", "critical", "watch", "healthy")},
+        "required": ["equipment_count", "critical", "watch", "healthy"],
+        "additionalProperties": False,
+    },
 )
 
 

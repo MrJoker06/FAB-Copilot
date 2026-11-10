@@ -13,6 +13,8 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+from jsonschema import Draft202012Validator
+
 from app.agent_runtime.tools.contracts import (
     ToolExecutionContext,
     ToolScope,
@@ -21,17 +23,17 @@ from app.agent_runtime.tools.contracts import (
 )
 from app.agent_runtime.tools.definition import ToolDefinition
 from app.core.sqlite_support import install_sqlite_functions
-from app.integrations.manufacturing.fake_equipment_health import (
+from app.demo_data.tool_sources.equipment_health import (
     FakeEquipmentHealthAdapter,
 )
-from app.integrations.manufacturing.sqlite_equipment_health import (
+from app.tools.equipment_health.data_source import (
     SQLiteEquipmentHealthAdapter,
 )
-from app.manufacturing.equipment_health.binding import (
+from app.tools.equipment_health.binding import (
     EQUIPMENT_HEALTH_DEFINITION,
     create_equipment_health_binding,
 )
-from app.manufacturing.equipment_health.contracts import (
+from app.tools.equipment_health.contracts import (
     EquipmentHealthAggregate,
     EquipmentHealthDataError,
     EquipmentHealthInput,
@@ -67,9 +69,11 @@ class EquipmentHealthToolTests(unittest.TestCase):
 
     def call(self, binding, arguments=None):
         value = binding.definition.parse(arguments or {})
-        return binding.handler(
+        result = binding.handler(
             value, ToolExecutionContext(Principal(), "r", "c", binding.dependencies)
         )
+        Draft202012Validator(binding.definition.output_schema).validate(result.data)
+        return result
 
     def test_schema_exactly_matches_legacy_catalog_entry(self):
         from app.agent_runtime.tools.catalog import TOOLS

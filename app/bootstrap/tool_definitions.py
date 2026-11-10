@@ -8,7 +8,7 @@ from ..manufacturing.enterprise_tools.binding import (
     ENTERPRISE_SAMPLE_DEFINITION,
     ENTERPRISE_SUMMARY_DEFINITION,
 )
-from ..manufacturing.equipment_health.binding import EQUIPMENT_HEALTH_DEFINITION
+from app.tools.equipment_health.binding import EQUIPMENT_HEALTH_DEFINITION
 from ..manufacturing.named_queries.binding import NAMED_QUERY_DEFINITIONS
 from ..manufacturing.operational_reports.binding import (
     DEFECT_PARETO_DEFINITION,

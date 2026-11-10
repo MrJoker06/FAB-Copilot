@@ -8,13 +8,13 @@ from datetime import date, datetime, timedelta
 from math import isfinite
 from typing import Protocol
 
-from ...agent_runtime.tools.contracts import ToolPrincipal, ToolSource
-from ...agent_runtime.tools.dispatch_contracts import (
+from app.agent_runtime.tools.contracts import ToolPrincipal, ToolSource
+from app.agent_runtime.tools.dispatch_contracts import (
     ToolDataSourceError,
     ToolInputError,
     ToolSourceTimeout,
 )
-from ..processes import MANUFACTURING_STEPS
+from app.manufacturing.processes import MANUFACTURING_STEPS
 
 
 class EquipmentHealthInputError(ToolInputError):
@@ -204,6 +204,26 @@ class EquipmentHealthPort(Protocol):
     def fetch(
         self, query: EquipmentHealthQuery, principal: ToolPrincipal
     ) -> EquipmentHealthSnapshot: ...
+
+
+EQUIPMENT_HEALTH_OUTPUT_SCHEMA = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "equipment_id": {"type": "string", "minLength": 1},
+            "runs": {"type": "integer", "minimum": 0},
+            "excursions": {"type": "integer", "minimum": 0},
+            "avg_defect_density": {"type": "number", "minimum": 0},
+            "pass_pct": {"type": "number", "minimum": 0, "maximum": 100},
+            "events": {"type": "integer", "minimum": 0},
+            "downtime_minutes": {"type": "number", "minimum": 0},
+            "health": {"enum": ["Critical", "Watch", "Healthy"]},
+        },
+        "required": ["equipment_id", "runs", "excursions", "avg_defect_density", "pass_pct", "events", "downtime_minutes", "health"],
+        "additionalProperties": False,
+    },
+}
 
 
 def validate_equipment_health_output(value: object) -> object:

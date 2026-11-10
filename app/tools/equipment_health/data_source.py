@@ -6,14 +6,14 @@ import sqlite3
 import time
 from pathlib import Path
 
-from ...core.sqlite_support import install_sqlite_functions
-from ...agent_runtime.tools.contracts import (
+from app.core.sqlite_support import install_sqlite_functions
+from app.agent_runtime.tools.contracts import (
     ToolPrincipal,
     ToolScope,
     ToolSource,
     ToolSourceKind,
 )
-from ...manufacturing.equipment_health.contracts import (
+from app.tools.equipment_health.contracts import (
     EquipmentHealthAggregate,
     EquipmentHealthDataError,
     EquipmentHealthQuery,

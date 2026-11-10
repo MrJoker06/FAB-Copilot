@@ -39,14 +39,14 @@ from app.agent_runtime.tools.tool_registry import ToolRegistry
 from app.bootstrap import ready_demo
 from app.bootstrap.agent_assembly import AssemblyError
 from app.bootstrap.ready_assembly import bind_ready_dispatcher
-from app.integrations.manufacturing.fake_equipment_health import (
+from app.demo_data.tool_sources.equipment_health import (
     FakeEquipmentHealthAdapter,
 )
-from app.integrations.manufacturing.sqlite_equipment_health import (
+from app.tools.equipment_health.data_source import (
     SQLiteEquipmentHealthAdapter,
 )
-from app.manufacturing.equipment_health.binding import create_equipment_health_binding
-from app.manufacturing.equipment_health.contracts import (
+from app.tools.equipment_health.binding import create_equipment_health_binding
+from app.tools.equipment_health.contracts import (
     EquipmentHealthAggregate,
     EquipmentHealthQuery,
 )

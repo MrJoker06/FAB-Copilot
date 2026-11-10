@@ -27,10 +27,10 @@ from ..agent_runtime.execution.runtime_contracts import (
 from ..agent_runtime.execution.tool_budget import LoopGuardToolBudget
 from ..agent_runtime.tools.contracts import ToolExecutionLimits
 from ..agent_runtime.tools.dispatch_policy import DemoToolPolicy
-from ..integrations.manufacturing.fake_equipment_health import (
+from app.demo_data.tool_sources.equipment_health import (
     FakeEquipmentHealthAdapter,
 )
-from ..integrations.manufacturing.sqlite_equipment_health import (
+from app.tools.equipment_health.data_source import (
     SQLiteEquipmentHealthAdapter,
 )
 from ..integrations.manufacturing.sqlite_named_queries import SQLiteNamedQueryAdapter
@@ -45,7 +45,7 @@ from ..integrations.manufacturing.sqlite_production_reports import (
 )
 from ..knowledge.search_tool.contracts import KnowledgeSearchInput
 from ..manufacturing.enterprise_tools.contracts import EnterpriseWindow
-from ..manufacturing.equipment_health.contracts import (
+from app.tools.equipment_health.contracts import (
     EquipmentHealthAggregate,
     EquipmentHealthQuery,
 )

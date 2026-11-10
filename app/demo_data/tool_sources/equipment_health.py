@@ -6,13 +6,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from ...agent_runtime.tools.contracts import (
+from app.agent_runtime.tools.contracts import (
     ToolPrincipal,
     ToolScope,
     ToolSource,
     ToolSourceKind,
 )
-from ...manufacturing.equipment_health.contracts import (
+from app.tools.equipment_health.contracts import (
     EquipmentHealthAggregate,
     EquipmentHealthDataError,
     EquipmentHealthQuery,
@@ -62,7 +62,7 @@ def demo_fake_adapter(
     *, demo_tenant_id: str, as_of: date
 ) -> FakeEquipmentHealthAdapter:
     """A visibly synthetic row used only by the standalone demo CLI."""
-    from ...manufacturing.equipment_health.contracts import EquipmentHealthQuery
+    from app.tools.equipment_health.contracts import EquipmentHealthQuery
 
     query = EquipmentHealthQuery(as_of - timedelta(days=89), as_of)
     return FakeEquipmentHealthAdapter(

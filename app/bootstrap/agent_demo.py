@@ -24,7 +24,7 @@ from ..agent_runtime.execution.tool_budget import LoopGuardToolBudget
 from ..agent_runtime.execution.tool_result_bridge import project_tool_result
 from ..agent_runtime.tools.contracts import ToolExecutionLimits, ToolStatus
 from ..agent_runtime.tools.dispatch_policy import DemoToolPolicy
-from ..manufacturing.equipment_health.binding import create_equipment_health_binding
+from app.tools.equipment_health.binding import create_equipment_health_binding
 from .agent_assembly import AssemblyError, assemble_agent
 from .dispatcher_demo import _fake, _parser, _plan
 
@@ -81,7 +81,7 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
     ):
         return {"error": "SQLite adapter requires both database paths."}
     if args.adapter == "sqlite":
-        from ..integrations.manufacturing.sqlite_equipment_health import (
+        from app.tools.equipment_health.data_source import (
             SQLiteEquipmentHealthAdapter,
         )
 

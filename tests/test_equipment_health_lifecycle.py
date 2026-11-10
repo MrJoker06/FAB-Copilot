@@ -8,10 +8,10 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
-from app.integrations.manufacturing.sqlite_equipment_health import (
+from app.tools.equipment_health.data_source import (
     SQLiteEquipmentHealthAdapter,
 )
-from app.manufacturing.equipment_health.contracts import (
+from app.tools.equipment_health.contracts import (
     EquipmentHealthDataError,
     EquipmentHealthQuery,
 )
@@ -115,12 +115,12 @@ class LifecycleTests(unittest.TestCase):
 
             monotonic = [0.0, 100.0] if failure == "timeout" else None
             with patch(
-                "app.integrations.manufacturing.sqlite_equipment_health.sqlite3.connect",
+                "app.tools.equipment_health.data_source.sqlite3.connect",
                 connect,
             ):
                 timer = (
                     patch(
-                        "app.integrations.manufacturing.sqlite_equipment_health.time.monotonic",
+                        "app.tools.equipment_health.data_source.time.monotonic",
                         side_effect=monotonic,
                     )
                     if monotonic
@@ -167,7 +167,7 @@ class LifecycleTests(unittest.TestCase):
 
         with (
             patch(
-                "app.integrations.manufacturing.sqlite_equipment_health.sqlite3.connect",
+                "app.tools.equipment_health.data_source.sqlite3.connect",
                 connect,
             ),
             self.assertRaises(EquipmentHealthDataError),

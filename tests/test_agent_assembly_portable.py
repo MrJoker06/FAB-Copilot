@@ -98,8 +98,8 @@ from app.agent_runtime.execution.tool_budget import LoopGuardToolBudget
 from app.agent_runtime.tools.contracts import ToolExecutionLimits, ToolStatus
 from app.agent_runtime.tools.dispatch_policy import DemoToolPolicy
 from app.bootstrap.agent_assembly import assemble_agent
-from app.integrations.manufacturing.fake_equipment_health import demo_fake_adapter
-from app.manufacturing.equipment_health.binding import create_equipment_health_binding
+from app.demo_data.tool_sources.equipment_health import demo_fake_adapter
+from app.tools.equipment_health.binding import create_equipment_health_binding
 from app.planning_runtime.contracts import AnalysisScopeContract, ExecutionPlan, PlanBudget
 
 class Principal:

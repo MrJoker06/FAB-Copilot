@@ -488,17 +488,17 @@
       "artifact_group": "application_bundle"
     },
     {
+      "path": "app/bootstrap/legacy_agent_assembly.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
       "path": "app/bootstrap/litho_cpk_demo.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"
     },
     {
       "path": "app/bootstrap/litho_cpk_workflow.py",
-      "primary_module": "application_bootstrap",
-      "artifact_group": "application_bundle"
-    },
-    {
-      "path": "app/bootstrap/legacy_agent_assembly.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"
     },
@@ -598,6 +598,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/core/call_scope.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/core/identity.py",
       "primary_module": "integrations",
       "artifact_group": "enterprise_adapters"
@@ -635,16 +640,6 @@
       "exit_task": "MOD-027"
     },
     {
-      "path": "app/core/call_scope.py",
-      "primary_module": "core_contracts_configuration",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/core/tool_result_projection.py",
-      "primary_module": "core_contracts_configuration",
-      "artifact_group": "platform_core"
-    },
-    {
       "path": "app/core/sqlite_support.py",
       "primary_module": "core_contracts_configuration",
       "artifact_group": "platform_core"
@@ -655,17 +650,37 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/core/tool_result_projection.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/demo_data/__init__.py",
+      "primary_module": "simulation",
+      "artifact_group": "simulation_fixtures"
+    },
+    {
+      "path": "app/demo_data/tool_sources/__init__.py",
+      "primary_module": "simulation",
+      "artifact_group": "simulation_fixtures"
+    },
+    {
+      "path": "app/demo_data/tool_sources/equipment_health.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
       "path": "app/evidence/__init__.py",
       "primary_module": "evidence",
       "artifact_group": "platform_core"
     },
     {
-      "path": "app/evidence/evidence_truncation.py",
+      "path": "app/evidence/answer_synthesizer.py",
       "primary_module": "evidence",
       "artifact_group": "platform_core"
     },
     {
-      "path": "app/evidence/answer_synthesizer.py",
+      "path": "app/evidence/evidence_truncation.py",
       "primary_module": "evidence",
       "artifact_group": "platform_core"
     },
@@ -725,11 +740,6 @@
       "artifact_group": "enterprise_adapters"
     },
     {
-      "path": "app/integrations/manufacturing/fake_equipment_health.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
       "path": "app/integrations/manufacturing/fake_named_queries.py",
       "primary_module": "integrations",
       "artifact_group": "enterprise_adapters"
@@ -751,11 +761,6 @@
     },
     {
       "path": "app/integrations/manufacturing/provider_enterprise_tools.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
-      "path": "app/integrations/manufacturing/sqlite_equipment_health.py",
       "primary_module": "integrations",
       "artifact_group": "enterprise_adapters"
     },
@@ -929,31 +934,6 @@
     },
     {
       "path": "app/manufacturing/enterprise_tools/handler.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/equipment_health/__init__.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/equipment_health/binding.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/equipment_health/contracts.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/equipment_health/handler.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/equipment_health/summary.py",
       "primary_module": "business_tools",
       "artifact_group": "manufacturing_capability"
     },
@@ -1276,6 +1256,66 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/skills/__init__.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/catalog.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/contracts.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/discovery.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/frontmatter.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/loader.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/manifest.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/package.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/releases.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/resources.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/standard.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/skills/versions.py",
+      "primary_module": "skills",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/static/admin.css",
       "primary_module": "static_ui",
       "artifact_group": "application_bundle"
@@ -1411,66 +1451,6 @@
       "artifact_group": "application_bundle"
     },
     {
-      "path": "app/skills/__init__.py",
-      "primary_module": "skills",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/skills/contracts.py",
-      "primary_module": "skills",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/skills/manifest.py",
-      "primary_module": "skills",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/skills/package.py",
-      "primary_module": "skills",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/skills/resources.py",
-      "primary_module": "skills",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/skills/standard.py",
-      "primary_module": "skills",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/skills/versions.py",
-      "primary_module": "skills",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/skills/catalog.py",
-      "primary_module": "skills",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/skills/discovery.py",
-      "primary_module": "skills",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/skills/frontmatter.py",
-      "primary_module": "skills",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/skills/loader.py",
-      "primary_module": "skills",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/skills/releases.py",
-      "primary_module": "skills",
-      "artifact_group": "platform_core"
-    },
-    {
       "path": "app/static/thinking_control.js",
       "primary_module": "static_ui",
       "artifact_group": "application_bundle"
@@ -1522,6 +1502,36 @@
     },
     {
       "path": "app/tools/capability_trend/tool.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/equipment_health/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/equipment_health/binding.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/equipment_health/contracts.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/equipment_health/data_source.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/tools/equipment_health/handler.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/equipment_health/summary.py",
       "primary_module": "business_tools",
       "artifact_group": "manufacturing_capability"
     }
@@ -2382,18 +2392,6 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
-      "source_file": "app/integrations/manufacturing/sqlite_equipment_health.py",
-      "imports": [
-        "sqlite3"
-      ],
-      "calls": [
-        "connection.execute",
-        "sqlite3.connect"
-      ],
-      "table_hints": [],
-      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
-    },
-    {
       "source_file": "app/integrations/manufacturing/sqlite_named_queries.py",
       "imports": [
         "sqlite3"
@@ -2676,6 +2674,18 @@
       ],
       "table_hints": [],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/tools/equipment_health/data_source.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "connection.execute",
+        "sqlite3.connect"
+      ],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     }
   ],
   "database_ledger": {
@@ -2766,7 +2776,7 @@
         "exit_task": "MOD-009 conformance (retain adapter)"
       },
       {
-        "source_file": "app/integrations/manufacturing/sqlite_equipment_health.py",
+        "source_file": "app/tools/equipment_health/data_source.py",
         "owner": "integrations",
         "classification": "business-read",
         "stores": "main.process_runs, equipment.equipment_events",

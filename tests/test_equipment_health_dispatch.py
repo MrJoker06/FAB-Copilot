@@ -20,14 +20,14 @@ from app.agent_runtime.tools.dispatch_contracts import (
 from app.agent_runtime.tools.dispatch_policy import DemoToolPolicy
 from app.agent_runtime.tools.dispatcher import ToolDispatcher
 from app.agent_runtime.tools.tool_registry import ToolRegistry
-from app.integrations.manufacturing.fake_equipment_health import (
+from app.demo_data.tool_sources.equipment_health import (
     FakeEquipmentHealthAdapter,
 )
-from app.integrations.manufacturing.sqlite_equipment_health import (
+from app.tools.equipment_health.data_source import (
     SQLiteEquipmentHealthAdapter,
 )
-from app.manufacturing.equipment_health.binding import create_equipment_health_binding
-from app.manufacturing.equipment_health.contracts import (
+from app.tools.equipment_health.binding import create_equipment_health_binding
+from app.tools.equipment_health.contracts import (
     EquipmentHealthDataError,
     EquipmentHealthInputError,
     EquipmentHealthQuery,
@@ -165,11 +165,11 @@ class EquipmentHealthDispatchTests(unittest.TestCase):
             )
             with (
                 patch(
-                    "app.integrations.manufacturing.sqlite_equipment_health.sqlite3.connect",
+                    "app.tools.equipment_health.data_source.sqlite3.connect",
                     connect,
                 ),
                 patch(
-                    "app.integrations.manufacturing.sqlite_equipment_health.time.monotonic",
+                    "app.tools.equipment_health.data_source.time.monotonic",
                     side_effect=(0.0, 1.0),
                 ),
                 self.assertRaises(EquipmentHealthTimeoutError),

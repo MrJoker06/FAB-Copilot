@@ -5,9 +5,7 @@
     "compatibility": "package anchor only; root business modules retired",
     "exit_condition": "app package anchor and app.main HTTP entry remain public",
     "consumers": {
-      "production": [
-        "app/main.py"
-      ],
+      "production": ["app/main.py"],
       "scripts": [
         "run.sh"
       ],
@@ -219,10 +217,10 @@
       "app.intent_runtime.rules",
       "app.planning_runtime.contracts",
       "app.manufacturing.processes",
-      "app.manufacturing.equipment_health.summary",
-      "app.manufacturing.equipment_health.contracts",
-      "app.manufacturing.equipment_health.handler",
-      "app.manufacturing.equipment_health.binding",
+      "app.tools.equipment_health.summary",
+      "app.tools.equipment_health.contracts",
+      "app.tools.equipment_health.handler",
+      "app.tools.equipment_health.binding",
       "app.manufacturing.process_diagnostics",
       "app.manufacturing.process_diagnostics.contracts",
       "app.manufacturing.process_diagnostics.handler",
@@ -514,15 +512,7 @@
     "main": {
       "target": "app.main",
       "consumers": {
-        "patches": [
-          "app/main.py",
-          "tests/system/test_http_contracts.py",
-          "tests/system/test_model_governance.py",
-          "tests/system/test_sessions_streaming.py",
-          "tests/test_api_runtime_boundaries.py",
-          "tests/test_module_boundaries.py",
-          "tests/test_personal_job_sse.py"
-        ],
+        "patches": ["app/main.py", "tests/system/test_http_contracts.py", "tests/system/test_model_governance.py", "tests/system/test_sessions_streaming.py", "tests/test_api_runtime_boundaries.py", "tests/test_module_boundaries.py", "tests/test_personal_job_sse.py"],
         "production": [],
         "scripts": [
           "scripts/refactor_contracts.py",

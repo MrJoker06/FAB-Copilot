@@ -6,10 +6,10 @@ from datetime import date, datetime, timedelta, timezone
 from app.agent_runtime.tools.contracts import ToolExecutionContext
 from app.bootstrap.tool_definitions import BUSINESS_TOOL_DEFINITIONS
 from app.bootstrap.tool_sources import ToolSources, create_tool_bindings
-from app.integrations.manufacturing.fake_equipment_health import (
+from app.demo_data.tool_sources.equipment_health import (
     FakeEquipmentHealthAdapter,
 )
-from app.manufacturing.equipment_health.contracts import (
+from app.tools.equipment_health.contracts import (
     EquipmentHealthAggregate,
     EquipmentHealthQuery,
 )

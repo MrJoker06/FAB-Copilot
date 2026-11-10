@@ -86,7 +86,7 @@ for name, module in list(sys.modules.items()):
         assert origin.relative_to(unit).as_posix() in allowed_files, origin
 assert not any(name in sys.modules for name in blocked)
 if '--adapter' not in sys.argv or 'fake' in sys.argv:
-    assert 'app.integrations.manufacturing.sqlite_equipment_health' not in sys.modules
+    assert 'app.tools.equipment_health.data_source' not in sys.modules
 sys.exit(code)
 """
         return subprocess.run(

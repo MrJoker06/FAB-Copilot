@@ -35,7 +35,7 @@ from ..manufacturing.enterprise_tools.binding import (
     create_enterprise_summary_binding,
 )
 from ..manufacturing.enterprise_tools.contracts import EnterpriseWindow
-from ..manufacturing.equipment_health.binding import create_equipment_health_binding
+from app.tools.equipment_health.binding import create_equipment_health_binding
 from ..manufacturing.named_queries.binding import create_named_query_bindings
 from ..manufacturing.operational_reports.binding import (
     create_defect_pareto_binding,
@@ -280,7 +280,7 @@ def build_default_run_tools(
     from ..integrations.manufacturing.provider_enterprise_tools import (
         ProviderEnterpriseToolsAdapter,
     )
-    from ..integrations.manufacturing.sqlite_equipment_health import (
+    from app.tools.equipment_health.data_source import (
         SQLiteEquipmentHealthAdapter,
     )
     from ..integrations.manufacturing.sqlite_named_queries import (

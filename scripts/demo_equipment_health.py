@@ -15,11 +15,11 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.agent_runtime.tools.contracts import ToolExecutionContext
-from app.integrations.manufacturing.fake_equipment_health import (
+from app.demo_data.tool_sources.equipment_health import (
     FakeEquipmentHealthAdapter,
 )
-from app.manufacturing.equipment_health.binding import create_equipment_health_binding
-from app.manufacturing.equipment_health.contracts import (
+from app.tools.equipment_health.binding import create_equipment_health_binding
+from app.tools.equipment_health.contracts import (
     EquipmentHealthAggregate,
     EquipmentHealthDataError,
     EquipmentHealthInput,
@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise EquipmentHealthInputError(
                     "sqlite adapter requires both database paths"
                 )
-            from app.integrations.manufacturing.sqlite_equipment_health import (
+            from app.tools.equipment_health.data_source import (
                 SQLiteEquipmentHealthAdapter,
             )
 

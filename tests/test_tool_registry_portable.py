@@ -53,8 +53,8 @@ for operation in (lambda: guarded('app.bootstrap'), lambda: os.environ.get('X'),
     else: raise AssertionError('negative control')
 from app.agent_runtime.tools.tool_registry import DEFAULT_TOOL_REGISTRY, ToolRegistry
 from app.agent_runtime.tools.contracts import ToolExecutionContext, ToolStatus
-from app.manufacturing.equipment_health.binding import create_equipment_health_binding
-from app.integrations.manufacturing.fake_equipment_health import demo_fake_adapter
+from app.tools.equipment_health.binding import create_equipment_health_binding
+from app.demo_data.tool_sources.equipment_health import demo_fake_adapter
 class Principal: tenant_id='tenant'; user_id='user'; roles=('analyst',)
 binding = create_equipment_health_binding(demo_fake_adapter(demo_tenant_id='tenant', as_of=date(2026,10,24)), today=lambda: date(2026,10,24))
 registry = ToolRegistry(); registry.register_native(binding)
