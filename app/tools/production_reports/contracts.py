@@ -8,13 +8,13 @@ from datetime import date, datetime, timedelta
 from math import isfinite
 from typing import Literal, Protocol
 
-from ...agent_runtime.tools.contracts import ToolPrincipal, ToolScope, ToolSource
-from ...agent_runtime.tools.dispatch_contracts import (
+from app.agent_runtime.tools.contracts import ToolPrincipal, ToolScope, ToolSource
+from app.agent_runtime.tools.dispatch_contracts import (
     ToolDataSourceError,
     ToolInputError,
     ToolSourceTimeout,
 )
-from ..processes import MANUFACTURING_STEPS
+from app.manufacturing.processes import MANUFACTURING_STEPS
 
 
 class ProductionReportInputError(ToolInputError):
@@ -314,6 +314,55 @@ def _number(value: object, name: str, *, nullable: bool = False) -> None:
 def _count(value: object, name: str) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ProductionReportDataError(f"invalid {name} from source")
+
+
+FAB_OVERVIEW_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "lots": {"type": "integer", "minimum": 0},
+        "excursions": {"type": "integer", "minimum": 0},
+        "held_lots": {"type": ["integer", "null"], "minimum": 0},
+        "wafers": {"type": ["integer", "null"], "minimum": 0},
+        "good_wafers": {"type": ["integer", "null"], "minimum": 0},
+        "yield_pct": {"type": ["number", "null"]},
+        "avg_cycle_hours": {"type": ["number", "null"]},
+        "avg_hold_hours": {"type": ["number", "null"]},
+        "start": {"type": "string", "format": "date"},
+        "end": {"type": "string", "format": "date"},
+    },
+    "required": ["lots", "excursions", "held_lots", "wafers", "good_wafers", "yield_pct", "avg_cycle_hours", "avg_hold_hours", "start", "end"],
+    "additionalProperties": False,
+}
+YIELD_TREND_OUTPUT_SCHEMA = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "period": {"type": "string"},
+            "week_start": {"type": "string", "format": "date"},
+            "lots": {"type": "integer", "minimum": 1},
+            "yield_pct": {"type": ["number", "null"]},
+            "cycle_hours": {"type": ["number", "null"]},
+        },
+        "required": ["period", "week_start", "lots", "yield_pct", "cycle_hours"],
+        "additionalProperties": False,
+    },
+}
+PROCESS_PASS_RATE_OUTPUT_SCHEMA = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "process_step": {"enum": list(MANUFACTURING_STEPS)},
+            "equipment_id": {"type": ["string", "null"]},
+            "runs": {"type": "integer", "minimum": 0},
+            "passed_runs": {"type": "integer", "minimum": 0},
+            "pass_pct": {"type": ["number", "null"]},
+        },
+        "required": ["process_step", "equipment_id", "runs", "passed_runs", "pass_pct"],
+        "additionalProperties": False,
+    },
+}
 
 
 def validate_fab_overview_output(value: object) -> object:

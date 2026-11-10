@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from ...agent_runtime.tools.contracts import ToolPrincipal, ToolSource, ToolSourceKind
-from ...manufacturing.production_reports.contracts import (
+from app.agent_runtime.tools.contracts import ToolPrincipal, ToolSource, ToolSourceKind
+from app.tools.production_reports.contracts import (
     ProductionReportDataError,
     ProductionReportQuery,
     ProductionReportSnapshot,

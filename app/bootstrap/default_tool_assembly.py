@@ -46,7 +46,7 @@ from app.tools.process_diagnostics.binding import (
     create_process_capability_binding,
     create_sensor_summary_binding,
 )
-from ..manufacturing.production_reports.binding import (
+from app.tools.production_reports.binding import (
     create_fab_overview_binding,
     create_process_pass_rate_binding,
     create_yield_trend_binding,
@@ -292,7 +292,7 @@ def build_default_run_tools(
     from app.tools.process_diagnostics.data_source import (
         SQLiteProcessDiagnosticsAdapter,
     )
-    from ..integrations.manufacturing.sqlite_production_reports import (
+    from app.tools.production_reports.data_source import (
         SQLiteProductionReportsAdapter,
     )
     from . import tool_bindings

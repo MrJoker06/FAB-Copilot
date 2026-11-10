@@ -303,10 +303,10 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/tools/process_diagnostics/contracts.py` | 纯 | 两种输入、冻结 Query、Snapshot、消费方 Port 和完整结果字段/范围校验。 |
 | `app/tools/process_diagnostics/handler.py` | 纯 | Cpk/传感器处理器，核对查询、来源 Scope 与行级过滤，生成 ToolResult。 |
 | `app/tools/process_diagnostics/binding.py` | 纯 | 两个 ToolDefinition 及显式绑定工厂，注入 today 并冻结有效查询。 |
-| `app/manufacturing/production_reports/__init__.py` | 包 | 生产报表包锚点，无默认注册副作用。 |
-| `app/manufacturing/production_reports/contracts.py` | 纯 | 三种结构化输入、固定 Query/Snapshot、消费方 Port、错误与结果字段契约。 |
-| `app/manufacturing/production_reports/handler.py` | 纯 | 调用 Port、核对查询和实际范围，生成对象或列表形式的 ToolResult；不执行 SQL。 |
-| `app/manufacturing/production_reports/binding.py` | 纯 | 三个 1.0.0 Definition/Binding 工厂；冻结日期和有效过滤条件。 |
+| `app/tools/production_reports/__init__.py` | 包 | 生产报表包锚点，无默认注册副作用。 |
+| `app/tools/production_reports/contracts.py` | 纯 | 三种结构化输入、固定 Query/Snapshot、消费方 Port、错误与结果字段契约。 |
+| `app/tools/production_reports/handler.py` | 纯 | 调用 Port、核对查询和实际范围，生成对象或列表形式的 ToolResult；不执行 SQL。 |
+| `app/tools/production_reports/binding.py` | 纯 | 三个 1.0.0 Definition/Binding 工厂；冻结日期和有效过滤条件。 |
 | `app/manufacturing/operational_reports/__init__.py` | 包 | 运行报表包锚点，无默认注册副作用。 |
 | `app/manufacturing/operational_reports/contracts.py` | 纯 | 三项业务输入、固定 Query/Snapshot、消费方 Port、有效范围与输出契约；不接受自由 SQL。 |
 | `app/manufacturing/operational_reports/handler.py` | 纯 | 核对来源与行级范围，区分生产率设备优先和异常联合筛选，产生 ToolResult。 |
@@ -325,8 +325,8 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/tools/equipment_health/data_source.py` | Adapter | 两个显式只读 SQLite 源的设备健康 Adapter。 |
 | `app/demo_data/tool_sources/process_diagnostics.py` | Adapter | 精确 DiagnosticsQuery 夹具、租户隔离与快照复制。 |
 | `app/tools/process_diagnostics/data_source.py` | Adapter | 两条固定参数化报表查询，按工具只开一个相关库，处理只读/期限/关闭及错误脱敏。 |
-| `app/integrations/manufacturing/fake_production_reports.py` | Adapter | 精确生产查询夹具、租户核对与返回值复制，来源明确标记 FAKE。 |
-| `app/integrations/manufacturing/sqlite_production_reports.py` | Adapter | 三类固定参数化生产报表，只访问显式制造库；只读、超时、连接释放和公开错误脱敏。 |
+| `app/demo_data/tool_sources/production_reports.py` | Adapter | 精确生产查询夹具、租户核对与返回值复制，来源明确标记 FAKE。 |
+| `app/tools/production_reports/data_source.py` | Adapter | 三类固定参数化生产报表，只访问显式制造库；只读、超时、连接释放和公开错误脱敏。 |
 | `app/integrations/manufacturing/fake_operational_reports.py` | Adapter | 运行报表的精确 Query 夹具、租户核对和独立复制结果；无隐式来源回退。 |
 | `app/integrations/manufacturing/sqlite_operational_reports.py` | Adapter | 固定生产率/Pareto/异常 SQL；每次只开一个相关设备/质量/制造库，保持窗口分母、舍入和过滤口径。 |
 | `app/integrations/manufacturing/fake_enterprise_tools.py` | Adapter | 按完整企业 Query 返回深复制的精确夹具，核对租户并明确标记 FAKE。 |

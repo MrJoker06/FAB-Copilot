@@ -10,13 +10,13 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from app.bootstrap import production_reports_demo
-from app.integrations.manufacturing.fake_production_reports import (
+from app.demo_data.tool_sources.production_reports import (
     FakeProductionReportsAdapter,
 )
-from app.integrations.manufacturing.sqlite_production_reports import (
+from app.tools.production_reports.data_source import (
     SQLiteProductionReportsAdapter,
 )
-from app.manufacturing.production_reports.contracts import ProductionReportDataError
+from app.tools.production_reports.contracts import ProductionReportDataError
 
 _OVERVIEW = "get_fab_overview"
 _YIELD = "get_yield_trend"

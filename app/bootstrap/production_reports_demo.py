@@ -27,18 +27,18 @@ from ..agent_runtime.execution.runtime_contracts import (
 from ..agent_runtime.execution.tool_budget import LoopGuardToolBudget
 from ..agent_runtime.tools.contracts import ToolExecutionLimits, ToolStatus
 from ..agent_runtime.tools.dispatch_policy import DemoToolPolicy
-from ..integrations.manufacturing.fake_production_reports import (
+from app.demo_data.tool_sources.production_reports import (
     FakeProductionReportsAdapter,
 )
-from ..integrations.manufacturing.sqlite_production_reports import (
+from app.tools.production_reports.data_source import (
     SQLiteProductionReportsAdapter,
 )
-from ..manufacturing.production_reports.binding import (
+from app.tools.production_reports.binding import (
     create_fab_overview_binding,
     create_process_pass_rate_binding,
     create_yield_trend_binding,
 )
-from ..manufacturing.production_reports.contracts import (
+from app.tools.production_reports.contracts import (
     FabOverviewInput,
     ProcessPassRateInput,
     ProductionReportInputError,

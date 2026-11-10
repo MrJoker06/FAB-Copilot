@@ -10,14 +10,14 @@ from unittest.mock import patch
 
 from app.agent_runtime.tools.contracts import ToolSourceKind
 from app.core.sqlite_support import install_sqlite_functions
-from app.integrations.manufacturing.fake_production_reports import (
+from app.demo_data.tool_sources.production_reports import (
     FakeProductionReportsAdapter,
 )
-from app.integrations.manufacturing.sqlite_production_reports import (
+from app.tools.production_reports.data_source import (
     SQLiteProductionReportsAdapter,
 )
 from app.manufacturing import reports
-from app.manufacturing.production_reports.contracts import (
+from app.tools.production_reports.contracts import (
     ProductionReportDataError,
     ProductionReportQuery,
     ProductionReportTimeoutError,
@@ -328,7 +328,7 @@ class ProductionReportAdapterTests(unittest.TestCase):
     ) -> None:
         query = ProductionReportQuery("overview", date(2026, 1, 1), date(2026, 1, 3))
         with patch(
-            "app.integrations.manufacturing.sqlite_production_reports.sqlite3.connect"
+            "app.tools.production_reports.data_source.sqlite3.connect"
         ) as connect:
             with self.assertRaisesRegex(ProductionReportDataError, "unavailable"):
                 self.adapter.fetch(
@@ -366,7 +366,7 @@ class ProductionReportAdapterTests(unittest.TestCase):
 
         query = ProductionReportQuery("overview", date(2026, 1, 1), date(2026, 1, 3))
         with patch(
-            "app.integrations.manufacturing.sqlite_production_reports.sqlite3.connect",
+            "app.tools.production_reports.data_source.sqlite3.connect",
             side_effect=connect,
         ):
             self.adapter.fetch(query, self.principal)
@@ -390,7 +390,7 @@ class ProductionReportAdapterTests(unittest.TestCase):
 
         with (
             patch(
-                "app.integrations.manufacturing.sqlite_production_reports.sqlite3.connect",
+                "app.tools.production_reports.data_source.sqlite3.connect",
                 side_effect=close_fail_connect,
             ),
             self.assertRaisesRegex(ProductionReportDataError, "unavailable") as error,
@@ -405,11 +405,11 @@ class ProductionReportAdapterTests(unittest.TestCase):
         )
         with (
             patch(
-                "app.integrations.manufacturing.sqlite_production_reports.sqlite3.connect",
+                "app.tools.production_reports.data_source.sqlite3.connect",
                 return_value=timeout,
             ),
             patch(
-                "app.integrations.manufacturing.sqlite_production_reports.time.monotonic",
+                "app.tools.production_reports.data_source.time.monotonic",
                 side_effect=(0.0, 1.0),
             ),
             self.assertRaises(ProductionReportTimeoutError),

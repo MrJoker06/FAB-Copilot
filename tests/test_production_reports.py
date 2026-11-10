@@ -8,7 +8,7 @@ from app.agent_runtime.tools.contracts import (
     ToolSource,
     ToolSourceKind,
 )
-from app.manufacturing.production_reports.contracts import (
+from app.tools.production_reports.contracts import (
     FabOverviewInput,
     ProcessPassRateInput,
     ProductionReportDataError,
@@ -20,7 +20,7 @@ from app.manufacturing.production_reports.contracts import (
     validate_process_pass_rate_output,
     validate_yield_trend_output,
 )
-from app.manufacturing.production_reports.handler import (
+from app.tools.production_reports.handler import (
     ProductionReportsDependencies,
     fab_overview_handler,
     process_pass_rate_handler,

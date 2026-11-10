@@ -64,6 +64,20 @@ python -m unittest tests.test_tool_output_schemas tests.test_process_diagnostics
 
 WSL repository、两端 module/modularization 边界及 WSL diff 检查通过，298 文件/0 错误；从起点重新导出后四类工具目录字节一致（`c2-catalog-*`）。过程中的切片计数失败来自重复添加包锚点，修正为实际唯一文件清单后通过，无业务行为修复。Playbook 证据规则不改。
 
+## c3：production_reports
+
+- `manufacturing/production_reports/{__init__,binding,contracts,handler}.py` → `app/tools/production_reports/`；SQLite 来源 → `data_source.py`；Fake → `app/demo_data/tool_sources/production_reports.py`。
+- 更新生产报表演示、默认/显式装配、定义集合、SQLite 对照测试与所有显式切片。原生处理器与查询原样迁移；新增总览、周良率、制程通过率的 title/output_schema，保留空统计的 NULL 语义。
+- 归属/切片清单仅更新路径；生产便携切片因 c1 包锚点净增变为 76 个唯一文件，未重录业务期望。MOD-024 本批成员与 Profile 数量不变。
+
+两平台各 27 项通过，命令：
+
+```text
+python -m unittest tests.test_tool_output_schemas tests.test_production_reports tests.test_production_reports_adapters tests.test_production_reports_runtime tests.test_production_reports_portable tests.test_tool_sources_portable
+```
+
+WSL repository、两端 module/modularization 边界及 diff 检查通过，298 文件/0 错误。已迁生产组旧路径扫描无残留；重新导出起点，四类目录字节一致（`c3-catalog-*`）。完整报表拆分对照仍留至 030d。
+
 ## 后续批次
 
-c3～c7 尚未完成；后续批次继续追加本报告。完整交付物、应用启动、Windows 全量及与起点失败集合对照，留至 030d/030e，不以本批定向结果替代。
+c4～c7 尚未完成；后续批次继续追加本报告。完整交付物、应用启动、Windows 全量及与起点失败集合对照，留至 030d/030e，不以本批定向结果替代。

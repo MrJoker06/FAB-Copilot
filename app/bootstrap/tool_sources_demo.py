@@ -40,7 +40,7 @@ from ..integrations.manufacturing.sqlite_operational_reports import (
 from app.tools.process_diagnostics.data_source import (
     SQLiteProcessDiagnosticsAdapter,
 )
-from ..integrations.manufacturing.sqlite_production_reports import (
+from app.tools.production_reports.data_source import (
     SQLiteProductionReportsAdapter,
 )
 from ..knowledge.search_tool.contracts import KnowledgeSearchInput

@@ -680,6 +680,11 @@
       "artifact_group": "enterprise_adapters"
     },
     {
+      "path": "app/demo_data/tool_sources/production_reports.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
       "path": "app/evidence/__init__.py",
       "primary_module": "evidence",
       "artifact_group": "platform_core"
@@ -760,11 +765,6 @@
       "artifact_group": "enterprise_adapters"
     },
     {
-      "path": "app/integrations/manufacturing/fake_production_reports.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
       "path": "app/integrations/manufacturing/provider_enterprise_tools.py",
       "primary_module": "integrations",
       "artifact_group": "enterprise_adapters"
@@ -776,11 +776,6 @@
     },
     {
       "path": "app/integrations/manufacturing/sqlite_operational_reports.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
-      "path": "app/integrations/manufacturing/sqlite_production_reports.py",
       "primary_module": "integrations",
       "artifact_group": "enterprise_adapters"
     },
@@ -991,26 +986,6 @@
       "path": "app/manufacturing/processes.py",
       "primary_module": "manufacturing_domain",
       "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/manufacturing/production_reports/__init__.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/production_reports/binding.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/production_reports/contracts.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/production_reports/handler.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
     },
     {
       "path": "app/manufacturing/reports.py",
@@ -1532,6 +1507,31 @@
     },
     {
       "path": "app/tools/process_diagnostics/handler.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/production_reports/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/production_reports/binding.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/production_reports/contracts.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/production_reports/data_source.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/tools/production_reports/handler.py",
       "primary_module": "business_tools",
       "artifact_group": "manufacturing_capability"
     }
@@ -2416,20 +2416,6 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
-      "source_file": "app/integrations/manufacturing/sqlite_production_reports.py",
-      "imports": [
-        "sqlite3"
-      ],
-      "calls": [
-        "connection.execute",
-        "sqlite3.connect"
-      ],
-      "table_hints": [
-        "process_runs"
-      ],
-      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
-    },
-    {
       "source_file": "app/knowledge/sqlite_backend.py",
       "imports": [
         "persistence.database.db_session"
@@ -2686,6 +2672,20 @@
       ],
       "table_hints": [],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/tools/production_reports/data_source.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "connection.execute",
+        "sqlite3.connect"
+      ],
+      "table_hints": [
+        "process_runs"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     }
   ],
   "database_ledger": {
@@ -2816,7 +2816,7 @@
         "exit_task": "MOD-030b (retain source)"
       },
       {
-        "source_file": "app/integrations/manufacturing/sqlite_production_reports.py",
+        "source_file": "app/tools/production_reports/data_source.py",
         "owner": "integrations",
         "classification": "business-read",
         "stores": "lots, process_runs",

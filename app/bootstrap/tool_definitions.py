@@ -19,7 +19,7 @@ from app.tools.process_diagnostics.binding import (
     PROCESS_CAPABILITY_DEFINITION,
     SENSOR_SUMMARY_DEFINITION,
 )
-from ..manufacturing.production_reports.binding import (
+from app.tools.production_reports.binding import (
     FAB_OVERVIEW_DEFINITION,
     PROCESS_PASS_RATE_DEFINITION,
     YIELD_TREND_DEFINITION,

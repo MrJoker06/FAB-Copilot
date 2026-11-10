@@ -41,12 +41,12 @@ from app.tools.process_diagnostics.binding import (
     create_sensor_summary_binding,
 )
 from app.tools.process_diagnostics.contracts import ProcessDiagnosticsPort
-from ..manufacturing.production_reports.binding import (
+from app.tools.production_reports.binding import (
     create_fab_overview_binding,
     create_process_pass_rate_binding,
     create_yield_trend_binding,
 )
-from ..manufacturing.production_reports.contracts import ProductionReportsPort
+from app.tools.production_reports.contracts import ProductionReportsPort
 
 
 @dataclass(frozen=True, slots=True)

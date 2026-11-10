@@ -22,12 +22,12 @@ from tests.test_process_diagnostics_portable import (
 )
 
 PRODUCTION_FILES = (
-    "app/manufacturing/production_reports/__init__.py",
-    "app/manufacturing/production_reports/contracts.py",
-    "app/manufacturing/production_reports/handler.py",
-    "app/manufacturing/production_reports/binding.py",
-    "app/integrations/manufacturing/fake_production_reports.py",
-    "app/integrations/manufacturing/sqlite_production_reports.py",
+    "app/tools/production_reports/__init__.py",
+    "app/tools/production_reports/contracts.py",
+    "app/tools/production_reports/handler.py",
+    "app/tools/production_reports/binding.py",
+    "app/demo_data/tool_sources/production_reports.py",
+    "app/tools/production_reports/data_source.py",
     "app/bootstrap/production_reports_demo.py",
 )
 
@@ -46,7 +46,7 @@ class ProductionReportsPortableTests(unittest.TestCase):
             + DIAGNOSTICS_FILES
             + PRODUCTION_FILES
         )
-        self.assertEqual((len(files), len(set(files))), (73, 73))
+        self.assertEqual((len(files), len(set(files))), (76, 76))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

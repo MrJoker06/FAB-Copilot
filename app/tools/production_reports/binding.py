@@ -5,13 +5,16 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import date
 
-from ...agent_runtime.tools.contracts import ToolExecutionContext
-from ...agent_runtime.tools.definition import (
+from app.agent_runtime.tools.contracts import ToolExecutionContext
+from app.agent_runtime.tools.definition import (
     ToolBinding,
     ToolDefinition,
     ToolPreparation,
 )
-from .contracts import (
+from app.tools.production_reports.contracts import (
+    FAB_OVERVIEW_OUTPUT_SCHEMA,
+    PROCESS_PASS_RATE_OUTPUT_SCHEMA,
+    YIELD_TREND_OUTPUT_SCHEMA,
     FabOverviewInput,
     ProcessPassRateInput,
     ProductionReportsPort,
@@ -21,7 +24,7 @@ from .contracts import (
     validate_process_pass_rate_output,
     validate_yield_trend_output,
 )
-from .handler import (
+from app.tools.production_reports.handler import (
     ProductionReportsDependencies,
     fab_overview_handler,
     process_pass_rate_handler,
@@ -34,6 +37,8 @@ FAB_OVERVIEW_DEFINITION = ToolDefinition(
     "查询工厂批次、晶圆、良率、周期、hold和异常总览",
     FabOverviewInput,
     validate_fab_overview_output,
+    title="工厂总览",
+    output_schema=FAB_OVERVIEW_OUTPUT_SCHEMA,
 )
 YIELD_TREND_DEFINITION = ToolDefinition(
     "get_yield_trend",
@@ -41,6 +46,8 @@ YIELD_TREND_DEFINITION = ToolDefinition(
     "按周查询良率和周期趋势，可按产品过滤",
     YieldTrendInput,
     validate_yield_trend_output,
+    title="良率趋势",
+    output_schema=YIELD_TREND_OUTPUT_SCHEMA,
 )
 PROCESS_PASS_RATE_DEFINITION = ToolDefinition(
     "get_process_pass_rate",
@@ -48,6 +55,8 @@ PROCESS_PASS_RATE_DEFINITION = ToolDefinition(
     "查询指定制程的运行通过率",
     ProcessPassRateInput,
     validate_process_pass_rate_output,
+    title="制程通过率",
+    output_schema=PROCESS_PASS_RATE_OUTPUT_SCHEMA,
 )
 
 
