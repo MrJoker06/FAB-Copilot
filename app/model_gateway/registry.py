@@ -106,6 +106,11 @@ def _decode_model(row) -> dict:
         item["config_source"] = "local_file"
     else:
         item["config_source"] = "database"
+    item["thinking"] = thinking_settings(
+        item["capabilities"],
+        provider=item.get("provider", ""),
+        provider_model=item.get("provider_model", ""),
+    )
     try:
         item["compatibility"] = json.loads(item.pop("compatibility_json", "{}") or "{}")
     except (TypeError, json.JSONDecodeError):

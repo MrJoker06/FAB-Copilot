@@ -239,6 +239,8 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             self.assertEqual(published.status_code, 201, published.text)
             self.assertEqual(published.json()["capabilities"]["thinking_effort"], "low")
             self.assertEqual(published.json()["capabilities"]["thinking_effort_options"], ["low", "xhigh"])
+            self.assertEqual(published.json()["thinking"]["effort"], "low")
+            self.assertEqual(published.json()["thinking"]["options"], ["low", "xhigh"])
 
             catalog = client.get("/api/settings/model", headers=user)
             option = next(item for item in catalog.json()["model_options"] if item["model_id"] == model_id)
@@ -277,6 +279,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             self.assertEqual(changed.status_code, 200, changed.text)
             self.assertEqual(changed.json()["capabilities"]["thinking_effort"], "medium")
             self.assertEqual(changed.json()["capabilities"]["thinking_effort_options"], ["medium"])
+            self.assertEqual(changed.json()["thinking"]["effort"], "medium")
 
             deleted = client.delete(f"/api/admin/models/{model_id}", headers=headers)
             self.assertEqual(deleted.status_code, 200, deleted.text)
