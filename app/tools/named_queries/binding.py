@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from datetime import date
 
-from ...agent_runtime.tools.contracts import ToolExecutionContext
-from ...agent_runtime.tools.definition import (
+from app.agent_runtime.tools.contracts import ToolExecutionContext
+from app.agent_runtime.tools.definition import (
     ToolBinding,
     ToolDefinition,
     ToolPreparation,
 )
-from .contracts import (
+from app.tools.named_queries.contracts import (
+    NAMED_QUERY_OUTPUT_SCHEMAS,
     TOOL_KINDS,
     EquipmentEventsInput,
     EquipmentExcursionsInput,
@@ -20,7 +21,7 @@ from .contracts import (
     named_query_scope,
     validate_named_query_output,
 )
-from .handler import NamedQueryDependencies, NamedQueryInput, named_query_handler
+from app.tools.named_queries.handler import NamedQueryDependencies, NamedQueryInput, named_query_handler
 
 _INPUTS = {
     "product_yield": ProductYieldInput,
@@ -47,6 +48,16 @@ _DESCRIPTIONS = {
     "get_lot_defect_history": "按批次号查询批次全部历史缺陷和处置记录，最多返回100行",
     "get_lot_wafer_map_patterns": "按批次号查询批次全部历史晶圆图模式，最多返回100行",
 }
+_TITLES = {
+    "get_product_yield_breakdown": "产品良率明细",
+    "get_equipment_event_timeline": "设备事件时间线",
+    "get_equipment_excursion_history": "设备异常历史",
+    "get_lot_identity": "批次身份",
+    "get_lot_process_history": "批次加工历史",
+    "get_lot_excursion_history": "批次异常历史",
+    "get_lot_defect_history": "批次缺陷历史",
+    "get_lot_wafer_map_patterns": "批次晶圆图模式",
+}
 NAMED_QUERY_DEFINITIONS = {
     name: ToolDefinition(
         name,
@@ -54,6 +65,8 @@ NAMED_QUERY_DEFINITIONS = {
         _DESCRIPTIONS[name],
         _INPUTS[kind],
         lambda value, kind=kind: validate_named_query_output(kind, value),
+        title=_TITLES[name],
+        output_schema=NAMED_QUERY_OUTPUT_SCHEMAS[kind],
     )
     for name, kind in TOOL_KINDS.items()
 }

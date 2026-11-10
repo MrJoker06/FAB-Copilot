@@ -33,7 +33,7 @@ from app.demo_data.tool_sources.equipment_health import (
 from app.tools.equipment_health.data_source import (
     SQLiteEquipmentHealthAdapter,
 )
-from ..integrations.manufacturing.sqlite_named_queries import SQLiteNamedQueryAdapter
+from app.tools.named_queries.data_source import SQLiteNamedQueryAdapter
 from app.tools.operational_reports.data_source import (
     SQLiteOperationalReportsAdapter,
 )

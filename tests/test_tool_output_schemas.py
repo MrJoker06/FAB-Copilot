@@ -6,6 +6,7 @@ import unittest
 from jsonschema import Draft202012Validator, ValidationError
 
 from app.agent_runtime.tools.contracts import ToolExecutionContext
+from app.agent_runtime.tools.dispatch_contracts import ToolDataSourceError, ToolInputError
 from app.bootstrap.tool_sources import create_tool_bindings
 from app.bootstrap.tool_sources_demo import AS_OF, _Principal, _arguments, build_fake_sources
 from app.demo_data.tool_sources.equipment_health import FakeEquipmentHealthAdapter
@@ -31,6 +32,21 @@ class ToolOutputSchemaTests(unittest.TestCase):
                 Draft202012Validator(schema).validate(result.data)
                 with self.assertRaises(ValidationError):
                     Draft202012Validator(schema).validate({"unexpected": True})
+
+    def test_declared_tools_keep_input_and_cross_tenant_refusals(self):
+        bindings = create_tool_bindings(
+            build_fake_sources(AS_OF), as_of=AS_OF, default_tenant_id="demo",
+            include_equipment_health_summary=True,
+        )
+        for binding in bindings:
+            if binding.definition.output_schema is None:
+                continue
+            with self.subTest(tool=binding.definition.name):
+                with self.assertRaises(ToolInputError):
+                    binding.definition.parse({"unexpected_parameter": True})
+                value = binding.definition.parse(_arguments(binding.definition.name))
+                with self.assertRaises(ToolDataSourceError):
+                    binding.handler(value, ToolExecutionContext(_Principal(tenant_id="other"), "r", "c", binding.dependencies))
 
     def test_empty_health_and_rejected_requests_do_not_become_success_data(self):
         query = EquipmentHealthQuery(date(2026, 7, 27), AS_OF)

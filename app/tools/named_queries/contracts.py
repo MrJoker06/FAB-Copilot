@@ -9,13 +9,13 @@ from datetime import date, datetime, timedelta
 from math import isfinite
 from typing import Protocol
 
-from ...agent_runtime.tools.contracts import ToolPrincipal, ToolScope, ToolSource
-from ...agent_runtime.tools.dispatch_contracts import (
+from app.agent_runtime.tools.contracts import ToolPrincipal, ToolScope, ToolSource
+from app.agent_runtime.tools.dispatch_contracts import (
     ToolDataSourceError,
     ToolInputError,
     ToolSourceTimeout,
 )
-from ..processes import MANUFACTURING_STEPS
+from app.manufacturing.processes import MANUFACTURING_STEPS
 
 
 class NamedQueryInputError(ToolInputError):
@@ -475,6 +475,31 @@ _FIELDS = {
         "tested_dies",
         "failed_dies",
     },
+}
+
+
+_OUTPUT_FIELD_SCHEMAS = {
+    **{name: {"type": "integer", "minimum": 1} for name in ("technology_nm", "lots", "wafer_count", "operation_seq", "wafer_no")},
+    **{name: {"type": "integer", "minimum": 0} for name in ("wafers", "good_wafers", "count", "tested_dies", "failed_dies")},
+    **{name: {"type": "number", "minimum": 0} for name in ("duration_minutes", "cycle_time_hours", "hold_hours", "queue_hours")},
+    **{name: {"type": ["number", "null"]} for name in ("measurement_value", "spec_lsl", "spec_usl")},
+    "yield_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+    "yield_rate": {"type": "number", "minimum": 0, "maximum": 1},
+    "complete_time": {"type": ["string", "null"]},
+    "process_step": {"enum": list(MANUFACTURING_STEPS)},
+    "rework_flag": {"anyOf": [{"type": "boolean"}, {"type": "integer", "enum": [0, 1]}]},
+}
+NAMED_QUERY_OUTPUT_SCHEMAS = {
+    kind: {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {name: _OUTPUT_FIELD_SCHEMAS.get(name, {"type": "string"}) for name in sorted(fields)},
+            "required": sorted(fields),
+            "additionalProperties": False,
+        },
+    }
+    for kind, fields in _FIELDS.items()
 }
 
 

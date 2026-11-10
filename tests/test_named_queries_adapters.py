@@ -11,9 +11,9 @@ from unittest.mock import patch
 
 from app.agent_runtime.tools.contracts import ToolExecutionContext, ToolSourceKind
 from app.core.sqlite_support import install_sqlite_functions
-from app.integrations.manufacturing.fake_named_queries import FakeNamedQueryAdapter
-from app.integrations.manufacturing.sqlite_named_queries import SQLiteNamedQueryAdapter
-from app.manufacturing.named_queries.contracts import (
+from app.demo_data.tool_sources.named_queries import FakeNamedQueryAdapter
+from app.tools.named_queries.data_source import SQLiteNamedQueryAdapter
+from app.tools.named_queries.contracts import (
     EquipmentEventsInput,
     EquipmentExcursionsInput,
     LotQueryInput,
@@ -22,7 +22,7 @@ from app.manufacturing.named_queries.contracts import (
     NamedQueryTimeoutError,
     ProductYieldInput,
 )
-from app.manufacturing.named_queries.handler import (
+from app.tools.named_queries.handler import (
     NamedQueryDependencies,
     named_query_handler,
 )
@@ -670,11 +670,11 @@ class NamedQueryAdapterTests(unittest.TestCase):
         connection = _TimeoutCloseFailConnection()
         with (
             patch(
-                "app.integrations.manufacturing.sqlite_named_queries.sqlite3.connect",
+                "app.tools.named_queries.data_source.sqlite3.connect",
                 return_value=connection,
             ),
             patch(
-                "app.integrations.manufacturing.sqlite_named_queries.time.monotonic",
+                "app.tools.named_queries.data_source.time.monotonic",
                 side_effect=(0.0, 1.0),
             ),
             self.assertRaises(NamedQueryTimeoutError) as raised,
@@ -690,7 +690,7 @@ class NamedQueryAdapterTests(unittest.TestCase):
         execute_error = _ExecuteFailConnection()
         with (
             patch(
-                "app.integrations.manufacturing.sqlite_named_queries.sqlite3.connect",
+                "app.tools.named_queries.data_source.sqlite3.connect",
                 return_value=execute_error,
             ),
             self.assertRaises(NamedQueryDataError) as raised,
@@ -700,7 +700,7 @@ class NamedQueryAdapterTests(unittest.TestCase):
         self.assertTrue(execute_error.closed)
         with (
             patch(
-                "app.integrations.manufacturing.sqlite_named_queries.sqlite3.connect",
+                "app.tools.named_queries.data_source.sqlite3.connect",
                 side_effect=TimeoutError("private timeout marker"),
             ),
             self.assertRaises(NamedQueryTimeoutError) as raised,
@@ -721,7 +721,7 @@ class NamedQueryAdapterTests(unittest.TestCase):
 
         with (
             patch(
-                "app.integrations.manufacturing.sqlite_named_queries.sqlite3.connect",
+                "app.tools.named_queries.data_source.sqlite3.connect",
                 side_effect=connect,
             ),
             self.assertRaises(NamedQueryDataError) as raised,

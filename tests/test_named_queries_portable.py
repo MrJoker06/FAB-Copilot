@@ -21,12 +21,12 @@ from tests.test_loop_dispatcher_portable import (
 )
 
 FILES = (
-    "app/manufacturing/named_queries/__init__.py",
-    "app/manufacturing/named_queries/contracts.py",
-    "app/manufacturing/named_queries/handler.py",
-    "app/manufacturing/named_queries/binding.py",
-    "app/integrations/manufacturing/fake_named_queries.py",
-    "app/integrations/manufacturing/sqlite_named_queries.py",
+    "app/tools/named_queries/__init__.py",
+    "app/tools/named_queries/contracts.py",
+    "app/tools/named_queries/handler.py",
+    "app/tools/named_queries/binding.py",
+    "app/demo_data/tool_sources/named_queries.py",
+    "app/tools/named_queries/data_source.py",
     "app/bootstrap/named_queries_demo.py",
 )
 
@@ -44,7 +44,7 @@ class NamedQueriesPortableTests(unittest.TestCase):
             + LOOP_FILES
             + FILES
         )
-        self.assertEqual((len(files), len(set(files))), (66, 66))
+        self.assertEqual((len(files), len(set(files))), (69, 69))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

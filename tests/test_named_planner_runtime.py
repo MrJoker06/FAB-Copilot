@@ -32,8 +32,8 @@ from app.bootstrap.agent_assembly import assemble_agent
 from app.bootstrap.loop_assembly import bind_loop_run
 from app.bootstrap.ready_assembly import bind_ready_run
 from app.integrations.knowledge.fake_search import FakeKnowledgeSearchAdapter
-from app.integrations.manufacturing.fake_named_queries import FakeNamedQueryAdapter
-from app.integrations.manufacturing.sqlite_named_queries import SQLiteNamedQueryAdapter
+from app.demo_data.tool_sources.named_queries import FakeNamedQueryAdapter
+from app.tools.named_queries.data_source import SQLiteNamedQueryAdapter
 from app.intent_runtime.routing import route_question
 from app.knowledge.search_tool.binding import create_knowledge_search_binding
 from app.knowledge.search_tool.contracts import (
@@ -41,8 +41,8 @@ from app.knowledge.search_tool.contracts import (
     KnowledgeSearchSnapshot,
     knowledge_scope,
 )
-from app.manufacturing.named_queries.binding import create_named_query_bindings
-from app.manufacturing.named_queries.contracts import NamedQuery
+from app.tools.named_queries.binding import create_named_query_bindings
+from app.tools.named_queries.contracts import NamedQuery
 from app.planning_runtime.named_planner import create_named_execution_plan
 from tests import test_named_queries_adapters as adapter_tests
 

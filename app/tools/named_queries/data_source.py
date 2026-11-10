@@ -6,9 +6,9 @@ import sqlite3
 import time
 from pathlib import Path
 
-from ...core.sqlite_support import install_sqlite_functions
-from ...agent_runtime.tools.contracts import ToolPrincipal, ToolSource, ToolSourceKind
-from ...manufacturing.named_queries.contracts import (
+from app.core.sqlite_support import install_sqlite_functions
+from app.agent_runtime.tools.contracts import ToolPrincipal, ToolSource, ToolSourceKind
+from app.tools.named_queries.contracts import (
     NamedQuery,
     NamedQueryDataError,
     NamedQuerySnapshot,

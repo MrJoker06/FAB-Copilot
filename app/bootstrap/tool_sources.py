@@ -28,8 +28,8 @@ from app.tools.equipment_health.contracts import EquipmentHealthPort
 from app.tools.equipment_health.summary import (
     create_equipment_health_summary_binding,
 )
-from ..manufacturing.named_queries.binding import create_named_query_bindings
-from ..manufacturing.named_queries.contracts import NamedQueryPort
+from app.tools.named_queries.binding import create_named_query_bindings
+from app.tools.named_queries.contracts import NamedQueryPort
 from app.tools.operational_reports.binding import (
     create_defect_pareto_binding,
     create_equipment_productivity_binding,

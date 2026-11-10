@@ -92,6 +92,21 @@ python -m unittest tests.test_tool_output_schemas tests.test_operational_reports
 
 WSL repository、两端 module/modularization 边界及 diff 检查通过，298 文件/0 错误。已迁运营组扫描无旧路径，重新导出起点的四类目录字节一致（`c4-catalog-*`）。含已知 Windows 临时 SQLite 文件占用问题的 runtime 模块留到全量阶段记录，不将本批定向通过表述为该模块全绿。
 
+## c5：named_queries
+
+- `manufacturing/named_queries/{__init__,binding,contracts,handler}.py` → `app/tools/named_queries/`；SQLite 来源 → `data_source.py`；Fake → `app/demo_data/tool_sources/named_queries.py`。
+- 更新具名查询演示、定义/装配、默认来源、规划运行测试、收口测试、所有显式切片与 MOD-003/009/024 和边界路径清单；没有保留旧路径转发。
+- 八项查询补 title/output_schema，Schema 复用契约的字段集合，保持批次全历史、分页限额、数值与 NULL 语义。Schema 测试另验证所有已声明工具的未知参数、异租户拒绝，拒绝不成为成功数据。
+- 具名查询便携切片因包锚点变为 69 个唯一文件；本批制品成员与 Profile 数量不变。清单只改路径/必需锚点与对应计数，不重录业务期望。
+
+两平台各 22 项通过：
+
+```text
+python -m unittest tests.test_tool_output_schemas tests.test_named_queries tests.test_named_queries_adapters tests.test_named_queries_runtime tests.test_named_queries_portable tests.test_tool_sources_portable
+```
+
+WSL repository、两端 module/modularization 边界及 diff 检查通过，298 文件/0 错误；迁移组扫描无旧路径。重新导出起点的四类目录字节一致（`c5-catalog-*`）。中断前测试已有完整 OK 日志，恢复后补齐检查；未使用中断的全量基线日志作为阶段门结论。
+
 ## 后续批次
 
-c5～c7 尚未完成；后续批次继续追加本报告。完整交付物、应用启动、Windows 全量及与起点失败集合对照，留至 030d/030e，不以本批定向结果替代。
+c6～c7 尚未完成；后续批次继续追加本报告。完整交付物、应用启动、Windows 全量及与起点失败集合对照，留至 030d/030e，不以本批定向结果替代。

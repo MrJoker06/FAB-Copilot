@@ -10,8 +10,8 @@ from app.agent_runtime.tools.contracts import (
     ToolSource,
     ToolSourceKind,
 )
-from app.manufacturing.named_queries.binding import create_named_query_binding
-from app.manufacturing.named_queries.contracts import (
+from app.tools.named_queries.binding import create_named_query_binding
+from app.tools.named_queries.contracts import (
     EquipmentEventsInput,
     EquipmentExcursionsInput,
     LotQueryInput,
@@ -23,7 +23,7 @@ from app.manufacturing.named_queries.contracts import (
     named_query_scope,
     validate_named_query_output,
 )
-from app.manufacturing.named_queries.handler import (
+from app.tools.named_queries.handler import (
     NamedQueryDependencies,
     named_query_handler,
 )

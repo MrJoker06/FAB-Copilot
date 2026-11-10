@@ -10,9 +10,9 @@ from unittest.mock import patch
 
 from app.agent_runtime.execution.runtime_contracts import ModelRequest
 from app.bootstrap import named_queries_demo as demo
-from app.integrations.manufacturing.fake_named_queries import FakeNamedQueryAdapter
-from app.integrations.manufacturing.sqlite_named_queries import SQLiteNamedQueryAdapter
-from app.manufacturing.named_queries.contracts import (
+from app.demo_data.tool_sources.named_queries import FakeNamedQueryAdapter
+from app.tools.named_queries.data_source import SQLiteNamedQueryAdapter
+from app.tools.named_queries.contracts import (
     NamedQueryDataError,
     NamedQueryTimeoutError,
 )
@@ -352,7 +352,7 @@ class NamedQueriesRuntimeTests(unittest.TestCase):
                             side_effect=AssertionError("unexpected SQLite"),
                         ) as sql,
                         patch(
-                            "app.integrations.manufacturing.sqlite_named_queries.sqlite3.connect",
+                            "app.tools.named_queries.data_source.sqlite3.connect",
                             side_effect=AssertionError("unexpected connection"),
                         ) as connect,
                     ):
@@ -412,7 +412,7 @@ class NamedQueriesRuntimeTests(unittest.TestCase):
                     side_effect=AssertionError("unexpected fallback"),
                 ) as fake,
                 patch(
-                    "app.integrations.manufacturing.sqlite_named_queries.sqlite3.connect",
+                    "app.tools.named_queries.data_source.sqlite3.connect",
                     side_effect=sqlite3.OperationalError("private endpoint"),
                 ) as connect,
             ):

@@ -27,10 +27,10 @@ from ..agent_runtime.execution.runtime_contracts import (
 from ..agent_runtime.execution.tool_budget import LoopGuardToolBudget
 from ..agent_runtime.tools.contracts import ToolExecutionLimits, ToolStatus
 from ..agent_runtime.tools.dispatch_policy import DemoToolPolicy
-from ..integrations.manufacturing.fake_named_queries import FakeNamedQueryAdapter
-from ..integrations.manufacturing.sqlite_named_queries import SQLiteNamedQueryAdapter
-from ..manufacturing.named_queries.binding import create_named_query_bindings
-from ..manufacturing.named_queries.contracts import (
+from app.demo_data.tool_sources.named_queries import FakeNamedQueryAdapter
+from app.tools.named_queries.data_source import SQLiteNamedQueryAdapter
+from app.tools.named_queries.binding import create_named_query_bindings
+from app.tools.named_queries.contracts import (
     TOOL_KINDS,
     EquipmentEventsInput,
     EquipmentExcursionsInput,

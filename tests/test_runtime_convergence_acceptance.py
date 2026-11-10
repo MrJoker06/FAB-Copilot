@@ -63,7 +63,7 @@ from app.core.identity import (
 from app.core.storage_identity_ports import configured_storage_identity
 from app.evidence import validator as evidence_validator
 from app.evidence.validator import EvidenceObservation
-from app.integrations.manufacturing.sqlite_named_queries import SQLiteNamedQueryAdapter
+from app.tools.named_queries.data_source import SQLiteNamedQueryAdapter
 from app.intent_runtime.routing import route_question
 from app.knowledge.decision import usable_result
 from app.tools.operational_reports.binding import create_defect_pareto_binding

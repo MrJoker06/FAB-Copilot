@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from ...agent_runtime.tools.contracts import ToolPrincipal, ToolSource, ToolSourceKind
-from ...manufacturing.named_queries.contracts import (
+from app.agent_runtime.tools.contracts import ToolPrincipal, ToolSource, ToolSourceKind
+from app.tools.named_queries.contracts import (
     NamedQuery,
     NamedQueryDataError,
     NamedQuerySnapshot,

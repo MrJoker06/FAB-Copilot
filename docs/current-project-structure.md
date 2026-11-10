@@ -315,10 +315,10 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/manufacturing/enterprise_tools/contracts.py` | 纯 | 三项输入、可信时间窗口、固定 Query/Snapshot、消费方 EnterpriseDataPort 与完整业务结果校验。 |
 | `app/manufacturing/enterprise_tools/handler.py` | 纯 | 核对查询、租户、实际范围、模拟标记与记录，保留统计和样本口径，生成对象 ToolResult。 |
 | `app/manufacturing/enterprise_tools/binding.py` | 纯 | 三个 1.0.0 Definition/Binding 工厂；注入固定时间窗口，按有效 Scope 准备授权。 |
-| `app/manufacturing/named_queries/__init__.py` | 包 | 固定具名制造查询包锚点，无默认注册副作用。 |
-| `app/manufacturing/named_queries/contracts.py` | 纯 | 四类封闭输入、八种内部 Query、Snapshot/消费方 Port、完整列集和数值/时间契约；模型不能指定 SQL 或 kind。 |
-| `app/manufacturing/named_queries/handler.py` | 纯 | 核对查询、来源及实际行范围，保留批次全历史、列表结果和原投影，不在核心聚合或构造 SQL。 |
-| `app/manufacturing/named_queries/binding.py` | 纯 | 八个未注册 1.0.0 定义及固定 kind 绑定工厂；冻结 as_of、准备日期或批次 Scope。 |
+| `app/tools/named_queries/__init__.py` | 包 | 固定具名制造查询包锚点，无默认注册副作用。 |
+| `app/tools/named_queries/contracts.py` | 纯 | 四类封闭输入、八种内部 Query、Snapshot/消费方 Port、完整列集和数值/时间契约；模型不能指定 SQL 或 kind。 |
+| `app/tools/named_queries/handler.py` | 纯 | 核对查询、来源及实际行范围，保留批次全历史、列表结果和原投影，不在核心聚合或构造 SQL。 |
+| `app/tools/named_queries/binding.py` | 纯 | 八个未注册 1.0.0 定义及固定 kind 绑定工厂；冻结 as_of、准备日期或批次 Scope。 |
 | `app/integrations/__init__.py` | 包 | 技术集成包锚点。 |
 | `app/integrations/manufacturing/__init__.py` | 包 | 制造 Adapter 包锚点。 |
 | `app/demo_data/tool_sources/equipment_health.py` | Adapter | 内存 FakeEquipmentHealthAdapter。 |
@@ -331,8 +331,8 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/tools/operational_reports/data_source.py` | Adapter | 固定生产率/Pareto/异常 SQL；每次只开一个相关设备/质量/制造库，保持窗口分母、舍入和过滤口径。 |
 | `app/integrations/manufacturing/fake_enterprise_tools.py` | Adapter | 按完整企业 Query 返回深复制的精确夹具，核对租户并明确标记 FAKE。 |
 | `app/integrations/manufacturing/provider_enterprise_tools.py` | Adapter | 固定调用注入的 EnterpriseDataProvider，核对来源头部、脱敏错误；不使用全局选择或故障回退。 |
-| `app/integrations/manufacturing/fake_named_queries.py` | Adapter | 精确 Query 的具名查询夹具、深复制及租户核对，无查询或来源回退。 |
-| `app/integrations/manufacturing/sqlite_named_queries.py` | Adapter | 八条固定参数化查询；按操作只打开制造/设备/质量一个相关只读库，保留列集/排序/上限和全历史语义。 |
+| `app/demo_data/tool_sources/named_queries.py` | Adapter | 精确 Query 的具名查询夹具、深复制及租户核对，无查询或来源回退。 |
+| `app/tools/named_queries/data_source.py` | Adapter | 八条固定参数化查询；按操作只打开制造/设备/质量一个相关只读库，保留列集/排序/上限和全历史语义。 |
 | `app/knowledge/__init__.py` | 包 | 知识包锚点。 |
 | `app/knowledge/decision.py` | 业务 | 检索需求、质量和回退决策。 |
 | `app/knowledge/rag.py` | 兼容/装配 | 旧 RAG facade、后端选择和兼容搜索入口；身份与缺陷别名经存储/身份 Port 读取。 |
