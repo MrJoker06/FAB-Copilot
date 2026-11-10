@@ -1,8 +1,8 @@
 # 当前项目精细结构快照
 
-快照日期：2026-11-07。依据为 experiment/parallel-platform 的 `c8d44cd`（MOD-015e）及当前源码清单。MOD-001～019 均已验证，跨平台启动维护已验收；MOD-012 模型网关、MOD-015a～e 的依赖类型化、Loop 拆分、存储/身份 Port 与无泄漏验收已落地。MOD-020～023 的 Checkpoint/只读恢复与 MOD-024～028 的交付/内网集成仍待完成，保留的兼容 facade 与配置锚点归 MOD-027。Skill 加载与发布保持显式可选，默认 HTTP 未启用。当前状态见 [模块化追踪](todos/modularization.md)，历史失败及各轮实际验证范围见对应报告；提交与远程状态以 Git 记录为准。
+快照日期：2026-11-10。应用源码基线为 experiment/parallel-platform 的 `c193138`，已合入 local-Qwen 的证据/呈现、模型凭据和跨平台修正，跨平台本地模型启动器 DEPLOY-019 已完成。MOD-001～019 及 MOD-024 均已验证，本轮 MOD-024 在不修改应用源码的前提下建立版本一致的模块制品；状态和实际验收见 [交付报告](reports/mod-024-module-delivery.md)。MOD-020～023 的 Checkpoint/只读恢复与 MOD-025～028 的 Adapter/演示/内网集成仍待完成，保留的兼容 facade 与配置锚点归 MOD-027。Skill 加载与发布保持显式可选，默认 HTTP 未启用。历史失败及验证范围保留在对应报告；提交与远程状态以 Git 记录为准。
 
-本次实扫 `app/` 的受管源码为 **282 文件：254 个 Python、28 个静态文件**（2026-11-07 MOD-015e 后复扫；015a 删除 6 个转发模块，015b 新增 `agent_runtime/ports.py`，015c 新增 6 个 Loop 模块，015d 新增 2 个 core 模块和 1 个 bootstrap 模块；015e 未新增 app 文件，修改了 `conversation/decision_arbiter.py` 与 `evidence/validator.py`，并新增验收测试）。数量与
+本次实扫 `app/` 的受管源码为 **286 文件：258 个 Python、28 个静态文件**（MOD-015e 后为 282；合入 local-Qwen 后新增 `core/call_scope.py`、`core/model_credentials.py`、`core/tool_result_projection.py` 与 `evidence/evidence_truncation.py`，MOD-024 不增改应用源码）。数量与
 `evaluations/mod_003_boundaries_v1.json` 一致；测试、日志、缓存和运行期生成物不计入。
 
 ## 平台启动入口
@@ -358,6 +358,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/evidence/skill_policy.py` | 纯 | 显式 1.3.0 证据策略：核对知识结果原生检索焦点，复用原覆盖/风险校验；默认 1.2.0 不变。 |
 | `app/evidence/answer_synthesizer.py` | 业务 | 证据约束答案结构和渲染。 |
 | `app/evidence/serialization.py` | 纯 | 证据/报告递归复制及 JSON 规范化；精确内置容器和字段名元数据优化，保留子类/deepcopy/错误语义。 |
+| `app/evidence/evidence_truncation.py` | 兼容 | 提示词结果裁剪 helper 的原路径导出门面，实际规则位于 `core/tool_result_projection.py`。 |
 
 ### Skill（显式试点装配，默认 HTTP 未启用）
 
@@ -412,7 +413,10 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/model_gateway/streaming.py` | Adapter | SSE 请求、响应拼装、流式审计。 |
 | `app/core/__init__.py` | 包 | 核心包锚点。 |
 | `app/core/settings.py` | 装配 | 环境设置和默认运行配置。 |
-| `app/core/sqlite_support.py` | Adapter | 在 SQLite 连接注册 `SQRT` 兼容函数，保持数字文本转换及非法值返回 NULL 的语义，供各数据库打开入口复用。 |
+| `app/core/sqlite_support.py` | Adapter | 在 SQLite 连接注册 `SQRT` 兼容函数并选择临时存储；支持显式 FILE/MEMORY 配置，临时目录不可写时采用内存，供各数据库打开入口复用。 |
+| `app/core/call_scope.py` | 纯 | 从实际工具参数推导结果范围，供 Planner 与证据 Validator 共用。 |
+| `app/core/tool_result_projection.py` | 纯 | 按工具对模型提示词中的结果视图排序、裁剪并生成披露；保留完整原始观察、运行记录与 API 数据。 |
+| `app/core/model_credentials.py` | Adapter/配置 | 按模型读取、保存和清除服务端本地 JSON 凭据；提供环境变量回退与配置状态，凭据不写入模型目录数据库。 |
 | `app/core/identity.py` | Adapter/过渡 | 当前身份解析和 SQLite/请求绑定。 |
 | `app/core/identity_contracts.py` | 纯 | Identity claims 与演示 Header 解析契约。 |
 | `app/core/storage_identity_ports.py` | 纯 | 存储/身份窄 Port：`PrincipalView`、`StorageIdentityBindings` 与安装/读取函数；只加载标准库，未安装时报错并写明安装函数。 |
@@ -577,4 +581,4 @@ TOOLS/TOOL_HANDLERS 的容器身份，但有意改变清单内容及默认解析
 修订后预声明 r2 正式性能/独立审计通过，r1 证据保留。MOD-008 首批的 281 项必要回归、
 60 文件隔离、旧安装/源码闭包/冻结行为/守卫通过。第二批的 305 项必要回归、67 文件隔离、
 旧安装/源码闭包/冻结行为/守卫也通过。第三批最终 328 项必要回归、74 文件隔离及上述兼容门
-通过。第四批最终 354 项必要回归、82 文件隔离及上述兼容门也通过；第五批最终 413 项必要回归、RAG 15/15、66 文件知识切片及兼容门通过，首轮仓库边界失败记录保留。第六批 F1 的 431 项必要回归、32 主路径、60 文件具名切片及上述兼容门也通过。F2a 版本化消费映射已验收；F2b 默认切换及 SQL 退出已通过功能/质量复核和 r5 正式性能及原始墙钟独立重算，整个 MOD-008 已验证。MOD-016～019、MOD-009、MOD-012 及 MOD-015a～e 也已验证，具体范围见 [测试与验收索引](testing-strategy.md#当前验证记录索引2026-11-07)。MOD-015 的逐模块基线对照保留既有环境失败，不代表在该环境重跑完整离线门全绿；Checkpoint 与整体交付仍按 MOD-020～028 分别验收。此后变化须随工作树重新核对。文档为 UTF-8/LF，源码表不展开测试、日志、runtime 产物或工作簿内容。
+通过。第四批最终 354 项必要回归、82 文件隔离及上述兼容门也通过；第五批最终 413 项必要回归、RAG 15/15、66 文件知识切片及兼容门通过，首轮仓库边界失败记录保留。第六批 F1 的 431 项必要回归、32 主路径、60 文件具名切片及上述兼容门也通过。F2a 版本化消费映射已验收；F2b 默认切换及 SQL 退出已通过功能/质量复核和 r5 正式性能及原始墙钟独立重算，整个 MOD-008 已验证。MOD-016～019、MOD-009、MOD-012 及 MOD-015a～e 也已验证，具体范围见 [测试与验收索引](testing-strategy.md#当前验证记录索引2026-11-07)。MOD-015 的逐模块基线对照保留既有环境失败，不代表在该环境重跑完整离线门全绿；MOD-024 的首批组合交付已通过两端独立安装；Checkpoint 与后续整体集成按 MOD-020～023、MOD-025～028 分别验收。此后变化须随工作树重新核对。文档为 UTF-8/LF，源码表不展开测试、日志、runtime 产物或工作簿内容。

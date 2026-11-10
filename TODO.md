@@ -1,6 +1,6 @@
 # Fab Insight Agent TODO
 
-状态核对：`experiment/parallel-platform`，2026-11-08；源码基线 `c8d44cd`（MOD-015e），后续纯文档提交不改变该源码基线。
+状态核对：`experiment/parallel-platform`，2026-11-10；应用源码基线 `c193138`（local-Qwen 与 DEPLOY-019 已合入，MOD-024 不改应用源码），后续纯文档提交不改变该源码基线。
 
 当前产品统计：共 228 个独立任务，已完成 183 个，待做 45 个；以各分类清单中的 `[x]` / `[ ]` 实算，模块化 `MOD-*` 工作包另计。
 
@@ -10,7 +10,7 @@
 
 当前结论：`REF-035`、Memory 的 MEM-001 至 MEM-004 结构抽离，以及 `AGENT-040` 至 `AGENT-044` 答案综合改善均已完成。既有产品当前队列为 0；待做 45 项为用户暂缓 2 项（`QA-010` 远程 Live、`UX-029` 移动端）与企业级暂缓 43 项。另有 4 项 `OPTIONAL` 候选保持不排期，详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
 
-模块化计划单独维护：`MOD-001` 至 `MOD-019` 已验证；`MOD-020` 至 `MOD-023` 的 Checkpoint/只读恢复，以及 `MOD-024` 至 `MOD-028` 的离线交付/内网集成仍为计划中。保留的兼容 facade 与配置锚点由 `MOD-027` 承接，详见 [模块化工作包追踪](docs/todos/modularization.md) 和 [总方案](docs/architecture-modularization-master-plan.md)。
+模块化计划单独维护：`MOD-001` 至 `MOD-019` 及 `MOD-024` 已验证；`MOD-020` 至 `MOD-023` 的 Checkpoint/只读恢复，以及 `MOD-025` 至 `MOD-028` 的 Adapter/演示/内网集成仍为计划中；MOD-024 首批版本一致交付通过双平台独立验收。保留的兼容 facade 与配置锚点由 `MOD-027` 承接，详见 [模块化工作包追踪](docs/todos/modularization.md) 和 [总方案](docs/architecture-modularization-master-plan.md)。
 
 ## 标记规则
 
@@ -26,7 +26,7 @@
 | 类型 | 任务 | 当前结论 |
 |---|---|---|
 | 产品当前队列 | 0 项 | `AGENT-040` 至 `AGENT-044` 已完成；不自动激活暂缓或 `OPTIONAL` 任务 |
-| 模块化待办（另计） | `MOD-020` 至 `MOD-028` | 恢复能力 4 项、模块交付与内网集成 5 项；P5 随稳定切片推进，不要求全部等待恢复能力 |
+| 模块化待办（另计） | `MOD-020` 至 `MOD-023`、`MOD-025` 至 `MOD-028` | 共 8 项：恢复能力 4 项、后续交付与内网集成 4 项；P5 随稳定切片推进，不要求全部等待恢复能力 |
 | 用户暂缓 | `QA-010`、`UX-029` | 远程 Live 验收和移动端需求暂不进入当前队列 |
 | 企业级暂缓 | 43 项 | 等待身份提供方、真实数据接口、部署环境和运维边界明确 |
 | 可选候选 | `RAG-024`、`AGENT-039`、`REF-025`、`REF-026` `OPTIONAL` | 不计入主统计，只在用户明确激活后排期 |
@@ -48,7 +48,7 @@
 | 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接、运行快照治理、受保护的远程 CI 质量门和跨平台本地模型启动器（`DEPLOY-019`）已完成；其余项均为企业级暂缓 |
 | 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 至 QA-009 已完成；QA-010 本地完整 Live 通过、远程验收暂缓 |
 | 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 至 REF-024、REF-027 至 REF-034 已完成；REF-035 已完成；`REF-025`、`REF-026` 仍为 `OPTIONAL` |
-| 模块化与内网迁移（另计） | [模块化追踪](docs/todos/modularization.md) | MOD-001～019 已验证；MOD-020～028 计划中，不计入产品 228 项统计 |
+| 模块化与内网迁移（另计） | [模块化追踪](docs/todos/modularization.md) | MOD-001～019 及 MOD-024 已验证；MOD-020～023、MOD-025～028 计划中，不计入产品 228 项统计 |
 
 ## 更新要求
 
