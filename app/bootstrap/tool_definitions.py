@@ -15,7 +15,7 @@ from ..manufacturing.operational_reports.binding import (
     EQUIPMENT_PRODUCTIVITY_DEFINITION,
     RECENT_EXCURSIONS_DEFINITION,
 )
-from ..manufacturing.process_diagnostics.binding import (
+from app.tools.process_diagnostics.binding import (
     PROCESS_CAPABILITY_DEFINITION,
     SENSOR_SUMMARY_DEFINITION,
 )

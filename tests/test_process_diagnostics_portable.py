@@ -39,12 +39,12 @@ LOOP_FILES = (
     "app/bootstrap/loop_demo.py",
 )
 DIAGNOSTICS_FILES = (
-    "app/manufacturing/process_diagnostics/__init__.py",
-    "app/manufacturing/process_diagnostics/contracts.py",
-    "app/manufacturing/process_diagnostics/handler.py",
-    "app/manufacturing/process_diagnostics/binding.py",
-    "app/integrations/manufacturing/fake_process_diagnostics.py",
-    "app/integrations/manufacturing/sqlite_process_diagnostics.py",
+    "app/tools/process_diagnostics/__init__.py",
+    "app/tools/process_diagnostics/contracts.py",
+    "app/tools/process_diagnostics/handler.py",
+    "app/tools/process_diagnostics/binding.py",
+    "app/demo_data/tool_sources/process_diagnostics.py",
+    "app/tools/process_diagnostics/data_source.py",
     "app/bootstrap/diagnostics_demo.py",
 )
 
@@ -62,7 +62,7 @@ class ProcessDiagnosticsPortableTests(unittest.TestCase):
             + LOOP_FILES
             + DIAGNOSTICS_FILES
         )
-        self.assertEqual((len(files), len(set(files))), (66, 66))
+        self.assertEqual((len(files), len(set(files))), (69, 69))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

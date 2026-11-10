@@ -299,10 +299,10 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/tools/equipment_health/handler.py` | 纯 | 设备健康用例/范围归一化。 |
 | `app/tools/equipment_health/binding.py` | 纯 | 从 Port 建立原生 ToolBinding。 |
 | `app/tools/equipment_health/summary.py` | 纯 | 可选设备健康汇总 ToolDefinition/Handler/Binding，复用原等级计算与来源，不改执行器或默认清单。 |
-| `app/manufacturing/process_diagnostics/__init__.py` | 包 | 过程诊断包锚点，不执行默认注册。 |
-| `app/manufacturing/process_diagnostics/contracts.py` | 纯 | 两种输入、冻结 Query、Snapshot、消费方 Port 和完整结果字段/范围校验。 |
-| `app/manufacturing/process_diagnostics/handler.py` | 纯 | Cpk/传感器处理器，核对查询、来源 Scope 与行级过滤，生成 ToolResult。 |
-| `app/manufacturing/process_diagnostics/binding.py` | 纯 | 两个 ToolDefinition 及显式绑定工厂，注入 today 并冻结有效查询。 |
+| `app/tools/process_diagnostics/__init__.py` | 包 | 过程诊断包锚点，不执行默认注册。 |
+| `app/tools/process_diagnostics/contracts.py` | 纯 | 两种输入、冻结 Query、Snapshot、消费方 Port 和完整结果字段/范围校验。 |
+| `app/tools/process_diagnostics/handler.py` | 纯 | Cpk/传感器处理器，核对查询、来源 Scope 与行级过滤，生成 ToolResult。 |
+| `app/tools/process_diagnostics/binding.py` | 纯 | 两个 ToolDefinition 及显式绑定工厂，注入 today 并冻结有效查询。 |
 | `app/manufacturing/production_reports/__init__.py` | 包 | 生产报表包锚点，无默认注册副作用。 |
 | `app/manufacturing/production_reports/contracts.py` | 纯 | 三种结构化输入、固定 Query/Snapshot、消费方 Port、错误与结果字段契约。 |
 | `app/manufacturing/production_reports/handler.py` | 纯 | 调用 Port、核对查询和实际范围，生成对象或列表形式的 ToolResult；不执行 SQL。 |
@@ -323,8 +323,8 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/integrations/manufacturing/__init__.py` | 包 | 制造 Adapter 包锚点。 |
 | `app/demo_data/tool_sources/equipment_health.py` | Adapter | 内存 FakeEquipmentHealthAdapter。 |
 | `app/tools/equipment_health/data_source.py` | Adapter | 两个显式只读 SQLite 源的设备健康 Adapter。 |
-| `app/integrations/manufacturing/fake_process_diagnostics.py` | Adapter | 精确 DiagnosticsQuery 夹具、租户隔离与快照复制。 |
-| `app/integrations/manufacturing/sqlite_process_diagnostics.py` | Adapter | 两条固定参数化报表查询，按工具只开一个相关库，处理只读/期限/关闭及错误脱敏。 |
+| `app/demo_data/tool_sources/process_diagnostics.py` | Adapter | 精确 DiagnosticsQuery 夹具、租户隔离与快照复制。 |
+| `app/tools/process_diagnostics/data_source.py` | Adapter | 两条固定参数化报表查询，按工具只开一个相关库，处理只读/期限/关闭及错误脱敏。 |
 | `app/integrations/manufacturing/fake_production_reports.py` | Adapter | 精确生产查询夹具、租户核对与返回值复制，来源明确标记 FAKE。 |
 | `app/integrations/manufacturing/sqlite_production_reports.py` | Adapter | 三类固定参数化生产报表，只访问显式制造库；只读、超时、连接释放和公开错误脱敏。 |
 | `app/integrations/manufacturing/fake_operational_reports.py` | Adapter | 运行报表的精确 Query 夹具、租户核对和独立复制结果；无隐式来源回退。 |
@@ -387,8 +387,9 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 `app/skills/standard.py` 检查只有 `SKILL.md` 的最小包。见 [MOD-018 报告](reports/mod-018-litho-cpk-skill.md) 与 [MOD-030b 报告](reports/mod-030b-litho-pilot.md)。
 
 `app/tools/` 存放跨 Skill 共享的业务 Tool。当前有 `capability_trend/`（`get_capability_trend`，按周设备级 Cpk 趋势）
-和已迁移的 `equipment_health/`（设备健康与可选汇总）；设备 Fake 来源归 `app/demo_data/tool_sources/`。
-趋势工具不在默认 21 项模型工具中；设备组迁移不改变默认目录。其余能力组仍待 MOD-030c 后续批次迁移。
+和已迁移的 `equipment_health/`（设备健康与可选汇总）、`process_diagnostics/`（Cpk 与传感器摘要）；
+三者的 Fake 来源归 `app/demo_data/tool_sources/`。趋势工具不在默认 21 项模型工具中；迁移不改变默认目录。
+其余能力组仍待 MOD-030c 后续批次迁移。
 
 `scripts/demo_skill_releases.py` 以 `evaluations/skills/release_lifecycle_v1/` 的两版中性夹具展示发布、禁用与回退；实际 Run、权限和版本固定验收见 [发布报告](reports/mod-019-skill-releases.md)。
 

@@ -8,13 +8,13 @@ from datetime import date, datetime, timedelta
 from math import isfinite
 from typing import Literal, Protocol
 
-from ...agent_runtime.tools.contracts import ToolPrincipal, ToolScope, ToolSource
-from ...agent_runtime.tools.dispatch_contracts import (
+from app.agent_runtime.tools.contracts import ToolPrincipal, ToolScope, ToolSource
+from app.agent_runtime.tools.dispatch_contracts import (
     ToolDataSourceError,
     ToolInputError,
     ToolSourceTimeout,
 )
-from ..processes import MANUFACTURING_STEPS
+from app.manufacturing.processes import MANUFACTURING_STEPS
 
 
 class DiagnosticsInputError(ToolInputError):
@@ -329,6 +329,27 @@ _SENSOR_FIELDS = {
     "mean_value",
     "min_value",
     "max_value",
+}
+
+SENSOR_SUMMARY_OUTPUT_SCHEMA = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "process_step": {"type": "string", "enum": list(MANUFACTURING_STEPS)},
+            "equipment_id": {"type": "string", "minLength": 1},
+            "signal_name": {"type": "string", "minLength": 1},
+            "signal_unit": {"type": ["string", "null"]},
+            "samples": {"type": "integer", "minimum": 1},
+            "missing_samples": {"type": "integer", "minimum": 0},
+            "flagged_outliers": {"type": "integer", "minimum": 0},
+            "mean_value": {"type": ["number", "null"]},
+            "min_value": {"type": ["number", "null"]},
+            "max_value": {"type": ["number", "null"]},
+        },
+        "required": sorted(_SENSOR_FIELDS),
+        "additionalProperties": False,
+    },
 }
 
 

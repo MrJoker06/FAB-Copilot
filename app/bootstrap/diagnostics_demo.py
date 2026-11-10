@@ -26,17 +26,17 @@ from ..agent_runtime.execution.runtime_contracts import (
 from ..agent_runtime.execution.tool_budget import LoopGuardToolBudget
 from ..agent_runtime.tools.contracts import ToolExecutionLimits, ToolStatus
 from ..agent_runtime.tools.dispatch_policy import DemoToolPolicy
-from ..integrations.manufacturing.fake_process_diagnostics import (
+from app.demo_data.tool_sources.process_diagnostics import (
     FakeProcessDiagnosticsAdapter,
 )
-from ..integrations.manufacturing.sqlite_process_diagnostics import (
+from app.tools.process_diagnostics.data_source import (
     SQLiteProcessDiagnosticsAdapter,
 )
-from ..manufacturing.process_diagnostics.binding import (
+from app.tools.process_diagnostics.binding import (
     create_process_capability_binding,
     create_sensor_summary_binding,
 )
-from ..manufacturing.process_diagnostics.contracts import (
+from app.tools.process_diagnostics.contracts import (
     DiagnosticsInputError,
     DiagnosticsQuery,
     ProcessCapabilityInput,

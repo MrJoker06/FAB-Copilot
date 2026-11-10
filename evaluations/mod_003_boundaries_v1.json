@@ -665,7 +665,17 @@
       "artifact_group": "simulation_fixtures"
     },
     {
+      "path": "app/demo_data/tool_sources/capability_trend.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
       "path": "app/demo_data/tool_sources/equipment_health.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/demo_data/tool_sources/process_diagnostics.py",
       "primary_module": "integrations",
       "artifact_group": "enterprise_adapters"
     },
@@ -750,11 +760,6 @@
       "artifact_group": "enterprise_adapters"
     },
     {
-      "path": "app/integrations/manufacturing/fake_process_diagnostics.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
       "path": "app/integrations/manufacturing/fake_production_reports.py",
       "primary_module": "integrations",
       "artifact_group": "enterprise_adapters"
@@ -771,11 +776,6 @@
     },
     {
       "path": "app/integrations/manufacturing/sqlite_operational_reports.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
-      "path": "app/integrations/manufacturing/sqlite_process_diagnostics.py",
       "primary_module": "integrations",
       "artifact_group": "enterprise_adapters"
     },
@@ -986,26 +986,6 @@
       "path": "app/manufacturing/playbooks.py",
       "primary_module": "orchestration",
       "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/manufacturing/process_diagnostics/__init__.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/process_diagnostics/binding.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/process_diagnostics/contracts.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/process_diagnostics/handler.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
     },
     {
       "path": "app/manufacturing/processes.py",
@@ -1491,11 +1471,6 @@
       "artifact_group": "manufacturing_capability"
     },
     {
-      "path": "app/tools/capability_trend/fake_source.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
       "path": "app/tools/capability_trend/sqlite_source.py",
       "primary_module": "integrations",
       "artifact_group": "enterprise_adapters"
@@ -1532,6 +1507,31 @@
     },
     {
       "path": "app/tools/equipment_health/summary.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/process_diagnostics/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/process_diagnostics/binding.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/process_diagnostics/contracts.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/process_diagnostics/data_source.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/tools/process_diagnostics/handler.py",
       "primary_module": "business_tools",
       "artifact_group": "manufacturing_capability"
     }
@@ -2416,18 +2416,6 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
-      "source_file": "app/integrations/manufacturing/sqlite_process_diagnostics.py",
-      "imports": [
-        "sqlite3"
-      ],
-      "calls": [
-        "connection.execute",
-        "sqlite3.connect"
-      ],
-      "table_hints": [],
-      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
-    },
-    {
       "source_file": "app/integrations/manufacturing/sqlite_production_reports.py",
       "imports": [
         "sqlite3"
@@ -2686,6 +2674,18 @@
       ],
       "table_hints": [],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/tools/process_diagnostics/data_source.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "connection.execute",
+        "sqlite3.connect"
+      ],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     }
   ],
   "database_ledger": {
@@ -2800,7 +2800,7 @@
         "exit_task": "MOD-009 conformance (retain adapter)"
       },
       {
-        "source_file": "app/integrations/manufacturing/sqlite_process_diagnostics.py",
+        "source_file": "app/tools/process_diagnostics/data_source.py",
         "owner": "integrations",
         "classification": "business-read",
         "stores": "process_runs, sensor_readings",

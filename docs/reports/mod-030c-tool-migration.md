@@ -48,6 +48,22 @@ python scripts/check_modularization_boundaries.py
 
 过程问题保留：首次边界检查发现 DB 候选排序漂移，修正路径排序后通过；新增非法日期测试最初误以为 parse 阶段完成日期解析，改为调用真实处理器验证既有 resolve 行为后通过，未修改业务实现。Windows 资源回收警告保留于日志，测试无失败。
 
+## c2：process_diagnostics 与趋势 Fake
+
+- `manufacturing/process_diagnostics/{__init__,binding,contracts,handler}.py` → `app/tools/process_diagnostics/`；SQLite 来源 → 组内 `data_source.py`。
+- `fake_process_diagnostics.py` → `app/demo_data/tool_sources/process_diagnostics.py`；趋势 `fake_source.py` → `app/demo_data/tool_sources/capability_trend.py`。趋势工具继续独立，不并入诊断组。
+- 更新定义/装配、默认装配、光刻 Workflow 演示、趋势测试和来源切片等实际消费者；已迁组扫描无旧路径。Fake 所在位置变化不改变生产依赖方向。
+- 传感器摘要增加 title/output_schema，Cpk 沿用 030b 的权威 Schema；不改输入或输出计算。新增与现有 Schema 一同在真实处理器结果上校验。
+- MOD-003/007/009/024 归属与切片路径更新，光刻切片补两个真实 demo_data 锚点；诊断便携切片为 69 个唯一文件。MOD-024 skill_release 源码 107 → 109，成员 302、tool_sources 108、组合并集 151 不变。均为路径/必需包锚点变化，不重录业务期望。
+
+两平台各 49 项通过，命令：
+
+```text
+python -m unittest tests.test_tool_output_schemas tests.test_process_diagnostics tests.test_process_diagnostics_adapters tests.test_process_diagnostics_runtime tests.test_process_diagnostics_portable tests.test_capability_trend_tool tests.test_skill_standard tests.test_litho_cpk_skill tests.test_litho_cpk_portable tests.test_tool_sources_portable
+```
+
+WSL repository、两端 module/modularization 边界及 WSL diff 检查通过，298 文件/0 错误；从起点重新导出后四类工具目录字节一致（`c2-catalog-*`）。过程中的切片计数失败来自重复添加包锚点，修正为实际唯一文件清单后通过，无业务行为修复。Playbook 证据规则不改。
+
 ## 后续批次
 
-c2～c7 尚未完成；后续批次继续追加本报告。完整交付物、应用启动、Windows 全量及与起点失败集合对照，留至 030d/030e，不以本批定向结果替代。
+c3～c7 尚未完成；后续批次继续追加本报告。完整交付物、应用启动、Windows 全量及与起点失败集合对照，留至 030d/030e，不以本批定向结果替代。

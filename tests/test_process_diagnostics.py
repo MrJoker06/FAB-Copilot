@@ -16,13 +16,13 @@ from app.agent_runtime.tools.contracts import (
 from app.agent_runtime.tools.dispatch_contracts import BudgetDecision, PolicyDecision
 from app.agent_runtime.tools.dispatcher import ToolDispatcher
 from app.agent_runtime.tools.tool_registry import ToolRegistry
-from app.manufacturing.process_diagnostics.binding import (
+from app.tools.process_diagnostics.binding import (
     PROCESS_CAPABILITY_DEFINITION,
     SENSOR_SUMMARY_DEFINITION,
     create_process_capability_binding,
     create_sensor_summary_binding,
 )
-from app.manufacturing.process_diagnostics.contracts import (
+from app.tools.process_diagnostics.contracts import (
     DiagnosticsDataError,
     DiagnosticsInputError,
     DiagnosticsQuery,
@@ -31,7 +31,7 @@ from app.manufacturing.process_diagnostics.contracts import (
     SensorSummaryInput,
     diagnostics_scope,
 )
-from app.manufacturing.process_diagnostics.handler import (
+from app.tools.process_diagnostics.handler import (
     ProcessDiagnosticsDependencies,
     process_capability_handler,
     sensor_summary_handler,

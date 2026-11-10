@@ -42,7 +42,7 @@ from ..manufacturing.operational_reports.binding import (
     create_equipment_productivity_binding,
     create_recent_excursions_binding,
 )
-from ..manufacturing.process_diagnostics.binding import (
+from app.tools.process_diagnostics.binding import (
     create_process_capability_binding,
     create_sensor_summary_binding,
 )
@@ -289,7 +289,7 @@ def build_default_run_tools(
     from ..integrations.manufacturing.sqlite_operational_reports import (
         SQLiteOperationalReportsAdapter,
     )
-    from ..integrations.manufacturing.sqlite_process_diagnostics import (
+    from app.tools.process_diagnostics.data_source import (
         SQLiteProcessDiagnosticsAdapter,
     )
     from ..integrations.manufacturing.sqlite_production_reports import (

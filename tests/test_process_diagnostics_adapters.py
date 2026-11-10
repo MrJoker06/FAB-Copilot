@@ -11,14 +11,14 @@ from unittest.mock import patch
 
 from app.agent_runtime.tools.contracts import ToolSourceKind
 from app.core.sqlite_support import install_sqlite_functions
-from app.integrations.manufacturing.fake_process_diagnostics import (
+from app.demo_data.tool_sources.process_diagnostics import (
     FakeProcessDiagnosticsAdapter,
 )
-from app.integrations.manufacturing.sqlite_process_diagnostics import (
+from app.tools.process_diagnostics.data_source import (
     SQLiteProcessDiagnosticsAdapter,
 )
 from app.manufacturing import reports
-from app.manufacturing.process_diagnostics.contracts import (
+from app.tools.process_diagnostics.contracts import (
     DiagnosticsDataError,
     DiagnosticsQuery,
     DiagnosticsTimeoutError,
@@ -192,7 +192,7 @@ class ProcessDiagnosticsAdapterTests(unittest.TestCase):
             missing, self.equipment, demo_tenant_id="demo"
         )
         with patch(
-            "app.integrations.manufacturing.sqlite_process_diagnostics.sqlite3.connect"
+            "app.tools.process_diagnostics.data_source.sqlite3.connect"
         ) as connect:
             with self.assertRaisesRegex(DiagnosticsDataError, "unavailable") as error:
                 adapter.fetch(self.capability, Principal("other"))
@@ -253,7 +253,7 @@ class ProcessDiagnosticsAdapterTests(unittest.TestCase):
             return spy
 
         with patch(
-            "app.integrations.manufacturing.sqlite_process_diagnostics.sqlite3.connect",
+            "app.tools.process_diagnostics.data_source.sqlite3.connect",
             side_effect=connect,
         ):
             adapter.fetch(self.capability, self.principal)
@@ -269,7 +269,7 @@ class ProcessDiagnosticsAdapterTests(unittest.TestCase):
 
         with (
             patch(
-                "app.integrations.manufacturing.sqlite_process_diagnostics.sqlite3.connect",
+                "app.tools.process_diagnostics.data_source.sqlite3.connect",
                 side_effect=bad_close,
             ),
             self.assertRaisesRegex(DiagnosticsDataError, "unavailable") as error,
@@ -314,11 +314,11 @@ class ProcessDiagnosticsAdapterTests(unittest.TestCase):
 
         with (
             patch(
-                "app.integrations.manufacturing.sqlite_process_diagnostics.time.monotonic",
+                "app.tools.process_diagnostics.data_source.time.monotonic",
                 side_effect=(0, 0.002),
             ),
             patch(
-                "app.integrations.manufacturing.sqlite_process_diagnostics.sqlite3.connect",
+                "app.tools.process_diagnostics.data_source.sqlite3.connect",
                 side_effect=lambda *args, **kwargs: TimeoutConnection(
                     original_connect(*args, **kwargs)
                 ),

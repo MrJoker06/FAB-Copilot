@@ -13,11 +13,11 @@ from pathlib import Path
 import jsonschema
 
 from app.agent_runtime.tools.contracts import ToolExecutionContext, ToolStatus
-from app.integrations.manufacturing.sqlite_process_diagnostics import (
+from app.tools.process_diagnostics.data_source import (
     SQLiteProcessDiagnosticsAdapter,
 )
-from app.manufacturing.process_diagnostics.binding import PROCESS_CAPABILITY_DEFINITION
-from app.manufacturing.process_diagnostics.contracts import ProcessCapabilityInput
+from app.tools.process_diagnostics.binding import PROCESS_CAPABILITY_DEFINITION
+from app.tools.process_diagnostics.contracts import ProcessCapabilityInput
 from app.tools.capability_trend.contracts import (
     OUTPUT_SCHEMA,
     CapabilityTrendDataError,
@@ -25,7 +25,7 @@ from app.tools.capability_trend.contracts import (
     CapabilityTrendInputError,
     validate_capability_trend_output,
 )
-from app.tools.capability_trend.fake_source import FakeCapabilityTrendSource
+from app.demo_data.tool_sources.capability_trend import FakeCapabilityTrendSource
 from app.tools.capability_trend.sqlite_source import SQLiteCapabilityTrendSource
 from app.tools.capability_trend.tool import (
     CAPABILITY_TREND_DEFINITION,

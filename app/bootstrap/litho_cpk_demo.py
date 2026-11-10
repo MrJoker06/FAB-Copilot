@@ -35,7 +35,7 @@ from ..integrations.knowledge.fake_search import FakeKnowledgeSearchAdapter
 from ..integrations.manufacturing.fake_operational_reports import (
     FakeOperationalReportsAdapter,
 )
-from ..integrations.manufacturing.fake_process_diagnostics import (
+from app.demo_data.tool_sources.process_diagnostics import (
     FakeProcessDiagnosticsAdapter,
 )
 from ..intent_runtime.routing import route_question
@@ -48,16 +48,16 @@ from ..knowledge.search_tool.contracts import (
 )
 from ..manufacturing.operational_reports.binding import create_recent_excursions_binding
 from ..manufacturing.operational_reports.contracts import RecentExcursionsInput
-from ..manufacturing.process_diagnostics.binding import (
+from app.tools.process_diagnostics.binding import (
     create_process_capability_binding,
     create_sensor_summary_binding,
 )
-from ..manufacturing.process_diagnostics.contracts import (
+from app.tools.process_diagnostics.contracts import (
     ProcessCapabilityInput,
     SensorSummaryInput,
 )
 from ..tools.capability_trend.contracts import CapabilityTrendInput
-from ..tools.capability_trend.fake_source import FakeCapabilityTrendSource
+from app.demo_data.tool_sources.capability_trend import FakeCapabilityTrendSource
 from ..tools.capability_trend.tool import create_capability_trend_binding
 from .agent_assembly import assemble_agent
 from .litho_cpk_workflow import LithoCpkWorkflow

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from ...agent_runtime.tools.contracts import ToolPrincipal, ToolSource, ToolSourceKind
-from .contracts import (
+from app.agent_runtime.tools.contracts import ToolPrincipal, ToolSource, ToolSourceKind
+from app.tools.capability_trend.contracts import (
     CapabilityTrendDataError,
     CapabilityTrendQuery,
     CapabilityTrendSnapshot,

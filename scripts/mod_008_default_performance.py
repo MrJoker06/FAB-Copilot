@@ -500,7 +500,7 @@ def _source_patches(stack, side, business):
         KnowledgeSearchSnapshot,
         knowledge_scope,
     )
-    from app.manufacturing.process_diagnostics.contracts import (
+    from app.tools.process_diagnostics.contracts import (
         DiagnosticsSnapshot,
         diagnostics_scope,
     )
@@ -577,7 +577,7 @@ def _source_patches(stack, side, business):
 
     stack.enter_context(
         patch(
-            "app.integrations.manufacturing.sqlite_process_diagnostics.SQLiteProcessDiagnosticsAdapter",
+            "app.tools.process_diagnostics.data_source.SQLiteProcessDiagnosticsAdapter",
             Diagnostics,
         )
     )

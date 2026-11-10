@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from app.bootstrap import diagnostics_demo
-from app.manufacturing.process_diagnostics.contracts import DiagnosticsDataError
+from app.tools.process_diagnostics.contracts import DiagnosticsDataError
 
 _CAPABILITY = "get_process_capability"
 _SENSORS = "get_sensor_summary"

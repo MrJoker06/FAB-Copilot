@@ -199,7 +199,7 @@ class ModuleReleaseTests(unittest.TestCase):
                 len(release["profiles"]["tool_sources"]["source_files"]), 108
             )
             self.assertEqual(
-                len(release["profiles"]["skill_release"]["source_files"]), 107
+                len(release["profiles"]["skill_release"]["source_files"]), 109
             )
             self.assertEqual(
                 len(release["profiles"]["model_transport"]["source_files"]), 5

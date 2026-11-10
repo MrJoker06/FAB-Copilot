@@ -5,14 +5,15 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import date
 
-from ...agent_runtime.tools.contracts import ToolExecutionContext
-from ...agent_runtime.tools.definition import (
+from app.agent_runtime.tools.contracts import ToolExecutionContext
+from app.agent_runtime.tools.definition import (
     ToolBinding,
     ToolDefinition,
     ToolPreparation,
 )
-from .contracts import (
+from app.tools.process_diagnostics.contracts import (
     PROCESS_CAPABILITY_OUTPUT_SCHEMA,
+    SENSOR_SUMMARY_OUTPUT_SCHEMA,
     ProcessCapabilityInput,
     ProcessDiagnosticsPort,
     SensorSummaryInput,
@@ -20,7 +21,7 @@ from .contracts import (
     validate_process_capability_output,
     validate_sensor_summary_output,
 )
-from .handler import (
+from app.tools.process_diagnostics.handler import (
     ProcessDiagnosticsDependencies,
     process_capability_handler,
     sensor_summary_handler,
@@ -41,6 +42,8 @@ SENSOR_SUMMARY_DEFINITION = ToolDefinition(
     description="查询传感器样本、缺失、异常和统计摘要，可联合按站点、设备和信号过滤",
     input_model=SensorSummaryInput,
     output_validator=validate_sensor_summary_output,
+    title="传感器统计摘要",
+    output_schema=SENSOR_SUMMARY_OUTPUT_SCHEMA,
 )
 
 

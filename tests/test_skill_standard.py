@@ -38,7 +38,7 @@ from app.bootstrap.skill_assembly import (
     resolve_skill_binding,
 )
 from app.intent_runtime.routing import route_question
-from app.manufacturing.process_diagnostics.binding import PROCESS_CAPABILITY_DEFINITION
+from app.tools.process_diagnostics.binding import PROCESS_CAPABILITY_DEFINITION
 from app.skills.contracts import ComponentReference as SkillComponentReference
 from app.skills.contracts import SkillPackageError
 from app.skills.frontmatter import parse_skill_document

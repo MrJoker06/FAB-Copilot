@@ -36,11 +36,11 @@ from ..manufacturing.operational_reports.binding import (
     create_recent_excursions_binding,
 )
 from ..manufacturing.operational_reports.contracts import OperationalReportsPort
-from ..manufacturing.process_diagnostics.binding import (
+from app.tools.process_diagnostics.binding import (
     create_process_capability_binding,
     create_sensor_summary_binding,
 )
-from ..manufacturing.process_diagnostics.contracts import ProcessDiagnosticsPort
+from app.tools.process_diagnostics.contracts import ProcessDiagnosticsPort
 from ..manufacturing.production_reports.binding import (
     create_fab_overview_binding,
     create_process_pass_rate_binding,

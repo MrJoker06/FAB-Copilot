@@ -9,10 +9,10 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from app.integrations.manufacturing.sqlite_process_diagnostics import (
+from app.tools.process_diagnostics.data_source import (
     SQLiteProcessDiagnosticsAdapter,
 )
-from app.manufacturing.process_diagnostics.contracts import DiagnosticsQuery
+from app.tools.process_diagnostics.contracts import DiagnosticsQuery
 
 SCHEMA = """
 CREATE TABLE process_runs (

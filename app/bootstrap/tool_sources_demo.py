@@ -37,7 +37,7 @@ from ..integrations.manufacturing.sqlite_named_queries import SQLiteNamedQueryAd
 from ..integrations.manufacturing.sqlite_operational_reports import (
     SQLiteOperationalReportsAdapter,
 )
-from ..integrations.manufacturing.sqlite_process_diagnostics import (
+from app.tools.process_diagnostics.data_source import (
     SQLiteProcessDiagnosticsAdapter,
 )
 from ..integrations.manufacturing.sqlite_production_reports import (
