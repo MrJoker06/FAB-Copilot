@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from ...agent_runtime.tools.contracts import ToolPrincipal, ToolSource, ToolSourceKind
-from ...manufacturing.data_contracts import EnterpriseDataProvider
-from ...manufacturing.enterprise_tools.contracts import (
+from app.agent_runtime.tools.contracts import ToolPrincipal, ToolSource, ToolSourceKind
+from app.tools.enterprise_data.provider_contracts import EnterpriseDataProvider
+from app.tools.enterprise_data.contracts import (
     EnterpriseDataError,
     EnterpriseQuery,
     EnterpriseSnapshot,

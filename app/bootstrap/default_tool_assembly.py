@@ -29,12 +29,12 @@ from ..agent_runtime.tools.tool_registry import (
 )
 from ..knowledge.search_tool.binding import create_knowledge_search_binding
 from ..manufacturing.enterprise_data import get_enterprise_provider
-from ..manufacturing.enterprise_tools.binding import (
+from app.tools.enterprise_data.binding import (
     create_enterprise_manifest_binding,
     create_enterprise_sample_binding,
     create_enterprise_summary_binding,
 )
-from ..manufacturing.enterprise_tools.contracts import EnterpriseWindow
+from app.tools.enterprise_data.contracts import EnterpriseWindow
 from app.tools.equipment_health.binding import create_equipment_health_binding
 from app.tools.named_queries.binding import create_named_query_bindings
 from app.tools.operational_reports.binding import (
@@ -277,7 +277,7 @@ def build_default_run_tools(
     """Build native bindings lazily; legacy functions are an explicit live-patch bridge."""
     from ..agent_runtime.tools.tool_registry import DEFAULT_TOOL_REGISTRY
     from ..integrations.knowledge.runtime_search import create_runtime_knowledge_port
-    from ..integrations.manufacturing.provider_enterprise_tools import (
+    from app.tools.enterprise_data.data_source import (
         ProviderEnterpriseToolsAdapter,
     )
     from app.tools.equipment_health.data_source import (

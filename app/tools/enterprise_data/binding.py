@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from ...agent_runtime.tools.contracts import ToolExecutionContext
-from ...agent_runtime.tools.definition import (
+from app.agent_runtime.tools.contracts import ToolExecutionContext
+from app.agent_runtime.tools.definition import (
     ToolBinding,
     ToolDefinition,
     ToolPreparation,
 )
-from .contracts import (
+from app.tools.enterprise_data.contracts import (
+    ENTERPRISE_OUTPUT_SCHEMAS,
     EnterpriseDataPort,
     EnterpriseManifestInput,
     EnterpriseSampleInput,
@@ -19,7 +20,7 @@ from .contracts import (
     validate_enterprise_sample_output,
     validate_enterprise_summary_output,
 )
-from .handler import (
+from app.tools.enterprise_data.handler import (
     EnterpriseToolsDependencies,
     enterprise_manifest_handler,
     enterprise_sample_handler,
@@ -32,6 +33,8 @@ ENTERPRISE_MANIFEST_DEFINITION = ToolDefinition(
     "查询企业数据目录与保留策略",
     EnterpriseManifestInput,
     validate_enterprise_manifest_output,
+    title="企业数据目录",
+    output_schema=ENTERPRISE_OUTPUT_SCHEMAS["manifest"],
 )
 ENTERPRISE_SUMMARY_DEFINITION = ToolDefinition(
     "get_enterprise_fab_summary",
@@ -39,6 +42,8 @@ ENTERPRISE_SUMMARY_DEFINITION = ToolDefinition(
     "查询企业晶圆厂汇总",
     EnterpriseSummaryInput,
     validate_enterprise_summary_output,
+    title="企业晶圆厂汇总",
+    output_schema=ENTERPRISE_OUTPUT_SCHEMAS["summary"],
 )
 ENTERPRISE_SAMPLE_DEFINITION = ToolDefinition(
     "query_enterprise_data",
@@ -46,6 +51,8 @@ ENTERPRISE_SAMPLE_DEFINITION = ToolDefinition(
     "查询企业数据样本",
     EnterpriseSampleInput,
     validate_enterprise_sample_output,
+    title="企业数据样本",
+    output_schema=ENTERPRISE_OUTPUT_SCHEMAS["sample"],
 )
 
 

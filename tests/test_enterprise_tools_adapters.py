@@ -8,14 +8,14 @@ from unittest.mock import patch
 
 from app.agent_runtime.tools.contracts import ToolExecutionContext, ToolSourceKind
 from app.core.identity import Principal
-from app.integrations.manufacturing.fake_enterprise_tools import (
+from app.demo_data.tool_sources.enterprise_data import (
     FakeEnterpriseToolsAdapter,
 )
-from app.integrations.manufacturing.provider_enterprise_tools import (
+from app.tools.enterprise_data.data_source import (
     ProviderEnterpriseToolsAdapter,
 )
 from app.manufacturing import enterprise_data
-from app.manufacturing.enterprise_tools.contracts import (
+from app.tools.enterprise_data.contracts import (
     EnterpriseDataError,
     EnterpriseManifestInput,
     EnterpriseQuery,
@@ -24,7 +24,7 @@ from app.manufacturing.enterprise_tools.contracts import (
     EnterpriseTimeoutError,
     EnterpriseWindow,
 )
-from app.manufacturing.enterprise_tools.handler import (
+from app.tools.enterprise_data.handler import (
     EnterpriseToolsDependencies,
     enterprise_manifest_handler,
     enterprise_sample_handler,

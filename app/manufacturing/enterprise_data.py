@@ -11,7 +11,7 @@ from collections.abc import Callable
 
 from ..core.settings import get_settings
 from ..core.identity import Principal, current_principal
-from .data_contracts import EnterpriseDataProvider
+from app.tools.enterprise_data.provider_contracts import EnterpriseDataProvider
 from .processes import MANUFACTURING_STEPS
 
 

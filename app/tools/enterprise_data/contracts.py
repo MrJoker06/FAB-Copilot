@@ -8,17 +8,17 @@ from datetime import date, datetime, timedelta
 from math import isfinite
 from typing import Literal, Protocol
 
-from ...agent_runtime.tools.contracts import (
+from app.agent_runtime.tools.contracts import (
     ToolPrincipal,
     ToolScope,
     ToolSource,
 )
-from ...agent_runtime.tools.dispatch_contracts import (
+from app.agent_runtime.tools.dispatch_contracts import (
     ToolDataSourceError,
     ToolInputError,
     ToolSourceTimeout,
 )
-from ..processes import MANUFACTURING_STEPS
+from app.manufacturing.processes import MANUFACTURING_STEPS
 
 _ENTITIES = frozenset(("lots", "process-runs", "sensor-events"))
 _STATUSES = frozenset(("Completed", "Running", "Hold"))
@@ -486,6 +486,46 @@ def _iso_date(value: object, name: str) -> date:
         return date.fromisoformat(value)
     except ValueError as exc:
         raise EnterpriseDataError(f"invalid {name} from source") from exc
+
+
+_OUTPUT_COMMON = {
+    "provider": {"type": "string", "minLength": 1},
+    "simulated": {"type": "boolean"},
+    "tenant_id": {"type": "string", "minLength": 1},
+}
+_OUTPUT_PROPERTIES = {
+    "manifest": {
+        **_OUTPUT_COMMON,
+        "virtual_scale": {"type": "object", "properties": {name: {"type": "integer", "minimum": 0} for name in sorted(_ENTITIES)}, "required": sorted(_ENTITIES), "additionalProperties": False},
+        "entities": {"type": "object", "properties": {name: {"type": "object", "properties": {"path": {"type": "string"}, "primary_key": {"type": "string"}}, "required": ["path", "primary_key"], "additionalProperties": False} for name in sorted(_ENTITIES)}, "required": sorted(_ENTITIES), "additionalProperties": False},
+        "analytics": {"type": "object", "properties": {"summary_path": {"type": "string"}, "semantics": {"type": "string"}, "supports": {"type": "array", "items": {"type": "string"}}}, "required": ["summary_path", "semantics", "supports"], "additionalProperties": False},
+        "pagination": {"type": "object", "properties": {"strategy": {"type": "string"}, "default_limit": {"type": "integer", "minimum": 1}, "max_limit": {"type": "integer", "minimum": 1}}, "required": ["strategy", "default_limit", "max_limit"], "additionalProperties": False},
+        "retention_days": {"type": "integer", "minimum": 0},
+        "partition_recommendation": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "data_classification": {"type": "string", "minLength": 1},
+    },
+    "summary": {
+        **_OUTPUT_COMMON,
+        "query": {"type": "object", "properties": {"filters": {"type": "object"}, "effective_start": {"type": "string"}, "effective_end": {"type": "string"}, "query_id": {"type": "string"}}, "required": ["filters", "effective_start", "effective_end", "query_id"], "additionalProperties": False},
+        "aggregation": {"type": "object", "properties": {"semantics": {"type": "string"}, "exact": {"type": "boolean"}, "description": {"type": "string"}}, "required": ["semantics", "exact", "description"], "additionalProperties": False},
+        "totals": {"type": "object", "properties": {name: {"type": "integer", "minimum": 0} for name in ("lots", "completed_lots", "wafers", "process_runs", "sensor_events")}, "required": ["lots", "completed_lots", "wafers", "process_runs", "sensor_events"], "additionalProperties": False},
+        "kpis": {"type": "object", "properties": {**{name: {"type": "number", "minimum": 0, "maximum": 100} for name in ("yield_pct", "process_pass_rate_pct", "hold_rate_pct", "excursion_rate_pct", "sensor_missing_pct", "sensor_outlier_pct")}, "avg_cycle_hours": {"type": "number"}, "excursion_runs": {"type": "integer", "minimum": 0}}, "required": ["yield_pct", "process_pass_rate_pct", "avg_cycle_hours", "hold_rate_pct", "excursion_rate_pct", "excursion_runs", "sensor_missing_pct", "sensor_outlier_pct"], "additionalProperties": False},
+        "equipment": {"type": "array", "items": {"type": "object", "properties": {"equipment_id": {"type": "string"}, "projected_runs": {"type": "integer", "minimum": 0}, **{name: {"type": "number", "minimum": 0, "maximum": 100} for name in ("pass_rate_pct", "excursion_rate_pct", "health_score")}, "risk": {"enum": ["high", "watch", "stable"]}}, "required": ["equipment_id", "projected_runs", "pass_rate_pct", "excursion_rate_pct", "health_score", "risk"], "additionalProperties": False}},
+        "lineage": {"type": "object", "properties": {**{name: {"type": "string"} for name in ("source", "classification", "as_of", "freshness")}, "generated_from": {"type": "array", "items": {"type": "string"}}}, "required": ["source", "classification", "generated_from", "as_of", "freshness"], "additionalProperties": False},
+    },
+    "sample": {
+        **_OUTPUT_COMMON,
+        "entity": {"enum": sorted(_ENTITIES)},
+        "filters": {"type": "object", "additionalProperties": {"type": "string"}},
+        # Entity-specific record semantics remain enforced by the existing validator.
+        "records": {"type": "array", "items": {"type": "object"}},
+        "page": {"type": "object", "properties": {**{name: {"type": "integer", "minimum": 0} for name in ("count", "position", "estimated_total")}, "limit": {"type": "integer", "minimum": 1, "maximum": 50}, "next_cursor": {"type": ["string", "null"], "minLength": 1}}, "required": ["count", "limit", "position", "estimated_total", "next_cursor"], "additionalProperties": False},
+    },
+}
+ENTERPRISE_OUTPUT_SCHEMAS = {
+    kind: {"type": "object", "properties": properties, "required": list(properties), "additionalProperties": False}
+    for kind, properties in _OUTPUT_PROPERTIES.items()
+}
 
 
 def validate_enterprise_manifest_output(value: object) -> object:

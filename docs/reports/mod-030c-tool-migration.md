@@ -107,6 +107,22 @@ python -m unittest tests.test_tool_output_schemas tests.test_named_queries tests
 
 WSL repository、两端 module/modularization 边界及 diff 检查通过，298 文件/0 错误；迁移组扫描无旧路径。重新导出起点的四类目录字节一致（`c5-catalog-*`）。中断前测试已有完整 OK 日志，恢复后补齐检查；未使用中断的全量基线日志作为阶段门结论。
 
+## c6：enterprise_data
+
+- `manufacturing/enterprise_tools/{__init__,binding,contracts,handler}.py` → `app/tools/enterprise_data/`；Provider 适配 → `data_source.py`；Fake → `app/demo_data/tool_sources/enterprise_data.py`；原 `data_contracts.py` → `provider_contracts.py`。
+- 根据真实消费者，包锚点不再提前导入 binding；调用者已显式导入 binding，纯 Provider 契约因此仍可独立交付，无需工具执行器或应用设置。未增加懒加载兼容层。
+- 更新默认/显式装配、企业演示、旧 Provider 实现引用、独立契约与 portable_units 构建入口，以及对应测试、MOD-001/002 路径记录、MOD-003/009/024 和边界清单。
+- 三项企业工具补 title/output_schema，保留来源、租户、模拟标记及分页结构。实体记录的复杂语义和跨字段约束继续由既有输出验证器执行，不声称 JSON Schema 替代全部业务判断。
+- 企业演示切片为 91 个唯一文件；纯契约切片补新包锚点。成员及当前 MOD-024 Profile 数量不变；本批尚未拆 SyntheticFabProvider 与来源选择，留至 030d。
+
+两端各 40 项通过：
+
+```text
+python -m unittest tests.test_tool_output_schemas tests.test_enterprise_tools tests.test_enterprise_tools_adapters tests.test_enterprise_tools_runtime tests.test_enterprise_tools_portable tests.test_enterprise_data_contract_portable tests.test_enterprise_provider_boundary tests.test_tool_sources_portable tests.test_portable_units
+```
+
+包括 Provider 契约实际独立制品执行。WSL repository、两端 module/modularization 边界及 diff 检查通过，298 文件/0 错误；已迁企业工具与契约旧路径扫描无残留。重新导出起点四类目录字节一致（`c6-catalog-*`）。首次尝试被中断且无测试结果，未计入通过；最终完整运行日志为 `c6-final-*`。
+
 ## 后续批次
 
-c6～c7 尚未完成；后续批次继续追加本报告。完整交付物、应用启动、Windows 全量及与起点失败集合对照，留至 030d/030e，不以本批定向结果替代。
+c7 尚未完成；后续批次继续追加本报告。完整交付物、应用启动、Windows 全量及与起点失败集合对照，留至 030d/030e，不以本批定向结果替代。

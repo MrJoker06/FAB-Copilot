@@ -670,6 +670,11 @@
       "artifact_group": "enterprise_adapters"
     },
     {
+      "path": "app/demo_data/tool_sources/enterprise_data.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
       "path": "app/demo_data/tool_sources/equipment_health.py",
       "primary_module": "integrations",
       "artifact_group": "enterprise_adapters"
@@ -756,16 +761,6 @@
     },
     {
       "path": "app/integrations/manufacturing/__init__.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
-      "path": "app/integrations/manufacturing/fake_enterprise_tools.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
-      "path": "app/integrations/manufacturing/provider_enterprise_tools.py",
       "primary_module": "integrations",
       "artifact_group": "enterprise_adapters"
     },
@@ -885,11 +880,6 @@
       "artifact_group": "platform_core"
     },
     {
-      "path": "app/manufacturing/data_contracts.py",
-      "primary_module": "manufacturing_domain",
-      "artifact_group": "platform_core"
-    },
-    {
       "path": "app/manufacturing/enterprise_data.py",
       "primary_module": "business_tools",
       "artifact_group": "manufacturing_capability",
@@ -901,26 +891,6 @@
       ],
       "reason": "provider wrapper contains synthetic fallback and integration concerns",
       "exit_task": "MOD-008"
-    },
-    {
-      "path": "app/manufacturing/enterprise_tools/__init__.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/enterprise_tools/binding.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/enterprise_tools/contracts.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
-    },
-    {
-      "path": "app/manufacturing/enterprise_tools/handler.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability"
     },
     {
       "path": "app/manufacturing/named_playbooks.py",
@@ -1404,6 +1374,36 @@
       "path": "app/tools/capability_trend/tool.py",
       "primary_module": "business_tools",
       "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/enterprise_data/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/enterprise_data/binding.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/enterprise_data/contracts.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/enterprise_data/data_source.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/tools/enterprise_data/handler.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/enterprise_data/provider_contracts.py",
+      "primary_module": "manufacturing_domain",
+      "artifact_group": "platform_core"
     },
     {
       "path": "app/tools/equipment_health/__init__.py",

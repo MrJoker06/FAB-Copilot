@@ -8,14 +8,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TypeVar
 
-from ...agent_runtime.tools.contracts import (
+from app.agent_runtime.tools.contracts import (
     ToolExecutionContext,
     ToolExecutionState,
     ToolResult,
     ToolSourceKind,
     ToolStatus,
 )
-from .contracts import (
+from app.tools.enterprise_data.contracts import (
     EnterpriseDataError,
     EnterpriseDataPort,
     EnterpriseManifestInput,

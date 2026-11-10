@@ -384,7 +384,7 @@
       "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
     },
     {
-      "path": "app/manufacturing/data_contracts.py",
+      "path": "app/tools/enterprise_data/provider_contracts.py",
       "source": "current-reviewed-overlay"
     },
     {

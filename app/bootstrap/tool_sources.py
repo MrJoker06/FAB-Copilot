@@ -14,12 +14,12 @@ from datetime import date, datetime
 from ..agent_runtime.tools.definition import ToolBinding
 from ..knowledge.search_tool.binding import create_knowledge_search_binding
 from ..knowledge.search_tool.contracts import KnowledgeSearchPort
-from ..manufacturing.enterprise_tools.binding import (
+from app.tools.enterprise_data.binding import (
     create_enterprise_manifest_binding,
     create_enterprise_sample_binding,
     create_enterprise_summary_binding,
 )
-from ..manufacturing.enterprise_tools.contracts import (
+from app.tools.enterprise_data.contracts import (
     EnterpriseDataPort,
     EnterpriseWindow,
 )

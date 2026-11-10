@@ -70,8 +70,10 @@
       "files": [
         "app/__init__.py",
         "app/manufacturing/__init__.py",
-        "app/manufacturing/data_contracts.py",
-        "tests/test_enterprise_data_contract_portable.py"
+        "app/tools/enterprise_data/provider_contracts.py",
+        "tests/test_enterprise_data_contract_portable.py",
+        "app/tools/__init__.py",
+        "app/tools/enterprise_data/__init__.py"
       ]
     },
     "retrieval_policy": {

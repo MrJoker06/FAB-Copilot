@@ -28,18 +28,18 @@ from ..agent_runtime.execution.runtime_contracts import (
 from ..agent_runtime.execution.tool_budget import LoopGuardToolBudget
 from ..agent_runtime.tools.contracts import ToolExecutionLimits, ToolStatus
 from ..agent_runtime.tools.dispatch_policy import DemoToolPolicy
-from ..integrations.manufacturing.fake_enterprise_tools import (
+from app.demo_data.tool_sources.enterprise_data import (
     FakeEnterpriseToolsAdapter,
 )
-from ..integrations.manufacturing.provider_enterprise_tools import (
+from app.tools.enterprise_data.data_source import (
     ProviderEnterpriseToolsAdapter,
 )
-from ..manufacturing.enterprise_tools.binding import (
+from app.tools.enterprise_data.binding import (
     create_enterprise_manifest_binding,
     create_enterprise_sample_binding,
     create_enterprise_summary_binding,
 )
-from ..manufacturing.enterprise_tools.contracts import (
+from app.tools.enterprise_data.contracts import (
     EnterpriseDataError,
     EnterpriseInputError,
     EnterpriseManifestInput,

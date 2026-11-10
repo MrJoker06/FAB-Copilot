@@ -24,13 +24,13 @@ from tests.test_process_diagnostics_portable import (
 from tests.test_production_reports_portable import PRODUCTION_FILES
 
 ENTERPRISE_FILES = (
-    "app/manufacturing/data_contracts.py",
-    "app/manufacturing/enterprise_tools/__init__.py",
-    "app/manufacturing/enterprise_tools/contracts.py",
-    "app/manufacturing/enterprise_tools/handler.py",
-    "app/manufacturing/enterprise_tools/binding.py",
-    "app/integrations/manufacturing/fake_enterprise_tools.py",
-    "app/integrations/manufacturing/provider_enterprise_tools.py",
+    "app/tools/enterprise_data/provider_contracts.py",
+    "app/tools/enterprise_data/__init__.py",
+    "app/tools/enterprise_data/contracts.py",
+    "app/tools/enterprise_data/handler.py",
+    "app/tools/enterprise_data/binding.py",
+    "app/demo_data/tool_sources/enterprise_data.py",
+    "app/tools/enterprise_data/data_source.py",
     "app/bootstrap/enterprise_tools_demo.py",
 )
 
@@ -53,7 +53,7 @@ class EnterpriseToolsPortableTests(unittest.TestCase):
             + OPERATIONAL_FILES
             + ENTERPRISE_FILES
         )
-        self.assertEqual((len(files), len(set(files))), (88, 88))
+        self.assertEqual((len(files), len(set(files))), (91, 91))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

@@ -44,7 +44,7 @@ from app.tools.production_reports.data_source import (
     SQLiteProductionReportsAdapter,
 )
 from ..knowledge.search_tool.contracts import KnowledgeSearchInput
-from ..manufacturing.enterprise_tools.contracts import EnterpriseWindow
+from app.tools.enterprise_data.contracts import EnterpriseWindow
 from app.tools.equipment_health.contracts import (
     EquipmentHealthAggregate,
     EquipmentHealthQuery,

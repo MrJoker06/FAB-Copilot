@@ -260,7 +260,7 @@ def verify_bundle(archive_path: Path) -> None:
             )
             subprocess.run([sys.executable, "-c", smoke], cwd=root, env=environment, check=True)
         elif unit == "enterprise_data_contract":
-            assert_bundle_imports(root, "app.manufacturing.data_contracts")
+            assert_bundle_imports(root, "app.tools.enterprise_data.provider_contracts")
             environment = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
             smoke = (
                 "import runpy, sys\n"

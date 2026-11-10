@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from app.core.identity import Principal, reset_principal, set_principal
 from app.manufacturing import enterprise_data
-from app.manufacturing.data_contracts import EnterpriseDataProvider
+from app.tools.enterprise_data.provider_contracts import EnterpriseDataProvider
 
 
 class RegisteredProvider:

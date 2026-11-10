@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.manufacturing.data_contracts import DataPrincipal, EnterpriseDataProvider
+from app.tools.enterprise_data.provider_contracts import DataPrincipal, EnterpriseDataProvider
 
 
 class FakePrincipal:

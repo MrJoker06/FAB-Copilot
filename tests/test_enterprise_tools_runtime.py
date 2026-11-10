@@ -10,13 +10,13 @@ from unittest.mock import patch
 
 from app.agent_runtime.execution.runtime_contracts import ModelRequest
 from app.bootstrap import enterprise_tools_demo as demo
-from app.integrations.manufacturing.fake_enterprise_tools import (
+from app.demo_data.tool_sources.enterprise_data import (
     FakeEnterpriseToolsAdapter,
 )
-from app.integrations.manufacturing.provider_enterprise_tools import (
+from app.tools.enterprise_data.data_source import (
     ProviderEnterpriseToolsAdapter,
 )
-from app.manufacturing.enterprise_tools.contracts import EnterpriseDataError
+from app.tools.enterprise_data.contracts import EnterpriseDataError
 
 
 def _args(**overrides: object) -> argparse.Namespace:

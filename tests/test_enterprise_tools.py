@@ -12,12 +12,12 @@ from app.agent_runtime.tools.contracts import (
     ToolSource,
     ToolSourceKind,
 )
-from app.manufacturing.enterprise_tools.binding import (
+from app.tools.enterprise_data.binding import (
     create_enterprise_manifest_binding,
     create_enterprise_sample_binding,
     create_enterprise_summary_binding,
 )
-from app.manufacturing.enterprise_tools.contracts import (
+from app.tools.enterprise_data.contracts import (
     EnterpriseDataError,
     EnterpriseInputError,
     EnterpriseManifestInput,
@@ -27,7 +27,7 @@ from app.manufacturing.enterprise_tools.contracts import (
     EnterpriseWindow,
     enterprise_scope,
 )
-from app.manufacturing.enterprise_tools.handler import EnterpriseToolsDependencies
+from app.tools.enterprise_data.handler import EnterpriseToolsDependencies
 
 
 @dataclass(frozen=True)
