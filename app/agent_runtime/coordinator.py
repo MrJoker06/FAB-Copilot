@@ -28,6 +28,8 @@ async def coordinate_agent_run(
         run_id=request.run_id,
         progress=progress,
         thinking=request.thinking,
+        thinking_effort=request.thinking_effort,
+        thinking_dialect=request.thinking_dialect,
     )
     prepared = await prepare_immediate(state, deps=deps)
     if prepared.result is not None:

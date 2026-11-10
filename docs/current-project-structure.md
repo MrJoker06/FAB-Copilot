@@ -1,8 +1,8 @@
 # 当前项目精细结构快照
 
-快照日期：2026-11-10。应用源码基线为 experiment/parallel-platform 的 `c193138`，已合入 local-Qwen 的证据/呈现、模型凭据和跨平台修正，跨平台本地模型启动器 DEPLOY-019 已完成。MOD-001～019 及 MOD-024 均已验证，本轮 MOD-024 在不修改应用源码的前提下建立版本一致的模块制品；状态和实际验收见 [交付报告](reports/mod-024-module-delivery.md)。MOD-020～023 的 Checkpoint/只读恢复与 MOD-025～028 的 Adapter/演示/内网集成仍待完成，保留的兼容 facade 与配置锚点归 MOD-027。Skill 加载与发布保持显式可选，默认 HTTP 未启用。历史失败及验证范围保留在对应报告；提交与远程状态以 Git 记录为准。
+快照日期：2026-11-10。当前应用源码合入 local-Qwen `5e2d3f4`，版本一致制品工具来自 `a4739e0`，已合入 local-Qwen 的证据/呈现、模型凭据和跨平台修正，跨平台本地模型启动器 DEPLOY-019 已完成。MOD-001～019 及 MOD-024 均已验证，本轮 MOD-024 在不修改应用源码的前提下建立版本一致的模块制品；状态和实际验收见 [交付报告](reports/mod-024-module-delivery.md)。MOD-020～023 的 Checkpoint/只读恢复与 MOD-025～028 的 Adapter/演示/内网集成仍待完成，保留的兼容 facade 与配置锚点归 MOD-027。Skill 加载与发布保持显式可选，默认 HTTP 未启用。历史失败及验证范围保留在对应报告；提交与远程状态以 Git 记录为准。
 
-本次实扫 `app/` 的受管源码为 **286 文件：258 个 Python、28 个静态文件**（MOD-015e 后为 282；合入 local-Qwen 后新增 `core/call_scope.py`、`core/model_credentials.py`、`core/tool_result_projection.py` 与 `evidence/evidence_truncation.py`，MOD-024 不增改应用源码）。数量与
+本次实扫 `app/` 的受管源码为 **287 文件：259 个 Python、28 个静态文件**（MOD-015e 后为 282；合入 local-Qwen 后新增 `core/call_scope.py`、`core/model_credentials.py`、`core/tool_result_projection.py` 与 `evidence/evidence_truncation.py`；本轮 Thinking 配置另增 `core/local_model_config.py`。MOD-024 不增改应用源码）。数量与
 `evaluations/mod_003_boundaries_v1.json` 一致；测试、日志、缓存和运行期生成物不计入。
 
 ## 平台启动入口
@@ -417,6 +417,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/core/call_scope.py` | 纯 | 从实际工具参数推导结果范围，供 Planner 与证据 Validator 共用。 |
 | `app/core/tool_result_projection.py` | 纯 | 按工具对模型提示词中的结果视图排序、裁剪并生成披露；保留完整原始观察、运行记录与 API 数据。 |
 | `app/core/model_credentials.py` | Adapter/配置 | 按模型读取、保存和清除服务端本地 JSON 凭据；提供环境变量回退与配置状态，凭据不写入模型目录数据库。 |
+| `app/core/local_model_config.py` | Adapter/配置 | 保存本地模型连接与能力配置；模型目录仍维护发布、健康、兼容及用户选择，凭据单独存放。 |
 | `app/core/identity.py` | Adapter/过渡 | 当前身份解析和 SQLite/请求绑定。 |
 | `app/core/identity_contracts.py` | 纯 | Identity claims 与演示 Header 解析契约。 |
 | `app/core/storage_identity_ports.py` | 纯 | 存储/身份窄 Port：`PrincipalView`、`StorageIdentityBindings` 与安装/读取函数；只加载标准库，未安装时报错并写明安装函数。 |

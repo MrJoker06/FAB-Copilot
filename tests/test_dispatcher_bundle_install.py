@@ -13,6 +13,7 @@ import venv
 from pathlib import Path
 
 from scripts.build_portable_unit import build_unit, load_manifest
+from tests.support import scrubbed_environment, sqlite_session
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "evaluations" / "mod_007_dispatcher_bundle_v1.json"
@@ -64,7 +65,7 @@ class DispatcherBundleInstallTests(unittest.TestCase):
         completed = subprocess.run(
             [str(python), "-I", "-m", "app.bootstrap.dispatcher_demo", *arguments],
             cwd=cwd,
-            env={},
+            env=scrubbed_environment(),
             text=True,
             capture_output=True,
             check=False,
@@ -108,7 +109,7 @@ class DispatcherBundleInstallTests(unittest.TestCase):
                     "import app,sys; print(app.__file__); print(sys.prefix != sys.base_prefix)",
                 ],
                 cwd=unrelated,
-                env={},
+                env=scrubbed_environment(),
                 text=True,
             ).splitlines()
             self.assertTrue(Path(probe[0]).resolve().is_relative_to(purelib.resolve()))
@@ -138,7 +139,7 @@ class DispatcherBundleInstallTests(unittest.TestCase):
             completed = subprocess.run(
                 [str(python), "-I", "-c", code],
                 cwd=unrelated,
-                env={},
+                env=scrubbed_environment(),
                 text=True,
                 capture_output=True,
                 check=False,
@@ -155,14 +156,14 @@ class DispatcherBundleInstallTests(unittest.TestCase):
             unrelated = work / "unrelated"
             unrelated.mkdir()
             manufacturing, equipment = work / "m.db", work / "e.db"
-            with sqlite3.connect(manufacturing) as connection:
+            with sqlite_session(manufacturing) as connection:
                 connection.execute(
                     "CREATE TABLE process_runs (equipment_id,process_step,run_time,excursion_code,defect_density,pass_flag)"
                 )
                 connection.execute(
                     "INSERT INTO process_runs VALUES ('DEMO-01','CMP','2026-10-24',NULL,.1,1)"
                 )
-            with sqlite3.connect(equipment) as connection:
+            with sqlite_session(equipment) as connection:
                 connection.execute(
                     "CREATE TABLE equipment_events (equipment_id,event_time,duration_minutes)"
                 )
@@ -214,6 +215,9 @@ class DispatcherBundleInstallTests(unittest.TestCase):
             script = """import asyncio, importlib, importlib.abc, os, pathlib, runpy, socket, sqlite3, sys
 ROOT=pathlib.Path(sysconfig.get_path('purelib')).resolve()
 INVENTORY=set(sys.argv[1:])
+# Create the Windows event loop before the audit hook; its loopback
+# socketpair is local IPC, not application network access.
+_loop=asyncio.new_event_loop(); asyncio.set_event_loop(_loop); asyncio.run=_loop.run_until_complete
 blocked=[]
 imports=[]
 def audit(event, args):
@@ -259,7 +263,7 @@ assert not blocked and not imports, (blocked, imports)
             completed = subprocess.run(
                 [str(python), "-I", "-c", script, *inventory],
                 cwd=unrelated,
-                env={},
+                env=scrubbed_environment(),
                 text=True,
                 capture_output=True,
                 check=False,

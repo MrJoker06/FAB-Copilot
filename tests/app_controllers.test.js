@@ -40,16 +40,19 @@ test('knowledge controller preserves personal listing query, stale mode guard an
   assert.deepEqual(stale, []);
 });
 
-test('model controller sends the original settings POST payload and reconciles Thinking through injected facade', async () => {
+test('model controller sends the original settings POST payload and reconciles Thinking effort through injected facade', async () => {
   const nodes = {
     '#activeModelLabel': element(), '#agentMode': element(), '#modelSelect': element({ value: 'model-b' }),
-    '#thinkingToggle': element({ pressed: 'true', getAttribute(name) { return name === 'aria-pressed' ? this.pressed : null; }, setAttribute(name, value) { if (name === 'aria-pressed') this.pressed = value; this[name] = value; } }),
+    '#thinkingEffort': element({ value: 'medium', disabled: true }),
     '#saveModelSettings': element(), '#modelSettingsMessage': element(), '#modelDialog': element({ open: false }),
   };
   const requests = [];
   const controller = model.createModelController({
     state: { modelConfig: null }, $: selector => nodes[selector], escapeHtml: value => String(value), showToast() {}, updateSystemStatus() {},
-    thinkingControl: { reconcile: (config, enabled) => ({ enabled: Boolean(enabled) && config.model === 'model-b', supported: config.model === 'model-b' }), supportsThinking: config => config.model === 'model-b' },
+    thinkingControl: {
+      options: () => [{value: 'off', label: '关闭'}, {value: 'low', label: '低'}, {value: 'medium', label: '中'}],
+      reconcile: (config, effort) => ({ enabled: config.model === 'model-b' && effort !== 'off', supported: config.model === 'model-b', effort: config.model === 'model-b' ? effort : 'off' }),
+    },
     api: async (url, options) => { requests.push([url, options]); return { model: 'model-b', display_name: 'Model B', allowed_models: ['model-b'] }; },
     windowImpl: { setTimeout() { return 1; } }, alertImpl() {},
   });
@@ -57,8 +60,10 @@ test('model controller sends the original settings POST payload and reconciles T
   assert.equal(requests[0][0], '/api/settings/model');
   assert.equal(requests[0][1].method, 'POST');
   assert.equal(requests[0][1].body, JSON.stringify({ model: 'model-b' }));
-  assert.equal(nodes['#thinkingToggle']['aria-disabled'], 'false');
-  assert.equal(nodes['#thinkingToggle'].pressed, 'true');
+  assert.equal(nodes['#thinkingEffort'].disabled, false);
+  assert.equal(nodes['#thinkingEffort'].value, 'medium');
+  assert.equal(controller.thinkingEffort(), 'medium');
+  assert.equal(controller.thinkingEnabled(), true);
 });
 
 test('knowledge upload injects FormData and retains the personal-document POST contract', async () => {

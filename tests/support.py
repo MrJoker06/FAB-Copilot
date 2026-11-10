@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import tempfile
 import unittest
@@ -9,6 +10,19 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+
+
+def scrubbed_environment() -> dict[str, str]:
+    """Return the smallest environment that still starts Python on this host.
+
+    The portable-slice tests deliberately run child interpreters without the
+    developer's environment.  Windows' socket stack cannot initialize from a
+    completely empty environment, so keep only ``SystemRoot`` there; POSIX can
+    keep the environment truly empty.
+    """
+    if os.name == "nt":
+        return {"SystemRoot": os.environ.get("SystemRoot", r"C:\Windows")}
+    return {}
 
 
 @contextmanager
@@ -51,4 +65,10 @@ requires_symlinks = unittest.skipUnless(
 )
 
 # Keep the import face narrow for tests that only need the decorator.
-__all__ = ["SYMLINKS_SUPPORTED", "requires_symlinks", "sqlite_session", "symlinks_supported"]
+__all__ = [
+    "SYMLINKS_SUPPORTED",
+    "requires_symlinks",
+    "scrubbed_environment",
+    "sqlite_session",
+    "symlinks_supported",
+]

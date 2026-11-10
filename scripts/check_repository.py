@@ -20,11 +20,15 @@ def tracked_files(*, runner=subprocess.run) -> list[Path]:
     return [PROJECT_DIR / item.decode("utf-8") for item in result.stdout.split(b"\0") if item]
 
 
-def text_hygiene_errors(paths: list[Path]) -> list[str]:
+def text_hygiene_errors(
+    paths: list[Path], *, normalize_newlines: bool = False
+) -> list[str]:
     errors: list[str] = []
     for path in paths:
         try:
             content = path.read_bytes()
+            if normalize_newlines:
+                content = content.replace(b"\r\n", b"\n")
             text = content.decode("utf-8")
         except (OSError, UnicodeDecodeError):
             continue
@@ -42,7 +46,19 @@ def text_hygiene_errors(paths: list[Path]) -> list[str]:
 
 
 def check_hygiene(*, runner=subprocess.run) -> None:
-    errors = text_hygiene_errors(tracked_files(runner=runner))
+    settings = runner(
+        ["git", "config", "--get", "core.autocrlf"],
+        cwd=PROJECT_DIR,
+        capture_output=True,
+    )
+    # checkout with autocrlf=true rewrites every LF to CRLF; the index still
+    # holds LF, so normalize the working copy before applying the LF rule.
+    normalize_newlines = (
+        settings.returncode == 0 and settings.stdout.strip().lower() == b"true"
+    )
+    errors = text_hygiene_errors(
+        tracked_files(runner=runner), normalize_newlines=normalize_newlines
+    )
     if errors:
         raise RuntimeError("repository text hygiene failed:\n" + "\n".join(errors))
 

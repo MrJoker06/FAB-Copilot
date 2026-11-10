@@ -36,6 +36,8 @@ class BrowserTestServerTests(unittest.TestCase):
                     "DEEPSEEK_API_KEY": "legacy", "DEEPSEEK_MODEL": "host-model", "AGENT_LOG_CONTENT": "full",
                     "AGENT_RUN_LOG_DIR": "/host/logs", "FAB_ADMIN_API_TOKEN": "old", "FAB_WORKSPACE_ENV_FILE": "/host/.env",
                     "SAFE": "kept", "PATH": "/safe/path",
+                    "FAB_LOCAL_MODELS_PATH": "/host/local_models.json",
+                    "FAB_MODEL_CREDENTIALS_PATH": "/host/model_credentials.json",
                 })
             self.assertEqual(backup.call_count, 5)
             prepare.assert_called_once_with(Path(environment["FAB_AGENT_DATABASE_PATH"]))
@@ -62,6 +64,8 @@ class BrowserTestServerTests(unittest.TestCase):
                 *server.DEPARTMENT_DATABASES,
                 "FAB_DATABASE_PATH",
                 "FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH",
+                "FAB_LOCAL_MODELS_PATH",
+                "FAB_MODEL_CREDENTIALS_PATH",
                 "AGENT_LOG_PATH",
                 "AGENT_RUN_LOG_DIR",
             )

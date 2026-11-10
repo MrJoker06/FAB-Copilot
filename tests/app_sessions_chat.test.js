@@ -28,7 +28,7 @@ test('chat stream keeps the supplied client message id, thinking payload, and st
   const controller = chat.createChatController({
     state, $: () => ({}), escapeHtml: value => String(value), identityHeaders: headers => headers, FabApiError: Error,
     apiError: payload => new Error(payload.detail), thinkingControl: { requestPayload: (payload, config, thinking) => ({ ...payload, model: config.model, thinking }) },
-    toolLabels: {}, presenter: {}, createConversation: async () => {}, loadSessionLibrary: async () => {}, newClientMessageId: () => 'generated', thinkingEnabled: () => false,
+    toolLabels: {}, presenter: {}, createConversation: async () => {}, loadSessionLibrary: async () => {}, newClientMessageId: () => 'generated', thinkingEffort: () => 'off',
     localStorageImpl: { setItem: () => {} },
     fetchImpl: async (url, options) => { request = { url, options }; let index = 0; return { ok: true, headers: { get: () => 'request-1' }, body: { getReader: () => ({ read: async () => index < chunks.length ? { value: chunks[index++], done: false } : { value: undefined, done: true } }) } }; },
     TextDecoderImpl: TextDecoder,

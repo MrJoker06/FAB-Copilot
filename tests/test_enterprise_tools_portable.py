@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.support import scrubbed_environment
 from tests.test_operational_reports_portable import OPERATIONAL_FILES
 from tests.test_process_diagnostics_portable import (
     DIAGNOSTICS_FILES,
@@ -60,12 +61,15 @@ class EnterpriseToolsPortableTests(unittest.TestCase):
                 self.assertTrue(source.is_file(), relative)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, target)
-            code = r"""import importlib, importlib.abc, json, os, socket, sqlite3, sys
+            code = r"""import asyncio, importlib, importlib.abc, json, os, socket, sqlite3, sys
 from pathlib import Path
 unit=Path(sys.argv[1]).resolve(); original=Path(sys.argv[2]).resolve(); allowed=set(sys.argv[3:])
 assert not any(str(unit) in value for value in sys.path)
 assert not any(Path(value).resolve()==original for value in sys.path if value)
 sys.path.insert(0,str(unit)); events=[]
+# Create the Windows event loop before the audit hook; its loopback
+# socketpair is local IPC, not application network access.
+_loop=asyncio.new_event_loop(); asyncio.set_event_loop(_loop); asyncio.run=_loop.run_until_complete
 blocked=('app.agent_runtime.service','app.agent_runtime.compatibility','app.agent_runtime.execution.agent_loop','app.agent_runtime.execution.loop_answer','app.agent_runtime.execution.loop_model_call','app.agent_runtime.execution.loop_request','app.agent_runtime.execution.loop_round_validation','app.agent_runtime.execution.loop_state','app.agent_runtime.execution.loop_tool_round','app.agent_runtime.tools.catalog','app.agent_runtime.tools.registry','app.core.settings','app.core.identity','app.model_gateway','app.evidence','app.persistence','app.manufacturing.enterprise_data','app.manufacturing.reports')
 class Finder(importlib.abc.MetaPathFinder):
  def find_spec(self,fullname,path=None,target=None):
@@ -114,7 +118,7 @@ for name,module in list(sys.modules.items()):
             result = subprocess.run(
                 [sys.executable, "-I", "-S", "-c", code, str(unit), str(ROOT), *files],
                 cwd=Path(tempfile.gettempdir()),
-                env={},
+                env=scrubbed_environment(),
                 text=True,
                 capture_output=True,
                 check=False,

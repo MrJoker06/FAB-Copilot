@@ -1,4 +1,9 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
+
+ThinkingEffort = Literal["off", "low", "medium", "high", "xhigh"]
+ThinkingDialect = Literal["qwen", "deepseek", "openai"]
 
 
 class ChatMessage(BaseModel):
@@ -12,6 +17,7 @@ class ChatRequest(BaseModel):
     session_id: str | None = None
     client_message_id: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
     thinking: StrictBool = False
+    thinking_effort: ThinkingEffort | None = None
 
 
 class StreamTelemetryRequest(BaseModel):
@@ -48,6 +54,9 @@ class ModelCapabilitiesRequest(BaseModel):
     tool_calls: StrictBool = True
     thinking: StrictBool = False
     native_multimodal: StrictBool = False
+    thinking_effort: ThinkingEffort | None = None
+    thinking_effort_options: list[ThinkingEffort] | None = Field(default=None, max_length=4)
+    reasoning_dialect: ThinkingDialect | None = None
 
 
 class AdminModelPublishRequest(BaseModel):
@@ -78,6 +87,9 @@ class AdminModelCapabilitiesRequest(BaseModel):
     tool_calls: StrictBool
     thinking: StrictBool
     native_multimodal: StrictBool
+    thinking_effort: ThinkingEffort | None = None
+    thinking_effort_options: list[ThinkingEffort] | None = Field(default=None, max_length=4)
+    reasoning_dialect: ThinkingDialect | None = None
 
 
 class SessionUpdateRequest(BaseModel):

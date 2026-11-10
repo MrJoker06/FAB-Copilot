@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sqlite3
 import subprocess
@@ -8,6 +9,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+from tests.support import scrubbed_environment
 
 ROOT = Path(__file__).resolve().parents[1]
 INVENTORY = ROOT / "evaluations" / "mod_005_equipment_health_source_v1.json"
@@ -23,9 +26,12 @@ class EquipmentHealthPortableTests(unittest.TestCase):
             shutil.copy2(source, destination)
 
     def _databases(self, root: Path) -> tuple[Path, Path]:
+        # Windows filenames cannot contain "?"; keep the delimiter coverage on
+        # POSIX and use a portable marker on Windows.
+        marker = "#?" if os.name != "nt" else "#_"
         manufacturing, equipment = (
-            root / "manufacturing #?.db",
-            root / "equipment #?.db",
+            root / f"manufacturing {marker}.db",
+            root / f"equipment {marker}.db",
         )
         with sqlite3.connect(manufacturing) as connection:
             connection.execute(
@@ -89,7 +95,7 @@ sys.exit(code)
             capture_output=True,
             check=False,
             cwd=unit,
-            env={},
+            env=scrubbed_environment(),
         )
 
     def test_copied_unit_runs_fake_sqlite_and_invalid_without_repo_imports(self):

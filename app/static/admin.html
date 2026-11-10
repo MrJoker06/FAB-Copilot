@@ -77,6 +77,14 @@
         <label><span>提供方模型</span><input id="publishProviderModel" type="text" maxlength="120" required></label>
         <label class="full-field"><span>API Base URL</span><input id="publishBaseUrl" type="url" maxlength="500" value="https://api.deepseek.com" required></label>
         <div class="capability-options full-field"><label><input id="publishStreaming" type="checkbox" checked> Streaming</label><label><input id="publishToolCalls" type="checkbox" checked> Tool calls</label><label><input id="publishThinking" type="checkbox"> Thinking</label><label><input id="publishNativeMultimodal" type="checkbox"> 原生多模态</label><p class="field-hint">能力由管理员声明。保存发布不会联网；可随后按需执行兼容性测试。</p></div>
+        <div class="thinking-config full-field">
+          <div class="thinking-config-row">
+            <label><span>默认思考档位</span><select id="publishThinkingEffort"><option value="off">关闭</option><option value="low">低</option><option value="medium">中</option><option value="high">高</option><option value="xhigh">极高</option></select></label>
+            <label><span>推理方言</span><select id="publishReasoningDialect"><option value="">自动</option><option value="qwen">Qwen</option><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option></select></label>
+          </div>
+          <div class="thinking-visible"><span>向用户展示的档位</span><label><input id="publishThinkingLow" type="checkbox" checked> 低</label><label><input id="publishThinkingMedium" type="checkbox" checked> 中</label><label><input id="publishThinkingHigh" type="checkbox" checked> 高</label><label><input id="publishThinkingXhigh" type="checkbox"> 极高</label></div>
+          <p class="field-hint">用户始终可以选择“关闭”；只有勾选的档位会出现在用户端。Thinking 未声明时档位自动关闭。</p>
+        </div>
         <div id="publishModelMessage" class="form-message full-field" role="alert" hidden></div>
       </div>
       <div class="dialog-actions"><button id="cancelPublishModel" class="quiet-button" type="button">取消</button><button id="confirmPublishModel" class="primary-button" type="submit">发布</button></div>
@@ -86,7 +94,16 @@
   <dialog id="editCapabilitiesDialog" class="admin-dialog publish-dialog" aria-labelledby="editCapabilitiesTitle">
     <form id="editCapabilitiesForm">
       <div class="dialog-heading"><div><p class="admin-eyebrow">CAPABILITY DECLARATION</p><h2 id="editCapabilitiesTitle">编辑能力</h2></div><button id="closeCapabilities" class="icon-button" type="button" aria-label="关闭">×</button></div>
-      <div class="dialog-body"><input id="editCapabilitiesModelId" type="hidden"><p class="field-hint">这是管理员声明；保存不会联网，并会使此前兼容性测试结果失效。</p><div class="capability-options"><label><input id="editStreaming" type="checkbox"> Streaming</label><label><input id="editToolCalls" type="checkbox"> Tool calls</label><label><input id="editThinking" type="checkbox"> Thinking</label><label><input id="editNativeMultimodal" type="checkbox"> 原生多模态</label></div><div id="editCapabilitiesMessage" class="form-message" role="alert" hidden></div></div>
+      <div class="dialog-body"><input id="editCapabilitiesModelId" type="hidden"><p class="field-hint">这是管理员声明；保存不会联网，并会使此前兼容性测试结果失效。</p><div class="capability-options"><label><input id="editStreaming" type="checkbox"> Streaming</label><label><input id="editToolCalls" type="checkbox"> Tool calls</label><label><input id="editThinking" type="checkbox"> Thinking</label><label><input id="editNativeMultimodal" type="checkbox"> 原生多模态</label></div>
+        <div class="thinking-config">
+          <div class="thinking-config-row">
+            <label><span>默认思考档位</span><select id="editThinkingEffort"><option value="off">关闭</option><option value="low">低</option><option value="medium">中</option><option value="high">高</option><option value="xhigh">极高</option></select></label>
+            <label><span>推理方言</span><select id="editReasoningDialect"><option value="">自动</option><option value="qwen">Qwen</option><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option></select></label>
+          </div>
+          <div class="thinking-visible"><span>向用户展示的档位</span><label><input id="editThinkingLow" type="checkbox"> 低</label><label><input id="editThinkingMedium" type="checkbox"> 中</label><label><input id="editThinkingHigh" type="checkbox"> 高</label><label><input id="editThinkingXhigh" type="checkbox"> 极高</label></div>
+          <p class="field-hint">默认档位可以是“关闭”。用户端只展示勾选的档位，并始终保留“关闭”。</p>
+        </div>
+        <div id="editCapabilitiesMessage" class="form-message" role="alert" hidden></div></div>
       <div class="dialog-actions"><button id="cancelCapabilities" class="quiet-button" type="button">取消</button><button id="confirmCapabilities" class="primary-button" type="submit">保存声明</button></div>
     </form>
   </dialog>

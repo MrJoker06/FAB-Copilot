@@ -33,14 +33,14 @@ test('E2E-WORKFLOW-001 desktop settings switches Thinking from unsupported to su
 
   await test.step('select the unsupported model and verify the disabled control', async () => {
     await selectModel(page, 'deepseekv4-flash');
-    await expect(page.locator('#thinkingToggle')).toHaveAttribute('aria-disabled', 'true');
-    await expect(page.locator('#thinkingToggle')).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('#thinkingEffort')).toBeDisabled();
+    await expect(page.locator('#thinkingEffort')).toHaveValue('off');
   });
   await test.step('select the Thinking-capable model and enable it', async () => {
     await selectModel(page, 'deepseekv4-pro');
-    await expect(page.locator('#thinkingToggle')).toHaveAttribute('aria-disabled', 'false');
-    await page.locator('#thinkingToggle').click();
-    await expect(page.locator('#thinkingToggle')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#thinkingEffort')).toBeEnabled();
+    await page.locator('#thinkingEffort').selectOption('high');
+    await expect(page.locator('#thinkingEffort')).toHaveValue('high');
   });
 });
 
@@ -86,14 +86,15 @@ test('E2E-WORKFLOW-003 desktop Thinking stream completes and the current session
 
   await test.step('enable Thinking and submit a real streaming request', async () => {
     await selectModel(page, 'deepseekv4-pro');
-    await page.locator('#thinkingToggle').click();
-    await expect(page.locator('#thinkingToggle')).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('#thinkingEffort').selectOption('high');
+    await expect(page.locator('#thinkingEffort')).toHaveValue('high');
     const request = page.waitForRequest(request => request.url().endsWith('/api/chat/stream') && request.method() === 'POST');
     await page.locator('#chatInput').fill(question);
     await page.locator('#sendButton').click();
     const streamRequest = await request;
     const payload = JSON.parse(streamRequest.postData());
     expect(payload.thinking).toBe(true);
+    expect(payload.thinking_effort).toBe('high');
     expect(await streamRequest.headerValue('x-tenant-id')).toBe(identities.tenant);
     expect(await streamRequest.headerValue('x-user-id')).toBe(identities.user);
     await expect(page.locator('.live-analysis')).toBeVisible();

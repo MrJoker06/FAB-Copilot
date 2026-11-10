@@ -1,6 +1,6 @@
 # 非企业级 TODO 执行计划
 
-状态核对：`experiment/parallel-platform`，2026-11-10；应用源码基线 `c193138`（local-Qwen 与 DEPLOY-019 已合入，MOD-024 不改应用源码），后续纯文档提交不改变该源码基线。
+状态核对：`experiment/parallel-platform`，2026-11-10；应用源码合入 local-Qwen `5e2d3f4`（Thinking 配置），MOD-024 工具基线 `a4739e0`，源码提交与合并关系以 Git 记录为准。
 
 本计划只安排当前单机样例和产品能力建设。企业 SSO、真实制造系统、分布式数据基础设施、多实例治理、网关和生产部署统一暂缓，未经用户重新确认不进入开发。
 

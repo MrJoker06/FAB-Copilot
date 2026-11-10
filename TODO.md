@@ -1,6 +1,6 @@
 # Fab Insight Agent TODO
 
-状态核对：`experiment/parallel-platform`，2026-11-10；应用源码基线 `c193138`（local-Qwen 与 DEPLOY-019 已合入，MOD-024 不改应用源码），后续纯文档提交不改变该源码基线。
+状态核对：`experiment/parallel-platform`，2026-11-10；应用源码合入 local-Qwen `5e2d3f4`（Thinking 配置），MOD-024 工具基线 `a4739e0`，源码提交与合并关系以 Git 记录为准。
 
 当前产品统计：共 228 个独立任务，已完成 183 个，待做 45 个；以各分类清单中的 `[x]` / `[ ]` 实算，模块化 `MOD-*` 工作包另计。
 

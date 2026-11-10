@@ -23,7 +23,7 @@
       toggleSelectedLibrarySessionArchive, continueSelectedLibrarySession,
       updateSessionRenameCount, renameSelectedLibrarySession,
       permanentlyDeleteSelectedSession, createConversation, closeSessionLibraryWorkspace,
-      openSessionLibraryWorkspace, toggleAgentPanel, sendChat, toggleThinking,
+      openSessionLibraryWorkspace, toggleAgentPanel, sendChat,
       openModelSettings, saveModelSettings, checkAppVersion, drawYieldChart,
       showToast, personalUploadQueue, openPersonalKnowledgeChunk,
       windowImpl = root, documentImpl = root.document,
@@ -278,7 +278,6 @@
         event.preventDefault();
         sendChat($('#chatInput').value);
       });
-      $('#thinkingToggle').addEventListener('click', toggleThinking);
       $('#chatInput').addEventListener('keydown', event => {
         if (event.key !== 'Enter' || event.shiftKey || event.isComposing || event.keyCode === 229) return;
         event.preventDefault();

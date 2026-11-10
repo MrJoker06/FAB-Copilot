@@ -5,9 +5,11 @@ const sourcePresenter = require('../../app/static/source_presenter.js');
 const turnTimeout = Number(process.env.FAB_LIVE_E2E_TURN_TIMEOUT_MS || 300_000);
 
 async function sendThroughUi(page, message, thinking) {
-  const toggle = page.locator('#thinkingToggle');
-  await expect(toggle).toBeEnabled();
-  if ((await toggle.getAttribute('aria-pressed')) !== String(thinking)) await toggle.click();
+  const effort = page.locator('#thinkingEffort');
+  await expect(effort).toBeEnabled();
+  const enabledOptions = await effort.locator('option').evaluateAll(options => options.map(option => option.value).filter(value => value !== 'off'));
+  if (thinking) expect(enabledOptions.length).toBeGreaterThan(0);
+  await effort.selectOption(thinking ? enabledOptions.at(-1) : 'off');
   const responsePromise = page.waitForResponse(response => response.url().endsWith('/api/chat/stream') && response.request().method() === 'POST');
   await page.locator('#chatInput').fill(message);
   await page.locator('#sendButton').click();

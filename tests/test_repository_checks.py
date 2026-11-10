@@ -27,6 +27,16 @@ class RepositoryCheckTests(unittest.TestCase):
             "sample.txt:1: remove trailing whitespace",
         ])
 
+    def test_hygiene_normalizes_autocrlf_checkout_newlines(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "sample.txt"
+            path.write_bytes(b"line one\r\nline two\r\n")
+            with patch.object(check_repository, "PROJECT_DIR", Path(temporary)):
+                errors = check_repository.text_hygiene_errors(
+                    [path], normalize_newlines=True
+                )
+        self.assertEqual(errors, [])
+
     def test_hygiene_skips_binary_and_non_utf8_files(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

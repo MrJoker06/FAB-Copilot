@@ -76,7 +76,7 @@ const chat = globalThis.FabChatController.createChatController({
   thinkingControl: globalThis.FabThinkingControl, toolLabels, presenter,
   createConversation: sessions.createConversation,
   loadSessionLibrary: sessions.loadSessionLibrary,
-  newClientMessageId, thinkingEnabled: model.thinkingEnabled,
+  newClientMessageId, thinkingEffort: model.thinkingEffort,
   chatDraftKey: CHAT_DRAFT_KEY,
 });
 

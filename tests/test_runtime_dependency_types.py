@@ -299,7 +299,7 @@ class DependencyTypeResolutionTests(unittest.TestCase):
         names = [
             name for name in ports.__all__ if _is_callable_port(getattr(ports, name))
         ]
-        self.assertEqual(len(names), 22)
+        self.assertEqual(len(names), 23)
         for name in names:
             with self.subTest(port=name):
                 hints = typing.get_type_hints(

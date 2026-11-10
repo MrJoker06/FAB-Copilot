@@ -292,6 +292,9 @@ class ReadySynthesisRequester(Protocol):
         thinking: bool,
         retry_budget: int,
         /,
+        *,
+        thinking_effort: str = "off",
+        thinking_dialect: str = "",
     ) -> tuple[JsonObject, JsonObject, str | None, JsonObject]: ...
 
 
@@ -337,7 +340,20 @@ RegisteredToolExecutor: TypeAlias = Callable[[str, JsonObject], object]
 KnowledgeResultPredicate: TypeAlias = Callable[[str, JsonObject], bool]
 AnswerNormalizer: TypeAlias = Callable[[str], str]
 DisclosurePredicate: TypeAlias = Callable[[str], bool]
-ProviderRequestOptions: TypeAlias = Callable[[str, bool], JsonObject]
+
+
+class ProviderRequestOptions(Protocol):
+    def __call__(
+        self,
+        provider: str,
+        thinking: bool = False,
+        effort: str = "",
+        model: str = "",
+        dialect: str = "",
+        /,
+    ) -> JsonObject: ...
+
+
 AssistantAuditor: TypeAlias = Callable[[JsonObject | None], JsonObject]
 LoopResultBuilder: TypeAlias = Callable[[str, "AnswerSynthesisReport"], JsonObject]
 NativeFallback: TypeAlias = Callable[[], Awaitable[JsonObject]]

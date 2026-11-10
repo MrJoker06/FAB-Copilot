@@ -603,6 +603,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/core/local_model_config.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/core/model_capabilities.py",
       "primary_module": "core_contracts_configuration",
       "artifact_group": "platform_core"

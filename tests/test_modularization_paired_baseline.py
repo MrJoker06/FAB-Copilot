@@ -20,6 +20,9 @@ SPEC.loader.exec_module(paired)
 
 def formal_report(value: int = 100) -> dict:
     samples, batches, block = 100, 2, 50
+    # Build the fixture paths natively: a POSIX "/tmp/..." string is not an
+    # absolute path on Windows, and compare_report requires absolute roots.
+    tree_root = Path(os.path.abspath("/tmp/mod002-test"))
     runs = [[value] * samples for _ in range(batches)]
     metric = {
         "wall_samples_ns": copy.deepcopy(runs),
@@ -66,10 +69,10 @@ def formal_report(value: int = 100) -> dict:
         "reference_behavior_status": "passed",
         "current_behavior_status": "passed",
         "isolated_trees": {
-            side: f"/tmp/mod002-test/{side}" for side in ("reference", "current")
+            side: str(tree_root / side) for side in ("reference", "current")
         },
         "origins": {
-            side: {"app": [f"/tmp/mod002-test/{side}/app/__init__.py"]}
+            side: {"app": [str(tree_root / side / "app/__init__.py")]}
             for side in ("reference", "current")
         },
         "offline_policy": {

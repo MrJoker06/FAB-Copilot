@@ -21,7 +21,7 @@ async function publishFixtureModel(page, {modelId, displayName, baseUrl, nativeM
   await page.locator('#publishBaseUrl').fill(baseUrl);
   if (nativeMultimodal) await page.locator('#publishNativeMultimodal').check();
   await page.locator('#confirmPublishModel').click();
-  const row = page.getByText(modelId, {exact: true}).locator('..');
+  const row = page.locator('#modelCatalogBody tr').filter({has: page.getByText(modelId, {exact: true})});
   await expect(row).toBeVisible();
   return row;
 }
@@ -77,13 +77,20 @@ test('E2E-ADMIN-002 disposable admin catalog publishes, probes, invalidates, ret
   await page.locator('#publishProviderModel').fill('fixture-compatibility');
   await page.locator('#publishBaseUrl').fill(baseUrl);
   await page.locator('#publishThinking').check();
+  await expect(page.locator('#publishReasoningDialect')).toHaveValue('');
   const published = page.waitForRequest(request => request.url().endsWith('/api/admin/models') && request.method() === 'POST');
   await page.locator('#confirmPublishModel').click();
-  const payload = (await published).postDataJSON();
+  const publishRequest = await published;
+  const publishResponse = await publishRequest.response();
+  expect(publishResponse.status(), await publishResponse.text()).toBe(201);
+  const payload = publishRequest.postDataJSON();
   createdModelIds.push(modelId);
-  expect(Object.keys(payload.capabilities).sort()).toEqual(['native_multimodal', 'streaming', 'thinking', 'tool_calls']);
+  expect(Object.keys(payload.capabilities).sort()).toEqual(['native_multimodal', 'streaming', 'thinking', 'thinking_effort', 'thinking_effort_options', 'tool_calls']);
+  expect(payload.capabilities.thinking).toBe(true);
+  expect(payload.capabilities.thinking_effort).toBe('off');
+  expect(payload.capabilities.thinking_effort_options).toEqual(['low', 'medium', 'high']);
   expect(JSON.stringify(payload)).not.toMatch(/api_key|token|secret/i);
-  const row = page.getByText(modelId, {exact: true}).locator('..');
+  const row = page.locator('#modelCatalogBody tr').filter({has: page.getByText(modelId, {exact: true})});
   await expect(row).toBeVisible();
   const before = await page.evaluate(async modelId => (await fetch('/api/admin/models', {headers: {Authorization: 'Bearer browser-test-admin-token'}})).json().then(items => items.find(item => item.model_id === modelId).health), modelId);
   const probe = page.waitForResponse(response => response.url().endsWith(`/api/admin/models/${modelId}/compatibility-check`) && response.request().method() === 'POST');
@@ -111,7 +118,7 @@ test('E2E-ADMIN-002 disposable admin catalog publishes, probes, invalidates, ret
   await expect(userPage.locator('#modelDialog')).toBeVisible();
   await userPage.locator('#modelSelect').selectOption(modelId);
   await userPage.locator('#saveModelSettings').click();
-  await expect(userPage.locator('#thinkingToggle')).toHaveAttribute('aria-disabled', 'false');
+  await expect(userPage.locator('#thinkingEffort')).toBeEnabled();
   await userPage.close();
   userPage = undefined;
   await page.goto('/admin');

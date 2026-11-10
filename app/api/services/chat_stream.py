@@ -21,9 +21,12 @@ class ChatStreamService:
 
     def chat_stream(self, request) -> StreamingResponse:
         runtime = self._deps()
-        principal, selected_model = runtime["_validate_chat_model_capabilities"](
-            request
-        )
+        validated = runtime["_validate_chat_model_capabilities"](request)
+        if len(validated) == 2:
+            principal, selected_model = validated
+            thinking_effort, thinking_dialect = "off", ""
+        else:
+            principal, selected_model, thinking_effort, thinking_dialect = validated
         session_id, history, cached, user_message = runtime["_prepare_chat"](request)
         recorder = runtime["RunExecutionRecorder"](
             session_id,
@@ -82,7 +85,9 @@ class ChatStreamService:
                     request.message,
                     history,
                     progress,
-                    thinking=request.thinking,
+                    thinking=thinking_effort != "off",
+                    thinking_effort=thinking_effort,
+                    thinking_dialect=thinking_dialect,
                     session_id=session_id,
                     user_message_id=user_message["message_id"]
                     if user_message

@@ -26,7 +26,7 @@
 
 仅选 tool_sources 时不启用 Skill；如 AgentDefinition 声明非空 skill_refs，必须同时选择 skill_release。TYPE_CHECKING 中的类型声明依赖不计为运行 Profile，完整源码类型检查另行进行。
 
-完整发布组包含 286 个受管 app 文件及 4 个 Skill 文本资源。安装器仅安装所选 Profile 的声明文件；其余源码标为尚未纳入运行 Profile。应用装配、OCR、真实数据 Adapter、Checkpoint 与完整内网集成不会因源码已入包而被提前视为通过。
+当前发布组包含 287 个受管 app 文件及 4 个 Skill 文本资源，共 291 个源码/资源成员；新增 local_model_config.py 归 platform_core，尚未纳入运行 Profile。MOD-024 原验收报告保留当时 286 + 4 的历史基线。安装器仅安装所选 Profile 的声明文件；其余源码标为尚未纳入运行 Profile。应用装配、OCR、真实数据 Adapter、Checkpoint 与完整内网集成不会因源码已入包而被提前视为通过。
 
 ### 构建与安装
 

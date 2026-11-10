@@ -188,7 +188,7 @@ class ReadySynthesisDependencies:
     synthesize_legacy_answer: Callable[..., Any]
     synthesize_submission: Callable[..., Any]
     ready_synthesis_fallback: Callable[[Any, Any, list[Any], str], Any]
-    provider_request_options: Callable[[str, bool], dict[str, Any]]
+    provider_request_options: Callable[..., dict[str, Any]]
     retryable_model_error: Callable[[Exception], bool]
     model_failure_reason: Callable[[Exception], str]
     model_retry_delay: Callable[[float, int, Exception], float]
@@ -364,6 +364,8 @@ async def request_ready_synthesis(
     retry_budget: int,
     *,
     deps: ReadySynthesisDependencies,
+    thinking_effort: str = "off",
+    thinking_dialect: str = "",
 ) -> tuple[dict[str, Any], dict[str, Any], str | None, dict[str, Any]]:
     payload: dict[str, Any] = {
         "model": connection.model,
@@ -371,7 +373,13 @@ async def request_ready_synthesis(
         "temperature": 0.15,
         "tools": [deps.submit_analysis_tool],
         "max_tokens": ready_synthesis_max_tokens(connection.provider, thinking),
-        **deps.provider_request_options(connection.provider, thinking),
+        **deps.provider_request_options(
+            connection.provider,
+            thinking,
+            thinking_effort,
+            connection.model,
+            thinking_dialect,
+        ),
     }
     if not (connection.provider == "deepseek" and thinking):
         payload["tool_choice"] = "auto"
@@ -386,8 +394,9 @@ async def request_ready_synthesis(
             model=connection.model,
             message_count=len(messages),
             thinking_requested=thinking,
-            thinking_effective=thinking,
-            reasoning_effort=payload.get("reasoning_effort"),
+            thinking_effective=False,
+            reasoning_effort=payload.get("reasoning_effort")
+            or (payload.get("chat_template_kwargs") or {}).get("reasoning_effort"),
             business_tool_selection_enabled=False,
             full_content={"request": payload},
         )
@@ -459,8 +468,11 @@ async def request_ready_synthesis(
             reasoning_length=int(state.get("reasoning_length", 0)),
             content_length=len(str(assistant.get("content") or "")),
             thinking_requested=thinking,
-            thinking_effective=thinking,
-            reasoning_effort=payload.get("reasoning_effort"),
+            thinking_effective=bool(
+                thinking and int(state.get("reasoning_length", 0)) > 0
+            ),
+            reasoning_effort=payload.get("reasoning_effort")
+            or (payload.get("chat_template_kwargs") or {}).get("reasoning_effort"),
             business_tool_selection_enabled=False,
             full_content={"response": deps.audit_assistant(assistant)},
         )

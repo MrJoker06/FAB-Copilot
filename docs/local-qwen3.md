@@ -73,7 +73,9 @@ llama-server 的查找顺序：`--server` → `<部署根>/runtimes/llama-cpp/ll
 > `image input is not supported`，兼容性检查会提示“模型服务未加载多模态投影”。
 
 默认关闭 Qwen 的 thinking（`--reasoning off`）：在本机实测，开启时单次回答会多出约
-6–7k 输出 token、耗时从约 60 秒涨到约 200 秒。需要推理过程时加 `-Thinking`。
+6–7k 输出 token、耗时从约 60 秒涨到约 200 秒。服务端默认关闭不影响请求级覆盖：应用会按
+模型配置发送 `chat_template_kwargs`，需要推理时由用户选择档位；`-Thinking` 只用于把
+服务端默认改为开启。
 
 等价的手工命令（与 `records.txt` 中的配置一致）：
 
@@ -122,7 +124,9 @@ $body = @{
     provider       = "openai-compatible"
     provider_model = "Qwen3.8-27B-Q4_K_M"
     base_url       = "http://127.0.0.1:8080/v1"
-    capabilities   = @{ streaming = $true; tool_calls = $true; thinking = $false; native_multimodal = $false }
+    capabilities   = @{ streaming = $true; tool_calls = $true; thinking = $true; native_multimodal = $false;
+                        thinking_effort = "xhigh"; thinking_effort_options = @("low", "medium", "xhigh");
+                        reasoning_dialect = "qwen" }
 } | ConvertTo-Json
 
 Invoke-RestMethod "http://127.0.0.1:8899/api/admin/models" -Method Post -Headers $headers -Body $body
@@ -269,6 +273,61 @@ FAB_MODEL_API_KEY__QWEN38_27B_Q4KM=another-local-key
 模型目录中的条目可以在「操作 → 删除」移除。删除会一并清理该模型的用户选择、健康记录和
 本地凭据条目；最后一条已发布模型不能删除（先发布或重新发布其他模型）。内置 DeepSeek 模型
 只在目录为空时自动初始化，因此删除后不会因重启 API 自动恢复。
+
+### 思考档位
+
+每个模型的能力声明可以带三个思考字段：
+
+- `thinking_effort`：默认档位，取值 `off`、`low`、`medium`、`high`、`xhigh`；
+- `thinking_effort_options`：向用户展示的档位子集，例如 `["low", "medium", "xhigh"]`；
+  管理端不勾选的档位不会出现在客户端下拉框；
+- `reasoning_dialect`：`qwen`、`deepseek` 或 `openai`。不填时按 provider 和模型名推断。
+
+管理端「模型目录 → 操作 → 编辑能力」可以设置默认档位、勾选可见档位并选择方言；客户端
+原本的 Thinking 按钮已改为「思考强度」下拉框，选择 `off` 即关闭思考。服务端会拒绝不在
+可见档位内的默认档位，也会拒绝用户提交未开放的档位。
+
+请求同时保留旧的 `thinking` 布尔字段以兼容旧客户端；新客户端会发送
+`thinking_effort`。Qwen 方言把档位放进
+`chat_template_kwargs={"enable_thinking": true, "reasoning_effort": ...}`，其中 `high`
+会映射为 Qwen 模板接受的 `xhigh`；DeepSeek 方言使用顶层 `thinking` 对象和
+`reasoning_effort`。
+
+### 本地模型文件
+
+本地 llama-server 模型的目录信息可以单独放在
+`runtime/local/local_models.json`（`FAB_LOCAL_MODELS_PATH` 可改路径）。管理端发布
+`provider=openai-compatible` 且 `base_url` 指向 loopback 的模型时会自动写入；也可以直接
+编辑该文件，保存后刷新管理端或客户端即可看到变化，无需重启 API。文件结构：
+
+```json
+{
+  "version": 1,
+  "models": {
+    "qwen38-27b-q4km": {
+      "model_id": "qwen38-27b-q4km",
+      "display_name": "Local Qwen3.8-27B",
+      "provider": "openai-compatible",
+      "provider_model": "Qwen3.8-27B-Q4_K_M",
+      "base_url": "http://127.0.0.1:8080/v1",
+      "capabilities": {
+        "streaming": true,
+        "tool_calls": true,
+        "thinking": true,
+        "native_multimodal": true,
+        "thinking_effort": "xhigh",
+        "thinking_effort_options": ["low", "medium", "xhigh"],
+        "reasoning_dialect": "qwen"
+      },
+      "updated_at": "2026-11-10T00:00:00+00:00"
+    }
+  }
+}
+```
+
+该文件优先于数据库中的同编号模型，只覆盖展示信息、连接信息和能力声明；API key 仍由
+`model_credentials.json` 或环境变量提供。文件损坏时读取会回退到数据库，写入会报错；
+删除模型会同步移除这里的条目。文件权限尽量设为 `0600`。
 
 ## 证据匹配与 V1/V2 同步
 

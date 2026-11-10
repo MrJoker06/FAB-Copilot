@@ -422,10 +422,15 @@ async def _request_ready_synthesis_session(
     run_id: str,
     thinking: bool,
     retry_budget: int,
+    *,
+    thinking_effort: str = "off",
+    thinking_dialect: str = "",
 ) -> tuple[dict[str, Any], dict[str, Any], str | None, dict[str, Any]]:
     """Synthesis-only model request over an open ModelGatewayPort session."""
     return await _request_ready_synthesis_runtime(
         session, connection, settings, messages, run_id, thinking, retry_budget,
+        thinking_effort=thinking_effort,
+        thinking_dialect=thinking_dialect,
         deps=_ready_synthesis_dependencies(),
     )
 

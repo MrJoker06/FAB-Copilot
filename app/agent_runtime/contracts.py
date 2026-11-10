@@ -18,6 +18,8 @@ class AgentRunRequest:
     history: list[dict] | None
     run_id: str
     thinking: bool = False
+    thinking_effort: str = "off"
+    thinking_dialect: str = ""
 
 
 @dataclass(slots=True)

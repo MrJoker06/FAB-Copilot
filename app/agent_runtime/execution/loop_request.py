@@ -54,7 +54,13 @@ async def prepare_round_request(
         "model": connection.model,
         "messages": messages,
         "temperature": 0.15,
-        **context.provider_request_options(connection.provider, thinking),
+        **context.provider_request_options(
+            connection.provider,
+            thinking,
+            context.thinking_effort,
+            connection.model,
+            context.thinking_dialect,
+        ),
     }
     if context.intent_route.intent not in {"general_knowledge", "conversation"}:
         answer_contract = state.answer_contract

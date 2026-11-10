@@ -81,7 +81,7 @@ test('LIVE-ADMIN-001 real admin governance clones the selected provider, probes,
   const published = page.waitForResponse(response => response.url().endsWith('/api/admin/models') && response.request().method() === 'POST');
   await page.locator('#confirmPublishModel').click();
   const publishPayload = (await publishRequest).postDataJSON();
-  expect(Object.keys(publishPayload.capabilities).sort()).toEqual(['native_multimodal', 'streaming', 'thinking', 'tool_calls']);
+  expect(Object.keys(publishPayload.capabilities).sort()).toEqual(['native_multimodal', 'streaming', 'thinking', 'thinking_effort', 'thinking_effort_options', 'tool_calls']);
   expect(JSON.stringify(publishPayload)).not.toMatch(/api[_-]?key|authorization|secret|token/i);
   const publishResponse = await published;
   expect(publishResponse.status()).toBe(201);
@@ -95,7 +95,9 @@ test('LIVE-ADMIN-001 real admin governance clones the selected provider, probes,
   const changedRequest = page.waitForRequest(request => request.url().endsWith(`/api/admin/models/${modelId}/capabilities`) && request.method() === 'PATCH');
   await page.locator('#confirmCapabilities').click();
   const changedPayload = (await changedRequest).postDataJSON();
-  expect(Object.keys(changedPayload).sort()).toEqual(['native_multimodal', 'streaming', 'thinking', 'tool_calls']);
+  const capabilityKeys = ['native_multimodal', 'streaming', 'thinking', 'thinking_effort', 'thinking_effort_options', 'tool_calls'];
+  if (selected.capabilities.thinking) capabilityKeys.push('reasoning_dialect');
+  expect(Object.keys(changedPayload).sort()).toEqual(capabilityKeys.sort());
   expect(JSON.stringify(changedPayload)).not.toMatch(/api[_-]?key|authorization|secret|token/i);
   await expect(row).toContainText('能力配置已变更');
   await row.locator('[data-action="capabilities"]').click();
@@ -130,8 +132,16 @@ test('LIVE-ADMIN-001 real admin governance clones the selected provider, probes,
   await expect(page.locator('#modelDialog')).toBeVisible();
   await page.locator('#modelSelect').selectOption(modelId);
   await page.locator('#saveModelSettings').click();
-  await expect(page.locator('#thinkingToggle')).toHaveAttribute('aria-disabled', selected.capabilities.thinking ? 'false' : 'true');
-  if (selected.capabilities.thinking) await page.locator('#thinkingToggle').click();
+  const effort = page.locator('#thinkingEffort');
+  if (selected.capabilities.thinking) {
+    await expect(effort).toBeEnabled();
+    const enabledOptions = await effort.locator('option').evaluateAll(options => options.map(option => option.value).filter(value => value !== 'off'));
+    expect(enabledOptions.length).toBeGreaterThan(0);
+    await effort.selectOption(enabledOptions.at(-1));
+  } else {
+    await expect(effort).toBeDisabled();
+    await expect(effort).toHaveValue('off');
+  }
   const result = await liveThinkingTurn(page, '请用简洁语言说明光刻的基本作用。');
   expect(result.model).toBe(selected.provider_model);
   expect(result.model_health?.fallback_reason).toBeFalsy();

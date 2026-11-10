@@ -1,6 +1,6 @@
 (function (root, factory) { const api = factory(root); if (typeof module === "object" && module.exports) module.exports = api; root.FabModelController = api; })(globalThis, (root) => {
   function createModelController(deps = {}) {
-    const { state, $, escapeHtml, api, showToast, updateSystemStatus, thinkingControl, windowImpl = root, alertImpl = root.alert } = deps;
+    const { state, $, escapeHtml, api, updateSystemStatus, thinkingControl, windowImpl = root, alertImpl = root.alert } = deps;
     const window = windowImpl, alert = alertImpl;
 function renderModelConfig(config) {
   state.modelConfig = config;
@@ -14,25 +14,21 @@ function renderModelConfig(config) {
 }
 
 function syncThinkingToggle() {
-  const toggle = $('#thinkingToggle');
-  const next = thinkingControl.reconcile(state.modelConfig, toggle.getAttribute('aria-pressed') === 'true');
-  toggle.setAttribute('aria-pressed', String(next.enabled));
-  toggle.setAttribute('aria-disabled', String(!next.supported));
-  toggle.title = next.supported ? (next.enabled ? '已开启 Thinking' : '开启 Thinking') : '当前模型不支持 Thinking';
+  const select = $('#thinkingEffort');
+  const options = thinkingControl.options(state.modelConfig);
+  select.innerHTML = options.map(item => `<option value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</option>`).join('');
+  const next = thinkingControl.reconcile(state.modelConfig, select.value || 'off');
+  select.value = next.effort;
+  select.disabled = !next.supported;
+  select.title = next.supported ? '选择思考强度' : '当前模型不支持 Thinking';
+}
+
+function thinkingEffort() {
+  return thinkingControl.reconcile(state.modelConfig, $('#thinkingEffort').value).effort;
 }
 
 function thinkingEnabled() {
-  return thinkingControl.reconcile(state.modelConfig, $('#thinkingToggle').getAttribute('aria-pressed') === 'true').enabled;
-}
-
-function toggleThinking() {
-  const toggle = $('#thinkingToggle');
-  if (!thinkingControl.supportsThinking(state.modelConfig)) {
-    showToast('当前模型不支持 Thinking，已保持关闭');
-    return;
-  }
-  toggle.setAttribute('aria-pressed', String(!thinkingEnabled()));
-  syncThinkingToggle();
+  return thinkingEffort() !== 'off';
 }
 
 async function loadModelConfig() {
@@ -63,7 +59,7 @@ async function saveModelSettings(event) {
   } finally { button.disabled = false; }
 }
 
-    return { renderModelConfig, syncThinkingToggle, thinkingEnabled, toggleThinking, loadModelConfig, openModelSettings, saveModelSettings };
+    return { renderModelConfig, syncThinkingToggle, thinkingEnabled, thinkingEffort, loadModelConfig, openModelSettings, saveModelSettings };
   }
   return { createModelController };
 });

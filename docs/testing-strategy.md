@@ -2,12 +2,13 @@
 
 ## 当前验证记录索引（2026-11-07）
 
-当前应用源码基线为 `experiment/parallel-platform` 的 `c193138`（local-Qwen/DEPLOY-019 已合入；MOD-024 未改应用源码）。本节汇总既有验收记录，完整离线门、定向测试和基线对照分别列出；下方各日期的历史基线保留原值。
+当前 `experiment/parallel-platform` 已合入 local-Qwen `5e2d3f4`（Thinking 配置），MOD-024 工具基线为 `a4739e0`。本节汇总既有验收记录，完整离线门、定向测试和基线对照分别列出；下方各日期的历史基线保留原值。
 
 | 范围 | 已记录的验证与限制 | 证据入口 |
 | --- | --- | --- |
 | AGENT-040～044 产品改善 | 全部已完成；044 的跨路径回归、局部修复预算和完整离线门于 2026-10-17 通过 | [Agent 分类验收记录](todos/agent-architecture.md) |
 | 跨平台启动维护 | 原生 Windows 与 WSL 的启动、停止、重启及必要回归，保留平台失败与修复记录 | [启动报告](reports/cross-platform-startup.md) |
+| local-Qwen Thinking 合并（2026-11-10） | 两端各 203 项 Python 定向、Node 23/23、Playwright 3/3；仅相关链路，未运行完整质量门或 Live | [合并报告](reports/local-qwen-thinking-merge.md) |
 | MOD-024（2026-11-10） | 两端各 11 项专项；独立 CLI 报告验证 44 路工具、Cpk 双路径、Skill 发布/禁用与离线 MockTransport；三 Profile 组合安装通过。旧 Windows Dispatcher 基线编码失败另记；未重跑浏览器/覆盖率/性能/Live | [交付报告](reports/mod-024-module-delivery.md) |
 | MOD-001～019 | 工作包状态、各切片独立运行与兼容验证逐项维护；不代表公司真实接入或整体离线交付已通过 | [模块化追踪](todos/modularization.md) |
 | MOD-009 完整离线阶段门 | 2026-11-06 记录退出码 0，480.3 秒；Python 1226 项（含 2 个平台跳过）、覆盖率 88%、Node 61/61、浏览器 17/17；RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7 | [来源替换报告](reports/mod-009-tool-sources.md) |

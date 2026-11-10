@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 
 from app.telemetry.audit import sanitize
 from app.agent_runtime import service as agent_module
+from app.core.local_model_config import local_models_path
 from app.core.model_credentials import get_stored_model_api_key, model_credentials_path
 from app.core.settings import ModelConnection, get_settings
 from app.persistence.database import db_session
@@ -164,7 +165,7 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                 self.assertNotIn("tool_choice", captured["payload"])
                 self.assertEqual(captured["endpoint"], "https://models.example.test/v1/chat/completions")
                 self.assertEqual(captured["headers"]["Authorization"], "Bearer server-managed-test-key")
-                expected_policy = {"requested": True, "context_effective": False, "answer_effective": True}
+                expected_policy = {"requested": True, "context_effective": False, "answer_effective": False}
                 self.assertEqual(chat_response.json()["thinking_policy"], expected_policy)
                 session_id = chat_response.json()["session_id"]
                 restored = client.get(f"/api/sessions/{session_id}", headers=user_a)
@@ -216,6 +217,103 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                 self.assertEqual(connection.execute("SELECT COUNT(*) FROM agent.agent_runs").fetchone()[0], runs_before)
             invalid_thinking = client.post("/api/chat", json={"message": "错误推理字段", "thinking": "false"})
             self.assertEqual(invalid_thinking.status_code, 422, invalid_thinking.text)
+
+    def test_admin_controls_thinking_default_and_user_visible_options(self):
+        admin_token = "thinking-admin-token"
+        model_id = "thinking-effort-test"
+        user = {"X-Tenant-ID": "thinking-fab", "X-User-ID": "thinking-user"}
+        with patch.dict(os.environ, {"FAB_ADMIN_API_TOKEN": admin_token}), TestClient(app) as client:
+            headers = {"Authorization": f"Bearer {admin_token}"}
+            published = client.post("/api/admin/models", headers=headers, json={
+                "model_id": model_id, "display_name": "Thinking Effort Test",
+                "provider": "openai-compatible", "provider_model": "thinking-effort-v1",
+                "base_url": "https://models.example.test/v1",
+                "capabilities": {
+                    "streaming": True, "tool_calls": True,
+                    "thinking": True, "native_multimodal": False,
+                    "thinking_effort": "low",
+                    "thinking_effort_options": ["low", "xhigh"],
+                    "reasoning_dialect": "qwen",
+                },
+            })
+            self.assertEqual(published.status_code, 201, published.text)
+            self.assertEqual(published.json()["capabilities"]["thinking_effort"], "low")
+            self.assertEqual(published.json()["capabilities"]["thinking_effort_options"], ["low", "xhigh"])
+            self.assertEqual(published.json()["thinking"]["effort"], "low")
+            self.assertEqual(published.json()["thinking"]["options"], ["low", "xhigh"])
+
+            catalog = client.get("/api/settings/model", headers=user)
+            option = next(item for item in catalog.json()["model_options"] if item["model_id"] == model_id)
+            self.assertEqual(option["capabilities"]["thinking_effort"], "low")
+            self.assertEqual(option["capabilities"]["thinking_effort_options"], ["low", "xhigh"])
+
+            self.assertEqual(client.post("/api/settings/model", headers=user, json={"model": model_id}).status_code, 200)
+            selected = client.get("/api/settings/model", headers=user).json()
+            self.assertEqual(selected["model"], model_id)
+            self.assertEqual(selected["thinking"]["effort"], "low")
+            self.assertEqual(selected["thinking"]["options"], ["low", "xhigh"])
+
+            mismatch = client.patch(
+                f"/api/admin/models/{model_id}/capabilities",
+                headers=headers,
+                json={
+                    "streaming": True, "tool_calls": True,
+                    "thinking": True, "native_multimodal": False,
+                    "thinking_effort": "high",
+                    "thinking_effort_options": ["low"],
+                },
+            )
+            self.assertEqual(mismatch.status_code, 400, mismatch.text)
+
+            changed = client.patch(
+                f"/api/admin/models/{model_id}/capabilities",
+                headers=headers,
+                json={
+                    "streaming": True, "tool_calls": True,
+                    "thinking": True, "native_multimodal": False,
+                    "thinking_effort": "medium",
+                    "thinking_effort_options": ["medium"],
+                    "reasoning_dialect": "deepseek",
+                },
+            )
+            self.assertEqual(changed.status_code, 200, changed.text)
+            self.assertEqual(changed.json()["capabilities"]["thinking_effort"], "medium")
+            self.assertEqual(changed.json()["capabilities"]["thinking_effort_options"], ["medium"])
+            self.assertEqual(changed.json()["thinking"]["effort"], "medium")
+
+            deleted = client.delete(f"/api/admin/models/{model_id}", headers=headers)
+            self.assertEqual(deleted.status_code, 200, deleted.text)
+
+    def test_local_model_file_edits_are_visible_to_admin_without_restart(self):
+        admin_token = "local-file-admin-token"
+        model_id = "local-file-test"
+        with patch.dict(os.environ, {"FAB_ADMIN_API_TOKEN": admin_token}), TestClient(app) as client:
+            headers = {"Authorization": f"Bearer {admin_token}"}
+            published = client.post("/api/admin/models", headers=headers, json={
+                "model_id": model_id, "display_name": "Original Local Name",
+                "provider": "openai-compatible", "provider_model": "local-file-v1",
+                "base_url": "http://127.0.0.1:8080/v1",
+                "capabilities": {"streaming": True, "tool_calls": True, "thinking": True},
+            })
+            self.assertEqual(published.status_code, 201, published.text)
+
+            path = local_models_path()
+            document = json.loads(path.read_text(encoding="utf-8"))
+            self.assertIn(model_id, document["models"])
+            document["models"][model_id]["display_name"] = "Edited In Local File"
+            document["models"][model_id]["capabilities"]["thinking_effort"] = "low"
+            path.write_text(json.dumps(document, ensure_ascii=False), encoding="utf-8")
+
+            models = client.get("/api/admin/models", headers=headers).json()
+            edited = next(item for item in models if item["model_id"] == model_id)
+            self.assertEqual(edited["display_name"], "Edited In Local File")
+            self.assertEqual(edited["config_source"], "local_file")
+            self.assertEqual(edited["capabilities"]["thinking_effort"], "low")
+
+            deleted = client.delete(f"/api/admin/models/{model_id}", headers=headers)
+            self.assertEqual(deleted.status_code, 200, deleted.text)
+            remaining = json.loads(path.read_text(encoding="utf-8"))["models"]
+            self.assertNotIn(model_id, remaining)
 
     def test_admin_declaration_paths_never_probe_and_explicit_check_is_the_only_probe(self):
         model_id, token = "model-016-governance", "model-016-admin-token"
