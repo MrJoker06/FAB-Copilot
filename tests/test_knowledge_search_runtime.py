@@ -10,9 +10,9 @@ from unittest.mock import patch
 
 from app.agent_runtime.execution.runtime_contracts import ModelRequest
 from app.bootstrap import knowledge_search_demo as demo
-from app.integrations.knowledge.backend_search import BackendKnowledgeSearchAdapter
-from app.integrations.knowledge.fake_search import FakeKnowledgeSearchAdapter
-from app.knowledge.search_tool.contracts import KnowledgeSearchDataError
+from app.tools.knowledge_search.backend_search import BackendKnowledgeSearchAdapter
+from app.demo_data.tool_sources.knowledge_search import FakeKnowledgeSearchAdapter
+from app.tools.knowledge_search.contracts import KnowledgeSearchDataError
 
 
 def _args(**overrides: object) -> argparse.Namespace:

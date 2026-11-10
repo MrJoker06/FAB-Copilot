@@ -12,7 +12,7 @@ from unittest.mock import patch
 from app.agent_runtime import service
 from app.core.identity import Principal, reset_principal, set_principal
 from app.agent_runtime.tools.contracts import ToolSource, ToolSourceKind
-from app.knowledge.search_tool.contracts import KnowledgeSearchSnapshot, knowledge_scope
+from app.tools.knowledge_search.contracts import KnowledgeSearchSnapshot, knowledge_scope
 from app.bootstrap import knowledge_search_demo
 from app.core.settings import get_settings
 from tests import test_named_queries_adapters as adapter_tests
@@ -118,7 +118,7 @@ class DefaultNativeRuntimeTests(unittest.TestCase):
             with (
                 patch("app.agent_runtime.service.get_settings", return_value=offline),
                 patch(
-                    "app.integrations.knowledge.runtime_search.create_runtime_knowledge_port",
+                    "app.tools.knowledge_search.runtime_search.create_runtime_knowledge_port",
                     new=self._knowledge_port,
                 ),
             ):
@@ -349,7 +349,7 @@ class DefaultNativeRuntimeTests(unittest.TestCase):
                 ),
                 patch("app.agent_runtime.service._usable_knowledge_result", new=usable),
                 patch(
-                    "app.integrations.knowledge.runtime_search.create_runtime_knowledge_port",
+                    "app.tools.knowledge_search.runtime_search.create_runtime_knowledge_port",
                     new=knowledge_port,
                 ),
             ):
@@ -370,6 +370,3 @@ class DefaultNativeRuntimeTests(unittest.TestCase):
         self.assertEqual(trace[0]["raw_rows"], 1)
         self.assertEqual(trace[0]["rows"], 1)
         self.assertTrue(result["sources"])
-
-
-

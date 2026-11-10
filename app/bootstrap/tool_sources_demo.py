@@ -43,7 +43,7 @@ from app.tools.process_diagnostics.data_source import (
 from app.tools.production_reports.data_source import (
     SQLiteProductionReportsAdapter,
 )
-from ..knowledge.search_tool.contracts import KnowledgeSearchInput
+from app.tools.knowledge_search.contracts import KnowledgeSearchInput
 from app.tools.enterprise_data.contracts import EnterpriseWindow
 from app.tools.equipment_health.contracts import (
     EquipmentHealthAggregate,

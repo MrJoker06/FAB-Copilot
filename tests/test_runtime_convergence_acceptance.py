@@ -889,7 +889,7 @@ class LegacyRunAgentAcceptanceTests(unittest.TestCase):
                     return_value=({"status": "open"}, "opened"),
                 ),
                 patch(
-                    "app.integrations.knowledge.runtime_search.create_runtime_knowledge_port",
+                    "app.tools.knowledge_search.runtime_search.create_runtime_knowledge_port",
                     new=self.native._knowledge_port,
                 ),
             ):

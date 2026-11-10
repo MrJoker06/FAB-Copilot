@@ -680,6 +680,11 @@
       "artifact_group": "enterprise_adapters"
     },
     {
+      "path": "app/demo_data/tool_sources/knowledge_search.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
       "path": "app/demo_data/tool_sources/named_queries.py",
       "primary_module": "integrations",
       "artifact_group": "enterprise_adapters"
@@ -741,21 +746,6 @@
     },
     {
       "path": "app/integrations/knowledge/__init__.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
-      "path": "app/integrations/knowledge/backend_search.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
-      "path": "app/integrations/knowledge/fake_search.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
-      "path": "app/integrations/knowledge/runtime_search.py",
       "primary_module": "integrations",
       "artifact_group": "enterprise_adapters"
     },
@@ -842,26 +832,6 @@
     {
       "path": "app/knowledge/search_registry.py",
       "primary_module": "knowledge",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/knowledge/search_tool/__init__.py",
-      "primary_module": "business_tools",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/knowledge/search_tool/binding.py",
-      "primary_module": "business_tools",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/knowledge/search_tool/contracts.py",
-      "primary_module": "business_tools",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/knowledge/search_tool/handler.py",
-      "primary_module": "business_tools",
       "artifact_group": "platform_core"
     },
     {
@@ -1434,6 +1404,36 @@
       "path": "app/tools/equipment_health/summary.py",
       "primary_module": "business_tools",
       "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/knowledge_search/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/tools/knowledge_search/backend_search.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/tools/knowledge_search/binding.py",
+      "primary_module": "business_tools",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/tools/knowledge_search/contracts.py",
+      "primary_module": "business_tools",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/tools/knowledge_search/handler.py",
+      "primary_module": "business_tools",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/tools/knowledge_search/runtime_search.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
     },
     {
       "path": "app/tools/named_queries/__init__.py",
@@ -2378,20 +2378,6 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
-      "source_file": "app/integrations/knowledge/runtime_search.py",
-      "imports": [
-        "sqlite3"
-      ],
-      "calls": [
-        "connection.execute",
-        "sqlite3.connect"
-      ],
-      "table_hints": [
-        "defect_types"
-      ],
-      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
-    },
-    {
       "source_file": "app/knowledge/sqlite_backend.py",
       "imports": [
         "persistence.database.db_session"
@@ -2638,6 +2624,20 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
+      "source_file": "app/tools/knowledge_search/runtime_search.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "connection.execute",
+        "sqlite3.connect"
+      ],
+      "table_hints": [
+        "defect_types"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
       "source_file": "app/tools/named_queries/data_source.py",
       "imports": [
         "sqlite3"
@@ -2768,7 +2768,7 @@
         "exit_task": "MOD-003 conformance (retain helper)"
       },
       {
-        "source_file": "app/integrations/knowledge/runtime_search.py",
+        "source_file": "app/tools/knowledge_search/runtime_search.py",
         "owner": "integrations",
         "classification": "knowledge-read",
         "stores": "knowledge.knowledge_documents, knowledge.knowledge_chunks, knowledge.knowledge_trigram_fts, knowledge.personal_knowledge_documents, knowledge.personal_knowledge_chunks, knowledge.personal_knowledge_fts, quality.defect_types, quality.defect_type_aliases",

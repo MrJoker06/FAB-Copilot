@@ -12,8 +12,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 
 from ..agent_runtime.tools.definition import ToolBinding
-from ..knowledge.search_tool.binding import create_knowledge_search_binding
-from ..knowledge.search_tool.contracts import KnowledgeSearchPort
+from app.tools.knowledge_search.binding import create_knowledge_search_binding
+from app.tools.knowledge_search.contracts import KnowledgeSearchPort
 from app.tools.enterprise_data.binding import (
     create_enterprise_manifest_binding,
     create_enterprise_sample_binding,

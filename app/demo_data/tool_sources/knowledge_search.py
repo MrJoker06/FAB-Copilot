@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from copy import deepcopy
 
-from ...agent_runtime.tools.contracts import ToolPrincipal, ToolSourceKind
-from ...knowledge.search_tool.contracts import (
+from app.agent_runtime.tools.contracts import ToolPrincipal, ToolSourceKind
+from app.tools.knowledge_search.contracts import (
     KnowledgeSearchDataError,
     KnowledgeSearchQuery,
     KnowledgeSearchSnapshot,

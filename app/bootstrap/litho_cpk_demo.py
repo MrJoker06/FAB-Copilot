@@ -31,7 +31,7 @@ from ..agent_runtime.tools.contracts import (
 )
 from ..agent_runtime.tools.dispatch_policy import DemoToolPolicy
 from ..evidence.validator import EvidenceObservation
-from ..integrations.knowledge.fake_search import FakeKnowledgeSearchAdapter
+from app.demo_data.tool_sources.knowledge_search import FakeKnowledgeSearchAdapter
 from app.demo_data.tool_sources.operational_reports import (
     FakeOperationalReportsAdapter,
 )
@@ -40,8 +40,8 @@ from app.demo_data.tool_sources.process_diagnostics import (
 )
 from ..intent_runtime.routing import route_question
 from ..knowledge.decision import usable_result
-from ..knowledge.search_tool.binding import create_knowledge_search_binding
-from ..knowledge.search_tool.contracts import (
+from app.tools.knowledge_search.binding import create_knowledge_search_binding
+from app.tools.knowledge_search.contracts import (
     KnowledgeSearchInput,
     KnowledgeSearchSnapshot,
     knowledge_scope,

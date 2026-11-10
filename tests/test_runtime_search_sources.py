@@ -8,12 +8,12 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.agent_runtime.tools.contracts import ToolSourceKind
-from app.integrations.knowledge.runtime_search import (
+from app.tools.knowledge_search.runtime_search import (
     _quality_aliases,
     _readonly_session,
     create_runtime_knowledge_port,
 )
-from app.knowledge.search_tool.contracts import (
+from app.tools.knowledge_search.contracts import (
     KnowledgeSearchDataError,
     KnowledgeSearchQuery,
     KnowledgeSearchTimeoutError,
@@ -183,7 +183,7 @@ class RuntimeSearchSourcesTests(unittest.TestCase):
             quality_database_path=self.quality,
         )
         with patch(
-            "app.integrations.knowledge.runtime_search.get_factory_search_backend",
+            "app.tools.knowledge_search.runtime_search.get_factory_search_backend",
             return_value=CustomFactory(),
         ):
             port = create_runtime_knowledge_port(
@@ -220,7 +220,7 @@ class RuntimeSearchSourcesTests(unittest.TestCase):
         )
         with (
             patch(
-                "app.integrations.knowledge.runtime_search.get_factory_search_backend",
+                "app.tools.knowledge_search.runtime_search.get_factory_search_backend",
                 return_value=UntypedFactory(),
             ),
             self.assertRaises(ValueError),
@@ -252,7 +252,7 @@ class RuntimeSearchSourcesTests(unittest.TestCase):
 
         with (
             patch(
-                "app.integrations.knowledge.runtime_search.sqlite3.connect",
+                "app.tools.knowledge_search.runtime_search.sqlite3.connect",
                 return_value=InterruptedConnection(),
             ),
             self.assertRaises(KnowledgeSearchTimeoutError),
@@ -282,7 +282,7 @@ class RuntimeSearchSourcesTests(unittest.TestCase):
         timeout_connection = ResetFailureConnection(interrupted=True)
         with (
             patch(
-                "app.integrations.knowledge.runtime_search.sqlite3.connect",
+                "app.tools.knowledge_search.runtime_search.sqlite3.connect",
                 return_value=timeout_connection,
             ),
             self.assertRaises(KnowledgeSearchTimeoutError),
@@ -294,7 +294,7 @@ class RuntimeSearchSourcesTests(unittest.TestCase):
         clean_connection = ResetFailureConnection(interrupted=False)
         with (
             patch(
-                "app.integrations.knowledge.runtime_search.sqlite3.connect",
+                "app.tools.knowledge_search.runtime_search.sqlite3.connect",
                 return_value=clean_connection,
             ),
             self.assertRaisesRegex(RuntimeError, "reset failure"),
@@ -325,7 +325,7 @@ class RuntimeSearchSourcesTests(unittest.TestCase):
         connection = ResetFailureConnection()
         with (
             patch(
-                "app.integrations.knowledge.runtime_search.sqlite3.connect",
+                "app.tools.knowledge_search.runtime_search.sqlite3.connect",
                 return_value=connection,
             ),
             self.assertRaises(KnowledgeSearchTimeoutError),

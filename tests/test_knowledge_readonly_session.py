@@ -7,7 +7,7 @@ import unittest
 import uuid
 from pathlib import Path
 
-from app.integrations.knowledge.runtime_search import _readonly_session
+from app.tools.knowledge_search.runtime_search import _readonly_session
 
 
 def _temp_dir() -> Path:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..knowledge.search_tool.binding import KNOWLEDGE_SEARCH_DEFINITION
+from app.tools.knowledge_search.binding import KNOWLEDGE_SEARCH_DEFINITION
 from app.tools.enterprise_data.binding import (
     ENTERPRISE_MANIFEST_DEFINITION,
     ENTERPRISE_SAMPLE_DEFINITION,

@@ -9,15 +9,15 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import Protocol
 
-from ...agent_runtime.tools.contracts import ToolPrincipal, ToolScope, ToolSource
-from ...agent_runtime.tools.dispatch_contracts import (
+from app.agent_runtime.tools.contracts import ToolPrincipal, ToolScope, ToolSource
+from app.agent_runtime.tools.dispatch_contracts import (
     ToolDataSourceError,
     ToolInputError,
     ToolSourceTimeout,
 )
-from ...manufacturing.processes import ANALYSIS_SCOPES
-from ..search_contracts import FACTORY_SOURCE_TYPES, FactorySearchRequest
-from ..search_policy import PROCESS_SEARCH_EXPANSIONS, infer_filters_from_aliases
+from app.manufacturing.processes import ANALYSIS_SCOPES
+from app.knowledge.search_contracts import FACTORY_SOURCE_TYPES, FactorySearchRequest
+from app.knowledge.search_policy import PROCESS_SEARCH_EXPANSIONS, infer_filters_from_aliases
 
 _SOURCE_TYPES = frozenset(("personal", "knowledge", "case"))
 
@@ -315,6 +315,37 @@ def _finite_number(value: object, name: str) -> None:
         or not isfinite(value)
     ):
         raise KnowledgeSearchDataError(f"invalid {name} from source")
+
+
+KNOWLEDGE_SEARCH_OUTPUT_SCHEMA = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "source_type": {"enum": sorted(_SOURCE_TYPES)},
+            "reference_id": {"type": "string", "minLength": 1},
+            "retrieval": {
+                "type": "object",
+                "properties": {
+                    "lexical_rank": {"type": "integer", "minimum": 1},
+                    "final_score": {"type": "number"},
+                    "confidence": {"enum": ["low", "medium", "high"]},
+                    "selection_reason": {"type": "array", "items": {"type": "string"}},
+                    "filters": {"type": "object", "properties": {name: {"type": ["string", "null"]} for name in ("process_step", "equipment_id", "defect_type")}, "required": ["process_step", "equipment_id", "defect_type"], "additionalProperties": False},
+                },
+                "required": ["lexical_rank", "final_score", "confidence", "selection_reason", "filters"],
+                "additionalProperties": False,
+            },
+        },
+        "required": ["source_type", "reference_id", "retrieval"],
+        # Source-specific document fields are retained, not silently discarded.
+        "additionalProperties": True,
+        "allOf": [
+            {"if": {"properties": {"source_type": {"const": "knowledge"}}}, "then": {"properties": {"status": {"const": "Active"}}, "required": ["status"]}},
+            {"if": {"properties": {"source_type": {"const": "case"}}}, "then": {"properties": {"case_status": {"const": "Validated"}}, "required": ["case_status"]}},
+        ],
+    },
+}
 
 
 def validate_knowledge_search_output(value: object) -> object:

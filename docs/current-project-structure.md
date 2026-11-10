@@ -340,16 +340,16 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/knowledge/search_contracts.py` | 纯 | 工厂搜索、目录和主体 Backend 契约。 |
 | `app/knowledge/search_query.py` | 纯 | 查询规范化与过滤，含 SQLite FTS 查询串 `sqlite_fts_query`。 |
 | `app/knowledge/search_policy.py` | 纯 | 从旧 RAG 复用的过程/设备/缺陷推断与个人查询扩展规则；不读取设置或来源。 |
-| `app/knowledge/search_tool/__init__.py` | 包 | 原生联合检索包锚点，无全局工具注册。 |
-| `app/knowledge/search_tool/contracts.py` | 纯 | 输入、查询、候选快照、消费方/个人搜索 Port、owner 映射、检索准备与输出契约。 |
-| `app/knowledge/search_tool/handler.py` | 纯 | 核对主体、owner、来源和候选，复用既有重排，保留引用及来源多样性，产生列表 ToolResult。 |
-| `app/knowledge/search_tool/binding.py` | 纯 | 原生 search_knowledge 1.0.0；准备租户 Scope，空查询不咨询来源。 |
+| `app/tools/knowledge_search/__init__.py` | 包 | 原生联合检索包锚点，无全局工具注册。 |
+| `app/tools/knowledge_search/contracts.py` | 纯 | 输入、查询、候选快照、消费方/个人搜索 Port、owner 映射、检索准备与输出契约。 |
+| `app/tools/knowledge_search/handler.py` | 纯 | 核对主体、owner、来源和候选，复用既有重排，保留引用及来源多样性，产生列表 ToolResult。 |
+| `app/tools/knowledge_search/binding.py` | 纯 | 原生 search_knowledge 1.0.0；准备租户 Scope，空查询不咨询来源。 |
 | `app/knowledge/search_registry.py` | 装配/过渡 | 搜索/目录后端注册和选择；`sqlite` 后端由 Port 绑定的工厂创建。 |
 | `app/knowledge/sqlite_backend.py` | Adapter | 工厂知识/目录 SQLite 后端。 |
 | `app/integrations/knowledge/__init__.py` | 包 | 知识来源集成包锚点。 |
-| `app/integrations/knowledge/fake_search.py` | Adapter | 按完整查询/租户/用户读取深复制的精确候选夹具，来源明确为 FAKE。 |
-| `app/integrations/knowledge/backend_search.py` | Adapter | 显式组合 FactorySearchBackend 与个人搜索 Port，核对 owner envelope、固定请求及错误/超时脱敏；无全局选择或故障回退。 |
-| `app/integrations/knowledge/runtime_search.py` | Adapter/装配 | 默认知识工具的延迟来源组合；显式只读知识库会话及质量库别名查询，按可信身份读取个人知识，保留可替换工厂后端。 |
+| `app/demo_data/tool_sources/knowledge_search.py` | Adapter | 按完整查询/租户/用户读取深复制的精确候选夹具，来源明确为 FAKE。 |
+| `app/tools/knowledge_search/backend_search.py` | Adapter | 显式组合 FactorySearchBackend 与个人搜索 Port，核对 owner envelope、固定请求及错误/超时脱敏；无全局选择或故障回退。 |
+| `app/tools/knowledge_search/runtime_search.py` | Adapter/装配 | 默认知识工具的延迟来源组合；显式只读知识库会话及质量库别名查询，按可信身份读取个人知识，保留可替换工厂后端。 |
 | `app/knowledge/ocr.py` | 业务 | OCR 调用与文本处理。 |
 | `app/knowledge/ocr_quality.py` | 纯 | OCR 质量评价规则。 |
 | `app/evidence/__init__.py` | 包 | 证据包锚点。 |

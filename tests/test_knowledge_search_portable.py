@@ -22,13 +22,13 @@ from tests.test_process_diagnostics_portable import INVENTORY
 
 KNOWLEDGE_FILES = (
     "app/knowledge/search_policy.py",
-    "app/knowledge/search_tool/__init__.py",
-    "app/knowledge/search_tool/contracts.py",
-    "app/knowledge/search_tool/handler.py",
-    "app/knowledge/search_tool/binding.py",
+    "app/tools/knowledge_search/__init__.py",
+    "app/tools/knowledge_search/contracts.py",
+    "app/tools/knowledge_search/handler.py",
+    "app/tools/knowledge_search/binding.py",
     "app/integrations/knowledge/__init__.py",
-    "app/integrations/knowledge/fake_search.py",
-    "app/integrations/knowledge/backend_search.py",
+    "app/demo_data/tool_sources/knowledge_search.py",
+    "app/tools/knowledge_search/backend_search.py",
     "app/bootstrap/knowledge_search_demo.py",
 )
 KNOWLEDGE_SUPPORT = (
@@ -55,7 +55,7 @@ class KnowledgeSearchPortableTests(unittest.TestCase):
             + KNOWLEDGE_FILES
             + KNOWLEDGE_SUPPORT
         )
-        self.assertEqual((len(files), len(set(files))), (72, 72))
+        self.assertEqual((len(files), len(set(files))), (75, 75))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

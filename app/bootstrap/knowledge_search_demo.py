@@ -33,10 +33,10 @@ from ..agent_runtime.tools.contracts import (
 )
 from ..agent_runtime.tools.dispatch_contracts import PolicyDecision
 from ..agent_runtime.tools.dispatch_policy import DemoToolPolicy
-from ..integrations.knowledge.backend_search import BackendKnowledgeSearchAdapter
-from ..integrations.knowledge.fake_search import FakeKnowledgeSearchAdapter
-from ..knowledge.search_tool.binding import create_knowledge_search_binding
-from ..knowledge.search_tool.contracts import (
+from app.tools.knowledge_search.backend_search import BackendKnowledgeSearchAdapter
+from app.demo_data.tool_sources.knowledge_search import FakeKnowledgeSearchAdapter
+from app.tools.knowledge_search.binding import create_knowledge_search_binding
+from app.tools.knowledge_search.contracts import (
     KnowledgeSearchDataError,
     KnowledgeSearchInput,
     KnowledgeSearchQuery,

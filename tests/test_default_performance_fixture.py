@@ -39,8 +39,8 @@ class DefaultPerformanceFixtureTests(unittest.TestCase):
                 )
 
     def test_source_injection_is_restored_after_fixture_run(self) -> None:
-        from app.integrations.manufacturing import sqlite_operational_reports
-        from app.integrations.knowledge import runtime_search
+        from app.tools.operational_reports import data_source as sqlite_operational_reports
+        from app.tools.knowledge_search import runtime_search
 
         operational = sqlite_operational_reports.SQLiteOperationalReportsAdapter
         knowledge = runtime_search.create_runtime_knowledge_port

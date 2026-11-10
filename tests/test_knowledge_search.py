@@ -14,8 +14,8 @@ from app.agent_runtime.tools.contracts import (
     ToolSourceKind,
 )
 from app.knowledge.ranking import _metadata_rerank
-from app.knowledge.search_tool.binding import create_knowledge_search_binding
-from app.knowledge.search_tool.contracts import (
+from app.tools.knowledge_search.binding import create_knowledge_search_binding
+from app.tools.knowledge_search.contracts import (
     KnowledgeSearchDataError,
     KnowledgeSearchInput,
     KnowledgeSearchInputError,
@@ -25,7 +25,7 @@ from app.knowledge.search_tool.contracts import (
     knowledge_scope,
     validate_knowledge_search_output,
 )
-from app.knowledge.search_tool.handler import KnowledgeSearchDependencies
+from app.tools.knowledge_search.handler import KnowledgeSearchDependencies
 from scripts.check_module_boundaries import boundary_errors, load_manifest
 
 
@@ -367,23 +367,23 @@ class KnowledgeSearchTests(unittest.TestCase):
     def test_knowledge_tool_boundary_exceptions_are_contract_specific(self) -> None:
         allowed_edges = {
             (
-                "app.knowledge.search_tool.binding",
+                "app.tools.knowledge_search.binding",
                 "app.agent_runtime.tools.contracts",
             ),
             (
-                "app.knowledge.search_tool.binding",
+                "app.tools.knowledge_search.binding",
                 "app.agent_runtime.tools.definition",
             ),
             (
-                "app.knowledge.search_tool.contracts",
+                "app.tools.knowledge_search.contracts",
                 "app.agent_runtime.tools.contracts",
             ),
             (
-                "app.knowledge.search_tool.contracts",
+                "app.tools.knowledge_search.contracts",
                 "app.agent_runtime.tools.dispatch_contracts",
             ),
             (
-                "app.knowledge.search_tool.handler",
+                "app.tools.knowledge_search.handler",
                 "app.agent_runtime.tools.contracts",
             ),
         }
@@ -408,7 +408,7 @@ class KnowledgeSearchTests(unittest.TestCase):
         manifest["existing_edge_exceptions"] = selected
         with tempfile.TemporaryDirectory() as raw:
             app_dir = Path(raw) / "app"
-            tool_dir = app_dir / "knowledge" / "search_tool"
+            tool_dir = app_dir / "tools" / "knowledge_search"
             tool_dir.mkdir(parents=True)
             (app_dir / "__init__.py").write_text("", encoding="utf-8")
             (tool_dir / "binding.py").write_text(
@@ -443,7 +443,7 @@ class KnowledgeSearchTests(unittest.TestCase):
                     errors = boundary_errors(app_dir, manifest)
                     self.assertEqual(len(errors), 1)
                     self.assertTrue(
-                        errors[0].startswith("app.knowledge.search_tool.handler:2:")
+                        errors[0].startswith("app.tools.knowledge_search.handler:2:")
                     )
 
 

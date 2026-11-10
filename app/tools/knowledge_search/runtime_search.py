@@ -8,17 +8,17 @@ from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
-from ...agent_runtime.tools.contracts import ToolSourceKind
-from ...knowledge.search_registry import get_factory_search_backend
-from ...knowledge.search_tool.contracts import (
+from app.agent_runtime.tools.contracts import ToolSourceKind
+from app.knowledge.search_registry import get_factory_search_backend
+from app.tools.knowledge_search.contracts import (
     KnowledgeSearchTimeoutError,
     PersonalSearchBatch,
 )
-from ...knowledge.sqlite_backend import SqliteFactorySearchBackend
-from ...manufacturing.processes import process_query_terms
-from ...personal_knowledge_runtime.metadata import _json_list
-from ...personal_knowledge_runtime.search import fts_query, search_knowledge
-from .backend_search import BackendKnowledgeSearchAdapter
+from app.knowledge.sqlite_backend import SqliteFactorySearchBackend
+from app.manufacturing.processes import process_query_terms
+from app.personal_knowledge_runtime.metadata import _json_list
+from app.personal_knowledge_runtime.search import fts_query, search_knowledge
+from app.tools.knowledge_search.backend_search import BackendKnowledgeSearchAdapter
 
 
 def _readonly_session(knowledge_path: object, *, query_timeout_ms: int = 2_000):

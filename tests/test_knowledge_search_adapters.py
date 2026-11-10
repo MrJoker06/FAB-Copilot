@@ -13,10 +13,10 @@ from app.agent_runtime.tools.contracts import (
     ToolSource,
     ToolSourceKind,
 )
-from app.integrations.knowledge.backend_search import BackendKnowledgeSearchAdapter
-from app.integrations.knowledge.fake_search import FakeKnowledgeSearchAdapter
+from app.tools.knowledge_search.backend_search import BackendKnowledgeSearchAdapter
+from app.demo_data.tool_sources.knowledge_search import FakeKnowledgeSearchAdapter
 from app.knowledge import rag
-from app.knowledge.search_tool.contracts import (
+from app.tools.knowledge_search.contracts import (
     KnowledgeSearchDataError,
     KnowledgeSearchInput,
     KnowledgeSearchQuery,
@@ -25,7 +25,7 @@ from app.knowledge.search_tool.contracts import (
     PersonalSearchBatch,
     knowledge_scope,
 )
-from app.knowledge.search_tool.handler import (
+from app.tools.knowledge_search.handler import (
     KnowledgeSearchDependencies,
     knowledge_search_handler,
 )

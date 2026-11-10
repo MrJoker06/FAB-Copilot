@@ -496,7 +496,7 @@ def _source_patches(stack, side, business):
         return
 
     from app.agent_runtime.tools.contracts import ToolSource, ToolSourceKind
-    from app.knowledge.search_tool.contracts import (
+    from app.tools.knowledge_search.contracts import (
         KnowledgeSearchSnapshot,
         knowledge_scope,
     )
@@ -589,7 +589,7 @@ def _source_patches(stack, side, business):
     )
     stack.enter_context(
         patch(
-            "app.integrations.knowledge.runtime_search.create_runtime_knowledge_port",
+            "app.tools.knowledge_search.runtime_search.create_runtime_knowledge_port",
             lambda **_kwargs: Knowledge(),
         )
     )

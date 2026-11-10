@@ -27,7 +27,7 @@ from ..agent_runtime.tools.tool_registry import (
     LegacyToolDefinition,
     ToolRegistry,
 )
-from ..knowledge.search_tool.binding import create_knowledge_search_binding
+from app.tools.knowledge_search.binding import create_knowledge_search_binding
 from ..manufacturing.enterprise_data import get_enterprise_provider
 from app.tools.enterprise_data.binding import (
     create_enterprise_manifest_binding,
@@ -276,7 +276,7 @@ def build_default_run_tools(
 ) -> DefaultRunTools:
     """Build native bindings lazily; legacy functions are an explicit live-patch bridge."""
     from ..agent_runtime.tools.tool_registry import DEFAULT_TOOL_REGISTRY
-    from ..integrations.knowledge.runtime_search import create_runtime_knowledge_port
+    from app.tools.knowledge_search.runtime_search import create_runtime_knowledge_port
     from app.tools.enterprise_data.data_source import (
         ProviderEnterpriseToolsAdapter,
     )

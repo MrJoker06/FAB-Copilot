@@ -5,7 +5,9 @@
     "compatibility": "package anchor only; root business modules retired",
     "exit_condition": "app package anchor and app.main HTTP entry remain public",
     "consumers": {
-      "production": ["app/main.py"],
+      "production": [
+        "app/main.py"
+      ],
       "scripts": [
         "run.sh"
       ],
@@ -62,7 +64,10 @@
     "app.core.identity": "identity.context",
     "app.core.identity_contracts": "identity.contracts",
     "app.agent_runtime.service": "agent_runtime.service",
-    "app.personal_knowledge_runtime.service": "personal_knowledge_runtime.service"
+    "app.personal_knowledge_runtime.service": "personal_knowledge_runtime.service",
+    "app.tools.knowledge_search.binding": "knowledge.tool.binding",
+    "app.tools.knowledge_search.contracts": "knowledge.tool.contracts",
+    "app.tools.knowledge_search.handler": "knowledge.tool.handler"
   },
   "allowed_domain_dependencies": {
     "skills": [
@@ -248,10 +253,10 @@
       "app.memory_system.context.resolver",
       "app.memory_system.context.builder",
       "app.knowledge.search_policy",
-      "app.knowledge.search_tool",
-      "app.knowledge.search_tool.contracts",
-      "app.knowledge.search_tool.handler",
-      "app.knowledge.search_tool.binding",
+      "app.tools.knowledge_search",
+      "app.tools.knowledge_search.contracts",
+      "app.tools.knowledge_search.handler",
+      "app.tools.knowledge_search.binding",
       "app.tools.named_queries",
       "app.tools.named_queries.contracts",
       "app.tools.named_queries.handler",
@@ -478,31 +483,31 @@
       "exit_condition": "retain while the seed CLI resolves the public configuration anchor"
     },
     {
-      "source": "app.knowledge.search_tool.binding",
+      "source": "app.tools.knowledge_search.binding",
       "target": "app.agent_runtime.tools.contracts",
       "reason": "Native knowledge tool consumes the portable ToolSystem contract or definition only; this does not permit concrete Runtime, global registries or backend assembly.",
       "exit_condition": "Retain this exact contract edge while shared ToolSystem contracts use the current canonical package; relocate together if contract ownership changes."
     },
     {
-      "source": "app.knowledge.search_tool.binding",
+      "source": "app.tools.knowledge_search.binding",
       "target": "app.agent_runtime.tools.definition",
       "reason": "Native knowledge tool consumes the portable ToolSystem contract or definition only; this does not permit concrete Runtime, global registries or backend assembly.",
       "exit_condition": "Retain this exact contract edge while shared ToolSystem contracts use the current canonical package; relocate together if contract ownership changes."
     },
     {
-      "source": "app.knowledge.search_tool.contracts",
+      "source": "app.tools.knowledge_search.contracts",
       "target": "app.agent_runtime.tools.contracts",
       "reason": "Native knowledge tool consumes the portable ToolSystem contract or definition only; this does not permit concrete Runtime, global registries or backend assembly.",
       "exit_condition": "Retain this exact contract edge while shared ToolSystem contracts use the current canonical package; relocate together if contract ownership changes."
     },
     {
-      "source": "app.knowledge.search_tool.contracts",
+      "source": "app.tools.knowledge_search.contracts",
       "target": "app.agent_runtime.tools.dispatch_contracts",
       "reason": "Native knowledge tool consumes the portable ToolSystem contract or definition only; this does not permit concrete Runtime, global registries or backend assembly.",
       "exit_condition": "Retain this exact contract edge while shared ToolSystem contracts use the current canonical package; relocate together if contract ownership changes."
     },
     {
-      "source": "app.knowledge.search_tool.handler",
+      "source": "app.tools.knowledge_search.handler",
       "target": "app.agent_runtime.tools.contracts",
       "reason": "Native knowledge tool consumes the portable ToolSystem contract or definition only; this does not permit concrete Runtime, global registries or backend assembly.",
       "exit_condition": "Retain this exact contract edge while shared ToolSystem contracts use the current canonical package; relocate together if contract ownership changes."
@@ -512,7 +517,15 @@
     "main": {
       "target": "app.main",
       "consumers": {
-        "patches": ["app/main.py", "tests/system/test_http_contracts.py", "tests/system/test_model_governance.py", "tests/system/test_sessions_streaming.py", "tests/test_api_runtime_boundaries.py", "tests/test_module_boundaries.py", "tests/test_personal_job_sse.py"],
+        "patches": [
+          "app/main.py",
+          "tests/system/test_http_contracts.py",
+          "tests/system/test_model_governance.py",
+          "tests/system/test_sessions_streaming.py",
+          "tests/test_api_runtime_boundaries.py",
+          "tests/test_module_boundaries.py",
+          "tests/test_personal_job_sse.py"
+        ],
         "production": [],
         "scripts": [
           "scripts/refactor_contracts.py",

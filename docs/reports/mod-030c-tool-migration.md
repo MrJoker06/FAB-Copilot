@@ -1,6 +1,6 @@
 # MOD-030c：业务 Tool 与数据来源迁移
 
-执行起点：`5239c04`。状态：分批实施中；未推送。MOD-030d/030e 的目录退出和阶段验收尚未完成。
+执行起点：`5239c04`。状态：c1～c7 已完成本批验收；未推送。MOD-030d/030e 的目录退出和阶段验收尚未完成。
 
 本报告记录实际完成的批次，不以目录改名代替业务验收。遵循 [总方案](../skill-tool-standardization-plan.md)，Playbook 证据语义留给 MOD-031，本轮不改变。
 
@@ -123,6 +123,23 @@ python -m unittest tests.test_tool_output_schemas tests.test_enterprise_tools te
 
 包括 Provider 契约实际独立制品执行。WSL repository、两端 module/modularization 边界及 diff 检查通过，298 文件/0 错误；已迁企业工具与契约旧路径扫描无残留。重新导出起点四类目录字节一致（`c6-catalog-*`）。首次尝试被中断且无测试结果，未计入通过；最终完整运行日志为 `c6-final-*`。
 
-## 后续批次
+## c7：knowledge_search
 
-c7 尚未完成；后续批次继续追加本报告。完整交付物、应用启动、Windows 全量及与起点失败集合对照，留至 030d/030e，不以本批定向结果替代。
+- `knowledge/search_tool/{__init__,binding,contracts,handler}.py`、`integrations/knowledge/{backend_search,runtime_search}.py` → `app/tools/knowledge_search/`；Fake → `app/demo_data/tool_sources/knowledge_search.py`。RAG/OCR/检索内核仍归知识模块。
+- 更新默认/显式装配、光刻与知识演示、所有测试和切片、MOD-003/009/024 及边界清单。复核补齐了性能夹具中此前未命中的父包模块导入别名（运营来源与知识来源），不是业务修复。
+- 补 title/output_schema，保留各类文档扩展字段、引用和 retrieval 元数据，知识与案例的 Active/Validated 要求不变。知识便携切片为 75 个唯一文件，其余数量不变。
+- 边界反例测试的临时目录原先使用 `knowledge/search_tool` 字面组件，改到真实新路径；新路径显式保留原有 knowledge 逻辑域约束，使错误导入执行器、设置或身份等仍被拒绝。未删除反例或放宽策略。
+
+最终共同集合两端各 19 项通过：
+
+```text
+python -m unittest tests.test_tool_output_schemas tests.test_knowledge_search tests.test_knowledge_search_runtime tests.test_knowledge_search_portable tests.test_tool_sources_portable
+```
+
+Windows 另运行 `python -m unittest tests.test_knowledge_search_adapters tests.test_default_performance_fixture`，17 项通过，合计 36 项。前者导入 PIL，WSL venv 缺少 PIL，按任务约定只在 Windows 验证；初次 WSL 导入失败保留日志，不计为通过。
+
+WSL repository、两端 module/modularization 边界及 diff 检查通过，298 文件/0 错误；已迁实现与来源无旧路径，剩余空父包锚点在 030d 统一退出。重新导出起点四类目录字节一致（`c7-catalog-*`）。初次边界夹具失败及修正过程见 `c7-*`、`c7-final-*`、`c7-r2-*`，最终结果不覆盖先前失败。
+
+## 后续工作
+
+业务组迁移结束；混合文件拆分、旧目录退出、完整交付物、应用启动、Windows 全量及起点失败集合对照留至 030d/030e，不以本报告定向结果替代。

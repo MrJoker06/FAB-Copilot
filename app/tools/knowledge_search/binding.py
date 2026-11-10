@@ -2,20 +2,21 @@
 
 from __future__ import annotations
 
-from ...agent_runtime.tools.contracts import ToolExecutionContext, ToolScope
-from ...agent_runtime.tools.definition import (
+from app.agent_runtime.tools.contracts import ToolExecutionContext, ToolScope
+from app.agent_runtime.tools.definition import (
     ToolBinding,
     ToolDefinition,
     ToolPreparation,
 )
-from ..search_query import search_terms
-from .contracts import (
+from app.knowledge.search_query import search_terms
+from app.tools.knowledge_search.contracts import (
+    KNOWLEDGE_SEARCH_OUTPUT_SCHEMA,
     KnowledgeSearchInput,
     KnowledgeSearchPort,
     knowledge_scope,
     validate_knowledge_search_output,
 )
-from .handler import KnowledgeSearchDependencies, knowledge_search_handler
+from app.tools.knowledge_search.handler import KnowledgeSearchDependencies, knowledge_search_handler
 
 KNOWLEDGE_SEARCH_DEFINITION = ToolDefinition(
     "search_knowledge",
@@ -23,6 +24,8 @@ KNOWLEDGE_SEARCH_DEFINITION = ToolDefinition(
     "检索当前用户个人知识、厂内知识与已验证历史案例",
     KnowledgeSearchInput,
     validate_knowledge_search_output,
+    title="知识与案例检索",
+    output_schema=KNOWLEDGE_SEARCH_OUTPUT_SCHEMA,
 )
 
 
