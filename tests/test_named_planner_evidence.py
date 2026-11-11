@@ -3,8 +3,9 @@ from __future__ import annotations
 import unittest
 from datetime import date
 
-from app.evidence.semantics import descriptor_for_tool
-from app.evidence.validator import EvidenceObservation, validate_evidence
+from app.tools.evidence_descriptors import descriptor_for_tool
+from app.evidence.validator import EvidenceObservation
+from app.bootstrap.evidence_assembly import validate_evidence
 from app.intent_runtime.routing import route_question
 from app.planning_runtime.named_playbooks import select_named_playbook
 from app.planning_runtime.named_planner import create_named_execution_plan

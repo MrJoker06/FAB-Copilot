@@ -24,7 +24,8 @@ from app.agent_runtime.service import (  # noqa: E402
 from app.evidence.answer_synthesizer import create_answer_contract, synthesizer_system_message  # noqa: E402
 from app.planning_runtime.playbooks import playbook_system_message  # noqa: E402 - project-root bootstrap precedes imports
 from app.planning_runtime.playbooks import select_playbook  # noqa: E402
-from app.evidence.validator import EvidenceObservation, validate_evidence, validator_system_message  # noqa: E402
+from app.evidence.validator import EvidenceObservation, validator_system_message  # noqa: E402
+from app.bootstrap.evidence_assembly import validate_evidence  # noqa: E402 - project-root bootstrap
 from app.intent_runtime.routing import route_question, routing_system_message  # noqa: E402
 from app.planning_runtime.service import create_execution_plan, planner_system_message  # noqa: E402
 

@@ -32,14 +32,20 @@ async def validate_round(
     )
     state.evidence_validation = evidence_validation
     coverage = evidence_validation.coverage
-    if (
+    if getattr(evidence_validation, "assessment_status", None) == "check_failed":
+        loop_guard.enter_synthesis("evidence_check_failed", "必需证据检查不可用，只能输出受限说明。")
+    elif (
         execution_plan.status == "ready"
         and coverage["required_total"] > 0
         and coverage["required_covered"] == coverage["required_total"]
     ):
         loop_guard.enter_synthesis(
-            "required_evidence_complete",
-            f"执行计划的 {coverage['required_total']} 组必需证据已全部覆盖。",
+            "required_evidence_complete" if getattr(evidence_validation, "evidence_sufficient", None) is True else "evidence_collected_with_limits",
+            (
+                f"执行计划的 {coverage['required_total']} 组必需证据已全部覆盖。"
+                if getattr(evidence_validation, "evidence_sufficient", None) is True
+                else f"已收集 {coverage['required_total']} 组必需证据；结论仍受检查风险及冲突约束。"
+            ),
         )
     if intent_route.intent != "general_knowledge":
         state.knowledge_fallback = context.knowledge_fallback_state(

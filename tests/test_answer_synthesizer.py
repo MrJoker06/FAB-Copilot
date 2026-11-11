@@ -21,7 +21,8 @@ from app.evidence.answer_synthesizer import (
     synthesize_submission,
 )
 from app.planning_runtime.playbooks import select_playbook
-from app.evidence.validator import EvidenceObservation, validate_evidence
+from app.evidence.validator import EvidenceObservation
+from app.bootstrap.evidence_assembly import validate_evidence
 from app.intent_runtime.routing import route_question
 from app.planning_runtime.service import create_execution_plan
 
@@ -61,7 +62,10 @@ def _supported_yield_contract():
             "retrieval": {"confidence": "medium"},
         }]),
     ]
-    validation = validate_evidence(plan, selection.selected_playbook, observations)
+    # These rendering/support unit fixtures explicitly retain the old policy;
+    # production-v2 policy behavior is covered independently, without changing
+    # this fixture's presentation and limitation-budget expectations.
+    validation = validate_evidence(plan, selection.selected_playbook, observations, policy_version="1.2.0")
     sources = [{
         "reference_id": "KB-1", "source_type": "knowledge", "source": "良率分析规范",
         "section": "产品分层", "chunk_id": 1,
@@ -144,7 +148,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
 
         self.assertIn("良率下降已得到当前观测证实", result.answer)
         self.assertIn("当前总体良率为 91.2%", result.answer)
-        self.assertIn("缺陷记录足以解释良率下降", result.answer)
+        self.assertNotIn("缺陷记录足以解释良率下降", result.answer)
         support = {(item["category"], item["statement"]): item["support"] for item in result.report.claim_support}
         self.assertEqual(support[("conclusion", "良率下降已得到当前观测证实。")], "supported")
         self.assertEqual(support[("inference", "缺陷记录足以解释良率下降。")], "unsupported")
@@ -244,7 +248,13 @@ class AnswerSynthesizerTests(unittest.TestCase):
                 _structured_claim(contract, "TOOL:S01", "冲突规格下的 Cpk 为 1.1。"),
                 _structured_claim(contract, "TOOL:S02", "CMP-03 存在已记录异常。"),
             ],
-            "inferences": [], "hypotheses": [], "recommendations": [], "limitations": [], "source_refs": [],
+            "inferences": [],
+            "hypotheses": [{"statement": "补充范围信息", "evidence_refs": [], "verification": "冲突规格下的 Cpk 为 1.1。"}],
+            "recommendations": [
+                {"action": "复核规格", "rationale": "冲突规格下的 Cpk 为 1.1。", "requires_review": True},
+                {"action": "核对现有记录", "rationale": "口径待确认", "requires_review": True},
+            ],
+            "limitations": ["冲突规格下的 Cpk 为 1.1。", "需确认生效范围"], "source_refs": [],
         }
 
         result = synthesize_submission(payload, contract, status="structured")
@@ -253,6 +263,9 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertEqual(support["冲突规格下的 Cpk 为 1.1。"], "unsupported")
         self.assertEqual(support["CMP-03 存在已记录异常。"], "supported")
         self.assertIn("CMP-03 存在已记录异常", result.answer)
+        self.assertNotIn("冲突规格下的 Cpk 为 1.1。", result.answer)
+        self.assertIn("核对现有记录", result.answer)
+        self.assertIn("需确认生效范围", result.answer)
 
     def test_v2_direct_facts_fill_only_known_metadata_and_composite_derives_refs(self):
         contract, _ = _supported_yield_contract()
@@ -1148,7 +1161,8 @@ class AnswerSynthesizerTests(unittest.TestCase):
         result = synthesize_submission(payload, contract)
 
         self.assertIn("不能形成诊断性结论", result.answer)
-        self.assertIn("**待验证**", result.answer)
+        self.assertNotIn("可以确定主要原因是 CMP-03 抛光头老化", result.answer)
+        self.assertNotIn("CMP-03 已经导致全部批次异常", result.answer)
         self.assertNotIn("## 已确认事实\n- CMP-03", result.answer)
         self.assertGreaterEqual(result.report.moved_claims, 1)
         self.assertTrue(result.report.wording_adjustments)
@@ -1359,7 +1373,8 @@ class AnswerSynthesizerTests(unittest.TestCase):
         streamed = "".join(event.get("delta", "") for event in events if event.get("event") == "answer_delta")
         self.assertEqual(streamed, result["answer"])
         self.assertEqual(result["answer_synthesis"]["status"], "structured")
-        self.assertIn("**待验证**", result["answer"])
+        self.assertIn("**证据限制**", result["answer"])
+        self.assertNotIn("CMP-03 的能力偏低，但当前只能形成待验证假设", result["answer"])
         self.assertIn("submit_analysis", {tool["function"]["name"] for tool in requests[0]["tools"]})
         prompt_contract = next(
             json.loads(item["content"].split("answer_contract=", 1)[1])

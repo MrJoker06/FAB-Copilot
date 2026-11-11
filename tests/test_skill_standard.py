@@ -31,7 +31,6 @@ from app.bootstrap.litho_cpk_workflow import LithoCpkWorkflow
 from app.bootstrap.skill_assembly import (
     EVIDENCE_CHECK_FAILED,
     EVIDENCE_CHECKED,
-    EVIDENCE_NOT_CONFIGURED,
     SkillAssemblyConfiguration,
     SkillAssemblyError,
     SkillExecutionRequest,
@@ -122,7 +121,7 @@ class StandardPackageTests(unittest.TestCase):
         self.assertEqual(skill.document.name, "litho-cpk-diagnostic")
         self.assertEqual(skill.execution_status, EXECUTION_EXTENSION)
         self.assertFalse(skill.execution_authorized)
-        self.assertEqual(skill.manifest.version, "1.1.0")
+        self.assertEqual(skill.manifest.version, "2.0.0")
         self.assertEqual(skill.manifest.description, skill.document.description)
 
     def test_v2_manifest_takes_identity_from_skill_md(self) -> None:
@@ -167,11 +166,12 @@ class EvidencePolicyStateTests(unittest.TestCase):
         self.root = Path(directory.name) / "litho-cpk-diagnostic"
         shutil.copytree(SKILL_SOURCE, self.root)
 
-    def _resolve(self):
+    def _resolve(self, *, skill_version="2.0.0", workflows=None, release_store=None):
         route = route_question(_QUESTION, AS_OF)
         workflow = LithoCpkWorkflow()
         plan, _ = workflow.build(_QUESTION, route)
         bindings, adapters = _bindings(plan, AS_OF, _Principal())
+        self.adapters = adapters
         definition = AgentDefinition(
             "evidence-test",
             "1.0.0",
@@ -180,11 +180,14 @@ class EvidencePolicyStateTests(unittest.TestCase):
             tuple(ComponentReference(name, "1.0.0") for name in _TOOLS),
             ComponentReference("model", "1.0.0"),
             ComponentReference("policy", "1.0.0"),
-            (ComponentReference("litho-cpk-diagnostic", "1.1.0"),),
+            (ComponentReference("litho-cpk-diagnostic", skill_version),),
         )
         binding = resolve_skill_binding(
             definition,
-            SkillAssemblyConfiguration((self.root,), (workflow,)),
+            SkillAssemblyConfiguration(
+                (self.root,) if release_store is None else (),
+                workflows or (workflow,), release_store,
+            ),
             SkillExecutionRequest(_QUESTION, route, "ready"),
             bindings,
             frozenset(_TOOLS),
@@ -197,18 +200,46 @@ class EvidencePolicyStateTests(unittest.TestCase):
         change(manifest)
         path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    def test_undeclared_policy_is_not_configured_and_never_a_pass(self) -> None:
+    def test_undeclared_policy_cannot_bypass_controlled_diagnosis(self) -> None:
         self._edit_manifest(lambda value: value.pop("evidence_policy"))
-        binding, _ = self._resolve()
-        self.assertEqual(
-            dict(binding.metadata)["evidence_policy_status"], EVIDENCE_NOT_CONFIGURED
-        )
-        self.assertNotIn("evidence_policy_id", dict(binding.metadata))
-        outcome = binding.check_evidence([])
-        self.assertEqual(outcome.status, EVIDENCE_NOT_CONFIGURED)
-        self.assertIsNone(outcome.policy)
-        self.assertIsNone(outcome.validation)
-        self.assertIsNone(outcome.evidence_sufficient)
+        with self.assertRaises(SkillAssemblyError) as caught:
+            self._resolve()
+        self.assertEqual(caught.exception.reason, "required_policy_missing")
+        self.assertTrue(all(not adapter.calls for adapter in self.adapters))
+
+    def test_released_old_and_current_policy_versions_resolve_without_latest_binding(self):
+        from app.bootstrap.skill_assembly import _inventory
+        from app.skills.catalog import SkillReference
+        from app.skills.releases import SkillReleaseStore
+
+        current_document = (self.root / "manifest.json").read_text(encoding="utf-8")
+        workflow = LithoCpkWorkflow()
+        old_workflow = LithoCpkWorkflow(version="2.1.0", evidence_policy_version="1.3.0")
+        route = route_question(_QUESTION, AS_OF)
+        plan, _ = workflow.build(_QUESTION, route)
+        bindings, _ = _bindings(plan, AS_OF, _Principal())
+        store = SkillReleaseStore()
+        old = json.loads(current_document)
+        old["version"] = "1.1.0"
+        old["workflow"]["version"] = "2.1.0"
+        old["evidence_policy"]["version"] = "1.3.0"
+        (self.root / "manifest.json").write_text(json.dumps(old), encoding="utf-8")
+        store.publish(self.root, _inventory(bindings, (old_workflow,)))
+        store.activate(SkillReference("litho-cpk-diagnostic", "1.1.0"))
+        (self.root / "manifest.json").write_text(current_document, encoding="utf-8")
+        store.publish(self.root, _inventory(bindings, (workflow,)))
+        store.activate(SkillReference("litho-cpk-diagnostic", "2.0.0"))
+        for ordered in ((old_workflow, workflow), (workflow, old_workflow)):
+            for skill_version, expected in (("1.1.0", "1.3.0"), ("2.0.0", "2.0.0")):
+                with self.subTest(order=ordered, version=skill_version):
+                    binding, _ = self._resolve(skill_version=skill_version, workflows=ordered, release_store=store)
+                    report = binding.check_evidence([])
+                    self.assertEqual(report.status, EVIDENCE_CHECKED)
+                    self.assertEqual(report.validation.validator_version, expected)
+                    self.assertEqual(report.validation.policy_ref["version"], expected)
+        store.rollback(SkillReference("litho-cpk-diagnostic", "1.1.0"))
+        binding, _ = self._resolve(skill_version="1.1.0", workflows=(workflow, old_workflow), release_store=store)
+        self.assertEqual(binding.check_evidence([]).validation.validator_version, "1.3.0")
 
     def test_unparseable_declared_policy_fails_assembly_before_fetch(self) -> None:
         for value in ("capability-evidence", {"component_id": "capability-evidence"}):
@@ -234,7 +265,7 @@ class EvidencePolicyStateTests(unittest.TestCase):
         outcome = binding.check_evidence([])
         self.assertEqual(outcome.status, EVIDENCE_CHECKED)
         self.assertEqual(
-            outcome.policy, SkillComponentReference("capability-evidence", "1.3.0")
+            outcome.policy, SkillComponentReference("capability-evidence", "2.0.0")
         )
         self.assertIsNotNone(outcome.validation)
         self.assertIs(outcome.evidence_sufficient, False)
@@ -254,11 +285,11 @@ class EvidencePolicyStateTests(unittest.TestCase):
 
         cases = (
             (SimpleNamespace(status="validated", allowed_conclusion_strength="strong"),
-             EVIDENCE_CHECKED, True),
+             EVIDENCE_CHECK_FAILED, None),
             (SimpleNamespace(status="validated", allowed_conclusion_strength="insufficient"),
-             EVIDENCE_CHECKED, False),
+             EVIDENCE_CHECK_FAILED, None),
             (SimpleNamespace(status="rejected", allowed_conclusion_strength="strong"),
-             EVIDENCE_CHECKED, False),
+             EVIDENCE_CHECK_FAILED, None),
         )
         for validation, status, sufficient in cases:
             with self.subTest(validation=validation):
@@ -267,7 +298,7 @@ class EvidencePolicyStateTests(unittest.TestCase):
                 self.assertIs(outcome.evidence_sufficient, sufficient)
         failed = stub(error=RuntimeError("validator exploded")).check_evidence([])
         self.assertEqual(failed.status, EVIDENCE_CHECK_FAILED)
-        self.assertIsNone(failed.validation)
+        self.assertEqual(failed.validation.assessment_reason, "checker_unavailable")
         self.assertIsNone(failed.evidence_sufficient)
 
 

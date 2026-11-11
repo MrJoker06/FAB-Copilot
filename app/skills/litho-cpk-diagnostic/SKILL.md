@@ -18,3 +18,7 @@ Read the weekly trend to tell a sustained capability drop from a single bad
 week; it does not replace the equipment-level Cpk evidence.
 
 This package does not grant tool permissions or execute database queries.
+Use the exact evidence-policy version supplied by the trusted host. A completed
+check is not a passing diagnosis. If the required check is unavailable, report
+that limitation; model knowledge cannot replace it. A knowledge-source label
+alone does not certify an approved, effective SOP.

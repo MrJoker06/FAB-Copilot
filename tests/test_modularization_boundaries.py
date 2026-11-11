@@ -297,7 +297,7 @@ class ModularizationBoundaryTests(unittest.TestCase):
             self.assertNotIn(module, policy["runtime"])
         self.assertEqual(
             policy["manufacturing_domain"],
-            ["core_contracts_configuration", "manufacturing_domain", "orchestration"],
+            ["core_contracts_configuration", "manufacturing_domain", "orchestration", "evidence"],
         )
 
     def test_nested_bad_shapes_return_errors_instead_of_type_errors(self):

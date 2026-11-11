@@ -1,6 +1,6 @@
 # MOD-031：验证职责与业务证据策略改造确定版
 
-版本：v1.0；日期：2026-11-11。状态：**设计确定版，未实施；本次只更新方案，不授权自动修改运行代码、提交或推送。** 本版替代 v0.1 初稿；后续实施按本版目标、行为表和验收执行，局部文件拆分可按实际消费者调整，不重新发散架构选型。
+版本：v1.0；日期：2026-11-11。状态：**已按本版实施并完成基线对照验收；保留既有失败/full 门未通过；本版纳入 MOD-031 提交，远程状态以 Git 为准。** 实施起点 638f772，结果及必要附加字段见 [实施报告](reports/mod-031-validator.md)。本版替代 v0.1；下文基线表及附录保留定稿时事实，不当作当前结构快照。
 
 源码核对基线：`1651242`；GitHub 默认分支为 `experiment/parallel-platform`，本次文档工作区为 `feat/local-qwen3-runbook`，两者在基线时同指该提交。MOD-030 已完成，迁移结果及未通过的完整质量门见 [030e 报告](reports/mod-030e-acceptance.md)。实施前重新核对分支、工作树和后续提交，不能把本文候选路径当成已经存在的代码。
 
@@ -273,4 +273,4 @@ WSL 与 Windows 各用平台解释器；涉及 PIL/jsonschema 的集合必须先
 | app/api/services/chat_stream.py、model_gateway/streaming.py、conversation/sessions.py | 实际流式传送与持久化链；确定缓冲所在最小边界，不因新增业务策略重写 Gateway |
 | evaluations/mod_003_boundaries_v1.json、mod_024_release_v1.json 及受影响切片 | 路径归属、依赖、Profile 和资源清单同步；不机械放宽整个 skills/ 的边界 |
 
-本次文档只核对源码、链接、事实和 UTF-8/LF/diff，没有执行应用测试、修改冻结契约或修改运行行为。此表为带基线交接信息，实施前按符号重新定位。
+定稿时只核对源码、链接、事实和 UTF-8/LF/diff；用户随后明确授权实施。实际源码、冻结期望的有界变更和测试结果以 [实施报告](reports/mod-031-validator.md) 为准。附录为 1651242 的交接基线，不是当前完成快照。

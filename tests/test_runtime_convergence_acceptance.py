@@ -79,7 +79,7 @@ ROOT = Path(__file__).resolve().parents[1]
 _AS_OF = date(2026, 10, 31)
 _EXTRA_TOOL = "get_defect_pareto"
 _ALL_TOOLS = (*_TOOLS, _EXTRA_TOOL)
-_SKILL = SkillReference("litho-cpk-diagnostic", "1.1.0")
+_SKILL = SkillReference("litho-cpk-diagnostic", "2.0.0")
 _SKILL_SOURCE = ROOT / "app" / "skills" / "litho-cpk-diagnostic"
 _SKILL_MODES = ("off", "file", "release")
 _VOLATILE = frozenset({"run_id", "started_at", "completed_at", "traceback"})
@@ -1080,7 +1080,7 @@ class ConvergenceBoundaryGuardTests(unittest.TestCase):
             (evidence_validator.ExecutionPlanView, plan),
             (evidence_validator.PlanStepView, plan.steps[0]),
             (evidence_validator.PlanScopeView, plan.scope_contract),
-            (evidence_validator.PlaybookView, playbook),
+            (evidence_validator.EvidencePolicyView, playbook),
             (
                 evidence_validator.EvidenceRequirementView,
                 playbook.evidence_requirements[0],

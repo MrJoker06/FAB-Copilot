@@ -10,6 +10,7 @@ from .loop_answer import (
     is_submission_round,
 )
 from .loop_dispatch import LoopDispatchBinding
+from .evidence_failure import finish_check_failure
 from .loop_model_call import ModelTurn, call_model
 from .loop_request import LOOP_SYNTHESIS_MAX_TOKENS as LOOP_SYNTHESIS_MAX_TOKENS
 from .loop_request import prepare_round_request
@@ -147,6 +148,8 @@ async def run_agent_loop(
     """Run the non-ready model/tool loop with live dependencies injected by app.agent_runtime.service."""
     state = LoopRunState.from_context(context)
     dispatch_binding = _resolve_dispatch_binding(context, dispatch_binding)
+    if getattr(state.evidence_validation, "assessment_status", None) == "check_failed":
+        return await finish_check_failure(context, state, dispatch_binding)
     settings = context.settings
     loop_guard = context.loop_guard
     model_gateway = context.model_gateway
@@ -196,4 +199,6 @@ async def run_agent_loop(
                 context, dispatch_binding, classified_response, tool_calls, iteration
             )
             await validate_round(context, state, dispatch_binding, iteration)
+            if getattr(state.evidence_validation, "assessment_status", None) == "check_failed":
+                return await finish_check_failure(context, state, dispatch_binding)
     return await finish_iteration_limit(context, state, dispatch_binding)

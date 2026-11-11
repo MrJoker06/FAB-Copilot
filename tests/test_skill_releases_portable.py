@@ -24,7 +24,7 @@ ASSETS = (
 
 class SkillReleasesPortableTests(unittest.TestCase):
     def test_released_ready_and_loop_use_only_the_explicit_107_file_slice(self) -> None:
-        self.assertEqual(len(SOURCE_FILES), 107)
+        self.assertEqual(len(SOURCE_FILES), 111)
         with tempfile.TemporaryDirectory() as temporary:
             unit = Path(temporary) / "unit"
             for relative in SOURCE_FILES:
@@ -125,7 +125,7 @@ from app.skills.releases import SkillReleaseStore
 route = route_question(_QUESTION, date(2026,10,31)); workflow = LithoCpkWorkflow(); plan,_ = workflow.build(_QUESTION,route)
 bindings, adapters = _bindings(plan,date(2026,10,31),_Principal()); inventory = _inventory(bindings,(workflow,))
 FRONTMATTER = '---\nname: litho-cpk-diagnostic\ndescription: Portable release fixture.\n---\n\n'
-store = SkillReleaseStore(); (author/'SKILL.md').write_text(FRONTMATTER + '# published one\n'); store.publish(author,inventory); v1 = SkillReference('litho-cpk-diagnostic','1.1.0'); store.activate(v1)
+store = SkillReleaseStore(); (author/'SKILL.md').write_text(FRONTMATTER + '# published one\n'); store.publish(author,inventory); v1 = SkillReference('litho-cpk-diagnostic','2.0.0'); store.activate(v1)
 class Events:
  async def emit(self,event): return None
 class Model:
@@ -153,11 +153,11 @@ async def execute(app,model,holder,mode,run=None):
   binding=bind_loop_run(app.skill_binding.plan,guard,run,projector); first=await run.model_stage(call_id='first',messages=(ModelMessage('user',_QUESTION),)); outcome=await execute_dispatched_loop_round(app.skill_binding.plan,guard,context.run_id,1,classify_loop_response(first.value),None,binding=binding,notify=notify,emit_event=lambda *a,**k:None); await run.model_stage(call_id='second',messages=(ModelMessage('user',_QUESTION),ModelMessage('assistant','',tool_calls=first.value.tool_calls),*(ModelMessage('tool',x['content'],tool_call_id=x['tool_call_id']) for x in outcome.tool_messages)))
  observations=tuple(EvidenceObservation(**item) for item in outcome.observation_payloads); validation=app.skill_binding.workflow.evidence_validator(app.skill_binding.plan,app.skill_binding.selection.selected_playbook,list(observations)); assert validation.coverage['required_covered']==3; assert all(x['status']=='ok' for x in outcome.trace); return run
 old,oldmodel,oldholder=app_for(v1); oldprojector=ReadyResultPolicy(frozenset({'search_knowledge'}),usable_result); oldrun=old.new_run(RuntimeContext(_Principal(),'portable-old',ToolExecutionLimits(20,100,time.monotonic()+5)),result_policy=oldprojector)
-v2root = author.parent.parent / 'v2' / author.name; shutil.copytree(author,v2root); manifest=json.loads((v2root/'manifest.json').read_text()); manifest['version']='2.0.0'; (v2root/'manifest.json').write_text(json.dumps(manifest)); (v2root/'SKILL.md').write_text(FRONTMATTER + '# published two\n'); store.publish(v2root,inventory); shutil.rmtree(author)
+v2root = author.parent.parent / 'v2' / author.name; shutil.copytree(author,v2root); manifest=json.loads((v2root/'manifest.json').read_text()); manifest['version']='3.0.0'; (v2root/'manifest.json').write_text(json.dumps(manifest)); (v2root/'SKILL.md').write_text(FRONTMATTER + '# published two\n'); store.publish(v2root,inventory); shutil.rmtree(author)
 asyncio.run(oldrun.model_stage(call_id='old-after-publication',messages=(ModelMessage('user',_QUESTION),))); assert 'published one' in oldmodel.requests[-1].messages[1].content
-oldrun=asyncio.run(execute(old,oldmodel,oldholder,'ready',oldrun)); store.activate(SkillReference('litho-cpk-diagnostic','2.0.0')); new,newmodel,newholder=app_for(SkillReference('litho-cpk-diagnostic','2.0.0')); newrun=asyncio.run(execute(new,newmodel,newholder,'loop'))
-assert old.skill_binding.snapshot.reference == v1 and new.skill_binding.snapshot.reference.version == '2.0.0'
-store.disable(SkillReference('litho-cpk-diagnostic','2.0.0'))
+oldrun=asyncio.run(execute(old,oldmodel,oldholder,'ready',oldrun)); store.activate(SkillReference('litho-cpk-diagnostic','3.0.0')); new,newmodel,newholder=app_for(SkillReference('litho-cpk-diagnostic','3.0.0')); newrun=asyncio.run(execute(new,newmodel,newholder,'loop'))
+assert old.skill_binding.snapshot.reference == v1 and new.skill_binding.snapshot.reference.version == '3.0.0'
+store.disable(SkillReference('litho-cpk-diagnostic','3.0.0'))
 try: new.new_run(RuntimeContext(_Principal(),'disabled',ToolExecutionLimits()))
 except AssemblyError: pass
 else: raise AssertionError('disabled new run accepted')

@@ -64,7 +64,7 @@ SOURCE_FILES = (
     "app/evidence/evidence_truncation.py",
     "app/evidence/semantics.py",
     "app/evidence/serialization.py",
-    "app/evidence/skill_policy.py",
+    "app/skills/policies/capability.py",
     "app/evidence/validator.py",
     "app/demo_data/tool_sources/knowledge_search.py",
     "app/demo_data/tool_sources/operational_reports.py",
@@ -122,6 +122,10 @@ SOURCE_FILES = (
     "app/demo_data/tool_sources/__init__.py",
     "app/planning_runtime/playbook_contracts.py",
     "app/planning_runtime/builtin_playbooks.py",
+    "app/skills/policies/__init__.py",
+    "app/skills/policies/manufacturing.py",
+    "app/evidence/contracts.py",
+    "app/tools/evidence_descriptors.py",
 )
 SKILL_ASSETS = (
     "manifest.json",
@@ -217,10 +221,10 @@ from app.bootstrap.litho_cpk_demo import run_litho_cpk_demo_sync
 for mode, calls in (('ready', 0), ('loop', 2)):
  result = run_litho_cpk_demo_sync(mode, package_root=str(asset_root))
  assert [item['status'] for item in result['trace']] == ['ok'] * 5
- assert result['validation'].status == 'validated' and result['validation'].validator_version == '1.3.0'
+ assert result['validation'].status == 'validated' and result['validation'].validator_version == '2.0.0'
  assert result['plan'].playbook_id == 'PB-CAPABILITY-001' and result['model_calls'] == calls
  assert result['metadata']['skill_id'] == 'litho-cpk-diagnostic'
- assert result['metadata']['evidence_policy_version'] == '1.3.0'
+ assert result['metadata']['evidence_policy_version'] == '2.0.0'
  assert 'SKILL.md' in result['metadata']['loaded_resources']
 viewer = run_litho_cpk_demo_sync('ready', role='viewer', package_root=str(asset_root))
 assert [item['status'] for item in viewer['trace']] == ['blocked'] * 5

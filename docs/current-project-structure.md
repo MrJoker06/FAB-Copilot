@@ -1,8 +1,8 @@
 # 当前项目精细结构快照
 
-快照日期：2026-11-11。迁移后应用源码基线 `0829d8c`，本次 e 收尾只改夹具、冻结历史参考元数据和文档。MOD-001～019、MOD-024 和 MOD-030 已交付；030 的全量既有失败、full 门未通过与已验证范围见 [阶段报告](reports/mod-030e-acceptance.md)。MOD-020～023、MOD-025～029 保持待做/暂缓；默认 HTTP 未启用 Skill，保留兼容 facade 与配置锚点归 MOD-027。
+快照日期：2026-11-11。当前为 `feat/local-qwen3-runbook` 的 MOD-031 实现快照，执行起点 `638f772`；本版纳入 MOD-031 提交，提交及远程状态以 Git 记录为准。MOD-001～019、MOD-024、MOD-030 的历史验收不变；本轮验证职责拆分与限制见 [031 报告](reports/mod-031-validator.md)。MOD-020～023、MOD-025～029 保持待做/暂缓；默认 HTTP 未启用 Skill，保留兼容 facade 与配置锚点归 MOD-027。
 
-本次 MOD-030d 迁移实扫 `app/` 为 **303 文件：275 个 Python、28 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 已归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录退出。目录退出与阶段验收分别见 030d/030e 报告；测试、缓存、日志及运行产物不计入。
+当前实扫 `app/` 为 **309 文件：281 个 Python、28 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。
 
 ## 平台启动入口
 
@@ -22,12 +22,11 @@ app/
 ├── agent_runtime/                 协调器、执行、工具、综合与兼容入口
 ├── planning_runtime/              Router 输入后的 Plan/步骤生成
 ├── intent_runtime/                规则路由、时间与范围解析
-├── manufacturing/                 Playbook、旧报告及六组业务工具的纯契约与处理器
-├── integrations/manufacturing/    Fake/只读 SQLite/显式企业 Provider Adapter
+├── tools/                         具名业务 Tool、受控数据来源及语义元数据
+├── demo_data/                     Fake 来源、模拟 Provider、演示 seed
 ├── knowledge/                     RAG、纯知识工具、检索决策/规则/契约与旧 SQLite 后端
-├── integrations/knowledge/        精确 Fake 与显式工厂/个人搜索后端 Adapter
 ├── evidence/                      证据描述、校验、答案综合和序列化
-├── skills/                        清单/资源、Catalog/渐进加载、不可变发布与版本状态
+├── skills/                        清单/资源、Catalog/渐进加载、不可变发布与共享业务策略
 ├── memory_system/                 当前上下文记忆的规则、Port 与服务
 ├── conversation/                  会话决策、上下文兼容、会话存取
 ├── model_gateway/                 Provider 配置、健康与 SSE 流式协议
@@ -56,7 +55,8 @@ HTTP app.main / api
   → Ready / Loop / 知识预取 / 必要的无模型降级 → 同一 Dispatcher 与 Guard
   → ToolBinding → 消费方 Data Port → 按需构造的来源 Adapter
   → 相关只读 SQLite / 企业 Provider / 工厂和个人知识后端
-  → evidence.validator / answer_synthesizer → 流式回答与审计
+  → bootstrap.evidence_assembly 固定 skills.policies 规则
+  → evidence.validator 纯评估 / answer_synthesizer 支持检查 → 流式回答与审计
 ```
 
 默认模型清单是 21 项业务工具加独立的 `submit_analysis` 协议。默认执行不接受
@@ -178,6 +178,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/bootstrap/storage_identity_assembly.py` | 装配 | 存储/身份 Port 的默认绑定：调用时读取 database、identity、audit、execution_store 和 SQLite 检索后端的模块属性；`install_default_storage_identity()` 可重复调用，不覆盖自定义绑定。 |
 | `app/bootstrap/agent_assembly.py` | 装配 | 校验 Definition/Binding/能力并建立 AgentApplication；非空 skill_refs 必须显式配置，未启用路径保持兼容。 |
 | `app/bootstrap/skill_assembly.py` | 装配 | 根据实际绑定校验 Skill，连接文件目录或显式发布对象；新 Run 前检查声明或发布准入，将固定文本和基础元数据交给 Runtime。 |
+| `app/bootstrap/evidence_assembly.py` | 装配 | 默认诊断固定策略版本并调用统一报告检查；必需策略缺失明确失败，不依赖模型或用户清单自行宣称合格。 |
 | `app/bootstrap/litho_cpk_workflow.py` | 装配 | 固定光刻 Workflow 与证据策略引用，复用现有 v2 Playbook/Planner，不复制业务步骤。 |
 | `app/bootstrap/litho_cpk_demo.py` | 装配 | 显式 Skill Ready/Fake Loop 演示，使用原生工具、同一 Dispatcher/Guard 与精确 Fake 来源。 |
 | `app/bootstrap/agent_demo.py` | 装配 | Fake 模型、Fake/SQLite 设备健康的新 AgentRun 演示。 |
@@ -241,6 +242,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/agent_runtime/execution/loop_answer.py` | 业务 | 文本答案、`submit_analysis` 纠正/salvage/降级与轮次上限终止。 |
 | `app/agent_runtime/execution/loop_tool_round.py` | 业务 | Dispatcher 工具轮与旧注册工具轮（守卫、blocked/ok/error、知识过滤、证据观测）。 |
 | `app/agent_runtime/execution/loop_round_validation.py` | 业务 | 轮末证据校验、答案契约刷新、知识回退公告与守卫轮次审计。 |
+| `app/agent_runtime/execution/evidence_failure.py` | 编排 | 必需检查失败时确定性结束 Loop，不追加 Tool 或模型请求；复用已有答案约束和结果构造。 |
 | `app/agent_runtime/execution/ready_plan.py` | 兼容/业务 | 原 Ready 回调路径；可显式委托新 Ready executor。 |
 | `app/agent_runtime/execution/ready_graph.py` | 纯 | Ready 依赖拓扑排序与非法图拒绝。 |
 | `app/agent_runtime/execution/ready_dispatch.py` | 纯 | Dispatcher-backed Ready 执行、归约和事件投影。 |
@@ -287,8 +289,8 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/planning_runtime/scope.py` | 业务/过渡 | 具名工具参数的范围/语义映射，以及旧参数/SQL 兼容推导。 |
 | `app/core/manufacturing_terms.py` | 纯 | 制程常量与分类。 |
 | `app/planning_runtime/playbooks.py` | 编排 | Playbook 选择、澄清与提示组装；结构和声明有独立所有者。 |
-| `app/planning_runtime/playbook_contracts.py` | 纯 | DomainPlaybook、EvidenceRequirement、引用和选择结果结构。 |
-| `app/planning_runtime/builtin_playbooks.py` | 业务声明 | 七套既有证据规则，保持原语义，后续策略职责由 MOD-031 评审。 |
+| `app/planning_runtime/playbook_contracts.py` | 纯 | DomainPlaybook、引用和选择结构；EvidenceRequirement 类型来自共享业务声明库。 |
+| `app/planning_runtime/builtin_playbooks.py` | 规划视图 | 七套 Playbook 的步骤/说明，证据要求引用共享业务声明，不再手写第二份字段清单。 |
 | `app/planning_runtime/named_playbooks.py` | 纯/版本化业务 | 七类 v2 Playbook 和选择器；保留证据要求，仅把固定 SQL 能力替换为八项具名工具。 |
 | `app/api/report_service.py` | 应用组合 | 看板组合调用已注册的固定报表 Tool 操作，无 SQL 或模型调用。 |
 | `app/core/report_dates.py` | 纯 | 既有报表日期默认值、范围和时间戳边界。 |
@@ -357,9 +359,10 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/knowledge/ocr.py` | 业务 | OCR 调用与文本处理。 |
 | `app/knowledge/ocr_quality.py` | 纯 | OCR 质量评价规则。 |
 | `app/evidence/__init__.py` | 包 | 证据包锚点。 |
-| `app/evidence/semantics.py` | 纯/过渡 | 原报告和八项具名工具的证据语义与范围描述；仍识别旧 SQL 工具。 |
-| `app/evidence/validator.py` | 业务 | 计划/Playbook 证据覆盖与结论限制；新具名查询精确匹配产品、设备、制程、批次及日期参数。计划和 Playbook 经本模块的只读 Protocol（`ExecutionPlanView`、`PlanStepView`、`PlanScopeView`、`PlaybookView`、`EvidenceRequirementView`）读取，不导入 planning_runtime 或 playbooks（MOD-015e）。 |
-| `app/evidence/skill_policy.py` | 纯 | 显式 1.3.0 证据策略：核对知识结果原生检索焦点，复用原覆盖/风险校验；默认 1.2.0 不变。 |
+| `app/evidence/contracts.py` | 纯 | 冻结的 EvidencePolicy：显式版本、声明及可信匹配/业务检查回调；无自动发现。 |
+| `app/evidence/semantics.py` | 纯 | 通用范围和声明支持关系；未知 Tool 不擅自赋予业务语义。 |
+| `app/evidence/validator.py` | 纯 | 按显式策略评估内存观测；复用观测/结果类型及只读视图，统一检查报告合法性、状态、充分性和原因；不导入规划或业务库，不发起 I/O。 |
+| `app/tools/evidence_descriptors.py` | 业务元数据 | 现有 Tool 与历史 SQL 模板的语义描述映射；不执行 SQL，不注册历史工具。 |
 | `app/evidence/answer_synthesizer.py` | 业务 | 证据约束答案结构和渲染。 |
 | `app/evidence/serialization.py` | 纯 | 证据/报告递归复制及 JSON 规范化；精确内置容器和字段名元数据优化，保留子类/deepcopy/错误语义。 |
 | `app/evidence/evidence_truncation.py` | 兼容 | 提示词结果裁剪 helper 的原路径导出门面，实际规则位于 `core/tool_result_projection.py`。 |
@@ -378,13 +381,16 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/skills/discovery.py` | 纯 | 按可信 Workflow/制程/执行模式/输入名称确定性筛选，返回精确候选及拒绝原因，不自动取最新版。 |
 | `app/skills/loader.py` | 渐进加载 | 精确选择后先读 SKILL.md，再按显式路径返回新内容快照；保持已读文本及累计预算，不授予执行权限。 |
 | `app/skills/releases.py` | 发布/文件边界 | 冻结完整声明资源，管理精确版本启用/激活/禁用/回退；内存 Catalog/Loader 复用原渐进加载，已发布正文不再读作者目录。 |
+| `app/skills/policies/__init__.py` | 包 | 共享业务规则库锚点；不是第二套 Skill Catalog。 |
+| `app/skills/policies/manufacturing.py` | 业务声明 | 七类 evidence_requirements、EvidenceRequirement 及具名工具投影的唯一来源。 |
+| `app/skills/policies/capability.py` | 纯业务规则 | 共享参数/知识焦点、样本及冲突检查，固定旧 1.2/1.3 与新 2.0.0 规则配置；不调用模型、Tool 或 DB。 |
 
-该模块只依赖标准库和自身。`scripts/check_skill_package.py` 是独立验收入口；
+Skill 格式/加载/发布模块只依赖标准库和自身；新增 policies 是独立业务库，显式依赖纯 evidence，不改变格式层的隔离边界。`scripts/check_skill_package.py` 是独立验收入口；
 `evaluations/skills/manifest_validation_v1/` 是 MOD-016 验证夹具。MOD-017 的
 `scripts/demo_skill_loading.py` 和 `evaluations/skills/catalog_discovery_v1/` 展示三阶段加载；
 两组夹具均不是光刻业务 Skill。演示和 API 用法见 [Catalog 报告](reports/mod-017-skill-catalog.md)。
 
-`app/skills/litho-cpk-diagnostic/` 为光刻包（MOD-018 建立，MOD-030b 改为标准目录并升级到 1.1.0），含 `manifest.json`（2.0.0 执行扩展）、
+`app/skills/litho-cpk-diagnostic/` 为光刻包（MOD-031 当前版本 2.0.0，Workflow 3.0.0，策略 capability-evidence@2.0.0），含 `manifest.json`（2.0.0 执行扩展）、
 带标准头部的 `SKILL.md`、`references/cpk_context.md`、`scenarios/acceptance.json` 四个文本资产。
 它们不计入 Python/静态源码数，不执行代码、不授予权限；实际装配位于 bootstrap，
 复用既有 Playbook/Planner，并追加共享工具 `get_capability_trend` 步骤。`app/skills/frontmatter.py` 解析标准头部，
@@ -491,19 +497,19 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 模型协议和可替换 Port；`conversation.sessions` 仍管理持久会话历史。知识库、案例和个人知识
 检索是检索数据，不是自动沉淀的长期 Agent Memory。
 
-MOD-016～018 已实现独立 Manifest、依赖校验、安全资源、显式 Catalog/Discovery/渐进 Loader，以及实际 skill_refs 的显式光刻业务试点；MOD-019 的进程内发布与完整声明资源固定已验收；MOD-030 将既有 Playbook 的结构、原样业务声明和选择分别放在 planning_runtime 的对应模块，证据策略语义调整留给 MOD-031。`persistence.execution_store` 已保存运行记录，但尚未提供
+MOD-016～018 已实现独立 Manifest、依赖校验、安全资源、显式 Catalog/Discovery/渐进 Loader，以及实际 skill_refs 的显式光刻业务试点；MOD-019 的进程内发布与完整声明资源固定已验收；MOD-031 将证据声明移为共享业务策略，保留有真实消费者的规划视图，并统一默认诊断与显式 Skill 的评估结果。`persistence.execution_store` 已保存运行记录，但尚未提供
 可安全重放的 Checkpoint/恢复协议。长期记忆仍是 OPTIONAL，未启用；因此不存在已完成的
 语义/情景/程序三层长期记忆实现。
 
 ## 5. 当前耦合与迁移事实
 
-当前边界清单记录 **9 条精确依赖债务、30 个 DB 调用候选文件、7 个兼容入口、94 个静态消费者**。MOD-015e 时为 11/26；030b 新增趋势来源，030d 将一个报表来源拆为四个，同时按新所有者收口旧债务。保留兼容项仍由其真实后续任务处理。
+当前边界清单记录 **10 条精确依赖债务、30 个 DB 调用候选文件、7 个兼容入口、95 个静态消费者**。MOD-031 新增 compatibility 到 evidence_assembly 的精确装配债务及一条实际测试 patch 消费，均登记；保留兼容项仍由其真实后续任务处理。
 兼容消费者扫描只覆盖 app/scripts/tests 内的静态 import、字面动态 import 与常见 mock patch；
 外部调用方和计算出的动态引用仍需人工审查。
 
-9 条债务的实际来源可归纳为：
+10 条债务的实际来源可归纳为：
 
-- `app/agent_runtime/compatibility.py` 仍直接装配两个 Tool 报表操作及 legacy/default bootstrap（4 条，MOD-027；`run_agent` 的 live patch 命名空间保留）。
+- `app/agent_runtime/compatibility.py` 仍直接装配两个 Tool 报表操作及 legacy/default/evidence bootstrap（5 条，MOD-027；`run_agent` 的 live patch 命名空间保留）。
 - `app/agent_runtime/tools/catalog.py` 与 `registry.py` 仍反向看 bootstrap（2 条，MOD-027；保留 `service.TOOLS`/`TOOL_HANDLERS` 对象身份）。
 - MOD-030d 将 Provider 选择归 bootstrap、固定报表 SQL 归 Tool；相应两条旧依赖债务退出。兼容门面保留的报表依赖拆为两个实际 Tool 目标，仍归 MOD-027。
 - `app/model_gateway/compatibility.py` 仍接 `memory_system.context.history/protocol`（2 条，MOD-025；去掉需改公开探针或移动协议逻辑）。
@@ -521,7 +527,7 @@ MOD-016～018 已实现独立 Manifest、依赖校验、安全资源、显式 Ca
 
 F2b 从默认清单、提示和 Dispatcher 移除旧 SQL 能力，但历史代码仍保留：
 `planning_runtime/queries.py` 的旧模板、`steps.py` 的 v1 步骤、
-`scope.py` / `evidence.semantics.py` 的兼容语义；任意 SQL 的 `safe_select(sql)` 已在 MOD-030b 删除。
+`scope.py` / `tools.evidence_descriptors.py` 的兼容语义；任意 SQL 的 `safe_select(sql)` 已在 MOD-030b 删除。
 只有显式历史回放与内部 Python 消费者可以使用这些保留入口，不能据此恢复默认模型执行。
 默认业务读取已改走具名原生工具；API 报表、应用自有存储和历史 facade 的残余依赖
 按 MOD-027 等后续实际消费者继续处理，不能声称整个项目的数据库访问已全部解耦。
@@ -588,6 +594,6 @@ TOOLS/TOOL_HANDLERS 的容器身份，但有意改变清单内容及默认解析
 修订后预声明 r2 正式性能/独立审计通过，r1 证据保留。MOD-008 首批的 281 项必要回归、
 60 文件隔离、旧安装/源码闭包/冻结行为/守卫通过。第二批的 305 项必要回归、67 文件隔离、
 旧安装/源码闭包/冻结行为/守卫也通过。第三批最终 328 项必要回归、74 文件隔离及上述兼容门
-通过。第四批最终 354 项必要回归、82 文件隔离及上述兼容门也通过；第五批最终 413 项必要回归、RAG 15/15、66 文件知识切片及兼容门通过，首轮仓库边界失败记录保留。第六批 F1 的 431 项必要回归、32 主路径、60 文件具名切片及上述兼容门也通过。F2a 版本化消费映射已验收；F2b 默认切换及 SQL 退出已通过功能/质量复核和 r5 正式性能及原始墙钟独立重算，整个 MOD-008 已验证。MOD-016～019、MOD-009、MOD-012 及 MOD-015a～e 也已验证，具体范围见 [测试与验收索引](testing-strategy.md#当前验证记录索引2026-11-07)。MOD-015 的逐模块基线对照保留既有环境失败，不代表在该环境重跑完整离线门全绿；MOD-024 的首批组合交付已通过两端独立安装；Checkpoint 与后续整体集成按 MOD-020～023、MOD-025～028 分别验收。此后变化须随工作树重新核对。文档为 UTF-8/LF，源码表不展开测试、日志、runtime 产物或工作簿内容。
+通过。第四批最终 354 项必要回归、82 文件隔离及上述兼容门也通过；第五批最终 413 项必要回归、RAG 15/15、66 文件知识切片及兼容门通过，首轮仓库边界失败记录保留。第六批 F1 的 431 项必要回归、32 主路径、60 文件具名切片及上述兼容门也通过。F2a 版本化消费映射已验收；F2b 默认切换及 SQL 退出已通过功能/质量复核和 r5 正式性能及原始墙钟独立重算，整个 MOD-008 已验证。MOD-016～019、MOD-009、MOD-012 及 MOD-015a～e 也已验证，具体范围见 [测试与验收索引](testing-strategy.md#当前验证记录索引2026-11-11)。MOD-015 的逐模块基线对照保留既有环境失败，不代表在该环境重跑完整离线门全绿；MOD-024 的首批组合交付已通过两端独立安装；Checkpoint 与后续整体集成按 MOD-020～023、MOD-025～028 分别验收。此后变化须随工作树重新核对。文档为 UTF-8/LF，源码表不展开测试、日志、runtime 产物或工作簿内容。
 
 历史参考例外：`evaluations/mod_002_reference_v4.json` 和 `scripts/build_modularization_reference.py` 保留批准 v4 ZIP 的旧成员标识，不是当前运行/交付路径。不能对冻结制品按当前目录机械改名；本次恢复到 5239c04 原字节，ZIP 未变。

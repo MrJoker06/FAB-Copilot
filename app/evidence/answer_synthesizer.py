@@ -244,6 +244,7 @@ class AnswerContract:
     presentation: PresentationMode = "compact"
     submission_tool: str = "submit_analysis"
     reference_evidence: dict[str, dict[str, Any]] | None = None
+    evidence_policy_ref: dict[str, str] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return json_dataclass_payload(self)
@@ -389,7 +390,7 @@ def create_answer_contract(
     else:
         limitations = list(_validation_limitations(validation))
     limitations.extend(item for item in extra_limitations if item)
-    required = validation.status == "validated"
+    required = validation.enforced
     return AnswerContract(
         schema_version="1.2",
         synthesizer_version="1.2.0",
@@ -414,6 +415,7 @@ def create_answer_contract(
         source_semantics=validation.source_semantics,
         presentation=_select_presentation(question, resolved_question),
         reference_evidence=validation.reference_evidence,
+        evidence_policy_ref=dict(validation.policy_ref) if validation.policy_ref else None,
     )
 
 
@@ -1516,6 +1518,23 @@ def synthesize_submission(
             conclusion = f"证据有限：{conclusion}"
             conclusion_notes.append("结论受证据限制，已按有限结论呈现。")
 
+    governed = bool(contract.evidence_policy_ref and contract.evidence_policy_ref.get("version") == "2.0.0" and not contract.model_knowledge_fallback)
+    rejected: set[str] = set()
+    if governed:
+        rejected = {
+            item["statement"] for item in claim_support
+            if item.get("support") == "unsupported"
+        }
+        rejected.update(
+            claim.statement for claim in hypotheses
+            if _overclaim(claim.statement, contract.allowed_conclusion_strength, contract.causal_claims_allowed)
+        )
+        if rejected:
+            facts = [claim for claim in facts if claim.statement not in rejected]
+            inferences = [claim for claim in inferences if claim.statement not in rejected]
+            hypotheses = [claim for claim in hypotheses if claim.statement not in rejected]
+            adjustments.append("用户答案已省略未受证据支持的断言原文；逐声明审计保留原文及否决原因。")
+
     submitted_limitations = (
         []
         if contract.model_knowledge_fallback
@@ -1526,6 +1545,23 @@ def synthesize_submission(
         if isinstance(payload.get("limitations"), list)
         else []
     )
+    if governed:
+        def denied_text(value: str) -> bool:
+            return any(statement in value for statement in rejected) or _overclaim(
+                value, contract.allowed_conclusion_strength, contract.causal_claims_allowed,
+            )
+
+        # A rejected assertion must not reappear through ancillary display fields.
+        # This applies existing claim restrictions, not a general text-truth judge.
+        before = len(hypotheses) + len(recommendations) + len(submitted_limitations)
+        hypotheses = [item for item in hypotheses if not denied_text(item.verification)]
+        recommendations = [
+            item for item in recommendations
+            if not denied_text(item.action) and not denied_text(item.rationale)
+        ]
+        submitted_limitations = [item for item in submitted_limitations if not denied_text(item)]
+        if before != len(hypotheses) + len(recommendations) + len(submitted_limitations):
+            adjustments.append("已省略建议、验证说明或限制中重复的被否决断言及越界结论。")
     limitations = list(dict.fromkeys([*contract.mandatory_limitations, *submitted_limitations, *conclusion_notes]))
     if absence_facts:
         limitations.append("空结果仅表示该查询范围内未检索到记录，不代表该现象绝对不存在。")
@@ -1684,6 +1720,24 @@ def synthesize_legacy_answer(
             moved_claims=0,
             wording_adjustments=(),
         ))
+    if (
+        contract.evidence_policy_ref
+        and contract.evidence_policy_ref.get("version") == "2.0.0"
+        and not contract.model_knowledge_fallback
+    ):
+        # Natural-language blocks have no independently checkable claim data.
+        # Do not stream rejected assertions back as quoted "hypotheses".
+        return synthesize_submission(
+            {"conclusion": "", "facts": [], "inferences": [], "hypotheses": [],
+             "recommendations": [], "limitations": [
+                 "模型未提供可验证的结构化声明，已省略原始断言；请基于本次证据重新提交分析。"
+             ], "source_refs": []},
+            contract, sources, status="repaired", repair_events=(
+                *repair_events,
+                {"reason": "legacy_unstructured_answer", "affected_field": "display_blocks",
+                 "outcome": "unverified_assertions_omitted"},
+            ),
+        )
     blocks = _legacy_blocks(answer)
     refs = [item for item in _embedded_refs(answer) if item.upper() in {
         allowed.upper() for allowed in contract.permitted_source_refs
@@ -1766,10 +1820,3 @@ def synthesize_legacy_answer(
         synthesized.report,
         sections=("待验证原文（未经结构化验证）", "证据限制"),
     ))
-
-
-
-
-
-
-

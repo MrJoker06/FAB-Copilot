@@ -52,7 +52,7 @@ class SkillAgentAssemblyTests(unittest.TestCase):
             tuple(ComponentReference(name, "1.0.0") for name in _TOOLS),
             ComponentReference("model", "1.0.0"),
             ComponentReference("policy", "1.0.0"),
-            (ComponentReference("litho-cpk-diagnostic", "1.1.0"),),
+            (ComponentReference("litho-cpk-diagnostic", "2.0.0"),),
         )
         root = (
             Path(__file__).parents[1]
@@ -305,7 +305,7 @@ class SkillAgentAssemblyTests(unittest.TestCase):
             (),
             ComponentReference("model", "1.0.0"),
             ComponentReference("policy", "1.0.0"),
-            (ComponentReference("litho-cpk-diagnostic", "1.1.0"),),
+            (ComponentReference("litho-cpk-diagnostic", "2.0.0"),),
         )
         with self.assertRaises(AssemblyError):
             assemble_agent(

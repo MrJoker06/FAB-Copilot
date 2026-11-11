@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import unittest
+from app.tools.evidence_descriptors import descriptor_for_tool
 
 from app.evidence.semantics import (
-    EvidenceDescriptor, EvidenceScope, ScopeRelation, descriptor_for_tool,
+    EvidenceDescriptor, EvidenceScope, ScopeRelation,
     compatible_for_composite_inference, scope_relation, supports_claim,
 )
 from app.core.manufacturing_terms import MANUFACTURING_STEPS

@@ -20,7 +20,10 @@ from ..skills.contracts import (
 from ..skills.discovery import DiscoveryQuery, discover
 from ..skills.frontmatter import parse_skill_document
 from ..skills.loader import SkillLoader, SkillSnapshot
+from ..skills.manifest import load_manifest
 from .litho_cpk_workflow import LithoCpkWorkflow, LithoCpkWorkflowError
+from ..evidence.validator import assess_validation
+from ..skills.policies.capability import policy_for
 
 if TYPE_CHECKING:
     from ..evidence.validator import EvidenceObservation, EvidenceValidation
@@ -40,9 +43,6 @@ class SkillAssemblyError(ValueError):
 EVIDENCE_NOT_CONFIGURED = "not_configured"
 EVIDENCE_CHECKED = "checked"
 EVIDENCE_CHECK_FAILED = "check_failed"
-# Strengths that mean the declared policy ran but the evidence cannot support
-# a diagnostic conclusion.
-_INSUFFICIENT_STRENGTHS = frozenset({"insufficient", "hypothesis_only"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,11 +62,7 @@ class SkillEvidenceOutcome:
     def evidence_sufficient(self) -> bool | None:
         if self.status != EVIDENCE_CHECKED or self.validation is None:
             return None
-        return (
-            self.validation.status == "validated"
-            and self.validation.allowed_conclusion_strength
-            not in _INSUFFICIENT_STRENGTHS
-        )
+        return self.validation.evidence_sufficient
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,13 +131,17 @@ class SkillBinding:
     ) -> SkillEvidenceOutcome:
         if self.evidence_policy is None:
             return SkillEvidenceOutcome(EVIDENCE_NOT_CONFIGURED, None)
-        try:
-            validation = self.workflow.evidence_validator(
+        policy = policy_for(
+            self.selection.selected_playbook, skill=True,
+            version=self.evidence_policy.version,
+        )
+        validation = assess_validation(
+            self.plan, policy, list(observations),
+            evaluate=lambda: self.workflow.evidence_validator(
                 self.plan, self.selection.selected_playbook, list(observations)
-            )
-        except Exception:  # noqa: BLE001 - reported as an unavailable check
-            return SkillEvidenceOutcome(EVIDENCE_CHECK_FAILED, self.evidence_policy)
-        return SkillEvidenceOutcome(EVIDENCE_CHECKED, self.evidence_policy, validation)
+            ),
+        )
+        return SkillEvidenceOutcome(validation.assessment_status, self.evidence_policy, validation)
 
     def revalidate(self) -> None:
         try:
@@ -182,7 +182,18 @@ class SkillBinding:
 def _inventory(
     bindings: tuple[ToolBinding[object, object, object], ...],
     workflows: tuple[LithoCpkWorkflow, ...],
+    selected_workflow: ComponentReference | None = None,
 ) -> DependencyInventory:
+    if selected_workflow is not None:
+        workflows = tuple(
+            workflow for workflow in workflows
+            if workflow.workflow_id == selected_workflow.component_id
+            and workflow.version == selected_workflow.version
+        )
+        if not workflows:
+            raise SkillAssemblyError("controlled workflow is unavailable", reason="workflow_unavailable")
+    elif len({item.evidence_policy_version for item in workflows}) > 1:
+        raise SkillAssemblyError("select an explicit workflow version", reason="ambiguous_inventory")
     tools = {
         binding.definition.name: binding.definition.version for binding in bindings
     }
@@ -206,7 +217,20 @@ def resolve_skill_binding(
             raise SkillAssemblyError("pilot supports exactly one skill")
         requested = definition.skill_refs[0]
         reference = SkillReference(requested.component_id, requested.version)
-        inventory = _inventory(bindings, configuration.workflows)
+        if configuration.release_store is not None:
+            declaration = configuration.release_store.require_enabled(reference).manifest
+        else:
+            matches = [
+                manifest for root in configuration.package_roots
+                if (manifest := load_manifest(Path(root))).skill_id == reference.skill_id
+                and manifest.version == reference.version
+            ]
+            if len(matches) != 1:
+                raise SkillAssemblyError("skill reference is not unique", reason="unavailable")
+            declaration = matches[0]
+        if declaration.workflow is None:
+            raise SkillAssemblyError("skill declares no controlled workflow", reason="no_workflow")
+        inventory = _inventory(bindings, configuration.workflows, declaration.workflow)
         if configuration.release_store is None:
             catalog = SkillCatalog.build(configuration.package_roots, inventory)
             loader = SkillLoader(catalog)
@@ -243,6 +267,17 @@ def resolve_skill_binding(
         if workflow is None:
             raise SkillAssemblyError(
                 "controlled workflow is unavailable", reason="workflow_unavailable"
+            )
+        required_policy = workflow.required_evidence_policy
+        if declared_policy is None:
+            raise SkillAssemblyError(
+                "controlled diagnosis requires evidence policy",
+                reason="required_policy_missing",
+            )
+        if declared_policy != required_policy:
+            raise SkillAssemblyError(
+                "controlled diagnosis policy does not match host requirement",
+                reason="required_policy_mismatch",
             )
         required_inputs = {"process_step", "time_range"}
         query = DiscoveryQuery(

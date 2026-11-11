@@ -27,7 +27,8 @@ from app.memory_system.context.resolver import (  # noqa: E402
 )
 from app.conversation.decision_arbiter import arbitrate_decision, recover_active_flow  # noqa: E402
 from app.planning_runtime.playbooks import select_playbook  # noqa: E402
-from app.evidence.validator import EvidenceObservation, validate_evidence  # noqa: E402
+from app.evidence.validator import EvidenceObservation  # noqa: E402
+from app.bootstrap.evidence_assembly import validate_evidence  # noqa: E402 - project-root bootstrap
 from app.intent_runtime.rules import INTENT_LABELS  # noqa: E402
 from app.intent_runtime.routing import route_question  # noqa: E402
 from app.knowledge.decision import required_scopes  # noqa: E402

@@ -26,7 +26,7 @@
 
 仅选 tool_sources 时不启用 Skill；如 AgentDefinition 声明非空 skill_refs，必须同时选择 skill_release。TYPE_CHECKING 中的类型声明依赖不计为运行 Profile，完整源码类型检查另行进行。
 
-当前发布组包含 303 个受管 app 文件及 4 个 Skill 文本资源，共 307 个源码/资源成员；这是 MOD-030 迁移后口径。MOD-024 原报告保留当时 286 + 4 的历史基线。安装器仅安装所选 Profile 的声明文件；其余源码标为尚未纳入运行 Profile。源码入包不代表全部 API、Checkpoint 或公司真实集成已通过。
+当前发布组包含 309 个受管 app 文件及 4 个 Skill 文本资源，共 313 个源码/资源成员；这是 MOD-031 实现后的口径。MOD-024 原报告保留当时 286 + 4 的历史基线。安装器仅安装所选 Profile 的声明文件；其余源码标为尚未纳入运行 Profile。源码入包不代表全部 API、Checkpoint 或公司真实集成已通过。
 
 ### 构建与安装
 
@@ -120,6 +120,8 @@ python scripts/build_portable_unit.py --verify
 
 以下描述 MOD-002 当时的结构验证，保留原结果；当前版本及阶段状态以实际清单和工作包追踪为准。`decision_core` 从 1.0.0 升至 1.0.1，仅将 `app/evidence/serialization.py` 纳入显式文件清单，以服务于 Evidence/Answer 域的等价序列化 helper；当时其余六个单元仍为 1.0.0。`python scripts/build_portable_unit.py --verify --output-dir runtime/portable/mod-002-20261022-r5` 已验证全部七个单元（含 `decision_core-1.0.1.zip`），全部新 ZIP 成员均为普通 100644 模式。该结构验证不替代当时尚未通过的 MOD-002 墙钟性能门；后续通过记录见对应报告。
 
-## MOD-030 迁移后的成员口径（2026-11-11）
+## MOD-031 实现后的成员口径（2026-11-11）
 
-当前清单为 303 个受管应用文件加 4 份 Skill 资源，共 307 个唯一成员；tool_sources 为 104 个源码，skill_release 为 107 个源码加 4 资源，model_transport 为 5 个源码。三 Profile 源码并集 149、加资源 153。旧目录已退出，来源与 Tool 同组，Fake/模拟数据单独归 simulation_fixtures。上述为当前清单口径，历史 MOD-024 报告保留原值；迁移后 Windows 与 WSL 仓库外实跑均为 tool_sources+skill_release PASS（44 工具、Cpk 两模式、发布禁用）；未提供 wheelhouse，本次 model_transport 为 NOTRUN，见 [MOD-030e 报告](reports/mod-030e-acceptance.md)。历史冻结 v4 参考保留旧成员身份，不能与当前 Profile 清单混用。
+当前清单为 309 个受管应用文件加 4 份 Skill 资源，共 313 个唯一成员；tool_sources 为 104 个源码，skill_release 为 111 个源码加 4 资源，model_transport 为 5 个源码。三 Profile 源码并集 153、加资源 157。旧目录已退出，来源与 Tool 同组，Fake/模拟数据单独归 simulation_fixtures；共享策略和 Tool 语义描述各有唯一文件所有者。当前验证与未验证项见 [MOD-031 报告](reports/mod-031-validator.md)。历史 MOD-024/MOD-030 报告保留原值，冻结 v4 参考保留旧成员身份，不能与当前 Profile 清单混用。
+
+光刻默认交付组合为 Skill 2.0.0 / Workflow 3.0.0 / capability-evidence 2.0.0；旧发布可通过固定 Workflow 2.1.0 使用原 1.3.0 策略。发布对象仍在进程内，必须随制品提供匹配的源码、资源和可信版本配置；回退不能只修改清单版本或删除必需策略。默认诊断使用 2.0.0，旧 1.2.0 保留为有消费者的明确版本配置。

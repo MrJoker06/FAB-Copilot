@@ -69,6 +69,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/agent_runtime/execution/evidence_failure.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/agent_runtime/execution/failure.py",
       "primary_module": "runtime",
       "artifact_group": "platform_core"
@@ -493,6 +498,11 @@
       "artifact_group": "application_bundle"
     },
     {
+      "path": "app/bootstrap/evidence_assembly.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
       "path": "app/bootstrap/knowledge_search_demo.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"
@@ -745,6 +755,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/evidence/contracts.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/evidence/evidence_truncation.py",
       "primary_module": "evidence",
       "artifact_group": "platform_core"
@@ -756,11 +771,6 @@
     },
     {
       "path": "app/evidence/serialization.py",
-      "primary_module": "evidence",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/evidence/skill_policy.py",
       "primary_module": "evidence",
       "artifact_group": "platform_core"
     },
@@ -1125,6 +1135,21 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/skills/policies/__init__.py",
+      "primary_module": "manufacturing_domain",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/skills/policies/capability.py",
+      "primary_module": "manufacturing_domain",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/skills/policies/manufacturing.py",
+      "primary_module": "manufacturing_domain",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
       "path": "app/skills/releases.py",
       "primary_module": "skills",
       "artifact_group": "platform_core"
@@ -1400,6 +1425,11 @@
       "artifact_group": "manufacturing_capability"
     },
     {
+      "path": "app/tools/evidence_descriptors.py",
+      "primary_module": "manufacturing_domain",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
       "path": "app/tools/knowledge_search/__init__.py",
       "primary_module": "business_tools",
       "artifact_group": "platform_core"
@@ -1552,7 +1582,8 @@
     "manufacturing_domain": [
       "core_contracts_configuration",
       "manufacturing_domain",
-      "orchestration"
+      "orchestration",
+      "evidence"
     ],
     "evidence": [
       "core_contracts_configuration",
@@ -1710,6 +1741,12 @@
       "source": "app.agent_runtime.compatibility",
       "target": "app.tools.production_reports.reports",
       "reason": "Retained run_agent live-patch report operations relocated to their Tool owners by MOD-030d; MOD-027 still owns public facade retirement.",
+      "exit_task": "MOD-027"
+    },
+    {
+      "source": "app.agent_runtime.compatibility",
+      "target": "app.bootstrap.evidence_assembly",
+      "reason": "Retained public live-patch facade consumes explicitly composed diagnostic validation. Business rules no longer live in the pure evidence evaluator; MOD-027 removes this invocation-local assembly dependency with the legacy facade.",
       "exit_task": "MOD-027"
     }
   ],
@@ -1915,6 +1952,11 @@
     },
     {
       "file": "tests/system/test_model_governance.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch"
+    },
+    {
+      "file": "tests/system/test_sessions_streaming.py",
       "symbol": "app.agent_runtime.service",
       "kind": "patch"
     },

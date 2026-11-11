@@ -99,7 +99,9 @@ async def run_agent(
         result["duration_ms"] = lifecycle.duration_ms(time.perf_counter())
         result["first_token_ms"] = lifecycle.first_token_ms()
         context = result.get("context_resolution") if isinstance(result.get("context_resolution"), dict) else {}
-        degraded = context.get("resolution_state") == "unavailable"
+        evidence = result.get("evidence_validation") or {}
+        evidence_failed = evidence.get("assessment_status") == "check_failed"
+        degraded = context.get("resolution_state") == "unavailable" or evidence_failed
         reference_counts = _trace_reference_counts(result)
         tool_trace = result.get("tool_trace") if isinstance(result.get("tool_trace"), list) else []
         retrieval_duration_ms = round(sum(
@@ -124,9 +126,9 @@ async def run_agent(
             status="success",
             outcome="degraded" if degraded else "completed",
             degraded=degraded,
-            degradation_stage="contextualization" if degraded else None,
-            degradation_reason=context.get("failure_reason") if degraded else None,
-            fallback_action="continue_with_original_question" if degraded else None,
+            degradation_stage="evidence_validation" if evidence_failed else "contextualization" if degraded else None,
+            degradation_reason=evidence.get("assessment_reason") if evidence_failed else context.get("failure_reason") if degraded else None,
+            fallback_action="restricted_answer" if evidence_failed else "continue_with_original_question" if degraded else None,
             session_id=session_id,
             user_message_id=user_message_id,
             mode=result.get("mode", "unknown"),

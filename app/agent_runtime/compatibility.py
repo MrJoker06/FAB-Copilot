@@ -105,9 +105,9 @@ from ..conversation.decision_arbiter import arbitrate_decision, recover_active_f
 from app.planning_runtime.playbook_contracts import PlaybookSelection
 from app.planning_runtime.playbooks import playbook_system_message as playbook_system_message
 from app.planning_runtime.playbooks import select_playbook
+from ..bootstrap.evidence_assembly import validate_evidence
 from ..evidence.validator import (
     EvidenceObservation,
-    validate_evidence,
     validator_system_message,  # noqa: F401 - legacy dynamic export
 )
 from ..intent_runtime.contracts import IntentRoute

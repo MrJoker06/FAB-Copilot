@@ -4,6 +4,8 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Literal
 
+from ..skills.policies.manufacturing import EvidenceRequirement
+
 
 PlaybookIntent = Literal[
     "capability_excursion",
@@ -15,17 +17,6 @@ PlaybookIntent = Literal[
     "defect_analysis",
 ]
 SelectionStatus = Literal["selected", "clarification_required", "unsupported"]
-
-
-@dataclass(frozen=True)
-class EvidenceRequirement:
-    evidence_id: str
-    name: str
-    purpose: str
-    source_tools: tuple[str, ...]
-    required_fields: tuple[str, ...]
-    acceptance_criteria: tuple[str, ...]
-    required: bool = True
 
 
 @dataclass(frozen=True)

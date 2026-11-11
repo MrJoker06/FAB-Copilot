@@ -5,6 +5,7 @@ from __future__ import annotations
 from .contracts import AgentRunRequest, AgentRunResult, ProgressCallback
 from .coordinator_state import CoordinatorRunState
 from .dependencies import CoordinatorDependencies
+from .stages.ready import finish_evidence_failure
 from .stages import (
     execute_agent_loop,
     execute_ready_synthesis,
@@ -35,6 +36,8 @@ async def coordinate_agent_run(
     if prepared.result is not None:
         await deps.stream_answer(progress, prepared.result["answer"])
         return prepared.result
+    if getattr(state.evidence_validation, "assessment_status", None) == "check_failed":
+        return await finish_evidence_failure(state, deps=deps)
     if deps.tool_run_factory is not None:
         state.tool_run = deps.tool_run_factory(
             settings=state.settings,

@@ -6,8 +6,8 @@ import unittest
 from dataclasses import replace
 
 from app.bootstrap.litho_cpk_demo import run_litho_cpk_demo_sync
-from app.evidence.skill_policy import validate_skill_evidence
-from app.evidence.validator import validate_evidence
+from app.skills.policies.capability import validate_skill_evidence
+from app.bootstrap.evidence_assembly import validate_evidence
 
 
 class SkillEvidencePolicyTests(unittest.TestCase):
@@ -17,7 +17,7 @@ class SkillEvidencePolicyTests(unittest.TestCase):
         self.observations = result["observations"]
 
     def test_default_stays_12_and_skill_policy_covers_required_evidence(self) -> None:
-        old = validate_evidence(self.plan, self.playbook, list(self.observations))
+        old = validate_evidence(self.plan, self.playbook, list(self.observations), policy_version="1.2.0")
         new = validate_skill_evidence(self.plan, self.playbook, list(self.observations))
         self.assertEqual(old.validator_version, "1.2.0")
         self.assertEqual(

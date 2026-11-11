@@ -7,7 +7,7 @@ from typing import Protocol
 
 from app.planning_runtime.builtin_playbooks import DOMAIN_PLAYBOOKS
 from app.planning_runtime.playbook_contracts import DomainPlaybook
-from app.planning_runtime.playbook_contracts import EvidenceRequirement
+from app.skills.policies.manufacturing import named_requirements as _requirements
 from app.planning_runtime.playbook_contracts import PlaybookReference
 from app.planning_runtime.playbook_contracts import PlaybookSelection
 
@@ -22,39 +22,10 @@ NAMED_QUERY_CAPABILITY_VERSION = "2.0.0"
 NAMED_PLAYBOOK_VERSION = "2.0.0"
 NAMED_PLAYBOOK_RELEASED_AT = "2026-10-31"
 
-_TOOL_REPLACEMENTS = {
-    "YLD-02": ("get_product_yield_breakdown",),
-    "EQP-03": ("get_equipment_event_timeline",),
-    "EQP-04": ("get_equipment_excursion_history",),
-    "LOT-01": ("get_lot_identity",),
-    "LOT-02": ("get_lot_process_history",),
-    "LOT-03": (
-        "get_lot_excursion_history",
-        "get_lot_defect_history",
-        "get_lot_wafer_map_patterns",
-    ),
-}
 
 
-def _requirements(playbook: DomainPlaybook) -> tuple[EvidenceRequirement, ...]:
-    requirements: list[EvidenceRequirement] = []
-    for requirement in playbook.evidence_requirements:
-        tools = _TOOL_REPLACEMENTS.get(requirement.evidence_id)
-        if tools is None:
-            if "query_manufacturing_data" in requirement.source_tools:
-                raise ValueError(
-                    f"named playbook does not declare {requirement.evidence_id}"
-                )
-            requirements.append(requirement)
-            continue
-        replaced: list[str] = []
-        for tool in requirement.source_tools:
-            if tool == "query_manufacturing_data":
-                replaced.extend(tools)
-            else:
-                replaced.append(tool)
-        requirements.append(replace(requirement, source_tools=tuple(replaced)))
-    return tuple(requirements)
+
+
 
 
 NAMED_DOMAIN_PLAYBOOKS: dict[str, DomainPlaybook] = {

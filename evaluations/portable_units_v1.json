@@ -47,7 +47,17 @@
         "evaluations/playbook_gold.json",
         "scripts/evaluate_playbooks.py",
         "app/planning_runtime/playbook_contracts.py",
-        "app/planning_runtime/builtin_playbooks.py"
+        "app/planning_runtime/builtin_playbooks.py",
+        "app/skills/__init__.py",
+        "app/skills/policies/__init__.py",
+        "app/skills/policies/manufacturing.py",
+        "app/skills/contracts.py",
+        "app/skills/manifest.py",
+        "app/skills/package.py",
+        "app/skills/resources.py",
+        "app/skills/frontmatter.py",
+        "app/skills/versions.py",
+        "app/evidence/contracts.py"
       ]
     },
     "model_transport": {

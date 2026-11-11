@@ -9,7 +9,8 @@ from unittest.mock import patch
 
 from app.agent_runtime import service as agent_module
 from app.planning_runtime.playbooks import select_playbook
-from app.evidence.validator import EvidenceObservation, validate_evidence, validator_system_message
+from app.evidence.validator import EvidenceObservation, validator_system_message
+from app.bootstrap.evidence_assembly import validate_evidence
 from app.intent_runtime.routing import route_question
 from app.planning_runtime.service import create_execution_plan
 from app.core.manufacturing_terms import MANUFACTURING_STEPS
@@ -127,7 +128,7 @@ class EvidenceValidatorTests(unittest.TestCase):
         }])
         knowledge = _observation(plan, "search_knowledge", [{
             "reference_id": "KB-1", "source_type": "knowledge", "source": "控制计划", "section": "CMP",
-            "retrieval": {"confidence": "low"},
+            "retrieval": {"confidence": "low", "filters": {"process_step": "CMP", "equipment_id": "CMP-03"}},
         }])
 
         validation = validate_evidence(

@@ -82,6 +82,17 @@ class FakeValidation:
     coverage: dict
     allowed_conclusion_strength: str
 
+    # This is an orchestration-only legacy recorder, not a legal v2 checker
+    # result. Its frozen serialization stays unchanged; real report validation
+    # and unknown strength rejection are tested against the production boundary.
+    @property
+    def assessment_status(self):
+        return "checked"
+
+    @property
+    def evidence_sufficient(self):
+        return self.coverage["required_total"] > 0 and self.coverage["required_total"] == self.coverage["required_covered"]
+
     def to_dict(self) -> dict:
         return {
             "coverage": dict(self.coverage),

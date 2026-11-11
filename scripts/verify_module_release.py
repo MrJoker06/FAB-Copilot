@@ -200,7 +200,7 @@ from datetime import date
 import time
 as_of=date(2026,10,31); workflow=LithoCpkWorkflow(); route=route_question(_QUESTION,as_of); plan,_=workflow.build(_QUESTION, route); bindings,_=_bindings(plan,as_of,_Principal())
 store=SkillReleaseStore(); root=Path(__import__('app.bootstrap.litho_cpk_demo',fromlist=['x']).__file__).resolve().parents[1]/'skills'/'litho-cpk-diagnostic'
-published=store.publish(root,_inventory(bindings,(workflow,))); ref=SkillReference('litho-cpk-diagnostic','1.1.0'); store.activate(ref)
+published=store.publish(root,_inventory(bindings,(workflow,))); ref=SkillReference('litho-cpk-diagnostic','2.0.0'); store.activate(ref)
 before=published.resource('SKILL.md').text; (root/'SKILL.md').read_text(encoding='utf-8'); assert store.get(ref).resource('SKILL.md').text==before
 definition=AgentDefinition('release-boundary','1.0.0','analyst','released',tuple(ComponentReference(item,'1.0.0') for item in _TOOLS),ComponentReference('model','1.0.0'),ComponentReference('policy','1.0.0'),(ComponentReference(ref.skill_id,ref.version),))
 application=assemble_agent(definition,model=_ReadyModel(),events=_Events(),bindings=bindings,policy=DemoToolPolicy(frozenset(_TOOLS),frozenset({{'analyst'}}),tenant_id='demo'),budget_factory=lambda:LoopGuardToolBudget(ToolLoopGuard(plan)),server_capabilities=frozenset(_TOOLS),model_policy_ref=definition.model_policy,policy_ref=definition.default_policy,skill_configuration=SkillAssemblyConfiguration((),(workflow,),store),skill_request=SkillExecutionRequest(_QUESTION,route,'ready'))

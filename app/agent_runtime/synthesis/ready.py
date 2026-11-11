@@ -276,7 +276,11 @@ def ready_synthesis_fallback(
     failed = [item.source_ref for item in observations if item.status != "success"]
     coverage = validation.coverage
     lines = [
-        "确定性取证已经完成，但模型综合阶段未能生成可验证的结构化结论。",
+        (
+            "本次证据检查不可用，不能给出已验证的生产诊断。"
+            if getattr(validation, "assessment_status", None) == "check_failed"
+            else "确定性取证已经完成，但模型综合阶段未能生成可验证的结构化结论。"
+        ),
         f"必需证据覆盖 {coverage['required_covered']}/{coverage['required_total']}；允许的结论强度为 {validation.allowed_conclusion_strength}。",
         f"已完成来源：{', '.join(item for item in succeeded if item) or '无'}。",
     ]

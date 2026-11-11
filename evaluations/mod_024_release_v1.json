@@ -168,7 +168,7 @@
         "app/evidence/evidence_truncation.py",
         "app/evidence/semantics.py",
         "app/evidence/serialization.py",
-        "app/evidence/skill_policy.py",
+        "app/skills/policies/capability.py",
         "app/evidence/validator.py",
         "app/demo_data/tool_sources/knowledge_search.py",
         "app/demo_data/tool_sources/operational_reports.py",
@@ -226,7 +226,11 @@
         "app/demo_data/__init__.py",
         "app/demo_data/tool_sources/__init__.py",
         "app/planning_runtime/playbook_contracts.py",
-        "app/planning_runtime/builtin_playbooks.py"
+        "app/planning_runtime/builtin_playbooks.py",
+        "app/skills/policies/__init__.py",
+        "app/skills/policies/manufacturing.py",
+        "app/evidence/contracts.py",
+        "app/tools/evidence_descriptors.py"
       ],
       "resource_files": [
         "app/skills/litho-cpk-diagnostic/manifest.json",

@@ -297,7 +297,7 @@ async def run_litho_cpk_demo(
         tuple(ComponentReference(name, "1.0.0") for name in _TOOLS),
         ComponentReference("litho-demo-model", "1.0.0"),
         ComponentReference("litho-demo-policy", "1.0.0"),
-        (ComponentReference("litho-cpk-diagnostic", "1.1.0"),),
+        (ComponentReference("litho-cpk-diagnostic", "2.0.0"),),
     )
     default_root = str(
         Path(__file__).resolve().parents[1] / "skills" / "litho-cpk-diagnostic"
@@ -389,15 +389,18 @@ async def run_litho_cpk_demo(
                 for item in outcome.tool_messages
             ),
         )
-        await run.model_stage(
-            call_id="litho-model-2",
-            messages=second_messages,
-        )
         observations = tuple(
             EvidenceObservation(**item) for item in outcome.observation_payloads
         )
         trace = outcome.trace
-    evidence = app.skill_binding.check_evidence(list(observations))
+        evidence = app.skill_binding.check_evidence(list(observations))
+        if evidence.status != "check_failed":
+            await run.model_stage(
+                call_id="litho-model-2",
+                messages=second_messages,
+            )
+    if mode == "ready":
+        evidence = app.skill_binding.check_evidence(list(observations))
     return {
         "plan": plan,
         "trace": trace,

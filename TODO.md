@@ -1,6 +1,6 @@
 # Fab Insight Agent TODO
 
-状态核对：`experiment/parallel-platform`，2026-11-10；应用源码合入 local-Qwen `5e2d3f4`（Thinking 配置），MOD-024 工具基线 `a4739e0`，源码提交与合并关系以 Git 记录为准。
+状态核对：`feat/local-qwen3-runbook`，2026-11-11；MOD-031 执行起点 `638f772`，改造已实现并验收，本版纳入 MOD-031 提交；提交及远程同步状态以 Git 记录为准。默认分支不因此自动同步。
 
 当前产品统计：共 228 个独立任务，已完成 183 个，待做 45 个；以各分类清单中的 `[x]` / `[ ]` 实算，模块化 `MOD-*` 工作包另计。
 
@@ -10,7 +10,7 @@
 
 当前结论：`REF-035`、Memory 的 MEM-001 至 MEM-004 结构抽离，以及 `AGENT-040` 至 `AGENT-044` 答案综合改善均已完成。既有产品当前队列为 0；待做 45 项为用户暂缓 2 项（`QA-010` 远程 Live、`UX-029` 移动端）与企业级暂缓 43 项。另有 4 项 `OPTIONAL` 候选保持不排期，详见 [非企业级 TODO 执行计划](docs/todos/execution-plan.md)。
 
-模块化计划单独维护：`MOD-001` 至 `MOD-019`、`MOD-024` 及 `MOD-030` 已交付；030 的双平台迁移与阶段验收范围及既有失败见 [报告](docs/reports/mod-030e-acceptance.md)，full 门未通过。`MOD-020` 至 `MOD-023` 的 Checkpoint/只读恢复、`MOD-025` 至 `MOD-028` 的 Adapter/演示/内网集成仍待完成；`MOD-029` 暂缓待标准与 Validator 职责结论后重审。新增 `MOD-031` [确定版方案](docs/validator-responsibility-plan.md)，未实施；台账未完成 10 项，产品 228/183/45 不变。兼容 facade 与配置锚点由 `MOD-027` 承接，见 [追踪](docs/todos/modularization.md)。
+模块化计划单独维护：`MOD-001` 至 `MOD-019`、`MOD-024`、`MOD-030` 已交付；`MOD-031` 已实现并按基线对照验收，见 [报告](docs/reports/mod-031-validator.md)，保留既有失败/full 门未通过，本版纳入 MOD-031 提交。`MOD-020` 至 `MOD-023`、`MOD-025` 至 `MOD-028` 仍待完成，`MOD-029` 暂缓待重审，共 9 项；产品 228/183/45 不变。兼容 facade 和装配债务仍归 MOD-027，见 [追踪](docs/todos/modularization.md)。
 
 ## 标记规则
 
@@ -26,10 +26,10 @@
 | 类型 | 任务 | 当前结论 |
 |---|---|---|
 | 产品当前队列 | 0 项 | `AGENT-040` 至 `AGENT-044` 已完成；不自动激活暂缓或 `OPTIONAL` 任务 |
-| 模块化本轮完成 | `MOD-030` | Skill/Tool 标准与旧目录退出已交付；保留既有失败和 full 未通过，已同步两个分支 |
-| 模块化下一项方案 | `MOD-031` | [验证职责与业务证据策略确定版](docs/validator-responsibility-plan.md) v1.0，未实施；获明确实施指令后按 a～e 执行 |
-| 模块化暂缓项 | `MOD-029` | 待 MOD-030 标准与第 8 条 Validator 职责讨论后再修订旧草案 |
-| 模块化待办（另计） | `MOD-020` 至 `MOD-023`、`MOD-025` 至 `MOD-029`、`MOD-031` | 共 10 项：恢复 4、后续交付/内网集成 4、大结果处理 1、验证职责 1；031 后再重审 029 |
+| 模块化上一轮完成 | `MOD-030` | Skill/Tool 标准与旧目录退出已交付；保留既有失败和 full 未通过，已同步两个分支 |
+| 模块化本轮完成 | `MOD-031` | 业务策略/纯评估/编排/答案分离，基线对照验收；本版纳入提交，full 门未通过，见 [报告](docs/reports/mod-031-validator.md) |
+| 模块化暂缓项 | `MOD-029` | MOD-030/031 已落实，按实施结果重审旧卸载草案后再决定排期 |
+| 模块化待办（另计） | `MOD-020` 至 `MOD-023`、`MOD-025` 至 `MOD-029` | 共 9 项；MOD-029 保持暂缓，不自动实施 |
 | 用户暂缓 | `QA-010`、`UX-029` | 远程 Live 验收和移动端需求暂不进入当前队列 |
 | 企业级暂缓 | 43 项 | 等待身份提供方、真实数据接口、部署环境和运维边界明确 |
 | 可选候选 | `RAG-024`、`AGENT-039`、`REF-025`、`REF-026` `OPTIONAL` | 不计入主统计，只在用户明确激活后排期 |
@@ -51,7 +51,7 @@
 | 部署与服务拆分 | [部署架构 TODO](docs/todos/deployment-architecture.md) | Worktree、数据分库、跨 Windows/WSL 链接、运行快照治理、受保护的远程 CI 质量门和跨平台本地模型启动器（`DEPLOY-019`）已完成；其余项均为企业级暂缓 |
 | 测试质量 | [测试质量 TODO](docs/todos/testing-quality.md) | QA-001 至 QA-009 已完成；QA-010 本地完整 Live 通过、远程验收暂缓 |
 | 代码可维护性 | [代码可维护性 TODO](docs/todos/code-maintainability.md) | REF-001 至 REF-024、REF-027 至 REF-034 已完成；REF-035 已完成；`REF-025`、`REF-026` 仍为 `OPTIONAL` |
-| 模块化与内网迁移（另计） | [模块化追踪](docs/todos/modularization.md) | MOD-001～019、MOD-024 及 MOD-030 已交付；030 保留基线失败/full 未过；020～023、025～028 计划中，031 方案确定未实施，029 暂缓；共 10 项未完成，不计入产品 228 项 |
+| 模块化与内网迁移（另计） | [模块化追踪](docs/todos/modularization.md) | MOD-031 已完成并保留既有失败/full 未过；020～023、025～029 共 9 项未完成，不计入产品 228 项 |
 
 ## 更新要求
 

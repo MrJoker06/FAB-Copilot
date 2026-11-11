@@ -26,7 +26,7 @@ class LithoCpkSkillTests(unittest.TestCase):
             ],
         )
         self.assertEqual(result["metadata"]["skill_id"], "litho-cpk-diagnostic")
-        self.assertEqual(result["metadata"]["skill_version"], "1.1.0")
+        self.assertEqual(result["metadata"]["skill_version"], "2.0.0")
         self.assertEqual(result["metadata"]["evidence_policy_status"], "configured")
         self.assertEqual(len(result["model_context"]), 1)
         self.assertEqual(result["model_calls"], 0)

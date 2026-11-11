@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-import re
+import math
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal, Protocol
 
-from ..core.call_scope import call_scope
+from .contracts import EvidencePolicy
 from .semantics import EvidenceScope, descriptor_for_tool
 from .serialization import json_dataclass_payload
 
@@ -20,32 +20,9 @@ ConclusionStrength = Literal[
     "supported",
 ]
 
-_SCOPE_PARAMETERS = (
-    "start",
-    "end",
-    "process_step",
-    "equipment_id",
-    "lot_id",
-    "source_types",
-    "sql",
-)
-_NAMED_QUERY_TOOLS = frozenset({
-    "get_product_yield_breakdown",
-    "get_equipment_event_timeline",
-    "get_equipment_excursion_history",
-    "get_lot_identity",
-    "get_lot_process_history",
-    "get_lot_excursion_history",
-    "get_lot_defect_history",
-    "get_lot_wafer_map_patterns",
-})
-_SAMPLE_FIELDS = ("samples", "lots", "wafers", "runs", "tested_dies", "recorded_minutes")
-_SPEC_FIELDS = ("spec_lsl", "spec_usl")
-
-
 # Evidence-owned read-only views of the plan and playbook facts the validator
 # consumes.  ``planning_runtime.contracts.ExecutionPlan``/``PlanStep`` and
-# ``manufacturing.playbooks.DomainPlaybook``/``EvidenceRequirement`` satisfy
+# `EvidencePolicy`/`EvidenceRequirement` satisfy
 # them structurally, so evidence does not import orchestration modules.
 class PlanStepView(Protocol):
     @property
@@ -130,7 +107,7 @@ class EvidenceRequirementView(Protocol):
     def required(self) -> bool: ...
 
 
-class PlaybookView(Protocol):
+class EvidencePolicyView(Protocol):
     @property
     def evidence_requirements(self) -> tuple[EvidenceRequirementView, ...]: ...
 
@@ -192,6 +169,17 @@ class EvidenceValidation:
     # payloads remain readable.  It lets synthesis assess a claim independently
     # of the task-wide conclusion strength.
     reference_evidence: dict[str, dict[str, Any]] = field(default_factory=dict)
+    assessment_status: str | None = None
+    assessment_reason: str | None = None
+    policy_ref: dict[str, str] | None = None
+    evidence_sufficient: bool | None = None
+
+    @property
+    def enforced(self) -> bool:
+        """An unavailable required check must not enable ungoverned answers."""
+        return (
+            self.policy_ref is not None and self.assessment_reason != "plan_not_ready"
+        ) or self.status == "validated"
 
     def to_dict(self) -> dict[str, Any]:
         return json_dataclass_payload(self)
@@ -200,14 +188,6 @@ class EvidenceValidation:
         return json.dumps(self.to_dict(), ensure_ascii=False, separators=(",", ":"))
 
 
-def _normalize_value(key: str, value: Any) -> Any:
-    if isinstance(value, str):
-        normalized = value.strip().upper()
-        return re.sub(r"\s+", " ", normalized) if key == "sql" else normalized
-    if isinstance(value, list):
-        items = tuple(_normalize_value(key, item) for item in value)
-        return tuple(sorted(items)) if key == "source_types" else items
-    return value
 
 
 def _source_scope_roles(plan: ExecutionPlanView) -> dict[str, str]:
@@ -222,10 +202,10 @@ def _source_scope_roles(plan: ExecutionPlanView) -> dict[str, str]:
     return roles
 
 
-def _source_semantics(plan: ExecutionPlanView) -> dict[str, dict[str, Any]]:
+def _source_semantics(plan: ExecutionPlanView, describe_source: Callable = descriptor_for_tool) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     for step in plan.steps:
-        descriptor = descriptor_for_tool(
+        descriptor = describe_source(
             f"TOOL:{step.step_id}", step.tool, step.parameters, scope_role=step.scope_role,
             expected_scope=EvidenceScope(**(step.evidence_scope or {})), semantic_id=step.semantic_id,
             grain=step.grain, kind=step.evidence_kind, provenance=step.filter_provenance,
@@ -238,49 +218,12 @@ def _source_semantics(plan: ExecutionPlanView) -> dict[str, dict[str, Any]]:
     return result
 
 
-def _declared_scope(step: PlanStepView) -> dict[str, tuple[str, ...]]:
-    return {
-        name: tuple(str(item).upper() for item in values)
-        for name, values in (step.evidence_scope or {}).items()
-        if values
-    }
 
 
-def _step_matches(step: PlanStepView, observation: EvidenceObservation) -> bool:
-    if step.tool != observation.tool:
-        return False
-    if step.tool in _NAMED_QUERY_TOOLS:
-        keys = ("start", "end", "product", "process_step", "equipment_id", "lot_id")
-        return all(
-            step.parameters.get(key) == observation.arguments.get(key)
-            for key in keys
-            if key in step.parameters or key in observation.arguments
-        )
-    declared = _declared_scope(step)
-    if declared:
-        # The native dispatcher reports the result's own source scope instead of
-        # the submitted filters, so compare the declared result scope with the
-        # scope implied by the executed arguments rather than raw parameters.
-        actual = {
-            name: tuple(values)
-            for name, values in call_scope(
-                step.tool, observation.arguments, step.evidence_ids
-            ).items()
-            if values
-        }
-        return declared == actual
-    for key in _SCOPE_PARAMETERS:
-        if key not in step.parameters:
-            continue
-        if key not in observation.arguments:
-            return False
-        if _normalize_value(key, step.parameters[key]) != _normalize_value(key, observation.arguments[key]):
-            return False
-    return True
 
 
 def _matching_evidence_ids(plan: ExecutionPlanView, observation: EvidenceObservation, step_matcher: Callable[[PlanStepView, EvidenceObservation], bool] | None = None) -> set[str]:
-    matcher = step_matcher or _step_matches
+    matcher = step_matcher
     return {
         evidence_id
         for step in plan.steps
@@ -311,7 +254,7 @@ def _deduplicate_issues(issues: list[ValidationIssue]) -> tuple[ValidationIssue,
 
 def _scope_risks(
     plan: ExecutionPlanView,
-    playbook: PlaybookView,
+    playbook: EvidencePolicyView,
     observations: list[EvidenceObservation],
     step_matcher: Callable[[PlanStepView, EvidenceObservation], bool] | None = None,
 ) -> list[ValidationIssue]:
@@ -336,72 +279,11 @@ def _scope_risks(
     return risks
 
 
-def _sample_and_source_risks(
-    matched: list[tuple[EvidenceObservation, set[str]]],
-) -> list[ValidationIssue]:
-    risks: list[ValidationIssue] = []
-    for observation, evidence_ids in matched:
-        rows = _rows(observation.result)
-        ids = tuple(sorted(evidence_ids))
-        if not rows:
-            risks.append(ValidationIssue(
-                code="empty_result",
-                severity="critical",
-                evidence_ids=ids,
-                message=f"{observation.tool} 返回空结果。",
-                source_ref=f"TOOL:{observation.tool}",
-            ))
-            continue
-
-        for field in _SAMPLE_FIELDS:
-            values = [float(row[field]) for row in rows if _has_value(row, field) and isinstance(row[field], (int, float))]
-            positive = [value for value in values if value > 0]
-            if positive and min(positive) < 30:
-                risks.append(ValidationIssue(
-                    code="small_sample",
-                    severity="warning",
-                    evidence_ids=ids,
-                    message=f"{observation.tool} 的 {field} 最小样本为 {min(positive):g}，低于 30，仅适合形成有限结论。",
-                    source_ref=f"TOOL:{observation.tool}",
-                ))
-
-        limit = observation.arguments.get("limit")
-        if isinstance(observation.result, list) and isinstance(limit, int) and len(observation.result) >= limit:
-            risks.append(ValidationIssue(
-                code="result_truncated",
-                severity="warning",
-                evidence_ids=ids,
-                message=f"{observation.tool} 返回 {len(observation.result)} 行并达到 limit={limit}，频次或分布可能受截断影响。",
-                source_ref=f"TOOL:{observation.tool}",
-            ))
-
-        confidences = [
-            str(row.get("retrieval", {}).get("confidence", "")).lower()
-            for row in rows
-            if isinstance(row.get("retrieval"), dict)
-        ]
-        if confidences and all(value == "low" for value in confidences):
-            risks.append(ValidationIssue(
-                code="low_source_confidence",
-                severity="critical",
-                evidence_ids=ids,
-                message=f"{observation.tool} 的检索结果全部为低置信度，不能支持确定性结论。",
-                source_ref=f"TOOL:{observation.tool}",
-            ))
-        elif "low" in confidences:
-            risks.append(ValidationIssue(
-                code="mixed_source_confidence",
-                severity="warning",
-                evidence_ids=ids,
-                message=f"{observation.tool} 包含低置信度来源，引用时必须逐项区分。",
-                source_ref=f"TOOL:{observation.tool}",
-            ))
-    return risks
 
 
 def _execution_risks(
     plan: ExecutionPlanView,
-    playbook: PlaybookView,
+    playbook: EvidencePolicyView,
     observations: list[EvidenceObservation],
 ) -> list[ValidationIssue]:
     risks: list[ValidationIssue] = []
@@ -431,43 +313,6 @@ def _execution_risks(
     return risks
 
 
-def _fact_conflicts(
-    matched: list[tuple[EvidenceObservation, set[str]]],
-) -> list[ValidationIssue]:
-    values: dict[tuple[str, str, str], dict[str, set[str]]] = {}
-    evidence: dict[tuple[str, str, str], set[str]] = {}
-    for observation, evidence_ids in matched:
-        for row in _rows(observation.result):
-            metric = str(row.get("metric_name") or row.get("measurement_name") or "")
-            equipment = str(row.get("equipment_id") or "")
-            if equipment and metric:
-                identity = f"{equipment}|{metric}"
-                for field in _SPEC_FIELDS:
-                    if _has_value(row, field):
-                        key = ("specification", identity, field)
-                        values.setdefault(key, {}).setdefault(str(row[field]), set()).add(observation.tool)
-                        evidence.setdefault(key, set()).update(evidence_ids)
-
-            reference_id = str(row.get("reference_id") or "")
-            if reference_id:
-                for field in ("status", "version", "effective_date"):
-                    if _has_value(row, field):
-                        key = ("document", reference_id, field)
-                        values.setdefault(key, {}).setdefault(str(row[field]), set()).add(observation.tool)
-                        evidence.setdefault(key, set()).update(evidence_ids)
-
-    conflicts: list[ValidationIssue] = []
-    for (kind, identity, field), variants in values.items():
-        if len(variants) < 2:
-            continue
-        displayed = ", ".join(sorted(variants))
-        conflicts.append(ValidationIssue(
-            code="fact_conflict",
-            severity="critical",
-            evidence_ids=tuple(sorted(evidence[(kind, identity, field)])),
-            message=f"{kind} {identity} 的 {field} 存在冲突值：{displayed}。",
-        ))
-    return conflicts
 
 
 def _reference_evidence(
@@ -485,7 +330,7 @@ def _reference_evidence(
     for observation, evidence_ids in matched:
         targets = {f"TOOL:{observation.tool}"}
         targets.update(
-            f"TOOL:{step.step_id}" for step in plan.steps if (step_matcher or _step_matches)(step, observation)
+            f"TOOL:{step.step_id}" for step in plan.steps if step_matcher(step, observation)
         )
         if observation.source_ref:
             targets.add(observation.source_ref)
@@ -549,16 +394,17 @@ _GUIDANCE: dict[ConclusionStrength, str] = {
 
 def validate_evidence(
     plan: ExecutionPlanView,
-    playbook: PlaybookView | None,
+    playbook: EvidencePolicy | None,
     observations: list[EvidenceObservation],
     *,
     step_matcher: Callable[[PlanStepView, EvidenceObservation], bool] | None = None,
 ) -> EvidenceValidation:
+    step_matcher = step_matcher or (playbook.step_matcher if playbook is not None else None)
     if plan.status != "ready" or playbook is None:
         strength: ConclusionStrength = "not_applicable"
         return EvidenceValidation(
             schema_version="1.2",
-            validator_version="1.2.0",
+            validator_version=playbook.version if playbook is not None else "1.2.0",
             plan_id=plan.plan_id,
             status="not_applicable",
             coverage={
@@ -574,7 +420,7 @@ def validate_evidence(
             primary_scope_ids=plan.scope_contract.primary_scope_ids,
             primary_scope_labels=plan.scope_contract.primary_scope_labels,
             source_scope_roles=_source_scope_roles(plan),
-            source_semantics=_source_semantics(plan),
+            source_semantics=_source_semantics(plan, playbook.describe_source) if playbook is not None else _source_semantics(plan),
             observed_source_refs=(),
             allowed_conclusion_strength=strength,
             conclusion_guidance=_GUIDANCE[strength],
@@ -596,7 +442,13 @@ def validate_evidence(
         related = [observation for observation, ids in matched if requirement.evidence_id in ids]
         successful = [observation for observation in related if _rows(observation.result)]
         rows = [row for observation in successful for row in _rows(observation.result)]
-        present = tuple(field for field in requirement.required_fields if any(_has_value(row, field) for row in rows))
+        mode = dict(playbook.row_modes).get(requirement.evidence_id, "dataset_presence")
+        present = tuple(
+            field for field in requirement.required_fields
+            if rows and (all if mode == "each_row" else any)(
+                _has_value(row, field) for row in rows
+            )
+        )
         missing = tuple(field for field in requirement.required_fields if field not in present)
         if effective_required:
             total_fields += len(requirement.required_fields)
@@ -624,9 +476,9 @@ def validate_evidence(
     risks = _deduplicate_issues(
         _scope_risks(plan, playbook, observations, step_matcher)
         + _execution_risks(plan, playbook, observations)
-        + _sample_and_source_risks(matched)
+        + playbook.risk_checker(matched)
     )
-    conflicts = _deduplicate_issues(_fact_conflicts(matched))
+    conflicts = _deduplicate_issues(playbook.conflict_checker(matched))
     strength = _strength(len(required_checks), required_covered, risks, conflicts)
     observed_refs = {
         f"TOOL:{observation.tool}"
@@ -634,12 +486,12 @@ def validate_evidence(
     }
     for observation, _ in matched:
         observed_refs.add(observation.source_ref or "")
-        observed_refs.update(f"TOOL:{step.step_id}" for step in plan.steps if (step_matcher or _step_matches)(step, observation))
+        observed_refs.update(f"TOOL:{step.step_id}" for step in plan.steps if step_matcher(step, observation))
     observed_refs.discard("")
     reference_evidence = _reference_evidence(plan, matched, checks, risks, conflicts, step_matcher)
     return EvidenceValidation(
         schema_version="1.2",
-        validator_version="1.2.0",
+        validator_version=playbook.version,
         plan_id=plan.plan_id,
         status="validated",
         coverage={
@@ -655,7 +507,7 @@ def validate_evidence(
         primary_scope_ids=plan.scope_contract.primary_scope_ids,
         primary_scope_labels=plan.scope_contract.primary_scope_labels,
         source_scope_roles=_source_scope_roles(plan),
-        source_semantics=_source_semantics(plan),
+        source_semantics=_source_semantics(plan, playbook.describe_source) if playbook is not None else _source_semantics(plan),
         observed_source_refs=tuple(sorted(observed_refs)),
         allowed_conclusion_strength=strength,
         conclusion_guidance=_GUIDANCE[strength],
@@ -673,3 +525,106 @@ def validator_system_message(validation: EvidenceValidation) -> str:
         "causal_claims_allowed=false 时不得把相关性表述为已证明因果。\n"
         f"evidence_validation={validation.to_prompt()}"
     )
+
+
+def assess_validation(
+    plan: ExecutionPlanView,
+    policy: EvidencePolicy | None,
+    observations: list[EvidenceObservation],
+    *,
+    evaluate: Callable[[], EvidenceValidation] | None = None,
+) -> EvidenceValidation:
+    """Validate one trusted checker result, failing closed without doing I/O.
+
+    CancelledError and other BaseExceptions deliberately propagate. The legacy
+    report remains the serialized view; there is only one checker invocation.
+    """
+    reference = (
+        {"component_id": policy.component_id, "version": policy.version}
+        if policy is not None else None
+    )
+    if policy is None:
+        return replace(
+            validate_evidence(plan, None, []),
+            assessment_status="not_configured",
+            assessment_reason="no_policy",
+        )
+    reason = "checker_unavailable"
+    try:
+        report = evaluate() if evaluate is not None else validate_evidence(plan, policy, observations)
+        reason = "invalid_checker_result"
+        if not isinstance(report, EvidenceValidation):
+            closer = getattr(report, "close", None)
+            if callable(closer):
+                closer()
+            raise ValueError
+        if (
+            report.schema_version != "1.2"
+            or report.validator_version != policy.version
+            or report.plan_id != plan.plan_id
+            or report.status not in {"validated", "not_applicable"}
+            or report.allowed_conclusion_strength not in _GUIDANCE
+            or report.causal_claims_allowed is not False
+        ):
+            raise ValueError
+        total = report.coverage["required_total"]
+        covered = report.coverage["required_covered"]
+        if type(total) is not int or type(covered) is not int or not 0 <= covered <= total:
+            raise ValueError
+        for name in ("required_coverage_pct", "field_coverage_pct"):
+            value = report.coverage[name]
+            if type(value) not in {int, float} or not math.isfinite(value) or not 0 <= value <= 100:
+                raise ValueError
+        if not isinstance(report.evidence_checks, tuple) or not all(
+            isinstance(check, EvidenceCheck)
+            and check.status in {"covered", "partial", "missing", "optional_missing"}
+            and type(check.required) is bool
+            and type(check.row_count) is int and check.row_count >= 0
+            for check in report.evidence_checks
+        ):
+            raise ValueError
+        required = [check for check in report.evidence_checks if check.required]
+        if len(required) != total or sum(check.status == "covered" for check in required) != covered:
+            raise ValueError
+        for issue in (*report.risks, *report.conflicts):
+            if not isinstance(issue, ValidationIssue) or issue.severity not in {"info", "warning", "critical"}:
+                raise ValueError
+        actual_refs = {
+            ref for observation in observations
+            for ref in (f"TOOL:{observation.tool}", observation.source_ref)
+            if ref
+        }
+        actual_refs.update(
+            f"TOOL:{step.step_id}" for step in plan.steps
+            if any(item.status == "success" and policy.step_matcher(step, item) for item in observations)
+        )
+        if not set(report.observed_source_refs) <= actual_refs:
+            raise ValueError
+        if not isinstance(report.reference_evidence, dict) or not set(report.reference_evidence) <= actual_refs:
+            raise ValueError
+        if plan.status == "ready" and (report.status != "validated" or total == 0):
+            reason = "policy_not_applicable"
+            raise ValueError
+        sufficient = (
+            covered == total
+            and report.allowed_conclusion_strength in {"supported", "supported_with_limits"}
+            and not any(issue.severity == "critical" for issue in (*report.risks, *report.conflicts))
+        ) if total else None
+        if report.evidence_sufficient is True and sufficient is not True:
+            raise ValueError
+        return replace(
+            report,
+            assessment_status="checked",
+            assessment_reason="plan_not_ready" if plan.status != "ready" else None,
+            policy_ref=reference,
+            evidence_sufficient=sufficient,
+        )
+    except Exception:  # noqa: BLE001 - stable, sanitized execution-boundary outcome
+        return replace(
+            validate_evidence(plan, None, []),
+            assessment_status="check_failed",
+            assessment_reason=reason,
+            policy_ref=reference,
+            allowed_conclusion_strength="insufficient",
+            conclusion_guidance="证据检查不可用，不能形成已验证诊断；仅报告故障、可确认观测和下一步。",
+        )

@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
-from ..evidence.skill_policy import validate_skill_evidence
+from ..skills.policies.capability import validate_skill_evidence, validate_skill_evidence_v2
+from ..skills.contracts import ComponentReference
 from ..evidence.validator import EvidenceValidation
 from ..intent_runtime.contracts import IntentRoute
 from app.planning_runtime.named_playbooks import (
@@ -88,16 +89,17 @@ class LithoCpkWorkflow:
     """A fixed registry entry; it does not load code from a Skill package."""
 
     workflow_id: str = "litho-cpk-workflow"
-    version: str = "2.1.0"
+    version: str = "3.0.0"
     evidence_policy_id: str = "capability-evidence"
-    evidence_policy_version: str = "1.3.0"
+    evidence_policy_version: str = "2.0.0"
 
     def __post_init__(self) -> None:
         if (
             self.workflow_id != "litho-cpk-workflow"
-            or self.version != "2.1.0"
             or self.evidence_policy_id != "capability-evidence"
-            or self.evidence_policy_version != "1.3.0"
+            or (self.version, self.evidence_policy_version) not in {
+                ("2.1.0", "1.3.0"), ("3.0.0", "2.0.0")
+            }
         ):
             raise LithoCpkWorkflowError("controlled workflow identity is fixed")
 
@@ -133,4 +135,9 @@ class LithoCpkWorkflow:
 
     @property
     def evidence_validator(self) -> Callable[..., EvidenceValidation]:
-        return validate_skill_evidence
+        return validate_skill_evidence_v2 if self.evidence_policy_version == "2.0.0" else validate_skill_evidence
+
+    @property
+    def required_evidence_policy(self) -> ComponentReference:
+        """A trusted host requirement, independent of optional package fields."""
+        return ComponentReference(self.evidence_policy_id, self.evidence_policy_version)

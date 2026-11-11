@@ -80,6 +80,12 @@ async def execute_ready_synthesis(
         "message": "计划工具已执行完毕，正在基于已验证证据生成结论",
         "execution_mode": "synthesis_only",
     })
+    if getattr(state.evidence_validation, "assessment_status", None) == "check_failed":
+        synthesis = deps.ready_synthesis_fallback(
+            state.evidence_validation, state.answer_contract, state.evidence_observations,
+            "必需证据检查不可用，未请求模型综合",
+        )
+        return await _finish_synthesis(state, deps, synthesis)
     messages = deps.ready_synthesis_messages(
         state.analysis_question, state.execution_plan, state.evidence_validation,
         state.answer_contract, state.evidence_observations,
@@ -132,6 +138,10 @@ async def execute_ready_synthesis(
             state.evidence_validation, state.answer_contract, state.evidence_observations,
             "模型综合服务暂时不可用",
         )
+    return await _finish_synthesis(state, deps, synthesis)
+
+
+async def _finish_synthesis(state, deps, synthesis):
     deps.emit_answer_synthesis(state.run_id, synthesis.report)
     await deps.stream_answer(state.progress, synthesis.answer)
     result = build_result(state, deps, synthesis.answer, synthesis.report)
@@ -140,3 +150,20 @@ async def execute_ready_synthesis(
     if synthesis.report.status != "structured":
         result["mode"] = "deterministic-fallback"
     return result
+
+
+async def finish_evidence_failure(state, *, deps):
+    """Reject an unavailable required check before Tool assembly or model I/O."""
+    state.loop_guard.enter_synthesis("evidence_check_failed", "必需证据检查不可用，不能形成已验证诊断。")
+    if state.connection is None:
+        state.connection = state.settings.model_connection
+        state.total_usage = {
+            key: int(state.context_usage.get(key, 0))
+            for key in ("prompt_tokens", "completion_tokens", "total_tokens")
+        }
+        state.knowledge_fallback = {"used": False, "reason": None, "disclosure": None}
+    synthesis = deps.ready_synthesis_fallback(
+        state.evidence_validation, state.answer_contract, state.evidence_observations,
+        "必需证据检查不可用，未执行后续工具或模型请求",
+    )
+    return await _finish_synthesis(state, deps, synthesis)

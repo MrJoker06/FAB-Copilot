@@ -542,5 +542,151 @@ class SessionsStreamingSystemTests(unittest.TestCase):
             ))
             client.delete(f"/api/sessions/{session_id}/permanent")
 
+    def _mod031_roundtrip(self, *, mode="ready", streaming=True, checker_failure=False):
+        """Real HTTP, coordinator, native SQLite Tools and committed session data.
+
+        Only the model transport/capability catalog are offline fixtures. The
+        loop variant selects the existing loop seam; it does not bypass the
+        Dispatcher, checker, answer renderer or persistence implementation.
+        """
+        import gc
+        from contextlib import ExitStack
+        from app.bootstrap import evidence_assembly
+        from app.core.identity import current_principal
+        from tests import test_default_native_runtime as native_tests
+        from tests import test_model_gateway_port as gateway_tests
+
+        fixture = native_tests.DefaultNativeRuntimeTests()
+        fixture.setUp()
+        try:
+            settings = fixture._settings(api_key="offline-fixture")
+            raw = "已经证明虚构根因 MOD031-UNSUPPORTED，立即放行量产。"
+            final_calls = []
+
+            async def final_reply(_payload, progress, _state):
+                # This is the actual model transport callback supplied by the
+                # runtime. No provisional model answer can reach the HTTP queue.
+                self.assertIsNone(progress)
+                final_calls.append(True)
+                if mode == "loop":
+                    submission = {
+                        "conclusion": raw, "facts": [{"statement": raw, "evidence_refs": []}],
+                        "inferences": [], "hypotheses": [],
+                        "recommendations": [{"action": "补充查询", "rationale": raw, "requires_review": True}],
+                        "limitations": [raw], "source_refs": [],
+                    }
+                    return ({"role": "assistant", "content": "", "tool_calls": [{
+                        "id": "mod031-submit", "type": "function", "function": {
+                            "name": "submit_analysis", "arguments": json.dumps(submission)
+                        }
+                    }]}, {"total_tokens": 1}, "mod031-final")
+                return ({"role": "assistant", "content": raw}, {"total_tokens": 1}, "mod031-final")
+
+            async def tool_reply(payload, progress, _state):
+                self.assertIsNone(progress)
+                declaration = next(
+                    item["content"].split("execution_plan=", 1)[1]
+                    for item in payload["messages"] if "execution_plan=" in item.get("content", "")
+                )
+                plan = json.loads(declaration)
+                return ({"role": "assistant", "content": "", "tool_calls": [
+                    {"id": f"mod031-{step['step_id']}", "type": "function", "function": {
+                        "name": step["tool"], "arguments": json.dumps(step["parameters"])
+                    }} for step in plan["steps"]
+                ]}, {"total_tokens": 1}, "mod031-tools")
+
+            script = ([tool_reply] if mode == "loop" else []) + ([] if checker_failure else [final_reply])
+            gateway = gateway_tests.ScriptedGateway(script)
+            original = evidence_assembly.evaluate_evidence
+
+            def check(plan, policy, observations, **kwargs):
+                if checker_failure and (observations or checker_failure == "initial"):
+                    raise RuntimeError("private connection detail MOD031-SECRET")
+                return original(plan, policy, observations, **kwargs)
+
+            async def select_loop(_state, *, deps):
+                return None
+
+            headers = {"X-Tenant-ID": "demo", "X-User-ID": "analyst", "X-Roles": "analyst"}
+            diagnostic_errors = []
+            def capture_error(_name, _run_id, **fields):
+                if fields.get("error") or fields.get("error_message"):
+                    diagnostic_errors.append((fields.get("error"), fields.get("error_message"), fields.get("full_content", {}).get("traceback")))
+            with ExitStack() as stack:
+                stack.enter_context(patch("app.agent_runtime.service.get_settings", return_value=settings))
+                stack.enter_context(patch("app.agent_runtime.service.HttpModelGateway", new=lambda **_kw: gateway))
+                stack.enter_context(patch("app.main._validate_chat_model_capabilities", new=lambda _request: (current_principal(), settings.model_connection.model, "off", "")))
+                stack.enter_context(patch("app.main.emit", new=capture_error))
+                stack.enter_context(patch("app.tools.knowledge_search.runtime_search.create_runtime_knowledge_port", new=fixture._knowledge_port))
+                stack.enter_context(patch("app.bootstrap.evidence_assembly.evaluate_evidence", new=check))
+                if mode == "loop":
+                    stack.enter_context(patch("app.agent_runtime.coordinator.execute_ready_synthesis", new=select_loop))
+                client = stack.enter_context(TestClient(app))
+                session = client.post("/api/sessions", headers=headers).json()["session_id"]
+                try:
+                    payload = {"message": "查询 LOT-001 的批次信息", "session_id": session,
+                               "client_message_id": f"mod031-{mode}-{checker_failure}-{streaming}"}
+                    response = client.post("/api/chat/stream" if streaming else "/api/chat", json=payload, headers=headers)
+                    self.assertEqual(response.status_code, 200, (response.text, diagnostic_errors))
+                    if streaming:
+                        events = [json.loads(line) for line in response.text.splitlines() if line]
+                        self.assertTrue(any(item["type"] == "result" for item in events), (response.text, diagnostic_errors))
+                        result = next(item["result"] for item in events if item["type"] == "result")
+                        visible = "".join(item.get("delta", "") for item in events if item.get("event") == "answer_delta")
+                        self.assertEqual(visible, result["answer"])
+                        self.assertNotIn("MOD031-UNSUPPORTED", visible)
+                    else:
+                        result = response.json()
+                    self.assertNotIn("MOD031-UNSUPPORTED", result["answer"])
+                    self.assertNotIn("MOD031-SECRET", json.dumps(result, ensure_ascii=False))
+                    restored = client.get(f"/api/sessions/{session}", headers=headers).json()
+                    assistant = restored["messages"][-1]
+                    self.assertEqual(assistant["role"], "assistant")
+                    self.assertEqual(assistant["content"], result["answer"])
+                    self.assertEqual(assistant["metadata"]["evidence_validation"], result["evidence_validation"])
+                    self.assertNotIn("MOD031-UNSUPPORTED", assistant["content"])
+                    if checker_failure == "initial":
+                        self.assertEqual(result["tool_trace"], [])
+                    else:
+                        self.assertTrue(result["tool_trace"])
+                    self.assertTrue(all(item["status"] == "ok" for item in result["tool_trace"]))
+                    self.assertEqual(result["evidence_validation"]["assessment_status"], "check_failed" if checker_failure else "checked")
+                    self.assertEqual(len(gateway.requests), 0 if checker_failure == "initial" else (1 if mode == "loop" else 0) + (0 if checker_failure else 1))
+                    self.assertEqual(len(final_calls), 0 if checker_failure else 1)
+                    self.assertEqual(gateway.closed, len(gateway.opened))
+                    requests = len(gateway.requests)
+                    with patch("app.main.run_agent", side_effect=AssertionError("cached response must not execute again")):
+                        replay = client.post("/api/chat/stream" if streaming else "/api/chat", json=payload, headers=headers)
+                    self.assertEqual(replay.status_code, 200, replay.text)
+                    replay_result = next(item["result"] for item in (json.loads(line) for line in replay.text.splitlines()) if item["type"] == "result") if streaming else replay.json()
+                    self.assertEqual(replay_result["run_id"], result["run_id"])
+                    self.assertEqual(replay_result["answer"], result["answer"])
+                    self.assertEqual(len(gateway.requests), requests)
+                    return result
+                finally:
+                    client.delete(f"/api/sessions/{session}/permanent", headers=headers)
+        finally:
+            gc.collect()
+            fixture.tearDown()
+
+    def test_mod031_ready_and_loop_stream_only_the_supported_final_answer(self):
+        for mode in ("ready", "loop"):
+            with self.subTest(mode=mode):
+                self._mod031_roundtrip(mode=mode)
+
+    def test_mod031_checker_failure_stops_model_synthesis_and_is_persisted(self):
+        for mode in ("ready", "loop"):
+            with self.subTest(mode=mode):
+                result = self._mod031_roundtrip(mode=mode, checker_failure=True)
+                self.assertEqual(result["evidence_validation"]["assessment_reason"], "checker_unavailable")
+                self.assertIsNone(result["evidence_validation"]["evidence_sufficient"])
+
+    def test_mod031_nonstream_http_uses_the_same_answer_constraints(self):
+        self._mod031_roundtrip(streaming=False)
+
+    def test_mod031_initial_check_failure_prevents_tool_and_model_execution(self):
+        self._mod031_roundtrip(checker_failure="initial")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -44,6 +44,7 @@ def build_result(
     turn_decision: Any,
 ) -> dict:
     """Build the normal model result using the state visible at invocation time."""
+    retrieval_decision_payload = retrieval_decision_payload or not_applicable_retrieval_decision()
     cited_references = {
         reference
         for reference in synthesis_report.source_refs
