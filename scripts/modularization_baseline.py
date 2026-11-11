@@ -378,8 +378,8 @@ async def _capture_loop(
             # PB-DEFECT-001 turns this question into a deterministic ready plan;
             # the loop scenarios must keep exercising the generic loop guard.
             for registry in (
-                "app.manufacturing.playbooks.DOMAIN_PLAYBOOKS",
-                "app.manufacturing.named_playbooks.NAMED_DOMAIN_PLAYBOOKS",
+                "app.planning_runtime.playbooks.DOMAIN_PLAYBOOKS",
+                "app.planning_runtime.named_playbooks.NAMED_DOMAIN_PLAYBOOKS",
             ):
                 s.enter_context(patch.dict(registry)).pop("defect_analysis", None)
         with fixture_proxy_environment(), fixture_guard():

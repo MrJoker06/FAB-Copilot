@@ -16,7 +16,9 @@ from app.demo_data.tool_sources.production_reports import (
 from app.tools.production_reports.data_source import (
     SQLiteProductionReportsAdapter,
 )
-from app.manufacturing import reports
+import app.persistence.database as _report_app_persistence_database
+import app.tools.production_reports.reports as _report_app_tools_production_reports_reports
+
 from app.tools.production_reports.contracts import (
     ProductionReportDataError,
     ProductionReportQuery,
@@ -173,20 +175,20 @@ class ProductionReportAdapterTests(unittest.TestCase):
             connection.close()
 
     def _legacy(self, callback):
-        with patch.object(reports, "db_session", self._legacy_session):
+        with patch.object(_report_app_persistence_database, "db_session", self._legacy_session):
             return callback()
 
     def test_all_three_queries_exactly_match_legacy_sql(self) -> None:
         queries = (
             (
                 ProductionReportQuery("overview", date(2026, 1, 1), date(2026, 1, 3)),
-                lambda: reports.fab_overview("2026-01-01", "2026-01-03"),
+                lambda: _report_app_tools_production_reports_reports.fab_overview("2026-01-01", "2026-01-03"),
             ),
             (
                 ProductionReportQuery(
                     "yield", date(2026, 1, 1), date(2026, 1, 5), product="P1"
                 ),
-                lambda: reports.yield_trend("2026-01-01", "2026-01-05", "P1"),
+                lambda: _report_app_tools_production_reports_reports.yield_trend("2026-01-01", "2026-01-05", "P1"),
             ),
             (
                 ProductionReportQuery(
@@ -196,7 +198,7 @@ class ProductionReportAdapterTests(unittest.TestCase):
                     "CMP",
                     "CMP-01",
                 ),
-                lambda: reports.process_pass_rate(
+                lambda: _report_app_tools_production_reports_reports.process_pass_rate(
                     "2026-01-01", "2026-01-03", "CMP", "CMP-01"
                 ),
             ),
@@ -278,7 +280,7 @@ class ProductionReportAdapterTests(unittest.TestCase):
         )
         actual = self.adapter.fetch(query, self.principal).data
         expected = self._legacy(
-            lambda: reports.yield_trend("2025-12-31", "2026-01-02", "P1")
+            lambda: _report_app_tools_production_reports_reports.yield_trend("2025-12-31", "2026-01-02", "P1")
         )
         self.assertEqual(actual, tuple(expected))
         self.assertGreaterEqual(len(actual), 1)

@@ -120,7 +120,7 @@ from pathlib import Path
 events=[]
 blocked=('app.core.settings','app.core.identity','app.core.model_credentials','app.persistence',
          'app.agent_runtime.service','app.agent_runtime.compatibility','app.agent_runtime.tools.catalog',
-         'app.agent_runtime.tools.registry','app.model_gateway','app.knowledge.rag','app.manufacturing.reports',
+         'app.agent_runtime.tools.registry','app.model_gateway','app.knowledge.rag','app.api.report_service',
          'app.bootstrap.default_tool_assembly','app.bootstrap.default_coordinator_assembly','app.main')
 class Finder(importlib.abc.MetaPathFinder):
  def find_spec(self, fullname, path=None, target=None):

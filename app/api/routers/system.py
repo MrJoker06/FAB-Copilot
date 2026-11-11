@@ -31,7 +31,7 @@ def create_router(deps: NamespaceProvider) -> RouterBundle:
         settings = runtime["get_settings"]()
         principal = runtime["current_principal"]()
         model_config = runtime["public_user_model_config"](principal)
-        enterprise = runtime["get_enterprise_provider"]().manifest(principal)
+        enterprise = runtime["read_enterprise_manifest"](runtime["get_enterprise_provider"](), principal)
         department_names = {"main": "manufacturing"}
         with runtime["db_session"]() as connection:
             lots = connection.execute("SELECT COUNT(*) FROM lots").fetchone()[0]

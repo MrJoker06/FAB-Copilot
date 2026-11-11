@@ -15,7 +15,7 @@ from app.tools.knowledge_search.contracts import (
     PersonalSearchBatch,
 )
 from app.knowledge.sqlite_backend import SqliteFactorySearchBackend
-from app.manufacturing.processes import process_query_terms
+from app.core.manufacturing_terms import process_query_terms
 from app.personal_knowledge_runtime.metadata import _json_list
 from app.personal_knowledge_runtime.search import fts_query, search_knowledge
 from app.tools.knowledge_search.backend_search import BackendKnowledgeSearchAdapter

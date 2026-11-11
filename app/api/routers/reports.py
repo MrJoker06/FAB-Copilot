@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
-from ...manufacturing.processes import PROCESS_STEP_PATTERN
+from app.core.manufacturing_terms import PROCESS_STEP_PATTERN
 from .runtime import NamespaceProvider, RouterBundle
 
 

@@ -230,14 +230,14 @@ for action in (lambda: sqlite3.connect(':memory:'), lambda: socket.getaddrinfo('
     else: raise AssertionError('negative network/database control')
 assert blocked; blocked.clear()
 class Deny(importlib.abc.MetaPathFinder):
-    prefixes=('app.core.settings','app.manufacturing.reports','app.agent_runtime.tools.registry','app.agent_runtime.tools.catalog','app.model_gateway','app.evidence','app.persistence')
+    prefixes=('app.core.settings','app.api.report_service','app.agent_runtime.tools.registry','app.agent_runtime.tools.catalog','app.model_gateway','app.evidence','app.persistence')
     def find_spec(self, fullname, path=None, target=None):
         if fullname == self.prefixes[0] or fullname.startswith(self.prefixes): imports.append(fullname); raise AssertionError(fullname)
 sys.meta_path.insert(0, Deny())
-try: importlib.import_module('app.manufacturing.reports')
+try: importlib.import_module('app.api.report_service')
 except AssertionError: pass
 else: raise AssertionError('negative import control')
-assert imports and imports[-1] == 'app.manufacturing.reports'; imports.clear()
+assert imports and imports[-1] == 'app.api.report_service'; imports.clear()
 class Env(dict):
     allowed={'PYTHONASYNCIODEBUG','COLUMNS','LINES','TERM','LANG','LANGUAGE'}
     def __getitem__(self, key):

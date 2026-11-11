@@ -18,7 +18,7 @@ OVERLAYS = (
     "app/core/identity.py",
     "app/core/settings.py",
     "app/core/identity_contracts.py",
-    "app/manufacturing/enterprise_data.py",
+    "app/bootstrap/enterprise_data_assembly.py",
     "app/tools/enterprise_data/provider_contracts.py",
     "app/knowledge/rag.py",
     "app/knowledge/ranking.py",

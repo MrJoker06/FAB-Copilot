@@ -2,8 +2,8 @@
 
 - 分类：agents
 - 简述：24个月多制程虚拟 FAB、传感器/设备状态/Wafer Map、历史会话、知识/案例双来源 RAG 与 DeepSeek 流式数据分析 Agent。
-- 主要入口：`app/main.py`, `app/agent_runtime/service.py`, `app/agent_runtime/tools/`, `app/core/settings.py`, `app/core/identity.py`, `app/personal_knowledge_runtime/service.py`, `app/model_gateway/streaming.py`, `app/intent_runtime/`, `app/planning_runtime/`, `app/manufacturing/playbooks.py`, `app/persistence/database.py`, `app/telemetry/audit.py`, `app/conversation/sessions.py`, `app/agent_runtime/execution/loop_guard.py`, `app/knowledge/rag.py`, `app/evidence/validator.py`, `run.py`（跨平台隔离启动器）, `run.sh`, `run.bat`；`app/` 根目录仅保留包锚点与 HTTP 入口，内部代码只使用领域 canonical 路径
-- 关键目录：`app/`, `app/manufacturing/`, `app/persistence/`, `app/telemetry/`, `app/model_gateway/`, `app/conversation/`, `app/agent_runtime/`, `app/knowledge/`（RAG、OCR、检索决策）, `app/evidence/`（语义、验证、答案综合）, `app/static/`, `knowledge/`, `cases/`, `evaluations/`, `scripts/`, `data/`, `tests/`
+- 主要入口：`app/main.py`, `app/agent_runtime/service.py`, `app/agent_runtime/tools/`, `app/core/settings.py`, `app/core/identity.py`, `app/personal_knowledge_runtime/service.py`, `app/model_gateway/streaming.py`, `app/intent_runtime/`, `app/planning_runtime/`, `app/planning_runtime/playbooks.py`, `app/persistence/database.py`, `app/telemetry/audit.py`, `app/conversation/sessions.py`, `app/agent_runtime/execution/loop_guard.py`, `app/knowledge/rag.py`, `app/evidence/validator.py`, `run.py`（跨平台隔离启动器）, `run.sh`, `run.bat`；`app/` 根目录仅保留包锚点与 HTTP 入口，内部代码只使用领域 canonical 路径
+- 关键目录：`app/`, `app/tools/`, `app/demo_data/`, `app/persistence/`, `app/telemetry/`, `app/model_gateway/`, `app/conversation/`, `app/agent_runtime/`, `app/knowledge/`（RAG、OCR、检索决策）, `app/evidence/`（语义、验证、答案综合）, `app/static/`, `knowledge/`, `cases/`, `evaluations/`, `scripts/`, `data/`, `tests/`
 - 环境变量：`DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL`, `FAB_DATABASE_PATH`, `FAB_DATABASE_DIR`, `API_TIMEOUT_MS`, `AGENT_LOG_PATH`, `AGENT_RUN_LOG_DIR`, `AGENT_LOG_MAX_BYTES`, `AGENT_LOG_BACKUP_COUNT`
 - 本地产物：`data/fab_history.db`, `data/departments/*.db`, `backups/databases/`, `logs/agent_events.jsonl*`, `logs/agent/YYYY-MM-DD/<run_id>.jsonl`, `__pycache__/`
 - 检索关键词：semiconductor, fab report, DeepSeek, agent, agent loop guard, tool budget, duplicate call detection, intent router, domain playbook, structured planner, RAG, SQLite, FTS5 trigram, knowledge base, historical cases, yield, Cpk, equipment health
@@ -15,8 +15,10 @@
 
 - Skill 状态：MOD-016～019 已验证。`app/skills/` 处理声明、依赖、Catalog、渐进加载与进程内不可变发布；`app/bootstrap/skill_assembly.py` 显式装配精确 skill_refs，光刻包复用原 Playbook/Planner 与 Ready/Fake Loop/Dispatcher。完整资源固定、显式激活/禁用/回退已验收，默认 HTTP 未启用，见 [发布验收报告](docs/reports/mod-019-skill-releases.md)。
 
-- 当前进度（2026-11-10 核对；应用源码合入 local-Qwen `5e2d3f4`，制品工具基线 `a4739e0`，DEPLOY-019 已完成）：MOD-001～019 及 MOD-024 均已验证，包含 MOD-012 模型网关与 MOD-015a～e Runtime 收口；受管源码 287 文件（259 Python + 28 静态）、依赖债务 11 条、兼容入口 7 个。MOD-024 已交付五类唯一所有者制品及三个可组合 Profile，两端各 11 项测试与独立运行报告通过，见 [交付报告](docs/reports/mod-024-module-delivery.md)。MOD-020～023（Checkpoint/只读恢复）与 MOD-025～028（Adapter/演示/内网集成）仍待完成，保留的兼容 facade 与配置锚点归 MOD-027。产品 TODO 为完成 183（含 2026-11-09 `DEPLOY-019` 跨平台本地模型启动器）、待做 45（用户暂缓 2、企业级暂缓 43），另有 4 项 OPTIONAL。当前任务状态见 [模块化追踪](docs/todos/modularization.md) 和 [产品执行计划](docs/todos/execution-plan.md)，实际验证范围、既有环境失败及 MOD-015d 历史统计待核实项见 [Runtime 收口报告](docs/reports/mod-015-runtime-convergence.md)。后续纯文档提交不改变该源码基线。
+- 当前进度（2026-11-11 工作树）：MOD-030c 七批已本地提交，030d 定向验收完成，030e 阶段门进行中。当前受管源码 303（275 Python + 28 静态）、依赖债务 9、兼容入口 7；产品任务统计不变。源码起点 5239c04，当前提交与待提交变化以 Git 为准。
 
 - local-Qwen Thinking 合并：按模型配置档位与方言、管理端设置、Windows 夹具适配及必要冲突修正已验证，见 [合并报告](docs/reports/local-qwen-thinking-merge.md)。
 
 - 当前优先计划：[MOD-030 Skill 业务交付包与 Tool 标准化](docs/skill-tool-standardization-plan.md)，合并 Issue #1 第 3/4/6 条，以 Agent Skills、MCP Tools 和 JSON Schema 为依据；设计待审核，未实施。第 8 条 Validator 单独讨论后再修订暂缓的 [MOD-029](docs/tool-result-offloading-plan.md)。模块化未完成共 10 项，产品任务统计不变。
+
+- MOD-030 当前迁移（2026-11-11）：c1～c7 已本地提交；030d 已完成结构迁移并正在验收。受管源码 303（275 Python + 28 静态），业务 Tool 与来源归 app/tools，Fake/模拟 Provider/seed 归 app/demo_data；Playbook 结构、原样声明与选择分属 planning_runtime。最终阶段门见后续 030e 报告，不以本条代替通过。

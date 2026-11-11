@@ -274,7 +274,7 @@ else:
     raise AssertionError('sqlite negative control')
 events.clear()
 class CatalogOnlyDeny(importlib.abc.MetaPathFinder):
-    blocked = ('app.bootstrap.tool_bindings', 'app.manufacturing.reports', 'app.knowledge.rag', 'app.core.settings')
+    blocked = ('app.bootstrap.tool_bindings', 'app.api.report_service', 'app.knowledge.rag', 'app.core.settings')
     def find_spec(self, name, path=None, target=None):
         if any(name == item or name.startswith(item + '.') for item in self.blocked):
             raise AssertionError(name)

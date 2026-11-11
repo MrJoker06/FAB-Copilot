@@ -10,7 +10,8 @@ if TYPE_CHECKING:
     from ..evidence.answer_synthesizer import AnswerContract
     from ..evidence.validator import EvidenceObservation, EvidenceValidation
     from ..intent_runtime.contracts import IntentRoute
-    from ..manufacturing.playbooks import DomainPlaybook, PlaybookSelection
+    from app.planning_runtime.playbook_contracts import DomainPlaybook
+    from app.planning_runtime.playbook_contracts import PlaybookSelection
     from ..memory_system.contracts import ContextResolution
     from ..planning_runtime.contracts import ExecutionPlan
     from .contracts import PreparationResult, ProgressCallback

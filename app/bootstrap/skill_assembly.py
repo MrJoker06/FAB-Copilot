@@ -24,7 +24,7 @@ from .litho_cpk_workflow import LithoCpkWorkflow, LithoCpkWorkflowError
 
 if TYPE_CHECKING:
     from ..evidence.validator import EvidenceObservation, EvidenceValidation
-    from ..manufacturing.playbooks import PlaybookSelection
+    from app.planning_runtime.playbook_contracts import PlaybookSelection
     from ..planning_runtime.contracts import ExecutionPlan
     from ..skills.releases import SkillReleaseStore
 

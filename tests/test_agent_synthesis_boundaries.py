@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from app.agent_runtime import service as agent
 from app.evidence.answer_synthesizer import SUBMIT_ANALYSIS_TOOL
-from app.manufacturing.playbooks import select_playbook
+from app.planning_runtime.playbooks import select_playbook
 from app.intent_runtime.routing import route_question
 from app.planning_runtime.service import create_execution_plan
 from app.agent_runtime.synthesis.ready import (

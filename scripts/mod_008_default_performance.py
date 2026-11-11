@@ -423,7 +423,8 @@ def _source_patches(stack, side, business):
 
     if side == "reference":
         from contextlib import contextmanager
-        from app.manufacturing import reports
+        import app.persistence.database as _report_app_persistence_database
+
         from app.knowledge import rag
 
         class Cursor:
@@ -479,17 +480,21 @@ def _source_patches(stack, side, business):
             )
             return rag.search_agent_knowledge(**arguments)
 
-        stack.enter_context(patch.object(reports, "db_session", session))
+        stack.enter_context(patch.object(_report_app_persistence_database, "db_session", session))
         stack.enter_context(
             patch.object(rag, "get_factory_search_backend", return_value=Factory())
         )
         stack.enter_context(
             patch.object(rag, "search_personal_knowledge", return_value=[])
         )
+        from app.tools.process_diagnostics.reports import process_capability, sensor_summary
+        from app.tools.operational_reports.reports import defect_pareto, recent_excursions
+
         handlers = {
-            name: getattr(reports, name.removeprefix("get_"))
-            for name in ROWS
-            if name != "search_knowledge"
+            "get_process_capability": process_capability,
+            "get_sensor_summary": sensor_summary,
+            "get_recent_excursions": recent_excursions,
+            "get_defect_pareto": defect_pareto,
         }
         handlers["search_knowledge"] = search
         stack.enter_context(patch.dict(service.TOOL_HANDLERS, handlers, clear=True))

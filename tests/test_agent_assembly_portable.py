@@ -51,7 +51,7 @@ blocked = (
     'app.agent_runtime.service', 'app.agent_runtime.compatibility',
     'app.agent_runtime.tools.catalog', 'app.agent_runtime.tools.registry',
     'app.core.settings', 'app.bootstrap.legacy_agent_assembly',
-    'app.model_gateway', 'app.evidence', 'app.persistence', 'app.manufacturing.reports',
+    'app.model_gateway', 'app.evidence', 'app.persistence', 'app.api',
 )
 events = []
 class BlockedFinder(importlib.abc.MetaPathFinder):

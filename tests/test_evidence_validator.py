@@ -8,11 +8,11 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.agent_runtime import service as agent_module
-from app.manufacturing.playbooks import select_playbook
+from app.planning_runtime.playbooks import select_playbook
 from app.evidence.validator import EvidenceObservation, validate_evidence, validator_system_message
 from app.intent_runtime.routing import route_question
 from app.planning_runtime.service import create_execution_plan
-from app.manufacturing.processes import MANUFACTURING_STEPS
+from app.core.manufacturing_terms import MANUFACTURING_STEPS
 
 
 def _context(question: str):
@@ -310,4 +310,3 @@ class EvidenceValidatorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

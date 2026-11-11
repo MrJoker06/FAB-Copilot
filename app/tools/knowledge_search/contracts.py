@@ -15,7 +15,7 @@ from app.agent_runtime.tools.dispatch_contracts import (
     ToolInputError,
     ToolSourceTimeout,
 )
-from app.manufacturing.processes import ANALYSIS_SCOPES
+from app.core.manufacturing_terms import ANALYSIS_SCOPES
 from app.knowledge.search_contracts import FACTORY_SOURCE_TYPES, FactorySearchRequest
 from app.knowledge.search_policy import PROCESS_SEARCH_EXPANSIONS, infer_filters_from_aliases
 

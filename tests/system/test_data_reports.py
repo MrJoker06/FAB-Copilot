@@ -14,9 +14,16 @@ from tests.system.support import isolated_system_environment
 isolated_system_environment()
 
 from app.persistence.database import db_session, department_paths, initialize, sqlite_journal_mode
-from app.manufacturing.processes import MANUFACTURING_STEPS
-from app.manufacturing.reports import defect_pareto, equipment_health, equipment_productivity, process_capability, process_pass_rate, recent_excursions, report_bundle, timestamp_bounds
-from app.manufacturing.seed import MARKET_PROFILE, MARKET_PROFILE_ID, seed_reference_data
+from app.core.manufacturing_terms import MANUFACTURING_STEPS
+from app.tools.operational_reports.reports import defect_pareto  # noqa: E402 - isolated fixture must precede application imports
+from app.tools.equipment_health.reports import equipment_health  # noqa: E402 - isolated fixture must precede application imports
+from app.tools.operational_reports.reports import equipment_productivity  # noqa: E402 - isolated fixture must precede application imports
+from app.tools.process_diagnostics.reports import process_capability  # noqa: E402 - isolated fixture must precede application imports
+from app.tools.production_reports.reports import process_pass_rate  # noqa: E402 - isolated fixture must precede application imports
+from app.tools.operational_reports.reports import recent_excursions  # noqa: E402 - isolated fixture must precede application imports
+from app.api.report_service import report_bundle  # noqa: E402 - isolated fixture must precede application imports
+from app.core.report_dates import timestamp_bounds  # noqa: E402 - isolated fixture must precede application imports
+from app.demo_data.seed import MARKET_PROFILE, MARKET_PROFILE_ID, seed_reference_data
 
 class DataReportsSystemTests(unittest.TestCase):
     @classmethod

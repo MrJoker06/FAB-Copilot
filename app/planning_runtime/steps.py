@@ -4,7 +4,8 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-from ..manufacturing.playbooks import DomainPlaybook, EvidenceRequirement
+from app.planning_runtime.playbook_contracts import DomainPlaybook
+from app.planning_runtime.playbook_contracts import EvidenceRequirement
 from ..intent_runtime.contracts import IntentRoute
 from .contracts import PlanBudget, PlanStep
 from .queries import _base_parameters, _manufacturing_queries

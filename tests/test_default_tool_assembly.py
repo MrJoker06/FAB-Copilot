@@ -23,7 +23,7 @@ from app.bootstrap.default_tool_assembly import _RunRegistry, build_default_run_
 from app.bootstrap.loop_assembly import bind_loop_dispatcher
 from app.bootstrap.tool_catalog import TOOLS
 from app.bootstrap.tool_definitions import BUSINESS_TOOL_DEFINITIONS
-from app.manufacturing.enterprise_data import SyntheticFabProvider
+from app.demo_data.synthetic_fab import SyntheticFabProvider
 from app.tools.enterprise_data.contracts import EnterpriseDataError
 from app.planning_runtime.contracts import (
     AnalysisScopeContract,

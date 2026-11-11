@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 
-from ..manufacturing.processes import (
+from app.core.manufacturing_terms import (
     ANALYSIS_SCOPES,
     MANUFACTURING_STEPS,
     matched_process_step,

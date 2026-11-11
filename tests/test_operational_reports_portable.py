@@ -48,7 +48,7 @@ class OperationalPortableTests(unittest.TestCase):
             + PRODUCTION_FILES
             + OPERATIONAL_FILES
         )
-        self.assertEqual((len(files), len(set(files))), (83, 83))
+        self.assertEqual((len(files), len(set(files))), (80, 80))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:
@@ -62,7 +62,7 @@ unit=Path(sys.argv[1]).resolve(); allowed=set(sys.argv[2:]); assert not any(str(
 # Create the Windows event loop before the audit hook; its loopback
 # socketpair is local IPC, not application network access.
 _loop=asyncio.new_event_loop(); asyncio.set_event_loop(_loop); asyncio.run=_loop.run_until_complete
-blocked=('app.agent_runtime.service','app.agent_runtime.compatibility','app.agent_runtime.execution.agent_loop','app.agent_runtime.execution.loop_answer','app.agent_runtime.execution.loop_model_call','app.agent_runtime.execution.loop_request','app.agent_runtime.execution.loop_round_validation','app.agent_runtime.execution.loop_state','app.agent_runtime.execution.loop_tool_round','app.agent_runtime.tools.catalog','app.agent_runtime.tools.registry','app.core.settings','app.model_gateway','app.evidence','app.persistence','app.manufacturing.reports')
+blocked=('app.agent_runtime.service','app.agent_runtime.compatibility','app.agent_runtime.execution.agent_loop','app.agent_runtime.execution.loop_answer','app.agent_runtime.execution.loop_model_call','app.agent_runtime.execution.loop_request','app.agent_runtime.execution.loop_round_validation','app.agent_runtime.execution.loop_state','app.agent_runtime.execution.loop_tool_round','app.agent_runtime.tools.catalog','app.agent_runtime.tools.registry','app.core.settings','app.model_gateway','app.evidence','app.persistence','app.api')
 class Finder(importlib.abc.MetaPathFinder):
  def find_spec(self,fullname,path=None,target=None):
   if any(fullname==item or fullname.startswith(item+'.') for item in blocked): events.append(('import',fullname)); raise AssertionError(fullname)

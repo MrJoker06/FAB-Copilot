@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from ..manufacturing.processes import process_query_terms
+from app.core.manufacturing_terms import process_query_terms
 
 
 def tokenize_query(text: str) -> list[str]:

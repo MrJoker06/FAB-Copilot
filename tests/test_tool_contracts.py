@@ -445,7 +445,7 @@ import socket
 import sqlite3
 import sys
 sys.path.insert(0, sys.argv[1])
-forbidden = {'app.core.settings', 'app.core.identity', 'app.manufacturing.reports', 'app.manufacturing.enterprise_data', 'app.knowledge.rag', 'app.knowledge.sqlite_backend', 'app.persistence', 'app.persistence.database', 'app.agent_runtime.tools.catalog', 'app.agent_runtime.tools.registry'}
+forbidden = {'app.core.settings', 'app.core.identity', 'app.api.report_service', 'app.bootstrap.enterprise_data_assembly', 'app.knowledge.rag', 'app.knowledge.sqlite_backend', 'app.persistence', 'app.persistence.database', 'app.agent_runtime.tools.catalog', 'app.agent_runtime.tools.registry'}
 class DenyImports:
     def find_spec(self, fullname, path=None, target=None):
         if fullname in forbidden: raise RuntimeError('blocked import: ' + fullname)

@@ -5,13 +5,11 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Protocol
 
-from .playbooks import (
-    DOMAIN_PLAYBOOKS,
-    DomainPlaybook,
-    EvidenceRequirement,
-    PlaybookReference,
-    PlaybookSelection,
-)
+from app.planning_runtime.builtin_playbooks import DOMAIN_PLAYBOOKS
+from app.planning_runtime.playbook_contracts import DomainPlaybook
+from app.planning_runtime.playbook_contracts import EvidenceRequirement
+from app.planning_runtime.playbook_contracts import PlaybookReference
+from app.planning_runtime.playbook_contracts import PlaybookSelection
 
 
 class _Route(Protocol):

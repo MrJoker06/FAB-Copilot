@@ -66,11 +66,8 @@ SOURCE_FILES = (
     "app/core/__init__.py",
     "app/core/sqlite_support.py",
     "app/core/tool_result_projection.py",
-    "app/integrations/__init__.py",
-    "app/integrations/knowledge/__init__.py",
     "app/tools/knowledge_search/backend_search.py",
     "app/demo_data/tool_sources/knowledge_search.py",
-    "app/integrations/manufacturing/__init__.py",
     "app/demo_data/tool_sources/enterprise_data.py",
     "app/demo_data/tool_sources/equipment_health.py",
     "app/demo_data/tool_sources/named_queries.py",
@@ -92,7 +89,6 @@ SOURCE_FILES = (
     "app/tools/knowledge_search/binding.py",
     "app/tools/knowledge_search/contracts.py",
     "app/tools/knowledge_search/handler.py",
-    "app/manufacturing/__init__.py",
     "app/tools/enterprise_data/provider_contracts.py",
     "app/tools/enterprise_data/__init__.py",
     "app/tools/enterprise_data/binding.py",
@@ -115,7 +111,7 @@ SOURCE_FILES = (
     "app/tools/process_diagnostics/binding.py",
     "app/tools/process_diagnostics/contracts.py",
     "app/tools/process_diagnostics/handler.py",
-    "app/manufacturing/processes.py",
+    "app/core/manufacturing_terms.py",
     "app/tools/production_reports/__init__.py",
     "app/tools/production_reports/binding.py",
     "app/tools/production_reports/contracts.py",
@@ -152,7 +148,7 @@ from pathlib import Path
 unit=Path(sys.argv[1]).resolve(); original=Path(sys.argv[2]).resolve(); allowed=set(sys.argv[3:]); assert not any(Path(value).resolve()==original for value in sys.path if value); sys.path.insert(0,str(unit))
 stdlib_asyncio=(Path(sys.base_prefix)/'Lib'/'asyncio').resolve()
 argparse.ArgumentParser(); tempfile.gettempdir(); warm=asyncio.new_event_loop(); warm.close()
-blocked=('app.core.settings','app.core.identity','app.core.identity_contracts','app.persistence','app.agent_runtime.service','app.agent_runtime.compatibility','app.agent_runtime.tools.catalog','app.agent_runtime.tools.registry','app.model_gateway','app.knowledge.rag','app.manufacturing.reports','app.bootstrap.default_tool_assembly','app.bootstrap.default_coordinator_assembly','app.bootstrap.tool_catalog','app.bootstrap.tool_bindings','app.main')
+blocked=('app.core.settings','app.core.identity','app.core.identity_contracts','app.persistence','app.agent_runtime.service','app.agent_runtime.compatibility','app.agent_runtime.tools.catalog','app.agent_runtime.tools.registry','app.model_gateway','app.knowledge.rag','app.api','app.bootstrap.default_tool_assembly','app.bootstrap.default_coordinator_assembly','app.bootstrap.tool_catalog','app.bootstrap.tool_bindings','app.main')
 events=[]
 class Finder(importlib.abc.MetaPathFinder):
  def find_spec(self, fullname, path=None, target=None):

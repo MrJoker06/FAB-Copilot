@@ -9,7 +9,7 @@ sys.path.insert(0, str(PROJECT_DIR))
 
 from app.bootstrap.storage_identity_assembly import install_default_storage_identity  # noqa: E402
 from app.knowledge.rag import search_knowledge  # noqa: E402
-from app.manufacturing.seed import seed_reference_data  # noqa: E402
+from app.demo_data.seed import seed_reference_data  # noqa: E402
 
 
 def evaluate() -> dict:

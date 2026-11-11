@@ -28,7 +28,7 @@ from ..agent_runtime.tools.tool_registry import (
     ToolRegistry,
 )
 from app.tools.knowledge_search.binding import create_knowledge_search_binding
-from ..manufacturing.enterprise_data import get_enterprise_provider
+from app.bootstrap.enterprise_data_assembly import get_enterprise_provider
 from app.tools.enterprise_data.binding import (
     create_enterprise_manifest_binding,
     create_enterprise_sample_binding,

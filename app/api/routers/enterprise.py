@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query
 
-from ...manufacturing.processes import PROCESS_STEP_PATTERN
+from app.core.manufacturing_terms import PROCESS_STEP_PATTERN
 from .runtime import NamespaceProvider, RouterBundle
 
 
@@ -15,7 +15,7 @@ def create_router(deps: NamespaceProvider) -> RouterBundle:
             "mode": "enterprise" if settings.enterprise_mode else "personal",
             "identity": principal.public_dict(),
             "knowledge_owner_scope": principal.knowledge_owner_id,
-            "data": runtime["get_enterprise_provider"]().manifest(principal),
+            "data": runtime["read_enterprise_manifest"](runtime["get_enterprise_provider"](), principal),
         }
 
     def _enterprise_page(
@@ -28,8 +28,8 @@ def create_router(deps: NamespaceProvider) -> RouterBundle:
                 for key, value in filters.items()
                 if key not in {"entity", "limit", "cursor"}
             }
-            return runtime["get_enterprise_provider"]().page(
-                entity, runtime["current_principal"](), limit, cursor, query_filters
+            return runtime["read_enterprise_page"](
+                runtime["get_enterprise_provider"](), runtime["current_principal"](), entity, limit, cursor, query_filters
             )
         except runtime["EnterpriseDataError"] as exc:
             raise runtime["http_problem"](
@@ -37,9 +37,8 @@ def create_router(deps: NamespaceProvider) -> RouterBundle:
             ) from exc
 
     def enterprise_manifest() -> dict:
-        return deps()["get_enterprise_provider"]().manifest(
-            deps()["current_principal"]()
-        )
+        runtime = deps()
+        return runtime["read_enterprise_manifest"](runtime["get_enterprise_provider"](), runtime["current_principal"]())
 
     def enterprise_summary(
         start: str | None = None,
@@ -49,8 +48,8 @@ def create_router(deps: NamespaceProvider) -> RouterBundle:
     ) -> dict:
         runtime = deps()
         try:
-            return runtime["get_enterprise_provider"]().summary(
-                runtime["current_principal"](),
+            return runtime["read_enterprise_summary"](
+                runtime["get_enterprise_provider"](), runtime["current_principal"](),
                 {
                     "start": start,
                     "end": end,

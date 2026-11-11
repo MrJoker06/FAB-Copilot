@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from app.demo_data.synthetic_fab import SyntheticFabProvider
+
 import os
 import unittest
 from unittest.mock import patch
 
 from app.core.identity import Principal, reset_principal, set_principal
-from app.manufacturing import enterprise_data
+import app.bootstrap.enterprise_data_assembly as enterprise_data
 from app.tools.enterprise_data.provider_contracts import EnterpriseDataProvider
 
 
@@ -42,7 +44,7 @@ class EnterpriseProviderBoundaryTests(unittest.TestCase):
         self.assertIs(enterprise_data.EnterpriseDataProvider, EnterpriseDataProvider)
         with self._provider_environment("synthetic"):
             provider = enterprise_data.get_enterprise_provider()
-        self.assertIsInstance(provider, enterprise_data.SyntheticFabProvider)
+        self.assertIsInstance(provider, SyntheticFabProvider)
         self.assertEqual(provider.provider_id, "synthetic-fab-v1")
 
     def test_registered_provider_is_selected_and_current_principal_reaches_wrappers(self):
@@ -83,7 +85,7 @@ class EnterpriseProviderBoundaryTests(unittest.TestCase):
         enterprise_data.register_enterprise_provider("failing-factory", failing_factory)
         with (
             self._provider_environment("failing-factory"),
-            patch.object(enterprise_data, "SyntheticFabProvider") as synthetic,
+            patch("app.demo_data.synthetic_fab.SyntheticFabProvider") as synthetic,
             self.assertRaises(enterprise_data.EnterpriseDataError) as caught,
         ):
             enterprise_data.get_enterprise_provider()

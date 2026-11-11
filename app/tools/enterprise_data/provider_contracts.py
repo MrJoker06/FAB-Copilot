@@ -31,3 +31,10 @@ class EnterpriseDataProvider(Protocol):
         cursor: str | None,
         filters: dict,
     ) -> dict: ...
+
+
+class EnterpriseDataError(ValueError):
+    def __init__(self, error_code: str, detail: str):
+        super().__init__(detail)
+        self.error_code = error_code
+        self.detail = detail

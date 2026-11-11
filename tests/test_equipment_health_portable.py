@@ -52,7 +52,7 @@ class EquipmentHealthPortableTests(unittest.TestCase):
 from pathlib import Path
 unit = Path({str(unit)!r}).resolve()
 allowed_files = set({allowed!r})
-blocked = ('app.core.settings','app.persistence','app.manufacturing.reports','app.knowledge','app.agent_runtime.service','app.agent_runtime.tools.catalog','app.agent_runtime.tools.registry')
+blocked = ('app.core.settings','app.persistence','app.api','app.knowledge','app.agent_runtime.service','app.agent_runtime.tools.catalog','app.agent_runtime.tools.registry')
 old_import = builtins.__import__
 argparse.ArgumentParser()
 argparse._ = lambda value: value

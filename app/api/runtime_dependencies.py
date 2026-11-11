@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 
+from app.tools.enterprise_data.operations import read_enterprise_manifest, read_enterprise_summary, read_enterprise_page
+
 from ..agent_runtime.service import run_agent
 from ..bootstrap.storage_identity_assembly import install_default_storage_identity
 from ..telemetry.audit import (
@@ -26,7 +28,7 @@ from ..core.settings import (
     model_api_key,
 )
 from ..persistence.database import db_session, department_paths, ensure_department_databases
-from ..manufacturing.enterprise_data import EnterpriseDataError, get_enterprise_provider
+from app.bootstrap.enterprise_data_assembly import EnterpriseDataError, get_enterprise_provider
 from ..persistence.execution_store import (
     RunExecutionRecorder,
     get_run_audit,
@@ -65,7 +67,7 @@ from ..personal_knowledge_runtime.service import (
     search_personal_knowledge,
     update_personal_document,
 )
-from ..manufacturing.processes import MANUFACTURING_STEPS, PROCESS_STEP_PATTERN
+from app.core.manufacturing_terms import MANUFACTURING_STEPS, PROCESS_STEP_PATTERN
 from ..knowledge.rag import (
     get_historical_case,
     get_knowledge_document,
@@ -73,9 +75,10 @@ from ..knowledge.rag import (
     list_knowledge_documents,
     search_knowledge,
 )
-from ..manufacturing.reports import process_capability, report_bundle
+from app.tools.process_diagnostics.reports import process_capability
+from app.api.report_service import report_bundle
 from ..telemetry.runtime_status import admin_runtime_overview, begin_agent_run, finish_agent_run
-from ..manufacturing.seed import generate_database, seed_reference_data
+from app.demo_data.seed import generate_database, seed_reference_data
 from ..conversation.sessions import (
     append_message,
     archive_session,
@@ -132,6 +135,9 @@ install_default_storage_identity()
 
 
 __all__ = (
+    "read_enterprise_manifest",
+    "read_enterprise_summary",
+    "read_enterprise_page",
     "APP_VERSION",
     "AdminModelCapabilitiesRequest",
     "AdminModelPublishRequest",

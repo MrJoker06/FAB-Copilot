@@ -65,7 +65,7 @@
     "enterprise_data_contract": [
       "app/core/settings.py",
       "app/tools/enterprise_data/provider_contracts.py",
-      "app/manufacturing/enterprise_data.py",
+      "app/bootstrap/enterprise_data_assembly.py",
       "tests/test_enterprise_data_contract_portable.py",
       "tests/test_enterprise_provider_boundary.py",
       "app/tools/__init__.py",
@@ -94,7 +94,7 @@
       "app/core/identity.py",
       "app/core/settings.py",
       "app/knowledge/rag.py",
-      "app/manufacturing/enterprise_data.py",
+      "app/bootstrap/enterprise_data_assembly.py",
       "docs/todos/deployment-architecture.md",
       "docs/todos/execution-plan.md",
       "evaluations/module_boundaries_v1.json",
@@ -142,13 +142,7 @@
       "factory_search_contract",
       "identity_contract"
     ],
-    "app/manufacturing/__init__.py": [
-      "decision_core",
-      "enterprise_data_contract",
-      "retrieval_policy",
-      "factory_search_contract"
-    ],
-    "app/manufacturing/processes.py": [
+    "app/core/manufacturing_terms.py": [
       "decision_core",
       "retrieval_policy",
       "factory_search_contract"

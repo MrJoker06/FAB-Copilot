@@ -19,11 +19,11 @@
   },
   "canonical_modules": {
     "app.skills": "skills",
-    "app.manufacturing.processes": "manufacturing.processes",
-    "app.manufacturing.playbooks": "manufacturing.playbooks",
-    "app.manufacturing.reports": "manufacturing.reports",
-    "app.manufacturing.enterprise_data": "manufacturing.enterprise_data",
-    "app.manufacturing.seed": "manufacturing.seed",
+    "app.core.manufacturing_terms": "manufacturing.processes",
+    "app.planning_runtime.playbooks": "manufacturing.playbooks",
+    "app.api.report_service": "manufacturing.reports",
+    "app.bootstrap.enterprise_data_assembly": "manufacturing.enterprise_data",
+    "app.demo_data.seed": "manufacturing.seed",
     "app.persistence.database": "persistence.database",
     "app.persistence.department_schemas": "persistence.department_schemas",
     "app.persistence.execution_store": "persistence.execution_store",
@@ -221,7 +221,7 @@
       "app.intent_runtime.contracts",
       "app.intent_runtime.rules",
       "app.planning_runtime.contracts",
-      "app.manufacturing.processes",
+      "app.core.manufacturing_terms",
       "app.tools.equipment_health.summary",
       "app.tools.equipment_health.contracts",
       "app.tools.equipment_health.handler",
@@ -261,7 +261,7 @@
       "app.tools.named_queries.contracts",
       "app.tools.named_queries.handler",
       "app.tools.named_queries.binding",
-      "app.manufacturing.named_playbooks",
+      "app.planning_runtime.named_playbooks",
       "app.planning_runtime.named_planner"
     ],
     "pure_forbidden_targets": [
@@ -290,7 +290,6 @@
         "app.agent_runtime",
         "app.bootstrap",
         "app.core",
-        "app.integrations",
         "app.persistence",
         "app.telemetry",
         "httpx",
@@ -299,7 +298,9 @@
         "socket",
         "sqlite3",
         "subprocess",
-        "urllib"
+        "urllib",
+        "app.tools",
+        "app.demo_data"
       ],
       "memory_system": [
         "app.api",
@@ -333,7 +334,7 @@
       "exit_condition": "MOD-008 completes explicit bulk legacy binding migration"
     },
     {
-      "source": "app.manufacturing.playbooks",
+      "source": "app.planning_runtime.playbooks",
       "target": "app.intent_runtime.contracts",
       "reason": "manufacturing playbook declarations retain the typed routing contract",
       "exit_condition": "replace only if playbook contracts move with an equivalent typed routing boundary"
@@ -399,13 +400,13 @@
       "exit_condition": "replace only if arbitration receives an equivalent typed routing contract"
     },
     {
-      "source": "app.manufacturing.enterprise_data",
+      "source": "app.bootstrap.enterprise_data_assembly",
       "target": "app.core.settings",
       "reason": "existing app.enterprise_data compatibility implementation consumes the configuration facade before its scheduled migration",
       "exit_condition": "replace only if enterprise data receives an equivalent configuration dependency injection contract"
     },
     {
-      "source": "app.manufacturing.enterprise_data",
+      "source": "app.bootstrap.enterprise_data_assembly",
       "target": "app.core.identity",
       "reason": "existing app.enterprise_data compatibility implementation consumes the identity facade before its scheduled migration",
       "exit_condition": "replace only if enterprise data receives an equivalent identity context contract"
@@ -477,7 +478,7 @@
       "exit_condition": "replace only if RAG receives equivalent knowledge settings without the public anchor"
     },
     {
-      "source": "app.manufacturing.seed",
+      "source": "app.demo_data.seed",
       "target": "app.core.settings",
       "reason": "existing app.seed compatibility implementation consumes the configuration facade before its scheduled migration",
       "exit_condition": "retain while the seed CLI resolves the public configuration anchor"
@@ -590,11 +591,11 @@
       "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
     "app.domain_playbooks": {
-      "target": "app.manufacturing.playbooks",
+      "target": "app.planning_runtime.playbooks",
       "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
     "app.enterprise_data": {
-      "target": "app.manufacturing.enterprise_data",
+      "target": "app.bootstrap.enterprise_data_assembly",
       "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
     "app.evidence_semantics": {
@@ -662,7 +663,7 @@
       "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
     "app.processes": {
-      "target": "app.manufacturing.processes",
+      "target": "app.core.manufacturing_terms",
       "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
     "app.rag": {
@@ -670,7 +671,7 @@
       "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
     "app.reports": {
-      "target": "app.manufacturing.reports",
+      "target": "app.api.report_service",
       "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
     "app.runtime_status": {
@@ -678,7 +679,7 @@
       "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
     "app.seed": {
-      "target": "app.manufacturing.seed",
+      "target": "app.demo_data.seed",
       "reason": "REF-035 retired the root compatibility facade after internal migration"
     },
     "app.sessions": {

@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.agent_runtime import service as agent_module
-from app.manufacturing.playbooks import select_playbook
+from app.planning_runtime.playbooks import select_playbook
 from app.intent_runtime.routing import route_question
 from app.planning_runtime.service import create_execution_plan
 
@@ -359,5 +359,3 @@ class StructuredPlannerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-

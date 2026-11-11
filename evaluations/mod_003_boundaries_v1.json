@@ -353,6 +353,11 @@
       "artifact_group": "application_bundle"
     },
     {
+      "path": "app/api/report_service.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
       "path": "app/api/routers/__init__.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"
@@ -474,6 +479,11 @@
     },
     {
       "path": "app/bootstrap/dispatcher_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/enterprise_data_assembly.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"
     },
@@ -618,12 +628,22 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/core/manufacturing_terms.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/core/model_capabilities.py",
       "primary_module": "core_contracts_configuration",
       "artifact_group": "platform_core"
     },
     {
       "path": "app/core/model_credentials.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/core/report_dates.py",
       "primary_module": "core_contracts_configuration",
       "artifact_group": "platform_core"
     },
@@ -660,49 +680,59 @@
       "artifact_group": "simulation_fixtures"
     },
     {
+      "path": "app/demo_data/seed.py",
+      "primary_module": "simulation",
+      "artifact_group": "simulation_fixtures"
+    },
+    {
+      "path": "app/demo_data/synthetic_fab.py",
+      "primary_module": "simulation",
+      "artifact_group": "simulation_fixtures"
+    },
+    {
       "path": "app/demo_data/tool_sources/__init__.py",
       "primary_module": "simulation",
       "artifact_group": "simulation_fixtures"
     },
     {
       "path": "app/demo_data/tool_sources/capability_trend.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
+      "primary_module": "simulation",
+      "artifact_group": "simulation_fixtures"
     },
     {
       "path": "app/demo_data/tool_sources/enterprise_data.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
+      "primary_module": "simulation",
+      "artifact_group": "simulation_fixtures"
     },
     {
       "path": "app/demo_data/tool_sources/equipment_health.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
+      "primary_module": "simulation",
+      "artifact_group": "simulation_fixtures"
     },
     {
       "path": "app/demo_data/tool_sources/knowledge_search.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
+      "primary_module": "simulation",
+      "artifact_group": "simulation_fixtures"
     },
     {
       "path": "app/demo_data/tool_sources/named_queries.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
+      "primary_module": "simulation",
+      "artifact_group": "simulation_fixtures"
     },
     {
       "path": "app/demo_data/tool_sources/operational_reports.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
+      "primary_module": "simulation",
+      "artifact_group": "simulation_fixtures"
     },
     {
       "path": "app/demo_data/tool_sources/process_diagnostics.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
+      "primary_module": "simulation",
+      "artifact_group": "simulation_fixtures"
     },
     {
       "path": "app/demo_data/tool_sources/production_reports.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
+      "primary_module": "simulation",
+      "artifact_group": "simulation_fixtures"
     },
     {
       "path": "app/evidence/__init__.py",
@@ -738,21 +768,6 @@
       "path": "app/evidence/validator.py",
       "primary_module": "evidence",
       "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/integrations/__init__.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
-      "path": "app/integrations/knowledge/__init__.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
-    },
-    {
-      "path": "app/integrations/manufacturing/__init__.py",
-      "primary_module": "integrations",
-      "artifact_group": "enterprise_adapters"
     },
     {
       "path": "app/intent_runtime/__init__.py",
@@ -843,57 +858,6 @@
       "path": "app/main.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"
-    },
-    {
-      "path": "app/manufacturing/__init__.py",
-      "primary_module": "orchestration",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/manufacturing/enterprise_data.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability",
-      "status": "transitional",
-      "split_targets": [
-        "business_tools",
-        "integrations",
-        "simulation"
-      ],
-      "reason": "provider wrapper contains synthetic fallback and integration concerns",
-      "exit_task": "MOD-008"
-    },
-    {
-      "path": "app/manufacturing/named_playbooks.py",
-      "primary_module": "orchestration",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/manufacturing/playbooks.py",
-      "primary_module": "orchestration",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/manufacturing/processes.py",
-      "primary_module": "manufacturing_domain",
-      "artifact_group": "platform_core"
-    },
-    {
-      "path": "app/manufacturing/reports.py",
-      "primary_module": "business_tools",
-      "artifact_group": "manufacturing_capability",
-      "status": "transitional",
-      "split_targets": [
-        "business_tools",
-        "integrations",
-        "manufacturing_domain"
-      ],
-      "reason": "business tool, direct SQL, and domain calculations remain co-located",
-      "exit_task": "MOD-008"
-    },
-    {
-      "path": "app/manufacturing/seed.py",
-      "primary_module": "simulation",
-      "artifact_group": "simulation_fixtures"
     },
     {
       "path": "app/memory_system/__init__.py",
@@ -1071,12 +1035,32 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/planning_runtime/builtin_playbooks.py",
+      "primary_module": "manufacturing_domain",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
       "path": "app/planning_runtime/contracts.py",
       "primary_module": "orchestration",
       "artifact_group": "platform_core"
     },
     {
       "path": "app/planning_runtime/named_planner.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/planning_runtime/named_playbooks.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/planning_runtime/playbook_contracts.py",
+      "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/planning_runtime/playbooks.py",
       "primary_module": "orchestration",
       "artifact_group": "platform_core"
     },
@@ -1371,6 +1355,11 @@
       "artifact_group": "manufacturing_capability"
     },
     {
+      "path": "app/tools/enterprise_data/operations.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
       "path": "app/tools/enterprise_data/provider_contracts.py",
       "primary_module": "manufacturing_domain",
       "artifact_group": "platform_core"
@@ -1399,6 +1388,11 @@
       "path": "app/tools/equipment_health/handler.py",
       "primary_module": "business_tools",
       "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/equipment_health/reports.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
     },
     {
       "path": "app/tools/equipment_health/summary.py",
@@ -1486,6 +1480,11 @@
       "artifact_group": "manufacturing_capability"
     },
     {
+      "path": "app/tools/operational_reports/reports.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
       "path": "app/tools/process_diagnostics/__init__.py",
       "primary_module": "business_tools",
       "artifact_group": "manufacturing_capability"
@@ -1511,6 +1510,11 @@
       "artifact_group": "manufacturing_capability"
     },
     {
+      "path": "app/tools/process_diagnostics/reports.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
       "path": "app/tools/production_reports/__init__.py",
       "primary_module": "business_tools",
       "artifact_group": "manufacturing_capability"
@@ -1534,6 +1538,11 @@
       "path": "app/tools/production_reports/handler.py",
       "primary_module": "business_tools",
       "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/production_reports/reports.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
     }
   ],
   "allowed_dependencies": {
@@ -1542,7 +1551,8 @@
     ],
     "manufacturing_domain": [
       "core_contracts_configuration",
-      "manufacturing_domain"
+      "manufacturing_domain",
+      "orchestration"
     ],
     "evidence": [
       "core_contracts_configuration",
@@ -1605,7 +1615,9 @@
       "core_contracts_configuration",
       "manufacturing_domain",
       "persistence",
-      "simulation"
+      "simulation",
+      "tool_system",
+      "business_tools"
     ],
     "integrations": [
       "business_tools",
@@ -1648,18 +1660,6 @@
   "dependency_debt": [
     {
       "source": "app.agent_runtime.compatibility",
-      "target": "app.manufacturing.processes",
-      "reason": "Runtime facade assembles concrete manufacturing functions; move binding to bootstrap and inject Ports. Retained at MOD-015 closeout (015e): the run_agent facade still publishes MANUFACTURING_STEPS in its live-patch namespace; injecting it as a Port without changing the public facade belongs to the MOD-027 Fake integration profile / minimal complete application.",
-      "exit_task": "MOD-027"
-    },
-    {
-      "source": "app.agent_runtime.compatibility",
-      "target": "app.manufacturing.reports",
-      "reason": "Runtime facade assembles concrete manufacturing functions; move binding to bootstrap and inject Ports. Retained at MOD-015 closeout (015e): the facade's offline answer binds fab_overview/equipment_health as patchable seams of the public run_agent path; replacing them belongs to the MOD-027 Fake integration profile / minimal complete application.",
-      "exit_task": "MOD-027"
-    },
-    {
-      "source": "app.agent_runtime.compatibility",
       "target": "app.bootstrap.legacy_agent_assembly",
       "reason": "Legacy facade delegates coordinator dependency snapshot assembly while preserving invocation-local live patch bindings. Retained at MOD-015 closeout (015e): public run_agent API and its per-call live-patch namespace are kept by design; removal belongs to the MOD-027 Fake integration profile / minimal complete application.",
       "exit_task": "MOD-027"
@@ -1683,18 +1683,6 @@
       "exit_task": "MOD-027"
     },
     {
-      "source": "app.manufacturing.enterprise_data",
-      "target": "app.core.identity",
-      "reason": "Native consumer-owned Port replacement was validated by MOD-009, but retained API/Python/live-patch consumers require MOD-015 consumer review before deletion. Deferred from MOD-015d: transitional legacy facade; MOD-009 requires consumer review of the retained API/Python/live-patch consumers before the identity edge can be deleted, which belongs to the MOD-008 legacy-path retirement.",
-      "exit_task": "MOD-008"
-    },
-    {
-      "source": "app.manufacturing.reports",
-      "target": "app.persistence.database",
-      "reason": "Native consumer-owned Port replacement was validated by MOD-009, but retained API/Python/live-patch consumers require MOD-015 consumer review before deletion. Deferred from MOD-015d: transitional legacy facade with four db_session patch points; database_ledger records the legacy path as retained, so the edge leaves with the MOD-008 legacy-path retirement.",
-      "exit_task": "MOD-008"
-    },
-    {
       "source": "app.model_gateway.compatibility",
       "target": "app.memory_system.context.history",
       "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports. MOD-012 closed model client lifecycle only; these store/identity edges move to MOD-015 batch d (storage/identity Port injection). Deferred from MOD-015d: removing it requires changing the public compatibility-probe signature/behaviour or moving context_memory protocol logic into core.",
@@ -1711,6 +1699,18 @@
       "target": "app.core.identity",
       "reason": "Persistence implementation reaches model initialization or environment identity; separate storage from application assembly. Deferred from MOD-015d: the REF-027 exception keeps the execution-store identity anchor public; stable call identity belongs to MOD-021.",
       "exit_task": "MOD-021"
+    },
+    {
+      "source": "app.agent_runtime.compatibility",
+      "target": "app.tools.equipment_health.reports",
+      "reason": "Retained run_agent live-patch report operations relocated to their Tool owners by MOD-030d; MOD-027 still owns public facade retirement.",
+      "exit_task": "MOD-027"
+    },
+    {
+      "source": "app.agent_runtime.compatibility",
+      "target": "app.tools.production_reports.reports",
+      "reason": "Retained run_agent live-patch report operations relocated to their Tool owners by MOD-030d; MOD-027 still owns public facade retirement.",
+      "exit_task": "MOD-027"
     }
   ],
   "portable_overlaps": [
@@ -1725,12 +1725,7 @@
       "unique_owner": "application_bundle"
     },
     {
-      "path": "app/manufacturing/__init__.py",
-      "reason": "isolated ZIP validation currently duplicates package anchors/shared pure vocabulary",
-      "unique_owner": "platform_core"
-    },
-    {
-      "path": "app/manufacturing/processes.py",
+      "path": "app/core/manufacturing_terms.py",
       "reason": "isolated ZIP validation currently duplicates package anchors/shared pure vocabulary",
       "unique_owner": "platform_core"
     },
@@ -2378,6 +2373,23 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
+      "source_file": "app/demo_data/seed.py",
+      "imports": [
+        "app.persistence.database.db_session"
+      ],
+      "calls": [
+        "connection.execute",
+        "connection.executemany",
+        "db_session",
+        "initialize"
+      ],
+      "table_hints": [
+        "lots",
+        "process_runs"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
       "source_file": "app/knowledge/sqlite_backend.py",
       "imports": [
         "persistence.database.db_session"
@@ -2402,38 +2414,6 @@
       ],
       "calls": [],
       "table_hints": [],
-      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
-    },
-    {
-      "source_file": "app/manufacturing/reports.py",
-      "imports": [
-        "persistence.database.db_session"
-      ],
-      "calls": [
-        "connection.execute",
-        "db_session"
-      ],
-      "table_hints": [
-        "lots",
-        "process_runs"
-      ],
-      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
-    },
-    {
-      "source_file": "app/manufacturing/seed.py",
-      "imports": [
-        "persistence.database.db_session"
-      ],
-      "calls": [
-        "connection.execute",
-        "connection.executemany",
-        "db_session",
-        "initialize"
-      ],
-      "table_hints": [
-        "lots",
-        "process_runs"
-      ],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
@@ -2624,6 +2604,16 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
+      "source_file": "app/tools/equipment_health/reports.py",
+      "imports": [],
+      "calls": [
+        "connection.execute",
+        "database.db_session"
+      ],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
       "source_file": "app/tools/knowledge_search/runtime_search.py",
       "imports": [
         "sqlite3"
@@ -2662,6 +2652,16 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
+      "source_file": "app/tools/operational_reports/reports.py",
+      "imports": [],
+      "calls": [
+        "connection.execute",
+        "database.db_session"
+      ],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
       "source_file": "app/tools/process_diagnostics/data_source.py",
       "imports": [
         "sqlite3"
@@ -2669,6 +2669,16 @@
       "calls": [
         "connection.execute",
         "sqlite3.connect"
+      ],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/tools/process_diagnostics/reports.py",
+      "imports": [],
+      "calls": [
+        "connection.execute",
+        "database.db_session"
       ],
       "table_hints": [],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
@@ -2686,13 +2696,26 @@
         "process_runs"
       ],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/tools/production_reports/reports.py",
+      "imports": [],
+      "calls": [
+        "connection.execute",
+        "database.db_session"
+      ],
+      "table_hints": [
+        "lots",
+        "process_runs"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     }
   ],
   "database_ledger": {
     "legacy_sql_tool": {
       "definition": "query_manufacturing_data(sql)",
-      "registry_binding": "retired from the default registry and 13-name compatibility handler map; the former app.manufacturing.reports.safe_select callable was removed in MOD-030b",
-      "report_implementation": "removed in MOD-030b (formerly app.manufacturing.reports.safe_select)",
+      "registry_binding": "retired from the default registry and 13-name compatibility handler map; the former app.api.report_service.safe_select callable was removed in MOD-030b",
+      "report_implementation": "removed in MOD-030b (formerly app.api.report_service.safe_select)",
       "prompt_exposure": "retired from default SYSTEM_PROMPT; LEGACY_SYSTEM_PROMPT remains only for explicit historical replay",
       "status": "retired from default model catalog, executable binding and prompt; safe_select callable removed in MOD-030b",
       "exit_tasks": [
@@ -2768,60 +2791,12 @@
         "exit_task": "MOD-003 conformance (retain helper)"
       },
       {
-        "source_file": "app/tools/knowledge_search/runtime_search.py",
-        "owner": "integrations",
-        "classification": "knowledge-read",
-        "stores": "knowledge.knowledge_documents, knowledge.knowledge_chunks, knowledge.knowledge_trigram_fts, knowledge.personal_knowledge_documents, knowledge.personal_knowledge_chunks, knowledge.personal_knowledge_fts, quality.defect_types, quality.defect_type_aliases",
-        "init_effects": "Default knowledge composition opens an in-memory SQLite connection only to attach the explicitly configured knowledge file read-only, and opens the explicit quality file read-only for aliases. It sets query_only, bounded busy/progress deadlines and closes both; it never initializes, seeds, attaches the global main database or falls back.",
-        "exit_task": "MOD-009 conformance (retain adapter)"
-      },
-      {
-        "source_file": "app/tools/equipment_health/data_source.py",
-        "owner": "integrations",
-        "classification": "business-read",
-        "stores": "main.process_runs, equipment.equipment_events",
-        "init_effects": "Explicit two-path SQLite URI mode=ro adapter; attaches one equipment store, sets query_only, and never initializes, migrates, seeds, or falls back.",
-        "exit_task": "MOD-009 conformance (retain adapter)"
-      },
-      {
-        "source_file": "app/tools/named_queries/data_source.py",
-        "owner": "integrations",
-        "classification": "business-read",
-        "stores": "lots, process_runs, equipment_events, defect_records, wafer_maps",
-        "init_effects": "Eight fixed bound queries; selects only the explicit related manufacturing/equipment/quality SQLite file per kind. URI mode=ro/query_only; bounded busy/progress deadlines and finally close; no initialization, migration, seed, attachment or source fallback.",
-        "exit_task": "MOD-009 conformance (retain adapter)"
-      },
-      {
-        "source_file": "app/tools/operational_reports/data_source.py",
-        "owner": "integrations",
-        "classification": "business-read",
-        "stores": "equipment_state_intervals, defect_records, process_runs",
-        "init_effects": "Selects only the explicit related equipment/quality/manufacturing SQLite store per fixed query; URI mode=ro/query_only; no initialization, migration, seeding, attachment, or source fallback.",
-        "exit_task": "MOD-009 conformance (retain adapter)"
-      },
-      {
-        "source_file": "app/tools/process_diagnostics/data_source.py",
-        "owner": "integrations",
-        "classification": "business-read",
-        "stores": "process_runs, sensor_readings",
-        "init_effects": "Explicit per-kind SQLite URI mode=ro adapter; opens only the selected supplied store, sets query_only, and never initializes, migrates, seeds, attaches, or falls back.",
-        "exit_task": "MOD-009 conformance (retain adapter)"
-      },
-      {
-        "source_file": "app/tools/capability_trend/sqlite_source.py",
-        "owner": "integrations",
-        "classification": "business-read",
-        "stores": "process_runs",
-        "init_effects": "Explicit SQLite URI mode=ro source for the weekly capability trend; opens only the supplied manufacturing store, sets query_only, runs one fixed parameterized aggregation, and never initializes, migrates, seeds, attaches, or falls back.",
-        "exit_task": "MOD-030b (retain source)"
-      },
-      {
-        "source_file": "app/tools/production_reports/data_source.py",
-        "owner": "integrations",
-        "classification": "business-read",
+        "source_file": "app/demo_data/seed.py",
+        "owner": "simulation",
+        "classification": "demo-init",
         "stores": "lots, process_runs",
-        "init_effects": "Explicit supplied manufacturing SQLite URI mode=ro adapter; sets query_only and never initializes, migrates, seeds, attaches, or falls back.",
-        "exit_task": "MOD-009 conformance (retain adapter)"
+        "init_effects": "App-owned simulation demo initializer and seed writes; not a company-source prerequisite; startup separation retained at MOD-015 closeout and owned by MOD-027.",
+        "exit_task": "MOD-027"
       },
       {
         "source_file": "app/knowledge/sqlite_backend.py",
@@ -2837,22 +2812,6 @@
         "classification": "bootstrap-init",
         "stores": "unknown/dynamic or delegated; review consumer operation",
         "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
-        "exit_task": "MOD-027"
-      },
-      {
-        "source_file": "app/manufacturing/reports.py",
-        "owner": "business_tools",
-        "classification": "business-read",
-        "stores": "lots, process_runs",
-        "init_effects": "Retained legacy Python/API report path uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total); native Port replacement does not remove this path.",
-        "exit_task": "MOD-027"
-      },
-      {
-        "source_file": "app/manufacturing/seed.py",
-        "owner": "simulation",
-        "classification": "demo-init",
-        "stores": "lots, process_runs",
-        "init_effects": "App-owned simulation demo initializer and seed writes; not a company-source prerequisite; startup separation retained at MOD-015 closeout and owned by MOD-027.",
         "exit_task": "MOD-027"
       },
       {
@@ -2925,6 +2884,94 @@
         "classification": "internal-store",
         "stores": "agent_runs, chat_sessions",
         "init_effects": "Calls the injected storage/identity Port session factory; the default binding (app.bootstrap.storage_identity_assembly) resolves global db_session at call time: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
+        "exit_task": "MOD-027"
+      },
+      {
+        "source_file": "app/tools/capability_trend/sqlite_source.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "process_runs",
+        "init_effects": "Explicit SQLite URI mode=ro source for the weekly capability trend; opens only the supplied manufacturing store, sets query_only, runs one fixed parameterized aggregation, and never initializes, migrates, seeds, attaches, or falls back.",
+        "exit_task": "MOD-030b (retain source)"
+      },
+      {
+        "source_file": "app/tools/equipment_health/data_source.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "main.process_runs, equipment.equipment_events",
+        "init_effects": "Explicit two-path SQLite URI mode=ro adapter; attaches one equipment store, sets query_only, and never initializes, migrates, seeds, or falls back.",
+        "exit_task": "MOD-009 conformance (retain adapter)"
+      },
+      {
+        "source_file": "app/tools/equipment_health/reports.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "process_runs, equipment_events",
+        "init_effects": "Fixed legacy Tool read operations, relocated without changing SQL or data semantics; db_session retains existing lifecycle and configuration behavior.",
+        "exit_task": "MOD-027"
+      },
+      {
+        "source_file": "app/tools/knowledge_search/runtime_search.py",
+        "owner": "integrations",
+        "classification": "knowledge-read",
+        "stores": "knowledge.knowledge_documents, knowledge.knowledge_chunks, knowledge.knowledge_trigram_fts, knowledge.personal_knowledge_documents, knowledge.personal_knowledge_chunks, knowledge.personal_knowledge_fts, quality.defect_types, quality.defect_type_aliases",
+        "init_effects": "Default knowledge composition opens an in-memory SQLite connection only to attach the explicitly configured knowledge file read-only, and opens the explicit quality file read-only for aliases. It sets query_only, bounded busy/progress deadlines and closes both; it never initializes, seeds, attaches the global main database or falls back.",
+        "exit_task": "MOD-009 conformance (retain adapter)"
+      },
+      {
+        "source_file": "app/tools/named_queries/data_source.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "lots, process_runs, equipment_events, defect_records, wafer_maps",
+        "init_effects": "Eight fixed bound queries; selects only the explicit related manufacturing/equipment/quality SQLite file per kind. URI mode=ro/query_only; bounded busy/progress deadlines and finally close; no initialization, migration, seed, attachment or source fallback.",
+        "exit_task": "MOD-009 conformance (retain adapter)"
+      },
+      {
+        "source_file": "app/tools/operational_reports/data_source.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "equipment_state_intervals, defect_records, process_runs",
+        "init_effects": "Selects only the explicit related equipment/quality/manufacturing SQLite store per fixed query; URI mode=ro/query_only; no initialization, migration, seeding, attachment, or source fallback.",
+        "exit_task": "MOD-009 conformance (retain adapter)"
+      },
+      {
+        "source_file": "app/tools/operational_reports/reports.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "equipment_events, defect_records, process_runs",
+        "init_effects": "Fixed legacy Tool read operations, relocated without changing SQL or data semantics; db_session retains existing lifecycle and configuration behavior.",
+        "exit_task": "MOD-027"
+      },
+      {
+        "source_file": "app/tools/process_diagnostics/data_source.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "process_runs, sensor_readings",
+        "init_effects": "Explicit per-kind SQLite URI mode=ro adapter; opens only the selected supplied store, sets query_only, and never initializes, migrates, seeds, attaches, or falls back.",
+        "exit_task": "MOD-009 conformance (retain adapter)"
+      },
+      {
+        "source_file": "app/tools/process_diagnostics/reports.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "process_runs, sensor_readings",
+        "init_effects": "Fixed legacy Tool read operations, relocated without changing SQL or data semantics; db_session retains existing lifecycle and configuration behavior.",
+        "exit_task": "MOD-027"
+      },
+      {
+        "source_file": "app/tools/production_reports/data_source.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "lots, process_runs",
+        "init_effects": "Explicit supplied manufacturing SQLite URI mode=ro adapter; sets query_only and never initializes, migrates, seeds, attaches, or falls back.",
+        "exit_task": "MOD-009 conformance (retain adapter)"
+      },
+      {
+        "source_file": "app/tools/production_reports/reports.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "lots, process_runs",
+        "init_effects": "Fixed legacy Tool read operations, relocated without changing SQL or data semantics; db_session retains existing lifecycle and configuration behavior.",
         "exit_task": "MOD-027"
       }
     ]

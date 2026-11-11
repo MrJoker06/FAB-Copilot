@@ -355,10 +355,10 @@ class ModuleBoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             copied_app = Path(temporary) / "app"
             shutil.copytree(Path(__file__).resolve().parents[1] / "app", copied_app)
-            target = copied_app / "manufacturing" / "processes.py"
+            target = copied_app / "core" / "manufacturing_terms.py"
             target.write_text(target.read_text(encoding="utf-8") + "\nfrom app.persistence import database\n", encoding="utf-8")
             errors = boundary_errors(copied_app, load_manifest())
-        self.assertTrue(any("app.manufacturing.processes" in error and "pure module imports forbidden app.persistence.database" in error for error in errors))
+        self.assertTrue(any("app.core.manufacturing_terms" in error and "pure module imports forbidden app.persistence.database" in error for error in errors))
 
     def test_memory_domain_policy_rejects_absolute_relative_dynamic_and_runtime_imports(self):
         cases = {

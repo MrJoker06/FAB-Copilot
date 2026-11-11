@@ -5,14 +5,14 @@ from __future__ import annotations
 from dataclasses import replace
 
 from ..intent_runtime.contracts import IntentRoute
-from ..manufacturing.named_playbooks import (
+from app.planning_runtime.named_playbooks import (
     NAMED_DOMAIN_PLAYBOOKS,
     NAMED_PLAYBOOK_VERSION,
     NAMED_QUERY_CAPABILITY_ID,
     NAMED_QUERY_CAPABILITY_VERSION,
     select_named_playbook,
 )
-from ..manufacturing.playbooks import PlaybookSelection
+from app.planning_runtime.playbook_contracts import PlaybookSelection
 from .contracts import ExecutionPlan
 from .service import create_execution_plan
 

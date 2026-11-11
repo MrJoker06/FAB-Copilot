@@ -26,7 +26,7 @@ from app.memory_system.context.resolver import (  # noqa: E402
     unresolved_context,
 )
 from app.conversation.decision_arbiter import arbitrate_decision, recover_active_flow  # noqa: E402
-from app.manufacturing.playbooks import select_playbook  # noqa: E402
+from app.planning_runtime.playbooks import select_playbook  # noqa: E402
 from app.evidence.validator import EvidenceObservation, validate_evidence  # noqa: E402
 from app.intent_runtime.rules import INTENT_LABELS  # noqa: E402
 from app.intent_runtime.routing import route_question  # noqa: E402

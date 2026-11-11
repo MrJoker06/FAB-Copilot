@@ -14,7 +14,7 @@ from ...agent_runtime.tools.dispatch_contracts import (
     ToolInputError,
     ToolSourceTimeout,
 )
-from ...manufacturing.processes import MANUFACTURING_STEPS
+from app.core.manufacturing_terms import MANUFACTURING_STEPS
 
 TOOL_NAME = "get_capability_trend"
 TOOL_VERSION = "1.0.0"

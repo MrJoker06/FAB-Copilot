@@ -5,7 +5,7 @@ from __future__ import annotations
 from ..agent_runtime.tools.projection import model_function_view
 from ..agent_runtime.tools.tool_registry import DEFAULT_TOOL_REGISTRY
 from ..evidence.answer_synthesizer import SUBMIT_ANALYSIS_TOOL
-from ..manufacturing.processes import ANALYSIS_SCOPES, MANUFACTURING_STEPS
+from app.core.manufacturing_terms import ANALYSIS_SCOPES, MANUFACTURING_STEPS
 from .tool_definitions import BUSINESS_TOOL_DEFINITIONS
 
 

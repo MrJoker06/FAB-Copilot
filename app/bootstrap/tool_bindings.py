@@ -4,22 +4,20 @@ from __future__ import annotations
 
 from ..agent_runtime.tools.tool_registry import DEFAULT_TOOL_REGISTRY
 from ..knowledge.rag import search_agent_knowledge
-from ..manufacturing.enterprise_data import (
+from app.bootstrap.enterprise_data_assembly import (
     enterprise_data_manifest,
     enterprise_fab_summary,
     query_enterprise_data,
 )
-from ..manufacturing.reports import (
-    defect_pareto,
-    equipment_health,
-    equipment_productivity,
-    fab_overview,
-    process_capability,
-    process_pass_rate,
-    recent_excursions,
-    sensor_summary,
-    yield_trend,
-)
+from app.tools.operational_reports.reports import defect_pareto
+from app.tools.equipment_health.reports import equipment_health
+from app.tools.operational_reports.reports import equipment_productivity
+from app.tools.production_reports.reports import fab_overview
+from app.tools.process_diagnostics.reports import process_capability
+from app.tools.production_reports.reports import process_pass_rate
+from app.tools.operational_reports.reports import recent_excursions
+from app.tools.process_diagnostics.reports import sensor_summary
+from app.tools.production_reports.reports import yield_trend
 from . import tool_catalog
 
 if tool_catalog.TOOLS is not DEFAULT_TOOL_REGISTRY.model_tools:

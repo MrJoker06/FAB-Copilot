@@ -4,7 +4,7 @@ import hashlib
 import json
 from collections import Counter
 
-from ..manufacturing.playbooks import PlaybookSelection
+from app.planning_runtime.playbook_contracts import PlaybookSelection
 from ..intent_runtime.contracts import IntentRoute
 from .contracts import ExecutionPlan, PlanBudget
 from .queries import _resolved_inputs

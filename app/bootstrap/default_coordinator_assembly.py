@@ -6,7 +6,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING, Any, Mapping
 
 from ..core.identity import current_principal
-from ..manufacturing.named_playbooks import select_named_playbook
+from app.planning_runtime.named_playbooks import select_named_playbook
 from ..planning_runtime.named_planner import create_named_execution_plan
 from .legacy_agent_assembly import build_legacy_coordinator_dependencies
 from .storage_identity_assembly import install_default_storage_identity

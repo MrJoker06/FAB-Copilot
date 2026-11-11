@@ -44,7 +44,7 @@ import sqlite3
 import sys
 
 sys.path.insert(0, {str(ROOT)!r})
-blocked = ("app.core.settings", "app.bootstrap", "app.manufacturing", "app.persistence", "app.model_gateway", "app.evidence")
+blocked = ("app.core.settings", "app.bootstrap", "app.tools", "app.demo_data", "app.persistence", "app.model_gateway", "app.evidence")
 class Guard(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
         if fullname.startswith(blocked):

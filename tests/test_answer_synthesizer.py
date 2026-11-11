@@ -20,7 +20,7 @@ from app.evidence.answer_synthesizer import (
     synthesize_legacy_answer,
     synthesize_submission,
 )
-from app.manufacturing.playbooks import select_playbook
+from app.planning_runtime.playbooks import select_playbook
 from app.evidence.validator import EvidenceObservation, validate_evidence
 from app.intent_runtime.routing import route_question
 from app.planning_runtime.service import create_execution_plan
@@ -1495,17 +1495,3 @@ class AnswerSynthesizerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-

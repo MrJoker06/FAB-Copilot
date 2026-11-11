@@ -406,7 +406,7 @@ def main(argv: list[str] | None = None) -> int:
             [
                 sys.executable,
                 "-m",
-                "app.manufacturing.seed",
+                "app.demo_data.seed",
                 "--days",
                 str(args.seed_days),
             ],

@@ -14,7 +14,7 @@ from app.agent_runtime.tools.dispatch_contracts import (
     ToolInputError,
     ToolSourceTimeout,
 )
-from app.manufacturing.processes import MANUFACTURING_STEPS
+from app.core.manufacturing_terms import MANUFACTURING_STEPS
 
 
 class DiagnosticsInputError(ToolInputError):

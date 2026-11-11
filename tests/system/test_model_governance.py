@@ -26,7 +26,7 @@ from app.persistence.database import db_session
 from app.main import app
 from app.model_gateway.compatibility import ModelCompatibilityError
 from app.model_gateway.registry import MODEL_CAPABILITY_DEFAULTS
-from app.manufacturing.seed import seed_reference_data
+from app.demo_data.seed import seed_reference_data
 
 class ModelGovernanceSystemTests(unittest.TestCase):
     @classmethod

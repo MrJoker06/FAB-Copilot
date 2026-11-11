@@ -49,7 +49,7 @@ DATA-016 的版本化市场校准档案为 `public-2026-market-anchors-v1`：
 - [TSMC 2025 Annual Report](https://investor.tsmc.com/static/annualReports/2025/english/index.html) 的 2026 年 12 吋约当晶圆出货量 `16–17m`、产能 `17–18m`，仅作为高利用率边界参考。
 - [UMC 2025 Q2 results](https://www.umc.com/en/News/press_release/Content/investor/20250730) 的 `76%` 产能利用率与 `22/28nm` 营收占比 `40%`，用于成熟/特殊制程的量级参考；本样例的 28nm 批次目标约为 40%。
 
-生成数据会写入制造库的单例 `simulation_metadata`，分类固定为 `synthetic_non_production`。默认固定生成至 `2026-12-25`（可通过 `FAB_SIMULATION_END_DATE` 或 `python -m app.manufacturing.seed --end-date YYYY-MM-DD` 覆盖）；`2026-08-11` 至 `2026-12-25` 是已声明的预测合成段，不是实际 fab 记录。良率、周期时间、recipe、规格、传感器、异常根因和每日 76–86% productive utilization 的设备差异均是工程假设，不应被表述为公开市场数据或真实量产事实。
+生成数据会写入制造库的单例 `simulation_metadata`，分类固定为 `synthetic_non_production`。默认固定生成至 `2026-12-25`（可通过 `FAB_SIMULATION_END_DATE` 或 `python -m app.demo_data.seed --end-date YYYY-MM-DD` 覆盖）；`2026-08-11` 至 `2026-12-25` 是已声明的预测合成段，不是实际 fab 记录。良率、周期时间、recipe、规格、传感器、异常根因和每日 76–86% productive utilization 的设备差异均是工程假设，不应被表述为公开市场数据或真实量产事实。
 
 SQLite 连接、部门 Schema 与执行记录位于 `app/persistence/`；数据库文件位置、Journal、ATTACH/TEMP VIEW、FTS 与迁移行为不变。旧的根目录 Python 导入已退役。
 
@@ -223,7 +223,7 @@ conda run -n fab-insight-agent python -m pip install -r requirements.txt
 重新生成相同分布的历史数据：
 
 ```bash
-conda run -n fab-insight-agent python -m app.manufacturing.seed --force --end-date 2026-12-25
+conda run -n fab-insight-agent python -m app.demo_data.seed --force --end-date 2026-12-25
 ```
 
 安装测试依赖并运行快速质量门（非 `tests.system.*` Python、Node、静态 JS、RAG/OCR/Playbook 黄金集、Ready 性能基准与脱敏 Trace 回放）：
@@ -481,4 +481,4 @@ logs/           Agent JSONL 审计日志（不提交）
 
 制造业务读取沿 `Agent / Skill / Workflow → Tool Dispatcher → Tool Handler → Data Port → Adapter → 数据源` 接入。为对应业务 Port 实现调用 ASP.NET Core 报表 API 或其他已授权接口的 Adapter，在装配层显式替换来源；已有工具输入、结果和 Scope 契约保持一致时，可复用原 Handler 与 Ready/Loop。不要让模型生成 SQL、连接串或任意查询文本。业务数据库的受控 SQL 留在 Adapter 中；会话、Checkpoint 和知识管理等内部读写另经 Store/Repository Port。
 
-七类 Port、21 项工具的来源替换与离线演示见 [MOD-009 报告](docs/reports/mod-009-tool-sources.md)。`app/manufacturing/reports.py` 仍服务部分旧 API/Python 消费者，直接替换其函数不能代表所有原生工具已接入公司系统。实际接入需逐项确认字段、统计口径、标识映射、来源/Scope、认证、行级权限、审计、超时和接口限额；失败时不隐式改用模拟来源。来源接入与整体分块搬迁分别按 [MOD-025 / MOD-027 计划](docs/architecture-modularization-master-plan.md#p5模块交付与内网集成) 验收，真实公司接口尚未接入。
+七类 Port、21 项工具的来源替换与离线演示见 [MOD-009 报告](docs/reports/mod-009-tool-sources.md)。`app/api/report_service.py` 仍服务部分旧 API/Python 消费者，直接替换其函数不能代表所有原生工具已接入公司系统。实际接入需逐项确认字段、统计口径、标识映射、来源/Scope、认证、行级权限、审计、超时和接口限额；失败时不隐式改用模拟来源。来源接入与整体分块搬迁分别按 [MOD-025 / MOD-027 计划](docs/architecture-modularization-master-plan.md#p5模块交付与内网集成) 验收，真实公司接口尚未接入。

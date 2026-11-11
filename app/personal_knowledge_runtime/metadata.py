@@ -7,7 +7,7 @@ from typing import Iterable
 
 from pydantic import ValidationError
 
-from ..manufacturing.processes import MANUFACTURING_STEPS, PROCESS_ALIASES
+from app.core.manufacturing_terms import MANUFACTURING_STEPS, PROCESS_ALIASES
 from .contracts import ExtractedSection, PersonalDocumentMetadata, PersonalKnowledgeError
 
 

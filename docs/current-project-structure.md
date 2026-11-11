@@ -2,8 +2,7 @@
 
 快照日期：2026-11-10。当前应用源码合入 local-Qwen `5e2d3f4`，版本一致制品工具来自 `a4739e0`，已合入 local-Qwen 的证据/呈现、模型凭据和跨平台修正，跨平台本地模型启动器 DEPLOY-019 已完成。MOD-001～019 及 MOD-024 均已验证，本轮 MOD-024 在不修改应用源码的前提下建立版本一致的模块制品；状态和实际验收见 [交付报告](reports/mod-024-module-delivery.md)。MOD-020～023 的 Checkpoint/只读恢复与 MOD-025～028 的 Adapter/演示/内网集成仍待完成，保留的兼容 facade 与配置锚点归 MOD-027。Skill 加载与发布保持显式可选，默认 HTTP 未启用。历史失败及验证范围保留在对应报告；提交与远程状态以 Git 记录为准。
 
-本次实扫 `app/` 的受管源码为 **287 文件：259 个 Python、28 个静态文件**（MOD-015e 后为 282；合入 local-Qwen 后新增 `core/call_scope.py`、`core/model_credentials.py`、`core/tool_result_projection.py` 与 `evidence/evidence_truncation.py`；本轮 Thinking 配置另增 `core/local_model_config.py`。MOD-024 不增改应用源码）。数量与
-`evaluations/mod_003_boundaries_v1.json` 一致；测试、日志、缓存和运行期生成物不计入。
+本次 MOD-030d 迁移实扫 `app/` 为 **303 文件：275 个 Python、28 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 已归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录退出。目录退出与阶段验收分别记录，030e 尚未完成；测试、缓存、日志及运行产物不计入。
 
 ## 平台启动入口
 
@@ -95,7 +94,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 第六批 F1 的八条旧 Planner 固定 SQL 具名替代工具已验收。产品/设备查询声明实际
 日期与联合过滤，批次五工具保留全历史、日期 Scope 为空。F2a 新增显式版本化消费入口：
 `select_named_playbook(route)` → `create_named_execution_plan(question, route, selection)`，
-由六类 v2 Playbook 生成具名调用，再接现有原生绑定和 Ready/Loop；476 项必要回归和
+由七类 v2 Playbook 生成具名调用，再接现有原生绑定和 Ready/Loop；476 项必要回归和
 12 路独立功能核验通过，包含完整批次计划与日期型证据子计划，详见 MOD-008 报告。
 旧 `select_playbook` / `create_execution_plan` 保留 v1 显式历史入口。F2b 已将默认消费链
 接到 v2，并从默认清单和执行绑定移除 SQL 能力；功能、拒绝路径、完整质量门与独立性能
@@ -286,14 +285,18 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/planning_runtime/steps.py` | 业务/过渡 | 新旧版本共享的步骤、预算及证据元数据；具名批次不附加日期，旧 SQL 模板步骤待退役。 |
 | `app/planning_runtime/queries.py` | 业务/过渡 | 新工具结构化参数及来源构造；仍保留旧版本制造 SQL 模板。 |
 | `app/planning_runtime/scope.py` | 业务/过渡 | 具名工具参数的范围/语义映射，以及旧参数/SQL 兼容推导。 |
-| `app/manufacturing/__init__.py` | 包 | 制造领域包锚点。 |
-| `app/manufacturing/processes.py` | 纯 | 制程常量与分类。 |
-| `app/manufacturing/playbooks.py` | 业务 | DomainPlaybook、证据需求与固定业务规则。 |
-| `app/manufacturing/named_playbooks.py` | 纯/版本化业务 | 六类 v2 Playbook 和选择器；保留证据要求，仅把固定 SQL 能力替换为八项具名工具。 |
-| `app/manufacturing/reports.py` | 业务/存储 | 旧 SQLite 制造报告（`safe_select` 已于 MOD-030b 删除）。 |
-| `app/manufacturing/seed.py` | 存储 | 合成 FAB/部门库建模与种子数据。 |
+| `app/core/manufacturing_terms.py` | 纯 | 制程常量与分类。 |
+| `app/planning_runtime/playbooks.py` | 编排 | Playbook 选择、澄清与提示组装；结构和声明有独立所有者。 |
+| `app/planning_runtime/playbook_contracts.py` | 纯 | DomainPlaybook、EvidenceRequirement、引用和选择结果结构。 |
+| `app/planning_runtime/builtin_playbooks.py` | 业务声明 | 七套既有证据规则，保持原语义，后续策略职责由 MOD-031 评审。 |
+| `app/planning_runtime/named_playbooks.py` | 纯/版本化业务 | 七类 v2 Playbook 和选择器；保留证据要求，仅把固定 SQL 能力替换为八项具名工具。 |
+| `app/api/report_service.py` | 应用组合 | 看板组合调用已注册的固定报表 Tool 操作，无 SQL 或模型调用。 |
+| `app/core/report_dates.py` | 纯 | 既有报表日期默认值、范围和时间戳边界。 |
+| `app/demo_data/seed.py` | 存储 | 合成 FAB/部门库建模与种子数据。 |
 | `app/tools/enterprise_data/provider_contracts.py` | 纯 | EnterpriseDataProvider 和主体 Protocol。 |
-| `app/manufacturing/enterprise_data.py` | 业务/装配 | 合成企业 Provider、注册/选择与报告函数。 |
+| `app/bootstrap/enterprise_data_assembly.py` | 装配 | 显式 Provider 注册、选择及旧 Tool 的可信上下文绑定，无合成实现。 |
+| `app/demo_data/synthetic_fab.py` | 演示 | SyntheticFabProvider 与确定性模拟数据及游标实现。 |
+| `app/tools/enterprise_data/operations.py` | Tool 操作 | 显式 Provider/主体的目录、汇总和分页读取；HTTP 与旧 Tool 共享。 |
 | `app/tools/equipment_health/__init__.py` | 包 | 设备健康包锚点。 |
 | `app/tools/equipment_health/contracts.py` | 纯 | 设备健康输入、聚合、Port 与错误契约。 |
 | `app/tools/equipment_health/handler.py` | 纯 | 设备健康用例/范围归一化。 |
@@ -319,16 +322,18 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/tools/named_queries/contracts.py` | 纯 | 四类封闭输入、八种内部 Query、Snapshot/消费方 Port、完整列集和数值/时间契约；模型不能指定 SQL 或 kind。 |
 | `app/tools/named_queries/handler.py` | 纯 | 核对查询、来源及实际行范围，保留批次全历史、列表结果和原投影，不在核心聚合或构造 SQL。 |
 | `app/tools/named_queries/binding.py` | 纯 | 八个未注册 1.0.0 定义及固定 kind 绑定工厂；冻结 as_of、准备日期或批次 Scope。 |
-| `app/integrations/__init__.py` | 包 | 技术集成包锚点。 |
-| `app/integrations/manufacturing/__init__.py` | 包 | 制造 Adapter 包锚点。 |
 | `app/demo_data/tool_sources/equipment_health.py` | Adapter | 内存 FakeEquipmentHealthAdapter。 |
 | `app/tools/equipment_health/data_source.py` | Adapter | 两个显式只读 SQLite 源的设备健康 Adapter。 |
+| `app/tools/equipment_health/reports.py` | 固定 Tool 操作 | 从原报表拆出的已注册读取函数，保留 SQL、数据口径与错误语义；供程序直接调用。 |
 | `app/demo_data/tool_sources/process_diagnostics.py` | Adapter | 精确 DiagnosticsQuery 夹具、租户隔离与快照复制。 |
 | `app/tools/process_diagnostics/data_source.py` | Adapter | 两条固定参数化报表查询，按工具只开一个相关库，处理只读/期限/关闭及错误脱敏。 |
+| `app/tools/process_diagnostics/reports.py` | 固定 Tool 操作 | 从原报表拆出的已注册读取函数，保留 SQL、数据口径与错误语义；供程序直接调用。 |
 | `app/demo_data/tool_sources/production_reports.py` | Adapter | 精确生产查询夹具、租户核对与返回值复制，来源明确标记 FAKE。 |
 | `app/tools/production_reports/data_source.py` | Adapter | 三类固定参数化生产报表，只访问显式制造库；只读、超时、连接释放和公开错误脱敏。 |
+| `app/tools/production_reports/reports.py` | 固定 Tool 操作 | 从原报表拆出的已注册读取函数，保留 SQL、数据口径与错误语义；供程序直接调用。 |
 | `app/demo_data/tool_sources/operational_reports.py` | Adapter | 运行报表的精确 Query 夹具、租户核对和独立复制结果；无隐式来源回退。 |
 | `app/tools/operational_reports/data_source.py` | Adapter | 固定生产率/Pareto/异常 SQL；每次只开一个相关设备/质量/制造库，保持窗口分母、舍入和过滤口径。 |
+| `app/tools/operational_reports/reports.py` | 固定 Tool 操作 | 从原报表拆出的已注册读取函数，保留 SQL、数据口径与错误语义；供程序直接调用。 |
 | `app/demo_data/tool_sources/enterprise_data.py` | Adapter | 按完整企业 Query 返回深复制的精确夹具，核对租户并明确标记 FAKE。 |
 | `app/tools/enterprise_data/data_source.py` | Adapter | 固定调用注入的 EnterpriseDataProvider，核对来源头部、脱敏错误；不使用全局选择或故障回退。 |
 | `app/demo_data/tool_sources/named_queries.py` | Adapter | 精确 Query 的具名查询夹具、深复制及租户核对，无查询或来源回退。 |
@@ -346,7 +351,6 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/tools/knowledge_search/binding.py` | 纯 | 原生 search_knowledge 1.0.0；准备租户 Scope，空查询不咨询来源。 |
 | `app/knowledge/search_registry.py` | 装配/过渡 | 搜索/目录后端注册和选择；`sqlite` 后端由 Port 绑定的工厂创建。 |
 | `app/knowledge/sqlite_backend.py` | Adapter | 工厂知识/目录 SQLite 后端。 |
-| `app/integrations/knowledge/__init__.py` | 包 | 知识来源集成包锚点。 |
 | `app/demo_data/tool_sources/knowledge_search.py` | Adapter | 按完整查询/租户/用户读取深复制的精确候选夹具，来源明确为 FAKE。 |
 | `app/tools/knowledge_search/backend_search.py` | Adapter | 显式组合 FactorySearchBackend 与个人搜索 Port，核对 owner envelope、固定请求及错误/超时脱敏；无全局选择或故障回退。 |
 | `app/tools/knowledge_search/runtime_search.py` | Adapter/装配 | 默认知识工具的延迟来源组合；显式只读知识库会话及质量库别名查询，按可信身份读取个人知识，保留可替换工厂后端。 |
@@ -386,10 +390,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 复用既有 Playbook/Planner，并追加共享工具 `get_capability_trend` 步骤。`app/skills/frontmatter.py` 解析标准头部，
 `app/skills/standard.py` 检查只有 `SKILL.md` 的最小包。见 [MOD-018 报告](reports/mod-018-litho-cpk-skill.md) 与 [MOD-030b 报告](reports/mod-030b-litho-pilot.md)。
 
-`app/tools/` 存放跨 Skill 共享的业务 Tool。当前有 `capability_trend/`（`get_capability_trend`，按周设备级 Cpk 趋势）
-和已迁移的 `equipment_health/`（设备健康与可选汇总）、`process_diagnostics/`（Cpk 与传感器摘要）；
-三者的 Fake 来源归 `app/demo_data/tool_sources/`。趋势工具不在默认 21 项模型工具中；迁移不改变默认目录。
-其余能力组仍待 MOD-030c 后续批次迁移。
+`app/tools/` 包含 equipment_health、process_diagnostics、production_reports、operational_reports、named_queries、enterprise_data、knowledge_search 七组共享能力，以及独立的 capability_trend。默认仍为 21 项具名业务工具加 submit_analysis；趋势工具仅由显式 Skill/装配启用。Fake 来源统一在 `app/demo_data/tool_sources/`，生产 Tool 不反向依赖 Fake。
 
 `scripts/demo_skill_releases.py` 以 `evaluations/skills/release_lifecycle_v1/` 的两版中性夹具展示发布、禁用与回退；实际 Run、权限和版本固定验收见 [发布报告](reports/mod-019-skill-releases.md)。
 
@@ -490,41 +491,40 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 模型协议和可替换 Port；`conversation.sessions` 仍管理持久会话历史。知识库、案例和个人知识
 检索是检索数据，不是自动沉淀的长期 Agent Memory。
 
-MOD-016～018 已实现独立 Manifest、依赖校验、安全资源、显式 Catalog/Discovery/渐进 Loader，以及实际 skill_refs 的显式光刻业务试点；MOD-019 的进程内发布与完整声明资源固定已验收，跨进程交付不在本项范围；`manufacturing.playbooks` 是现有业务
-规则与证据计划，不能等同 Skill。`persistence.execution_store` 已保存运行记录，但尚未提供
+MOD-016～018 已实现独立 Manifest、依赖校验、安全资源、显式 Catalog/Discovery/渐进 Loader，以及实际 skill_refs 的显式光刻业务试点；MOD-019 的进程内发布与完整声明资源固定已验收；MOD-030 将既有 Playbook 的结构、原样业务声明和选择分别放在 planning_runtime 的对应模块，证据策略语义调整留给 MOD-031。`persistence.execution_store` 已保存运行记录，但尚未提供
 可安全重放的 Checkpoint/恢复协议。长期记忆仍是 OPTIONAL，未启用；因此不存在已完成的
 语义/情景/程序三层长期记忆实现。
 
 ## 5. 当前耦合与迁移事实
 
-边界清单记录 **11 条精确依赖债务、26 个 DB 调用候选文件、7 个兼容入口、94 个静态消费者**（MOD-015e 后；015a 退出 5 个 coordinator 转发模块与 `conversation/context_resolver.py`，015d 用存储/身份 Port 移除 15 条债务，015e 用只读 Protocol 移除 3 条，并把其余 MOD-015 台账项改挂 MOD-027）。
+当前边界清单记录 **9 条精确依赖债务、30 个 DB 调用候选文件、7 个兼容入口、94 个静态消费者**。MOD-015e 时为 11/26；030b 新增趋势来源，030d 将一个报表来源拆为四个，同时按新所有者收口旧债务。保留兼容项仍由其真实后续任务处理。
 兼容消费者扫描只覆盖 app/scripts/tests 内的静态 import、字面动态 import 与常见 mock patch；
 外部调用方和计算出的动态引用仍需人工审查。
 
-11 条债务的实际来源可归纳为：
+9 条债务的实际来源可归纳为：
 
-- `app/agent_runtime/compatibility.py` 仍直接装配 manufacturing、legacy 与 default bootstrap（4 条，MOD-027；MOD-015 收尾时保留，`run_agent` 的 live patch 命名空间是公开兼容契约）。
+- `app/agent_runtime/compatibility.py` 仍直接装配两个 Tool 报表操作及 legacy/default bootstrap（4 条，MOD-027；`run_agent` 的 live patch 命名空间保留）。
 - `app/agent_runtime/tools/catalog.py` 与 `registry.py` 仍反向看 bootstrap（2 条，MOD-027；保留 `service.TOOLS`/`TOOL_HANDLERS` 对象身份）。
-- `app/manufacturing/enterprise_data.py` 接身份、`reports.py` 接 SQLite（2 条，MOD-008；过渡期旧 facade，随旧路径退出处理）。
+- MOD-030d 将 Provider 选择归 bootstrap、固定报表 SQL 归 Tool；相应两条旧依赖债务退出。兼容门面保留的报表依赖拆为两个实际 Tool 目标，仍归 MOD-027。
 - `app/model_gateway/compatibility.py` 仍接 `memory_system.context.history/protocol`（2 条，MOD-025；去掉需改公开探针或移动协议逻辑）。
 - `app/persistence/execution_store.py` 仍接身份（1 条，MOD-021；REF-027 例外保留公开身份锚点）。
 
 会话、rag/search_registry、模型 health/registry、个人知识 service 和 runtime_status 已改为依赖 `core/storage_identity_ports.py`，
 默认实现由 `bootstrap/storage_identity_assembly.py` 在 `app.main` 与 `agent_runtime.service` 的装配路径安装；不经过这两条路径的直接 Python 消费者需先调用 `install_default_storage_identity()`。
 
-26 个 DB 候选是 `api/application.py`、`api/routers/admin.py`、`api/routers/system.py`、
-`api/runtime_dependencies.py`、`bootstrap/storage_identity_assembly.py`、`conversation/sessions.py`、`core/sqlite_support.py`、设备健康/过程诊断/生产报表/运行报表/具名查询五个 SQLite Adapter、知识 SQLite 后端、默认知识运行时的显式知识库/质量库只读来源、
-`main.py`、`manufacturing/reports.py`、`manufacturing/seed.py`、模型 health/registry、
+30 个 DB 候选是 `api/application.py`、`api/routers/admin.py`、`api/routers/system.py`、
+`api/runtime_dependencies.py`、`bootstrap/storage_identity_assembly.py`、`conversation/sessions.py`、`core/sqlite_support.py`、设备健康/过程诊断/生产报表/运行报表/具名查询/趋势六个 SQLite 来源、知识 SQLite 后端、默认知识运行时的显式知识库/质量库只读来源、
+`main.py`、四组 Tool 的 `reports.py`、`demo_data/seed.py`、模型 health/registry、
 `persistence/database.py`、`persistence/execution_store.py`、个人知识的 documents/ingestion/jobs/search，
 以及 `telemetry/runtime_status.py`。它们并不都是公司业务数据库：其中很多是应用自有会话、
 索引、审计或合成 FAB 数据。
 
 F2b 从默认清单、提示和 Dispatcher 移除旧 SQL 能力，但历史代码仍保留：
 `planning_runtime/queries.py` 的旧模板、`steps.py` 的 v1 步骤、
-`scope.py` / `evidence.semantics.py` 的兼容语义；`manufacturing.reports.safe_select(sql)` 已在 MOD-030b 删除。
+`scope.py` / `evidence.semantics.py` 的兼容语义；任意 SQL 的 `safe_select(sql)` 已在 MOD-030b 删除。
 只有显式历史回放与内部 Python 消费者可以使用这些保留入口，不能据此恢复默认模型执行。
 默认业务读取已改走具名原生工具；API 报表、应用自有存储和历史 facade 的残余依赖
-仍须在 MOD-012/015 中逐项验证，不能声称整个项目的数据库访问已全部解耦。
+按 MOD-027 等后续实际消费者继续处理，不能声称整个项目的数据库访问已全部解耦。
 
 ## 6. 可搬迁范围与尚不可独立搬迁部分
 

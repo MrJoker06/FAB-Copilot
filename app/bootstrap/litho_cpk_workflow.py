@@ -8,11 +8,11 @@ from dataclasses import dataclass, replace
 from ..evidence.skill_policy import validate_skill_evidence
 from ..evidence.validator import EvidenceValidation
 from ..intent_runtime.contracts import IntentRoute
-from ..manufacturing.named_playbooks import (
+from app.planning_runtime.named_playbooks import (
     NAMED_PLAYBOOK_VERSION,
     select_named_playbook,
 )
-from ..manufacturing.playbooks import PlaybookSelection
+from app.planning_runtime.playbook_contracts import PlaybookSelection
 from ..planning_runtime.contracts import ExecutionPlan, PlanStep
 from ..planning_runtime.named_planner import create_named_execution_plan
 

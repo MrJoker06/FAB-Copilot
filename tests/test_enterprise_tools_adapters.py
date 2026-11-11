@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.demo_data.synthetic_fab import SyntheticFabProvider
+
 import unittest
 from copy import deepcopy
 from datetime import date
@@ -14,7 +16,7 @@ from app.demo_data.tool_sources.enterprise_data import (
 from app.tools.enterprise_data.data_source import (
     ProviderEnterpriseToolsAdapter,
 )
-from app.manufacturing import enterprise_data
+import app.bootstrap.enterprise_data_assembly as enterprise_data
 from app.tools.enterprise_data.contracts import (
     EnterpriseDataError,
     EnterpriseManifestInput,
@@ -260,10 +262,10 @@ class EnterpriseToolsAdapterTests(unittest.TestCase):
             enterprise_mock_cursor_secret="test-cursor-secret",
         )
         with (
-            patch.object(enterprise_data, "get_settings", return_value=settings),
-            patch.object(enterprise_data, "date", FixedDate),
+            patch("app.demo_data.synthetic_fab.get_settings", return_value=settings),
+            patch("app.demo_data.synthetic_fab.date", FixedDate),
         ):
-            provider = enterprise_data.SyntheticFabProvider()
+            provider = SyntheticFabProvider()
             adapter = ProviderEnterpriseToolsAdapter(
                 provider,
                 demo_tenant_id="demo-tenant",

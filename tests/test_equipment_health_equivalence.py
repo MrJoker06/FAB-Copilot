@@ -18,7 +18,10 @@ from app.demo_data.tool_sources.equipment_health import (
 from app.tools.equipment_health.data_source import (
     SQLiteEquipmentHealthAdapter,
 )
-from app.manufacturing import reports
+import app.persistence.database as _report_app_persistence_database
+import app.core.report_dates as _report_app_core_report_dates
+import app.tools.equipment_health.reports as _report_app_tools_equipment_health_reports
+
 from app.tools.equipment_health.binding import (
     EQUIPMENT_HEALTH_DEFINITION,
     create_equipment_health_binding,
@@ -190,10 +193,10 @@ class EquipmentHealthEquivalenceTests(unittest.TestCase):
             with self.subTest(arguments=arguments):
                 _, result = self.new(arguments)
                 with (
-                    patch.object(reports, "db_session", self.legacy_session),
-                    patch.object(reports, "date", FrozenDate),
+                    patch.object(_report_app_persistence_database, "db_session", self.legacy_session),
+                    patch.object(_report_app_core_report_dates, "date", FrozenDate),
                 ):
-                    old = reports.equipment_health(
+                    old = _report_app_tools_equipment_health_reports.equipment_health(
                         arguments.get("start"),
                         arguments.get("end"),
                         arguments.get("process_step"),

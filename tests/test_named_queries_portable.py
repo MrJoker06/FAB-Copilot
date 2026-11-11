@@ -44,7 +44,7 @@ class NamedQueriesPortableTests(unittest.TestCase):
             + LOOP_FILES
             + FILES
         )
-        self.assertEqual((len(files), len(set(files))), (69, 69))
+        self.assertEqual((len(files), len(set(files))), (66, 66))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:
@@ -60,7 +60,7 @@ sys.path.insert(0,str(unit)); events=[]
 # Create the Windows event loop before the audit hook; its loopback
 # socketpair is local IPC, not application network access.
 _loop=asyncio.new_event_loop(); asyncio.set_event_loop(_loop); asyncio.run=_loop.run_until_complete
-blocked=('app.agent_runtime.service','app.agent_runtime.compatibility','app.agent_runtime.execution.agent_loop','app.agent_runtime.execution.loop_answer','app.agent_runtime.execution.loop_model_call','app.agent_runtime.execution.loop_request','app.agent_runtime.execution.loop_round_validation','app.agent_runtime.execution.loop_state','app.agent_runtime.execution.loop_tool_round','app.agent_runtime.tools.catalog','app.agent_runtime.tools.registry','app.core.settings','app.core.identity','app.persistence','app.model_gateway','app.evidence','app.manufacturing.reports','app.planning_runtime.queries')
+blocked=('app.agent_runtime.service','app.agent_runtime.compatibility','app.agent_runtime.execution.agent_loop','app.agent_runtime.execution.loop_answer','app.agent_runtime.execution.loop_model_call','app.agent_runtime.execution.loop_request','app.agent_runtime.execution.loop_round_validation','app.agent_runtime.execution.loop_state','app.agent_runtime.execution.loop_tool_round','app.agent_runtime.tools.catalog','app.agent_runtime.tools.registry','app.core.settings','app.core.identity','app.persistence','app.model_gateway','app.evidence','app.api','app.planning_runtime.queries')
 class Finder(importlib.abc.MetaPathFinder):
  def find_spec(self,fullname,path=None,target=None):
   if any(fullname==item or fullname.startswith(item+'.') for item in blocked):events.append(('import',fullname));raise AssertionError(fullname)
@@ -81,7 +81,7 @@ sys.meta_path.insert(0,Finder());os.environ=Env();os.getenv=lambda key,default=N
 def audit(event,args):
  if event in {'sqlite3.connect','socket.connect','socket.getaddrinfo','socket.gethostbyname'}:events.append((event,args));raise AssertionError(event)
 sys.addaudithook(audit)
-for op in (lambda:importlib.import_module('app.manufacturing.reports'),lambda:os.environ.get('FAB_DATABASE_PATH'),lambda:iter(os.environ),lambda:os.environ.keys(),lambda:os.environ.items(),lambda:os.environ.values(),lambda:os.environ.copy(),lambda:('X' in os.environ),lambda:socket.socket().connect(('127.0.0.1',9)),lambda:socket.getaddrinfo('example.invalid',443),lambda:sqlite3.connect(':memory:')):
+for op in (lambda:importlib.import_module('app.api'),lambda:os.environ.get('FAB_DATABASE_PATH'),lambda:iter(os.environ),lambda:os.environ.keys(),lambda:os.environ.items(),lambda:os.environ.values(),lambda:os.environ.copy(),lambda:('X' in os.environ),lambda:socket.socket().connect(('127.0.0.1',9)),lambda:socket.getaddrinfo('example.invalid',443),lambda:sqlite3.connect(':memory:')):
  try:op()
  except AssertionError:pass
  else:raise AssertionError('negative guard control failed')

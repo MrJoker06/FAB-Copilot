@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.agent_runtime import service as agent_module
-from app.manufacturing.playbooks import select_playbook
+from app.planning_runtime.playbooks import select_playbook
 from app.intent_runtime.routing import route_question
 from app.agent_runtime.execution.loop_guard import ToolLoopGuard
 from app.planning_runtime.service import create_execution_plan
@@ -167,7 +167,7 @@ class ToolLoopGuardTests(unittest.TestCase):
             patch("app.agent_runtime.service.get_settings", return_value=settings),
             patch("app.agent_runtime.service._stream_completion", new=fake_stream),
             patch.dict(agent_module.TOOL_HANDLERS, {"get_process_capability": fake_handler}),
-            patch.dict("app.manufacturing.named_playbooks.NAMED_DOMAIN_PLAYBOOKS", {}, clear=True),
+            patch.dict("app.planning_runtime.named_playbooks.NAMED_DOMAIN_PLAYBOOKS", {}, clear=True),
         ):
             result = asyncio.run(
                 agent_module._run_agent_impl(
@@ -195,6 +195,3 @@ class ToolLoopGuardTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-

@@ -8,9 +8,9 @@ import random
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
-from ..core.settings import PROJECT_DIR
-from ..persistence.database import db_session, department_paths, ensure_department_databases, initialize, writable_table
-from .processes import MANUFACTURING_STEPS
+from app.core.settings import PROJECT_DIR
+from app.persistence.database import db_session, department_paths, ensure_department_databases, initialize, writable_table
+from app.core.manufacturing_terms import MANUFACTURING_STEPS
 
 
 DEFAULT_SIMULATION_END_DATE = "2026-12-25"

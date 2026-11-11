@@ -4,7 +4,7 @@ from typing import Any
 
 from ..core.call_scope import call_scope
 from ..intent_runtime.contracts import IntentRoute
-from ..manufacturing.processes import PROCESS_ALIASES
+from app.core.manufacturing_terms import PROCESS_ALIASES
 from .contracts import AnalysisScopeContract, ScopeRole
 
 # Backwards-compatible private alias for internal planner callers.
@@ -96,4 +96,3 @@ def _scope_role(actual: dict[str, tuple[str, ...]], target: dict[str, tuple[str,
     if not any(target.values()):
         return "primary"
     return "primary" if actual == target else "context_only"
-

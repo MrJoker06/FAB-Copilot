@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from app.telemetry.audit import sanitize
 from app.core.settings import APP_VERSION
 from app.main import app
-from app.manufacturing.seed import seed_reference_data
+from app.demo_data.seed import seed_reference_data
 
 class HttpContractsSystemTests(unittest.TestCase):
     @classmethod

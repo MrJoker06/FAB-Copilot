@@ -6,7 +6,7 @@ from app.evidence.semantics import (
     EvidenceDescriptor, EvidenceScope, ScopeRelation, descriptor_for_tool,
     compatible_for_composite_inference, scope_relation, supports_claim,
 )
-from app.manufacturing.processes import MANUFACTURING_STEPS
+from app.core.manufacturing_terms import MANUFACTURING_STEPS
 
 
 class EvidenceSemanticsTests(unittest.TestCase):

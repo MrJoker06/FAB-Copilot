@@ -5,12 +5,12 @@ from dataclasses import replace
 from datetime import date
 
 from app.intent_runtime.routing import route_question
-from app.manufacturing.named_playbooks import (
+from app.planning_runtime.named_playbooks import (
     NAMED_DOMAIN_PLAYBOOKS,
     NAMED_PLAYBOOK_VERSION,
     select_named_playbook,
 )
-from app.manufacturing.playbooks import select_playbook
+from app.planning_runtime.playbooks import select_playbook
 from app.planning_runtime.named_planner import (
     NamedPlannerError,
     create_named_execution_plan,

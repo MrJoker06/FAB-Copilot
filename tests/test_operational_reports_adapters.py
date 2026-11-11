@@ -16,7 +16,9 @@ from app.demo_data.tool_sources.operational_reports import (
 from app.tools.operational_reports.data_source import (
     SQLiteOperationalReportsAdapter,
 )
-from app.manufacturing import reports
+import app.persistence.database as _report_app_persistence_database
+import app.tools.operational_reports.reports as _report_app_tools_operational_reports_reports
+
 from app.tools.operational_reports.contracts import (
     OperationalReportDataError,
     OperationalReportQuery,
@@ -261,7 +263,7 @@ class OperationalReportsAdapterTests(unittest.TestCase):
             connection.close()
 
     def _legacy(self, path: Path, callback):
-        with patch.object(reports, "db_session", lambda: self._legacy_session(path)):
+        with patch.object(_report_app_persistence_database, "db_session", lambda: self._legacy_session(path)):
             return callback()
 
     def test_all_three_exactly_match_legacy_fixed_queries(self) -> None:
@@ -271,7 +273,7 @@ class OperationalReportsAdapterTests(unittest.TestCase):
                     "productivity", date(2026, 1, 1), date(2026, 1, 3), "CMP"
                 ),
                 self.equipment,
-                lambda: reports.equipment_productivity(
+                lambda: _report_app_tools_operational_reports_reports.equipment_productivity(
                     "2026-01-01", "2026-01-03", "CMP"
                 ),
             ),
@@ -280,7 +282,7 @@ class OperationalReportsAdapterTests(unittest.TestCase):
                     "defects", date(2026, 1, 1), date(2026, 1, 3), limit=1
                 ),
                 self.quality,
-                lambda: reports.defect_pareto("2026-01-01", "2026-01-03", 1),
+                lambda: _report_app_tools_operational_reports_reports.defect_pareto("2026-01-01", "2026-01-03", 1),
             ),
             (
                 OperationalReportQuery(
@@ -292,7 +294,7 @@ class OperationalReportsAdapterTests(unittest.TestCase):
                     20,
                 ),
                 self.manufacturing,
-                lambda: reports.recent_excursions(
+                lambda: _report_app_tools_operational_reports_reports.recent_excursions(
                     "2026-01-01", "2026-01-03", 20, "CMP", "CMP-01"
                 ),
             ),

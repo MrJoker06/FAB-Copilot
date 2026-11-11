@@ -14,7 +14,7 @@ from app.agent_runtime.tools.executor import (
     parse_tool_arguments,
 )
 from app.intent_runtime.routing import route_question
-from app.manufacturing.playbooks import select_playbook
+from app.planning_runtime.playbooks import select_playbook
 from app.planning_runtime.service import create_execution_plan
 
 

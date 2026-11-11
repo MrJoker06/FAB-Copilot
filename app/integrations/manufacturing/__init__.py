@@ -1,1 +1,0 @@
-"""Manufacturing integration adapters."""

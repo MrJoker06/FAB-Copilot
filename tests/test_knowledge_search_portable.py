@@ -26,7 +26,6 @@ KNOWLEDGE_FILES = (
     "app/tools/knowledge_search/contracts.py",
     "app/tools/knowledge_search/handler.py",
     "app/tools/knowledge_search/binding.py",
-    "app/integrations/knowledge/__init__.py",
     "app/demo_data/tool_sources/knowledge_search.py",
     "app/tools/knowledge_search/backend_search.py",
     "app/bootstrap/knowledge_search_demo.py",
@@ -55,7 +54,7 @@ class KnowledgeSearchPortableTests(unittest.TestCase):
             + KNOWLEDGE_FILES
             + KNOWLEDGE_SUPPORT
         )
-        self.assertEqual((len(files), len(set(files))), (75, 75))
+        self.assertEqual((len(files), len(set(files))), (71, 71))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

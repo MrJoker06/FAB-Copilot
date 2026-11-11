@@ -386,7 +386,9 @@ class EquipmentHealthToolTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
 
     def test_new_sqlite_matches_legacy_reports_for_equipment_scope(self):
-        from app.manufacturing import reports
+        import app.persistence.database as _report_app_persistence_database
+        import app.tools.equipment_health.reports as _report_app_tools_equipment_health_reports
+
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -429,8 +431,8 @@ class EquipmentHealthToolTests(unittest.TestCase):
                 self.binding(port),
                 {"start": "2026-10-01", "end": "2026-10-24", "equipment_id": "CMP-01"},
             ).data
-            with patch.object(reports, "db_session", session):
-                old = reports.equipment_health(
+            with patch.object(_report_app_persistence_database, "db_session", session):
+                old = _report_app_tools_equipment_health_reports.equipment_health(
                     "2026-10-01", "2026-10-24", equipment_id="CMP-01"
                 )
             self.assertEqual(new, old)

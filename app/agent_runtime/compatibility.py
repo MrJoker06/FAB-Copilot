@@ -102,11 +102,9 @@ from ..memory_system.context.resolver import (
     unresolved_context,
 )
 from ..conversation.decision_arbiter import arbitrate_decision, recover_active_flow
-from ..manufacturing.playbooks import (
-    PlaybookSelection,
-    playbook_system_message,  # noqa: F401 - legacy dynamic export
-    select_playbook,
-)
+from app.planning_runtime.playbook_contracts import PlaybookSelection
+from app.planning_runtime.playbooks import playbook_system_message as playbook_system_message
+from app.planning_runtime.playbooks import select_playbook
 from ..evidence.validator import (
     EvidenceObservation,
     validate_evidence,
@@ -146,8 +144,9 @@ from ..bootstrap.legacy_agent_assembly import (
 from ..bootstrap.default_coordinator_assembly import build_default_coordinator_dependencies
 from ..planning_runtime.contracts import ExecutionPlan, PlanStep
 from ..planning_runtime.service import create_execution_plan, planner_system_message  # noqa: F401 - legacy dynamic export
-from ..manufacturing.processes import MANUFACTURING_STEPS
-from ..manufacturing.reports import equipment_health, fab_overview
+from app.core.manufacturing_terms import MANUFACTURING_STEPS as MANUFACTURING_STEPS
+from app.tools.equipment_health.reports import equipment_health
+from app.tools.production_reports.reports import fab_overview
 from ..conversation.turn_decision import TurnDecision, build_turn_decision
 
 LEGACY_SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。你的职责是基于工具返回的真实数据回答问题。

@@ -33,7 +33,7 @@ class ToolRegistryPortableTests(unittest.TestCase):
 from datetime import date
 from pathlib import Path
 unit = Path(sys.argv[1]).resolve(); sys.path.insert(0, str(unit))
-blocked = {'app.bootstrap','app.core.settings','app.manufacturing.reports','app.knowledge.rag','app.agent_runtime.tools.catalog','app.agent_runtime.tools.registry'}
+blocked = {'app.bootstrap','app.core.settings','app.api','app.knowledge.rag','app.agent_runtime.tools.catalog','app.agent_runtime.tools.registry'}
 old = builtins.__import__
 def guarded(name, *args, **kwargs):
     if any(name == item or name.startswith(item + '.') for item in blocked): raise AssertionError(name)

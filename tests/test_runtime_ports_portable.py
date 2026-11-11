@@ -45,7 +45,7 @@ blocked = (
     'app.core.settings', 'app.agent_runtime.tools.catalog',
     'app.agent_runtime.tools.registry', 'app.bootstrap',
     'app.model_gateway', 'app.evidence', 'app.persistence',
-    'app.manufacturing.reports',
+    'app.api',
 )
 guard_events = []
 class BlockedFinder(importlib.abc.MetaPathFinder):
@@ -79,7 +79,7 @@ loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 sys.addaudithook(audit)
 for operation in (
-    lambda: importlib.import_module('app.manufacturing.reports'),
+    lambda: importlib.import_module('app.api'),
     lambda: os.environ.get('FAB_DATABASE_PATH'),
     lambda: socket.socket().connect(('127.0.0.1', 9)),
     lambda: socket.getaddrinfo('example.invalid', 443),

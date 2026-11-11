@@ -35,7 +35,7 @@ from .metadata import (
     _normalise_tags,
     parse_metadata,
 )
-from ..manufacturing.processes import process_query_terms
+from app.core.manufacturing_terms import process_query_terms
 
 PARSER_VERSION = "personal-v2-ocr"
 SUPPORTED_SUFFIXES = _storage.SUPPORTED_SUFFIXES

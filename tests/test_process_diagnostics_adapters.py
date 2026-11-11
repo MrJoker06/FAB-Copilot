@@ -17,7 +17,9 @@ from app.demo_data.tool_sources.process_diagnostics import (
 from app.tools.process_diagnostics.data_source import (
     SQLiteProcessDiagnosticsAdapter,
 )
-from app.manufacturing import reports
+import app.persistence.database as _report_app_persistence_database
+import app.tools.process_diagnostics.reports as _report_app_tools_process_diagnostics_reports
+
 from app.tools.process_diagnostics.contracts import (
     DiagnosticsDataError,
     DiagnosticsQuery,
@@ -110,9 +112,9 @@ class ProcessDiagnosticsAdapterTests(unittest.TestCase):
             self.manufacturing, self.equipment, demo_tenant_id="demo"
         )
         with patch.object(
-            reports, "db_session", lambda: self._old_session(self.manufacturing)
+            _report_app_persistence_database, "db_session", lambda: self._old_session(self.manufacturing)
         ):
-            expected = reports.process_capability("2026-10-01", "2026-10-24", "CMP")
+            expected = _report_app_tools_process_diagnostics_reports.process_capability("2026-10-01", "2026-10-24", "CMP")
         actual = list(adapter.fetch(self.capability, self.principal).rows)
         self.assertEqual(actual, expected)
         self.assertEqual(
@@ -128,9 +130,9 @@ class ProcessDiagnosticsAdapterTests(unittest.TestCase):
             self.manufacturing, self.equipment, demo_tenant_id="demo"
         )
         with patch.object(
-            reports, "db_session", lambda: self._old_session(self.equipment)
+            _report_app_persistence_database, "db_session", lambda: self._old_session(self.equipment)
         ):
-            expected = reports.sensor_summary("2026-10-01", "2026-10-24", "CMP")
+            expected = _report_app_tools_process_diagnostics_reports.sensor_summary("2026-10-01", "2026-10-24", "CMP")
         actual = list(adapter.fetch(self.sensors, self.principal).rows)
         self.assertEqual(actual, expected)
         filtered = DiagnosticsQuery(

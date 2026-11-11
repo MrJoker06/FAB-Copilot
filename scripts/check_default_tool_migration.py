@@ -26,7 +26,7 @@ from app.bootstrap.tool_definitions import (
     DEFAULT_CAPABILITY_VERSION,
 )
 from app.intent_runtime.routing import route_question
-from app.manufacturing.named_playbooks import (
+from app.planning_runtime.named_playbooks import (
     _TOOL_REPLACEMENTS,
     NAMED_PLAYBOOK_VERSION,
     NAMED_QUERY_CAPABILITY_VERSION,

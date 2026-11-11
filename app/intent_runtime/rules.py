@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from ..manufacturing.processes import MANUFACTURING_STEPS
+from app.core.manufacturing_terms import MANUFACTURING_STEPS
 from .contracts import RiskLevel
 
 INTENT_LABELS: dict[str, str] = {

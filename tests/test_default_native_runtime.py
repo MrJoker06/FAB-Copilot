@@ -207,7 +207,7 @@ class DefaultNativeRuntimeTests(unittest.TestCase):
                     service.TOOL_HANDLERS, {"query_manufacturing_data": sql_spy}
                 ),
                 patch.dict(
-                    "app.manufacturing.named_playbooks.NAMED_DOMAIN_PLAYBOOKS", {}, clear=True
+                    "app.planning_runtime.named_playbooks.NAMED_DOMAIN_PLAYBOOKS", {}, clear=True
                 ),
             ):
                 result = asyncio.run(
@@ -268,7 +268,7 @@ class DefaultNativeRuntimeTests(unittest.TestCase):
                     return_value={"status": "healthy"},
                 ),
                 patch.dict(
-                    "app.manufacturing.named_playbooks.NAMED_DOMAIN_PLAYBOOKS", {}, clear=True
+                    "app.planning_runtime.named_playbooks.NAMED_DOMAIN_PLAYBOOKS", {}, clear=True
                 ),
             ):
                 result = asyncio.run(

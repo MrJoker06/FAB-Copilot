@@ -22,7 +22,8 @@ if TYPE_CHECKING:
     from ..evidence.validator import EvidenceObservation, EvidenceValidation
     from ..intent_runtime.contracts import IntentRoute
     from ..knowledge.decision import RetrievalDecision
-    from ..manufacturing.playbooks import DomainPlaybook, PlaybookSelection
+    from app.planning_runtime.playbook_contracts import DomainPlaybook
+    from app.planning_runtime.playbook_contracts import PlaybookSelection
     from ..memory_system.contracts import ContextResolution
     from ..model_gateway.gateway import ModelSessionPort
     from ..planning_runtime.contracts import ExecutionPlan

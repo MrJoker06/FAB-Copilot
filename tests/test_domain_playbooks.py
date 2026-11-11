@@ -7,8 +7,10 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.agent_runtime import service as agent_module
-from app.manufacturing.playbooks import DOMAIN_PLAYBOOKS, playbook_system_message, select_playbook
-from app.manufacturing.named_playbooks import NAMED_DOMAIN_PLAYBOOKS, select_named_playbook
+from app.planning_runtime.builtin_playbooks import DOMAIN_PLAYBOOKS
+from app.planning_runtime.playbooks import playbook_system_message
+from app.planning_runtime.playbooks import select_playbook
+from app.planning_runtime.named_playbooks import NAMED_DOMAIN_PLAYBOOKS, select_named_playbook
 from app.planning_runtime.named_planner import create_named_execution_plan
 from app.intent_runtime.routing import route_question
 
@@ -168,5 +170,3 @@ class DomainPlaybookTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
