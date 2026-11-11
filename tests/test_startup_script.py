@@ -35,7 +35,7 @@ class StartupScriptTests(unittest.TestCase):
         subprocess.run(["git", *args], cwd=self.repo, check=True)
 
     def _write_fixture(self) -> None:
-        seed = self.repo / "app" / "manufacturing" / "seed.py"
+        seed = self.repo / "app" / "demo_data" / "seed.py"
         seed.parent.mkdir(parents=True)
         (self.repo / "app" / "__init__.py").write_text("", encoding="utf-8")
         (seed.parent / "__init__.py").write_text("", encoding="utf-8")
@@ -98,7 +98,7 @@ class StartupScriptTests(unittest.TestCase):
     def test_snapshot_excludes_uncommitted_changes_and_worktree_includes_them(
         self,
     ) -> None:
-        seed = self.repo / "app" / "manufacturing" / "seed.py"
+        seed = self.repo / "app" / "demo_data" / "seed.py"
         seed.write_text(
             seed.read_text(encoding="utf-8").replace("'seed'", "'dirty'"),
             encoding="utf-8",
@@ -156,7 +156,7 @@ class StartupScriptTests(unittest.TestCase):
         (export / "user.xlsx").write_text("no", encoding="utf-8")
         copied = self.root / "copied"
         run._copy_export(export, copied)
-        self.assertTrue((copied / "app" / "manufacturing" / "seed.py").is_file())
+        self.assertTrue((copied / "app" / "demo_data" / "seed.py").is_file())
         self.assertFalse((copied / "data").exists())
         self.assertFalse((copied / "user.xlsx").exists())
 

@@ -2,7 +2,7 @@
 
 本表记录已获用户授权的架构解耦与分块迁移工作。它不是产品分类 TODO，不改变既有任务统计，也不自动激活企业级真实数据、生产 ACL、SSO 或部署任务。
 
-上一轮已完成的实施顺序（2026-11-02 用户确认，2026-11-07 全部验证）：**MOD-016 → MOD-017 → MOD-018 → MOD-019 → MOD-009 → MOD-012 → MOD-015**。MOD-016～019、MOD-009 及 MOD-012 已验证（009：2026-11-06；012：2026-11-07）；MOD-015 分 a～e 五批，015d 原验收统计存在一处计数待核实项，详见 [Runtime 收口报告](../reports/mod-015-runtime-convergence.md)。保留的兼容 facade 与配置锚点改由 MOD-027 处理。MOD-024 于 2026-11-10 完成首批组合制品验收；当前优先讨论 MOD-030（合并 Issue #1 第 3/4/6 条：Skill 业务包与 Tool 通用标准）；第 8 条 Validator 独立评审后再重审 MOD-029，卸载方案暂缓。当前共 10 项未完成：MOD-020～023、MOD-025～030。本轮已获用户授权实施 c～e，仅本地提交、不推送；具体依赖与状态见下表；P0～P5 保留职责分类，任务编号不表示施工时间顺序。
+上一轮已完成的实施顺序（2026-11-02 用户确认，2026-11-07 全部验证）：**MOD-016 → MOD-017 → MOD-018 → MOD-019 → MOD-009 → MOD-012 → MOD-015**。MOD-016～019、MOD-009 及 MOD-012 已验证（009：2026-11-06；012：2026-11-07）；MOD-015 分 a～e 五批，015d 原验收统计存在一处计数待核实项，详见 [Runtime 收口报告](../reports/mod-015-runtime-convergence.md)。保留的兼容 facade 与配置锚点改由 MOD-027 处理。MOD-024 于 2026-11-10 完成首批组合制品验收；MOD-030 于 2026-11-11 完成标准化及 c～e 迁移阶段验收（保留既有失败，full 门未通过）；第 8 条 Validator 独立评审后再重审 MOD-029，卸载方案暂缓。当前台账共 9 项未完成：MOD-020～023、MOD-025～029。本轮 c～e 仅本地提交、不推送；MOD-031 仍独立评审，不计入本表已立项范围；具体依赖与状态见下表；P0～P5 保留职责分类，任务编号不表示施工时间顺序。
 
 | 工作包 | 阶段 | 状态 | 依赖 | 当前验收证据 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
@@ -26,8 +26,8 @@
 | `MOD-018` | P3 / 当前优先 | **已验证（2026-11-04）** | `MOD-017、008、014` | 实际 opt-in skill_refs 装配、原命名 Playbook/Planner 与双路径；WSL 139 项 + Dispatcher/旧安装 27 项，Windows 51 项必要检查通过（平台跳过分别 2/1）；95 文件+4资产隔离、两端各5组演示通过，旧 Windows 基线失败另列，见 [报告](../reports/mod-018-litho-cpk-skill.md) | `MOD-019` |
 | `MOD-019` | P3 / 当前优先 | **已验证（2026-11-04）** | `MOD-018` | 进程内不可变发布、精确激活/禁用/回退与真实 Run 内容固定；主审两端专项、96 文件隔离和各5组 CLI 通过，完整离线阶段门通过，272 文件/零边界错误，见 [报告](../reports/mod-019-skill-releases.md) | `MOD-009` |
 | `MOD-020`～`MOD-023` | P4 | 计划中 | P2 | Checkpoint、提交和恢复协议 | 按需求启用 |
-| `MOD-024` | P5 | **已验证（2026-11-10）** | `MOD-003` 及已稳定 Ports | 五类唯一所有者 ZIP、290 源码/资源成员、三个组合 Profile；WSL/Windows 各 11 项专项与 44 路工具、Cpk 双路径、Skill 发布/禁用、离线模型传输独立验收通过；286 应用文件未改，见 [报告](../reports/mod-024-module-delivery.md) | `MOD-030`（待审核） |
-| `MOD-030` | P3/P5 / 当前优先 | **030a/b 已交付；c1～c7 已本地提交；030d 定向验收完成；030e 进行中** | 已有 Tool/Skill/交付能力；不锁定当前目录 | 合并 Issue #1 第 3/4/6 条；按 Agent Skills、MCP Tools 与 JSON Schema 形成标准 Skill 业务包和包内/共享 Tool，职责归属、描述、加载和迁移验收见 [详细计划](../skill-tool-standardization-plan.md)；030a 规范映射、模板与 51 文件执行起点清单见 [报告](../reports/mod-030a-standard-baseline.md)；030b 光刻标准 Skill 1.1.0、共享 `get_capability_trend`、单一描述源与 MCP 视图、证据策略四态、删除 `safe_select`、冻结 `LEGACY_TOOLS`，见 [报告](../reports/mod-030b-litho-pilot.md) | 审核 030b；030c 按消费者分批迁移业务 Tool；第 8 条 Validator（MOD-031）单独讨论 |
+| `MOD-024` | P5 | **已验证（2026-11-10）** | `MOD-003` 及已稳定 Ports | 五类唯一所有者 ZIP、290 源码/资源成员、三个组合 Profile；WSL/Windows 各 11 项专项与 44 路工具、Cpk 双路径、Skill 发布/禁用、离线模型传输独立验收通过；286 应用文件未改，见 [报告](../reports/mod-024-module-delivery.md) | MOD-030 已交付，后续按排期 |
+| `MOD-030` | P3/P5 | **已完成（2026-11-11；保留基线失败）** | 已有 Tool/Skill/交付能力 | 标准/光刻试点及七批迁移、旧目录退出；双平台启动与仓库外交付、Linux 浏览器 17/17 通过；Windows 全量无未在起点复现的新失败，full 门未通过，见 [阶段报告](../reports/mod-030e-acceptance.md) | MOD-031 独立讨论；MOD-029 仍暂缓，后续迁移链保留原依赖 |
 | `MOD-029` | P2/P5 | **暂缓，待前置讨论后重审** | 结合 MOD-030 标准与第 8 条 Validator 职责结论；不等待完整恢复链 | 保留 [旧草案](../tool-result-offloading-plan.md)，仅更新暂缓状态，不重写预算/实现方案，也不执行 | 前置讨论后修订并审核，随后再确定实施排期 |
 | `MOD-025`～`MOD-028` | P5 | 计划中 | 对应稳定 Ports | 交付制品、演示、Fake 集成与迁移评审；MOD-027 另承接 MOD-015 收尾时保留的 `run_agent` 兼容 facade、`TOOLS`/`TOOL_HANDLERS`、`compatibility` 装配边和 `core/settings.py` 配置锚点（台账 exit_task 已改为 MOD-027） | 与里程碑交错执行 |
 

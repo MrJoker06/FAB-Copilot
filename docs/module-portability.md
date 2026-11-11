@@ -26,7 +26,7 @@
 
 仅选 tool_sources 时不启用 Skill；如 AgentDefinition 声明非空 skill_refs，必须同时选择 skill_release。TYPE_CHECKING 中的类型声明依赖不计为运行 Profile，完整源码类型检查另行进行。
 
-当前发布组包含 287 个受管 app 文件及 4 个 Skill 文本资源，共 291 个源码/资源成员；新增 local_model_config.py 归 platform_core，尚未纳入运行 Profile。MOD-024 原验收报告保留当时 286 + 4 的历史基线。安装器仅安装所选 Profile 的声明文件；其余源码标为尚未纳入运行 Profile。应用装配、OCR、真实数据 Adapter、Checkpoint 与完整内网集成不会因源码已入包而被提前视为通过。
+当前发布组包含 303 个受管 app 文件及 4 个 Skill 文本资源，共 307 个源码/资源成员；这是 MOD-030 迁移后口径。MOD-024 原报告保留当时 286 + 4 的历史基线。安装器仅安装所选 Profile 的声明文件；其余源码标为尚未纳入运行 Profile。源码入包不代表全部 API、Checkpoint 或公司真实集成已通过。
 
 ### 构建与安装
 
@@ -92,7 +92,7 @@ python scripts/build_portable_unit.py --verify
 
 默认产物位于被 Git 忽略的 `runtime/portable/`。可用 `--output-dir <目录>` 指向交付目录。每个 ZIP 内的 `portable-unit.json` 固定记录单元名、版本、显式文件列表及（如需要）外部依赖；构建器保持可复现 ZIP，并拒绝缺失文件、不安全路径、数据/日志/密钥类路径、未声明 ZIP 成员，以及未在单元清单中声明的 `app.*` 静态导入。它不使用内容哈希作为验收条件。
 
-这些 ZIP 不能共同安装：当前清单的重复文件为 `app/__init__.py`、`app/manufacturing/__init__.py`、`app/core/manufacturing_terms.py` 和 `app/knowledge/__init__.py`。它们仅用于各自解压后的隔离验收；组合发布前必须在 `MOD-003` 指定唯一文件所有者或采用版本一致 Bundle。
+这些 ZIP 不能共同安装：当前清单的重复文件为 `app/__init__.py`、`app/core/__init__.py`、`app/core/manufacturing_terms.py` 和 `app/knowledge/__init__.py`。它们仅用于各自解压后的隔离验收；组合发布前必须指定唯一文件所有者或采用版本一致 Bundle（MOD-024 已提供后者）。
 
 ## 旧七单元的迁移使用方式
 
@@ -122,4 +122,4 @@ python scripts/build_portable_unit.py --verify
 
 ## MOD-030 迁移后的成员口径（2026-11-11）
 
-当前清单为 303 个受管应用文件加 4 份 Skill 资源，共 307 个唯一成员；tool_sources 为 104 个源码，skill_release 为 107 个源码加 4 资源，model_transport 为 5 个源码。三 Profile 源码并集 149、加资源 153。旧目录已退出，来源与 Tool 同组，Fake/模拟数据单独归 simulation_fixtures。上述为当前清单口径，历史 MOD-024 报告保留原值；迁移后仓库外实跑结果由 MOD-030e 报告提供。
+当前清单为 303 个受管应用文件加 4 份 Skill 资源，共 307 个唯一成员；tool_sources 为 104 个源码，skill_release 为 107 个源码加 4 资源，model_transport 为 5 个源码。三 Profile 源码并集 149、加资源 153。旧目录已退出，来源与 Tool 同组，Fake/模拟数据单独归 simulation_fixtures。上述为当前清单口径，历史 MOD-024 报告保留原值；迁移后 Windows 与 WSL 仓库外实跑均为 tool_sources+skill_release PASS（44 工具、Cpk 两模式、发布禁用）；未提供 wheelhouse，本次 model_transport 为 NOTRUN，见 [MOD-030e 报告](reports/mod-030e-acceptance.md)。历史冻结 v4 参考保留旧成员身份，不能与当前 Profile 清单混用。

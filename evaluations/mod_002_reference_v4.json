@@ -380,27 +380,31 @@
       "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
     },
     {
-      "path": "app/tools/enterprise_data/provider_contracts.py",
+      "path": "app/manufacturing/__init__.py",
+      "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
+    },
+    {
+      "path": "app/manufacturing/data_contracts.py",
       "source": "current-reviewed-overlay"
     },
     {
-      "path": "app/bootstrap/enterprise_data_assembly.py",
+      "path": "app/manufacturing/enterprise_data.py",
       "source": "current-reviewed-overlay"
     },
     {
-      "path": "app/planning_runtime/playbooks.py",
+      "path": "app/manufacturing/playbooks.py",
       "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
     },
     {
-      "path": "app/core/manufacturing_terms.py",
+      "path": "app/manufacturing/processes.py",
       "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
     },
     {
-      "path": "app/api/report_service.py",
+      "path": "app/manufacturing/reports.py",
       "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
     },
     {
-      "path": "app/demo_data/seed.py",
+      "path": "app/manufacturing/seed.py",
       "source": "git:0c93cf6075e181caf1e61dfbcc6c616ff3a0f7e4"
     },
     {

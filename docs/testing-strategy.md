@@ -10,6 +10,7 @@
 | 跨平台启动维护 | 原生 Windows 与 WSL 的启动、停止、重启及必要回归，保留平台失败与修复记录 | [启动报告](reports/cross-platform-startup.md) |
 | local-Qwen Thinking 合并（2026-11-10） | 两端各 203 项 Python 定向、Node 23/23、Playwright 3/3；仅相关链路，未运行完整质量门或 Live | [合并报告](reports/local-qwen-thinking-merge.md) |
 | MOD-024（2026-11-10） | 两端各 11 项专项；独立 CLI 报告验证 44 路工具、Cpk 双路径、Skill 发布/禁用与离线 MockTransport；三 Profile 组合安装通过。旧 Windows Dispatcher 基线编码失败另记；未重跑浏览器/覆盖率/性能/Live | [交付报告](reports/mod-024-module-delivery.md) |
+| MOD-030（2026-11-11） | 两端定向/行为对照/仓库外交付及实际启动通过；Linux 浏览器 17/17；Windows 全量 1449 项保留起点可复现失败，full 门因既有失败及环境缺依赖未通过，本次无有效完整覆盖率 | [阶段报告](reports/mod-030e-acceptance.md) |
 | MOD-001～019 | 工作包状态、各切片独立运行与兼容验证逐项维护；不代表公司真实接入或整体离线交付已通过 | [模块化追踪](todos/modularization.md) |
 | MOD-009 完整离线阶段门 | 2026-11-06 记录退出码 0，480.3 秒；Python 1226 项（含 2 个平台跳过）、覆盖率 88%、Node 61/61、浏览器 17/17；RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7 | [来源替换报告](reports/mod-009-tool-sources.md) |
 | MOD-012 模型网关 | 定向回归、边界门和两端平台测试；保留原有环境失败，未运行性能门 | [模型网关报告](reports/mod-012-model-gateway.md) |

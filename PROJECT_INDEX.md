@@ -15,10 +15,10 @@
 
 - Skill 状态：MOD-016～019 已验证。`app/skills/` 处理声明、依赖、Catalog、渐进加载与进程内不可变发布；`app/bootstrap/skill_assembly.py` 显式装配精确 skill_refs，光刻包复用原 Playbook/Planner 与 Ready/Fake Loop/Dispatcher。完整资源固定、显式激活/禁用/回退已验收，默认 HTTP 未启用，见 [发布验收报告](docs/reports/mod-019-skill-releases.md)。
 
-- 当前进度（2026-11-11 工作树）：MOD-030c 七批已本地提交，030d 定向验收完成，030e 阶段门进行中。当前受管源码 303（275 Python + 28 静态）、依赖债务 9、兼容入口 7；产品任务统计不变。源码起点 5239c04，当前提交与待提交变化以 Git 为准。
+- 当前进度（2026-11-11）：MOD-030a～e 已完成；按本轮允许既有失败的方案验收，双平台定向/启动/仓库外交付通过、Linux 浏览器 17/17 通过；Windows 全量保留起点可复现失败，full 质量门未通过，详见 [阶段报告](docs/reports/mod-030e-acceptance.md)。当前受管源码 303（275 Python + 28 静态）、依赖债务 9、兼容入口 7；产品统计不变。应用源码基线 0829d8c，起点 5239c04，本轮仅本地提交、不推送。
 
 - local-Qwen Thinking 合并：按模型配置档位与方言、管理端设置、Windows 夹具适配及必要冲突修正已验证，见 [合并报告](docs/reports/local-qwen-thinking-merge.md)。
 
-- 当前优先计划：[MOD-030 Skill 业务交付包与 Tool 标准化](docs/skill-tool-standardization-plan.md)，合并 Issue #1 第 3/4/6 条，以 Agent Skills、MCP Tools 和 JSON Schema 为依据；设计待审核，未实施。第 8 条 Validator 单独讨论后再修订暂缓的 [MOD-029](docs/tool-result-offloading-plan.md)。模块化未完成共 10 项，产品任务统计不变。
+- 后续计划：MOD-030 标准与迁移已交付，见 [标准计划](docs/skill-tool-standardization-plan.md)。Validator 职责由 MOD-031 单独讨论；MOD-029 暂缓待重审，MOD-025～028 与 MOD-020～023 保持原依赖，不自动开启。模块化台账未完成 9 项，产品任务统计不变。
 
-- MOD-030 当前迁移（2026-11-11）：c1～c7 已本地提交；030d 已完成结构迁移并正在验收。受管源码 303（275 Python + 28 静态），业务 Tool 与来源归 app/tools，Fake/模拟 Provider/seed 归 app/demo_data；Playbook 结构、原样声明与选择分属 planning_runtime。最终阶段门见后续 030e 报告，不以本条代替通过。
+- MOD-030 当前结构：业务 Tool 与真实来源归 app/tools，Fake/模拟 Provider/seed 归 app/demo_data；Playbook 结构、原样声明与选择分属 planning_runtime。旧制造/接入目录已退出。历史 v4 参考元数据和构建脚本保留旧成员标识，原因见阶段报告；不代表当前运行依赖旧目录。

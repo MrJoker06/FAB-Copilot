@@ -1,8 +1,8 @@
 # 当前项目精细结构快照
 
-快照日期：2026-11-10。当前应用源码合入 local-Qwen `5e2d3f4`，版本一致制品工具来自 `a4739e0`，已合入 local-Qwen 的证据/呈现、模型凭据和跨平台修正，跨平台本地模型启动器 DEPLOY-019 已完成。MOD-001～019 及 MOD-024 均已验证，本轮 MOD-024 在不修改应用源码的前提下建立版本一致的模块制品；状态和实际验收见 [交付报告](reports/mod-024-module-delivery.md)。MOD-020～023 的 Checkpoint/只读恢复与 MOD-025～028 的 Adapter/演示/内网集成仍待完成，保留的兼容 facade 与配置锚点归 MOD-027。Skill 加载与发布保持显式可选，默认 HTTP 未启用。历史失败及验证范围保留在对应报告；提交与远程状态以 Git 记录为准。
+快照日期：2026-11-11。迁移后应用源码基线 `0829d8c`，本次 e 收尾只改夹具、冻结历史参考元数据和文档。MOD-001～019、MOD-024 和 MOD-030 已交付；030 的全量既有失败、full 门未通过与已验证范围见 [阶段报告](reports/mod-030e-acceptance.md)。MOD-020～023、MOD-025～029 保持待做/暂缓；默认 HTTP 未启用 Skill，保留兼容 facade 与配置锚点归 MOD-027。
 
-本次 MOD-030d 迁移实扫 `app/` 为 **303 文件：275 个 Python、28 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 已归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录退出。目录退出与阶段验收分别记录，030e 尚未完成；测试、缓存、日志及运行产物不计入。
+本次 MOD-030d 迁移实扫 `app/` 为 **303 文件：275 个 Python、28 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 已归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录退出。目录退出与阶段验收分别见 030d/030e 报告；测试、缓存、日志及运行产物不计入。
 
 ## 平台启动入口
 
@@ -589,3 +589,5 @@ TOOLS/TOOL_HANDLERS 的容器身份，但有意改变清单内容及默认解析
 60 文件隔离、旧安装/源码闭包/冻结行为/守卫通过。第二批的 305 项必要回归、67 文件隔离、
 旧安装/源码闭包/冻结行为/守卫也通过。第三批最终 328 项必要回归、74 文件隔离及上述兼容门
 通过。第四批最终 354 项必要回归、82 文件隔离及上述兼容门也通过；第五批最终 413 项必要回归、RAG 15/15、66 文件知识切片及兼容门通过，首轮仓库边界失败记录保留。第六批 F1 的 431 项必要回归、32 主路径、60 文件具名切片及上述兼容门也通过。F2a 版本化消费映射已验收；F2b 默认切换及 SQL 退出已通过功能/质量复核和 r5 正式性能及原始墙钟独立重算，整个 MOD-008 已验证。MOD-016～019、MOD-009、MOD-012 及 MOD-015a～e 也已验证，具体范围见 [测试与验收索引](testing-strategy.md#当前验证记录索引2026-11-07)。MOD-015 的逐模块基线对照保留既有环境失败，不代表在该环境重跑完整离线门全绿；MOD-024 的首批组合交付已通过两端独立安装；Checkpoint 与后续整体集成按 MOD-020～023、MOD-025～028 分别验收。此后变化须随工作树重新核对。文档为 UTF-8/LF，源码表不展开测试、日志、runtime 产物或工作簿内容。
+
+历史参考例外：`evaluations/mod_002_reference_v4.json` 和 `scripts/build_modularization_reference.py` 保留批准 v4 ZIP 的旧成员标识，不是当前运行/交付路径。不能对冻结制品按当前目录机械改名；本次恢复到 5239c04 原字节，ZIP 未变。
