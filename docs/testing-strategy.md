@@ -2,17 +2,17 @@
 
 ## 当前验证记录索引（2026-11-11）
 
-当前工作区为 `feat/local-qwen3-runbook`，MOD-031 起点 `638f772`，改造已实现，本版纳入 MOD-031 提交，远程状态以 Git 为准；默认分支不自动同步。本节区分完整门、定向测试及基线对照，历史记录保留原值。
+本节记录 MOD-031 的历史验收基线：实施分支为 `feat/local-qwen3-runbook`，起点 `638f772`，完成提交 `7859df9`；当前工作区及远程同步状态以 Git 为准。本节区分完整门、定向测试及基线对照，历史记录保留原值。
 
 | 范围 | 已记录的验证与限制 | 证据入口 |
 | --- | --- | --- |
-| AGENT-040～044 产品改善 | 全部已完成；044 的跨路径回归、局部修复预算和完整离线门于 2026-10-17 通过 | [Agent 分类验收记录](todos/agent-architecture.md) |
+| AGENT-040～044 产品改善 | 全部已完成；044 的跨路径回归、局部修复预算和完整离线门于 2026-10-17 通过 | [Agent 分类验收记录](todos/archive/agent-architecture.md) |
 | 跨平台启动维护 | 原生 Windows 与 WSL 的启动、停止、重启及必要回归，保留平台失败与修复记录 | [启动报告](reports/cross-platform-startup.md) |
 | local-Qwen Thinking 合并（2026-11-10） | 两端各 203 项 Python 定向、Node 23/23、Playwright 3/3；仅相关链路，未运行完整质量门或 Live | [合并报告](reports/local-qwen-thinking-merge.md) |
 | MOD-024（2026-11-10） | 两端各 11 项专项；独立 CLI 报告验证 44 路工具、Cpk 双路径、Skill 发布/禁用与离线 MockTransport；三 Profile 组合安装通过。旧 Windows Dispatcher 基线编码失败另记；未重跑浏览器/覆盖率/性能/Live | [交付报告](reports/mod-024-module-delivery.md) |
 | MOD-030（2026-11-11） | 两端定向/行为对照/仓库外交付及实际启动通过；Linux 浏览器 17/17；Windows 全量 1449 项保留起点可复现失败，full 门因既有失败及环境缺依赖未通过，本次无有效完整覆盖率 | [阶段报告](reports/mod-030e-acceptance.md) |
 | MOD-031（2026-11-11） | Windows 1467 项仍有起点同名 12 失败/10 错误；WSL full 因既有失败及 jsonschema 缺项停止，Windows 缺 coverage，均非全绿。定向/实际 HTTP、两端仓库外交付及 Linux 浏览器 17/17 通过；无新的有效完整覆盖率 | [实施报告](reports/mod-031-validator.md) |
-| MOD-001～019 | 工作包状态、各切片独立运行与兼容验证逐项维护；不代表公司真实接入或整体离线交付已通过 | [模块化追踪](todos/modularization.md) |
+| MOD-001～019 | 工作包状态、各切片独立运行与兼容验证逐项维护；不代表公司真实接入或整体离线交付已通过 | [模块化完成索引](todos/completed.md) |
 | MOD-009 完整离线阶段门 | 2026-11-06 记录退出码 0，480.3 秒；Python 1226 项（含 2 个平台跳过）、覆盖率 88%、Node 61/61、浏览器 17/17；RAG 15/15、OCR 8/8、Playbook 12/12、Ready 3/3、Trace 7/7 | [来源替换报告](reports/mod-009-tool-sources.md) |
 | MOD-012 模型网关 | 定向回归、边界门和两端平台测试；保留原有环境失败，未运行性能门 | [模型网关报告](reports/mod-012-model-gateway.md) |
 | MOD-015a～e Runtime 收口 | 各批独立验证；015e 的 WSL 169 模块/1301 项与前批基线对照无新增失败，其中 160 模块通过、9 模块保留相同的既有环境失败；Windows 定向 412 项也保留基线失败。新增 11 项无泄漏验收在两端各连续 3 次通过；未重跑浏览器、覆盖率或性能门 | [Runtime 收口报告](reports/mod-015-runtime-convergence.md) |

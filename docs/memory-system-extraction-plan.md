@@ -200,7 +200,7 @@ flowchart TB
 
 ## 6. 验证与回退
 
-以下是实施时应执行的命令；各阶段实际结果记录在 [Memory System TODO](todos/memory-system.md)，未执行的验收不视为通过：
+以下是实施时应执行的命令；各阶段实际结果记录在 [Memory System 验收归档](todos/archive/memory-system.md)，未执行的验收不视为通过：
 
 ```bash
 conda run -n fab-insight-agent python -m unittest tests.test_context_resolver tests.test_turn_decision tests.test_agent_preparation_boundaries tests.test_agent_synthesis_boundaries tests.test_ready_plan_execution tests.test_model_connection tests.test_conversation_runtime_module_boundaries tests.test_model_gateway_module_boundaries

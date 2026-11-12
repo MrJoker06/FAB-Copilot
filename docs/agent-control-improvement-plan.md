@@ -1,6 +1,6 @@
 # Agent 会话控制、范围证据与执行效率改善方案
 
-状态核对：2026-11-07。本文的 `AGENT-036`、`AGENT-037`、`AGENT-038`、`OBS-017`、`QA-004` 及后续 `DEPLOY-012` 均已完成；任务状态见 [Agent TODO](todos/agent-architecture.md)、[可观测性 TODO](todos/observability.md)、[测试质量 TODO](todos/testing-quality.md) 与 [部署 TODO](todos/deployment-architecture.md)。下文保留原问题、设计和验收要求；相关 Trace 是当时问题依据。后续 MOD 工作包另见 [模块化追踪](todos/modularization.md)，不迁移至 Rasa 或其他 Agent 框架。
+状态核对：2026-11-07。本文的 `AGENT-036`、`AGENT-037`、`AGENT-038`、`OBS-017`、`QA-004` 及后续 `DEPLOY-012` 均已完成；任务状态见 [Agent 完成记录](todos/archive/agent-architecture.md)、[可观测性 完成记录](todos/archive/observability.md)、[测试质量 完成记录](todos/archive/testing-quality.md) 与 [部署 完成记录](todos/archive/deployment-architecture.md)。下文保留原问题、设计和验收要求；相关 Trace 是当时问题依据。后续 MOD 工作包另见 [模块化追踪](todos/modularization.md)，不迁移至 Rasa 或其他 Agent 框架。
 
 ## 问题依据
 
