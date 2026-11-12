@@ -6,6 +6,7 @@
 
 | 范围 | 已记录的验证与限制 | 证据入口 |
 | --- | --- | --- |
+| persistence / 模拟数据分离（2026-11-12） | 定向、真实仓库外状态切片和两端服务启动通过；Windows 1472 项保留基线可复现的 12 失败/10 错误，Linux 浏览器 17/17；完整门及环境限制见报告 | [存储拆分报告](reports/persistence-demo-separation.md) |
 | AGENT-040～044 产品改善 | 全部已完成；044 的跨路径回归、局部修复预算和完整离线门于 2026-10-17 通过 | [Agent 分类验收记录](todos/archive/agent-architecture.md) |
 | 跨平台启动维护 | 原生 Windows 与 WSL 的启动、停止、重启及必要回归，保留平台失败与修复记录 | [启动报告](reports/cross-platform-startup.md) |
 | local-Qwen Thinking 合并（2026-11-10） | 两端各 203 项 Python 定向、Node 23/23、Playwright 3/3；仅相关链路，未运行完整质量门或 Live | [合并报告](reports/local-qwen-thinking-merge.md) |

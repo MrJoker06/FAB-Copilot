@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from app.agent_runtime.tools.contracts import ToolSourceKind
 from app.core.sqlite_support import install_sqlite_functions
@@ -16,7 +17,6 @@ from app.demo_data.tool_sources.operational_reports import (
 from app.tools.operational_reports.data_source import (
     SQLiteOperationalReportsAdapter,
 )
-import app.persistence.database as _report_app_persistence_database
 import app.tools.operational_reports.reports as _report_app_tools_operational_reports_reports
 
 from app.tools.operational_reports.contracts import (
@@ -263,7 +263,7 @@ class OperationalReportsAdapterTests(unittest.TestCase):
             connection.close()
 
     def _legacy(self, path: Path, callback):
-        with patch.object(_report_app_persistence_database, "db_session", lambda: self._legacy_session(path)):
+        with patch.object(_report_app_tools_operational_reports_reports, "storage_identity_bindings", return_value=SimpleNamespace(session_factory=lambda: self._legacy_session(path))):
             return callback()
 
     def test_all_three_exactly_match_legacy_fixed_queries(self) -> None:

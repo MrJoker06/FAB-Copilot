@@ -267,7 +267,8 @@
       "app.tools.named_queries.handler",
       "app.tools.named_queries.binding",
       "app.planning_runtime.named_playbooks",
-      "app.planning_runtime.named_planner"
+      "app.planning_runtime.named_planner",
+      "app.demo_data.schemas"
     ],
     "pure_forbidden_targets": [
       "app.persistence.database",
@@ -277,7 +278,10 @@
       "app.knowledge.rag",
       "app.knowledge.search_registry",
       "app.knowledge.sqlite_backend",
-      "app.personal_knowledge_runtime.service"
+      "app.personal_knowledge_runtime.service",
+      "app.persistence.connection",
+      "app.persistence.migrations",
+      "app.demo_data.database"
     ],
     "pure_forbidden_prefixes": [
       "sqlite3",
@@ -319,6 +323,11 @@
         "socket",
         "sqlite3",
         "urllib"
+      ],
+      "persistence": [
+        "app.demo_data",
+        "app.bootstrap",
+        "app.tools"
       ]
     },
     "production_forbidden_imports": [

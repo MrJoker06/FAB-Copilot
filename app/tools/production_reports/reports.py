@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.persistence import database
+from app.core.storage_identity_ports import storage_identity_bindings
+from app.persistence.connection import rows_to_dicts
 from app.core.report_dates import normalize_range, timestamp_bounds
 
 
 def fab_overview(start: str | None = None, end: str | None = None) -> dict:
     start, end = normalize_range(start, end)
     _, end_exclusive = timestamp_bounds(start, end)
-    with database.db_session() as connection:
+    with storage_identity_bindings().session_factory() as connection:
         row = connection.execute(
             """SELECT COUNT(*) AS lots,
                       SUM(wafer_count) AS wafers,
@@ -43,7 +44,7 @@ def yield_trend(start: str | None = None, end: str | None = None, product: str |
     params: list[Any] = [start, end]
     if product:
         params.append(product)
-    with database.db_session() as connection:
+    with storage_identity_bindings().session_factory() as connection:
         rows = connection.execute(
             f"""SELECT strftime('%Y-%W', complete_time) AS period,
                        MIN(date(complete_time)) AS week_start,
@@ -55,7 +56,7 @@ def yield_trend(start: str | None = None, end: str | None = None, product: str |
                 GROUP BY period ORDER BY period""",
             params,
         ).fetchall()
-    return database.rows_to_dicts(rows)
+    return rows_to_dicts(rows)
 
 
 def process_pass_rate(
@@ -73,7 +74,7 @@ def process_pass_rate(
     if equipment_id:
         clauses.append("equipment_id = ?")
         params.append(equipment_id.upper())
-    with database.db_session() as connection:
+    with storage_identity_bindings().session_factory() as connection:
         group_by = "process_step, equipment_id" if equipment_id else "process_step"
         equipment_column = "equipment_id," if equipment_id else "NULL AS equipment_id,"
         rows = connection.execute(
@@ -85,4 +86,4 @@ def process_pass_rate(
                 ORDER BY process_step, equipment_id""",
             params,
         ).fetchall()
-    return database.rows_to_dicts(rows)
+    return rows_to_dicts(rows)

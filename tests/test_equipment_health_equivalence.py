@@ -18,7 +18,7 @@ from app.demo_data.tool_sources.equipment_health import (
 from app.tools.equipment_health.data_source import (
     SQLiteEquipmentHealthAdapter,
 )
-import app.persistence.database as _report_app_persistence_database
+import app.demo_data.database as _report_app_persistence_database
 import app.core.report_dates as _report_app_core_report_dates
 import app.tools.equipment_health.reports as _report_app_tools_equipment_health_reports
 

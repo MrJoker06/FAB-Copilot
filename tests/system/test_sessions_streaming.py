@@ -15,7 +15,7 @@ isolated_system_environment()
 from fastapi.testclient import TestClient
 
 from app.telemetry.audit import read_events
-from app.persistence.database import db_session
+from app.demo_data.database import db_session
 from app.persistence.execution_store import persist_execution_plan, recover_interrupted_executions, start_run_record, start_tool_event
 import app.main as main
 from app.main import app

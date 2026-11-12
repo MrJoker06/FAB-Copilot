@@ -27,7 +27,7 @@ from ..core.settings import (
     get_settings,
     model_api_key,
 )
-from ..persistence.database import db_session, department_paths, ensure_department_databases
+from ..demo_data.database import db_session, department_paths, ensure_department_databases
 from app.bootstrap.enterprise_data_assembly import EnterpriseDataError, get_enterprise_provider
 from ..persistence.execution_store import (
     RunExecutionRecorder,

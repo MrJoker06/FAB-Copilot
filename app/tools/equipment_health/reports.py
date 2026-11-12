@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.persistence import database
+from app.core.storage_identity_ports import storage_identity_bindings
+from app.persistence.connection import rows_to_dicts
 from app.core.report_dates import timestamp_bounds
 
 
@@ -25,7 +26,7 @@ def equipment_health(
     elif process_step:
         params.append(process_step.upper())
         event_params.append(f"{process_step.upper()}-%")
-    with database.db_session() as connection:
+    with storage_identity_bindings().session_factory() as connection:
         rows = connection.execute(
             f"""WITH run_stats AS (
                    SELECT equipment_id, COUNT(*) AS runs,
@@ -49,4 +50,4 @@ def equipment_health(
                         r.excursions DESC, downtime_minutes DESC""",
             [*params, *event_params],
         ).fetchall()
-    return database.rows_to_dicts(rows)
+    return rows_to_dicts(rows)

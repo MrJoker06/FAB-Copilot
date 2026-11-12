@@ -10,7 +10,7 @@ if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
 from app.bootstrap.storage_identity_assembly import install_default_storage_identity  # noqa: E402
-from app.persistence.database import db_session, department_paths
+from app.demo_data.database import db_session, department_paths
 from app.model_gateway.registry import ensure_model_catalog
 from app.demo_data.seed import main as seed_main
 from scripts import manage_databases

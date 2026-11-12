@@ -32,6 +32,10 @@
 
 WSL 的 `python scripts/check_repository.py` 通过，模块化边界为 `files=309 errors=0`；逐项迁移对照及 UTF-8/LF、相对链接与章节锚点检查通过。纯文档任务未运行应用回归、浏览器、性能门或 Live，不改变既有 full 未通过的结论。
 
+## persistence 功能拆分与模拟数据分离
+
+2026-11-12，关联 GitHub [Issue #2 第 2 项](https://github.com/MrJoker06/FAB-Copilot/issues/2)。应用状态与演示 Schema/初始化分离，新增仓库外 `application_storage` Profile；定义、接口迁移和实际验证及既有失败见[报告](../reports/persistence-demo-separation.md)。此项不新增产品或 MOD 编号，后续运行 DB 物理分离与 LDAP 仍未实施，提交与远程状态以 Git 记录为准。
+
 ## 维护方式
 
 1. 未完成任务的完整定义只放在对应分类清单；执行计划维护排期，不复制任务正文。

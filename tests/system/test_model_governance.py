@@ -22,7 +22,7 @@ from app.agent_runtime import service as agent_module
 from app.core.local_model_config import local_models_path
 from app.core.model_credentials import get_stored_model_api_key, model_credentials_path
 from app.core.settings import ModelConnection, get_settings
-from app.persistence.database import db_session
+from app.demo_data.database import db_session
 from app.main import app
 from app.model_gateway.compatibility import ModelCompatibilityError
 from app.model_gateway.registry import MODEL_CAPABILITY_DEFAULTS

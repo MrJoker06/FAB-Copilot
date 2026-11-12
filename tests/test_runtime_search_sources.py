@@ -19,7 +19,8 @@ from app.tools.knowledge_search.contracts import (
     KnowledgeSearchTimeoutError,
 )
 from app.knowledge.sqlite_backend import SqliteFactorySearchBackend
-from app.persistence.department_schemas import KNOWLEDGE_SCHEMA, QUALITY_SCHEMA
+from app.persistence.department_schemas import KNOWLEDGE_SCHEMA
+from app.demo_data.schemas import QUALITY_SCHEMA
 
 
 class RuntimeSearchSourcesTests(unittest.TestCase):

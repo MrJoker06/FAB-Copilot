@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.persistence import database
+from app.core.storage_identity_ports import storage_identity_bindings
+from app.persistence.connection import rows_to_dicts
 from app.core.report_dates import timestamp_bounds
 
 
@@ -21,7 +22,7 @@ def equipment_productivity(
         params.append(equipment_id.upper())
     elif process_step:
         params.append(f"{process_step.upper()}-%")
-    with database.db_session() as connection:
+    with storage_identity_bindings().session_factory() as connection:
         rows = connection.execute(
             f"""SELECT equipment_id,
                       ROUND(SUM(duration_minutes), 1) AS recorded_minutes,
@@ -36,7 +37,7 @@ def equipment_productivity(
                ORDER BY productive_pct, unscheduled_down_minutes DESC""",
             params,
         ).fetchall()
-    return database.rows_to_dicts(rows)
+    return rows_to_dicts(rows)
 
 
 def defect_pareto(
@@ -51,7 +52,7 @@ def defect_pareto(
     if process_step:
         params.append(process_step.upper())
     params.append(max(1, min(limit, 25)))
-    with database.db_session() as connection:
+    with storage_identity_bindings().session_factory() as connection:
         rows = connection.execute(
             f"""SELECT defect_type,
                       GROUP_CONCAT(DISTINCT process_step) AS process_steps,
@@ -62,7 +63,7 @@ def defect_pareto(
                GROUP BY defect_type ORDER BY defect_count DESC LIMIT ?""",
             params,
         ).fetchall()
-    return database.rows_to_dicts(rows)
+    return rows_to_dicts(rows)
 
 
 def recent_excursions(
@@ -81,7 +82,7 @@ def recent_excursions(
     if equipment_id:
         params.append(equipment_id.upper())
     params.append(max(1, min(limit, 100)))
-    with database.db_session() as connection:
+    with storage_identity_bindings().session_factory() as connection:
         rows = connection.execute(
             f"""SELECT run_time, lot_id, process_step, equipment_id, excursion_code,
                       thickness_nm, uniformity_pct, defect_density,
@@ -93,4 +94,4 @@ def recent_excursions(
                ORDER BY run_time DESC LIMIT ?""",
             params,
         ).fetchall()
-    return database.rows_to_dicts(rows)
+    return rows_to_dicts(rows)

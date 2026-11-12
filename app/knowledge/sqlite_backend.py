@@ -4,9 +4,18 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from ..persistence.database import db_session, get_active_defect_aliases, rows_to_dicts
+from ..persistence.connection import rows_to_dicts
+from ..core.storage_identity_ports import storage_identity_bindings
 from .search_contracts import FactorySearchPrincipal, FactorySearchRequest
 from .search_query import search_terms, sqlite_fts_query
+
+
+def db_session():
+    return storage_identity_bindings().session_factory()
+
+
+def get_active_defect_aliases():
+    return storage_identity_bindings().defect_alias_reader()
 
 
 class SqliteFactorySearchBackend:

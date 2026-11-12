@@ -423,7 +423,7 @@ def _source_patches(stack, side, business):
 
     if side == "reference":
         from contextlib import contextmanager
-        import app.persistence.database as _report_app_persistence_database
+        import app.demo_data.database as _report_app_persistence_database
 
         from app.knowledge import rag
 

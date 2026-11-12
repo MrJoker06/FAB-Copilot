@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.persistence import database
+from app.core.storage_identity_ports import storage_identity_bindings
+from app.persistence.connection import rows_to_dicts
 from app.core.report_dates import timestamp_bounds
 
 
@@ -15,7 +16,7 @@ def process_capability(start: str | None = None, end: str | None = None, process
     if process_step:
         clauses.append("process_step = ?")
         params.append(process_step.upper())
-    with database.db_session() as connection:
+    with storage_identity_bindings().session_factory() as connection:
         rows = connection.execute(
             f"""WITH stats AS (
                    SELECT process_step, equipment_id, COUNT(measurement_value) AS samples,
@@ -46,7 +47,7 @@ def process_capability(start: str | None = None, end: str | None = None, process
                FROM stats ORDER BY cpk, process_step, equipment_id""",
             params,
         ).fetchall()
-    return database.rows_to_dicts(rows)
+    return rows_to_dicts(rows)
 
 
 def sensor_summary(
@@ -63,7 +64,7 @@ def sensor_summary(
         if value:
             clauses.append(f"{column} = ?")
             params.append(value.upper() if column == "process_step" else value)
-    with database.db_session() as connection:
+    with storage_identity_bindings().session_factory() as connection:
         rows = connection.execute(
             f"""SELECT process_step, equipment_id, signal_name, MAX(signal_unit) AS signal_unit,
                        COUNT(*) AS samples,
@@ -79,4 +80,4 @@ def sensor_summary(
                 LIMIT 100""",
             params,
         ).fetchall()
-    return database.rows_to_dicts(rows)
+    return rows_to_dicts(rows)

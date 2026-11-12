@@ -9,7 +9,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
 from app.core.settings import PROJECT_DIR
-from app.persistence.database import db_session, department_paths, ensure_department_databases, initialize, writable_table
+from app.demo_data.database import db_session, department_paths, ensure_department_databases, initialize, writable_table
 from app.core.manufacturing_terms import MANUFACTURING_STEPS
 
 

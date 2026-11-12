@@ -1,7 +1,7 @@
 """Composition root for the default storage and identity bindings.
 
 Each binding resolves the concrete module attribute at call time, so existing
-patches such as ``patch("app.persistence.database.db_session")`` or a
+patches such as ``patch("app.demo_data.database.db_session")`` or a
 ``set_principal`` context keep reaching every consumer.
 """
 
@@ -15,7 +15,8 @@ from ..core.storage_identity_ports import (
     install_storage_identity,
 )
 from ..knowledge import sqlite_backend
-from ..persistence import database, execution_store
+from ..demo_data import database
+from ..persistence import execution_store
 from ..telemetry import audit
 
 

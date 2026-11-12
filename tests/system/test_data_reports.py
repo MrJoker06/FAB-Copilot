@@ -13,7 +13,7 @@ from tests.system.support import isolated_system_environment
 
 isolated_system_environment()
 
-from app.persistence.database import db_session, department_paths, initialize, sqlite_journal_mode
+from app.demo_data.database import db_session, department_paths, initialize, sqlite_journal_mode
 from app.core.manufacturing_terms import MANUFACTURING_STEPS
 from app.tools.operational_reports.reports import defect_pareto  # noqa: E402 - isolated fixture must precede application imports
 from app.tools.equipment_health.reports import equipment_health  # noqa: E402 - isolated fixture must precede application imports

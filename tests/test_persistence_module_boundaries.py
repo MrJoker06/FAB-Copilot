@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app.persistence import database, department_schemas, execution_store
+from app.persistence import database, department_schemas, execution_store, migrations
 from scripts.check_module_boundaries import boundary_errors, load_manifest
 from tests.support import sqlite_session
 
@@ -18,7 +18,7 @@ class PersistenceModuleBoundaryTests(unittest.TestCase):
             self.assertFalse((root / f"{name}.py").exists())
         owners = (
             (database.db_session, "app.persistence.database"), (database.initialize, "app.persistence.database"),
-            (database._migrate_model_health, "app.persistence.database"),
+            (migrations._migrate_model_health, "app.persistence.migrations"),
             (execution_store.start_run_record, "app.persistence.execution_store"),
             (execution_store.RunExecutionRecorder, "app.persistence.execution_store"),
         )
@@ -66,7 +66,7 @@ class PersistenceModuleBoundaryTests(unittest.TestCase):
             with sqlite_session(path) as connection:
                 migrations = connection.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0]
                 tables = connection.execute(
-                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'lots'"
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'chat_sessions'"
                 ).fetchone()[0]
             self.assertEqual(migrations, first_migrations)
             self.assertGreater(migrations, 0)

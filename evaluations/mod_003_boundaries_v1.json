@@ -690,6 +690,16 @@
       "artifact_group": "simulation_fixtures"
     },
     {
+      "path": "app/demo_data/database.py",
+      "primary_module": "simulation",
+      "artifact_group": "simulation_fixtures"
+    },
+    {
+      "path": "app/demo_data/schemas.py",
+      "primary_module": "simulation",
+      "artifact_group": "simulation_fixtures"
+    },
+    {
       "path": "app/demo_data/seed.py",
       "primary_module": "simulation",
       "artifact_group": "simulation_fixtures"
@@ -955,6 +965,11 @@
       "artifact_group": "enterprise_adapters"
     },
     {
+      "path": "app/persistence/connection.py",
+      "primary_module": "persistence",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
       "path": "app/persistence/database.py",
       "primary_module": "persistence",
       "artifact_group": "enterprise_adapters"
@@ -966,6 +981,11 @@
     },
     {
       "path": "app/persistence/execution_store.py",
+      "primary_module": "persistence",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/persistence/migrations.py",
       "primary_module": "persistence",
       "artifact_group": "enterprise_adapters"
     },
@@ -2369,7 +2389,7 @@
     {
       "source_file": "app/api/runtime_dependencies.py",
       "imports": [
-        "persistence.database.db_session"
+        "demo_data.database.db_session"
       ],
       "calls": [],
       "table_hints": [],
@@ -2415,9 +2435,47 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
+      "source_file": "app/demo_data/database.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "application_storage.initialize",
+        "connect",
+        "connection.execute",
+        "connection.executemany",
+        "connection.executescript",
+        "db_session",
+        "initialize"
+      ],
+      "table_hints": [
+        "defect_records",
+        "defect_types",
+        "historical_cases",
+        "knowledge.case_trigram_fts",
+        "knowledge.historical_cases",
+        "knowledge.knowledge_trigram_fts",
+        "knowledge.personal_knowledge_fts",
+        "knowledge_chunks",
+        "lots",
+        "manufacturing.lots",
+        "manufacturing.process_runs",
+        "personal_knowledge_chunks",
+        "quality.defect_records",
+        "quality.defect_types",
+        "quality.wafer_maps",
+        "schema_migrations",
+        "sensor_readings",
+        "simulation_metadata",
+        "sqlite_master",
+        "wafer_maps"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
       "source_file": "app/demo_data/seed.py",
       "imports": [
-        "app.persistence.database.db_session"
+        "app.demo_data.database.db_session"
       ],
       "calls": [
         "connection.execute",
@@ -2433,9 +2491,7 @@
     },
     {
       "source_file": "app/knowledge/sqlite_backend.py",
-      "imports": [
-        "persistence.database.db_session"
-      ],
+      "imports": [],
       "calls": [
         "connection.execute",
         "db_session"
@@ -2487,6 +2543,18 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
+      "source_file": "app/persistence/connection.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "connection.execute",
+        "sqlite3.connect"
+      ],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
       "source_file": "app/persistence/database.py",
       "imports": [
         "sqlite3"
@@ -2494,38 +2562,11 @@
       "calls": [
         "connect",
         "connection.execute",
-        "connection.executemany",
         "connection.executescript",
-        "db_session",
-        "initialize",
-        "sqlite3.connect"
+        "initialize"
       ],
       "table_hints": [
-        "agent_runs",
-        "chat_messages",
-        "defect_records",
-        "defect_types",
-        "historical_cases",
-        "knowledge.case_trigram_fts",
-        "knowledge.historical_cases",
-        "knowledge.knowledge_trigram_fts",
-        "knowledge.personal_knowledge_fts",
-        "knowledge_chunks",
-        "lots",
-        "manufacturing.lots",
-        "manufacturing.process_runs",
-        "model_catalog",
-        "model_health",
-        "personal_knowledge_chunks",
-        "personal_knowledge_documents",
-        "quality.defect_records",
-        "quality.defect_types",
-        "quality.wafer_maps",
-        "schema_migrations",
-        "sensor_readings",
-        "simulation_metadata",
-        "sqlite_master",
-        "wafer_maps"
+        "schema_migrations"
       ],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
@@ -2547,6 +2588,25 @@
         "agent_plan_steps",
         "agent_runs",
         "agent_tool_events"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/persistence/migrations.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "connection.execute"
+      ],
+      "table_hints": [
+        "agent_runs",
+        "chat_messages",
+        "model_catalog",
+        "model_health",
+        "personal_knowledge_documents",
+        "schema_migrations",
+        "sqlite_master"
       ],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
@@ -2649,8 +2709,7 @@
       "source_file": "app/tools/equipment_health/reports.py",
       "imports": [],
       "calls": [
-        "connection.execute",
-        "database.db_session"
+        "connection.execute"
       ],
       "table_hints": [],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
@@ -2697,8 +2756,7 @@
       "source_file": "app/tools/operational_reports/reports.py",
       "imports": [],
       "calls": [
-        "connection.execute",
-        "database.db_session"
+        "connection.execute"
       ],
       "table_hints": [],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
@@ -2719,8 +2777,7 @@
       "source_file": "app/tools/process_diagnostics/reports.py",
       "imports": [],
       "calls": [
-        "connection.execute",
-        "database.db_session"
+        "connection.execute"
       ],
       "table_hints": [],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
@@ -2743,8 +2800,7 @@
       "source_file": "app/tools/production_reports/reports.py",
       "imports": [],
       "calls": [
-        "connection.execute",
-        "database.db_session"
+        "connection.execute"
       ],
       "table_hints": [
         "lots",
@@ -2833,6 +2889,14 @@
         "exit_task": "MOD-003 conformance (retain helper)"
       },
       {
+        "source_file": "app/demo_data/database.py",
+        "owner": "simulation",
+        "classification": "demo-init",
+        "stores": "local synthetic demo databases",
+        "exit_task": "MOD-027",
+        "init_effects": "explicit non-production schema/catalog initialization and migration"
+      },
+      {
         "source_file": "app/demo_data/seed.py",
         "owner": "simulation",
         "classification": "demo-init",
@@ -2873,11 +2937,19 @@
         "exit_task": "MOD-027"
       },
       {
+        "source_file": "app/persistence/connection.py",
+        "owner": "persistence",
+        "classification": "internal-store",
+        "stores": "application SQLite state",
+        "exit_task": "MOD-027",
+        "init_effects": "explicit application schema/migrations or SQLite connection setup; no simulation data"
+      },
+      {
         "source_file": "app/persistence/database.py",
         "owner": "persistence",
-        "classification": "mixed-global-init",
-        "stores": "agent_runs, chat_messages, defect_records, defect_types, historical_cases, knowledge.case_trigram_fts, knowledge.historical_cases, knowledge.knowledge_trigram_fts, knowledge.personal_knowledge_fts, knowledge_chunks, lots, manufacturing.lots, manufacturing.process_runs, model_catalog, model_health, personal_knowledge_chunks, personal_knowledge_documents, quality.defect_records, quality.defect_types, quality.wafer_maps, schema_migrations, sensor_readings, simulation_metadata, sqlite_master, wafer_maps",
-        "init_effects": "connect/db_session can initialize missing stores and attach a main database plus four department databases (five total); application owns demo/internal schema, never company schema",
+        "classification": "internal-store",
+        "stores": "knowledge and agent application databases only",
+        "init_effects": "application schemas only; no manufacturing schema, fixtures or legacy business migration",
         "exit_task": "MOD-027"
       },
       {
@@ -2887,6 +2959,14 @@
         "stores": "agent.agent_execution_plans, agent.agent_plan_steps, agent.agent_runs, agent.agent_tool_events, agent_execution_plans, agent_plan_steps, agent_runs, agent_tool_events",
         "init_effects": "Uses or binds global db_session: its default connect may initialize missing stores and attach a main database plus four department databases (five total)",
         "exit_task": "MOD-027"
+      },
+      {
+        "source_file": "app/persistence/migrations.py",
+        "owner": "persistence",
+        "classification": "internal-store",
+        "stores": "application SQLite state",
+        "exit_task": "MOD-027",
+        "init_effects": "explicit application schema/migrations or SQLite connection setup; no simulation data"
       },
       {
         "source_file": "app/personal_knowledge_runtime/documents.py",

@@ -322,7 +322,7 @@ print(json.dumps(outcome))
             log.append(("session",))
             yield _Connection(log)
 
-        with patch("app.persistence.database.db_session", patched_session):
+        with patch("app.demo_data.database.db_session", patched_session):
             self.assertEqual(sessions.list_sessions(), [])
             health.ensure_model_health("patched")
             self.assertEqual(personal_service.pending_personal_jobs(), [])
@@ -341,7 +341,7 @@ print(json.dumps(outcome))
         finally:
             reset_principal(token)
         with patch(
-            "app.persistence.database.get_active_defect_aliases",
+            "app.demo_data.database.get_active_defect_aliases",
             return_value={"Gate": ("gate-x",)},
         ):
             self.assertEqual(rag.get_active_defect_aliases(), {"Gate": ("gate-x",)})

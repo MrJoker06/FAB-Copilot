@@ -1,8 +1,8 @@
 # 当前项目精细结构快照
 
-快照日期：2026-11-11。当前为 `feat/local-qwen3-runbook` 的 MOD-031 实现快照，执行起点 `638f772`；本版纳入 MOD-031 提交，提交及远程状态以 Git 记录为准。MOD-001～019、MOD-024、MOD-030 的历史验收不变；本轮验证职责拆分与限制见 [031 报告](reports/mod-031-validator.md)。MOD-020～023、MOD-025～029 保持待做/暂缓；默认 HTTP 未启用 Skill，保留兼容 facade 与配置锚点归 MOD-027。
+快照日期：2026-11-12。当前为 `experiment/parallel-platform` 的 persistence/模拟数据职责拆分工作树，执行起点 `251b612`（运行代码基线为 MOD-031 的 `7859df9`）；提交及远程状态以 Git 记录为准。MOD-001～019、MOD-024、MOD-030 的历史验收不变；MOD-031 的规则拆分与限制见 [031 报告](reports/mod-031-validator.md)，本轮存储拆分见[报告](reports/persistence-demo-separation.md)。MOD-020～023、MOD-025～029 保持待做/暂缓；默认 HTTP 未启用 Skill，保留兼容 facade 与配置锚点归 MOD-027。
 
-当前实扫 `app/` 为 **309 文件：281 个 Python、28 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。
+当前实扫 `app/` 为 **313 文件：285 个 Python、28 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。
 
 ## 平台启动入口
 
@@ -30,7 +30,7 @@ app/
 ├── memory_system/                 当前上下文记忆的规则、Port 与服务
 ├── conversation/                  会话决策、上下文兼容、会话存取
 ├── model_gateway/                 Provider 配置、健康与 SSE 流式协议
-├── persistence/                   SQLite 初始化、schema、执行记录
+├── persistence/                   通用 SQLite、应用状态 Schema/迁移与执行记录
 ├── personal_knowledge_runtime/    个人知识文件、抽取、索引、任务与服务
 ├── core/                          设置和身份
 ├── telemetry/                     审计、HTTP 与运行状态
@@ -294,7 +294,9 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/planning_runtime/named_playbooks.py` | 纯/版本化业务 | 七类 v2 Playbook 和选择器；保留证据要求，仅把固定 SQL 能力替换为八项具名工具。 |
 | `app/api/report_service.py` | 应用组合 | 看板组合调用已注册的固定报表 Tool 操作，无 SQL 或模型调用。 |
 | `app/core/report_dates.py` | 纯 | 既有报表日期默认值、范围和时间戳边界。 |
-| `app/demo_data/seed.py` | 存储 | 合成 FAB/部门库建模与种子数据。 |
+| `app/demo_data/seed.py` | 存储 | 显式合成 FAB、参考资料与模拟种子数据。 |
+| `app/demo_data/database.py` | 演示/存储 | 五库演示组合、样例缺陷目录、旧模拟库迁移及预测窗口校验；默认应用显式选择。 |
+| `app/demo_data/schemas.py` | 纯/演示 | 制造、设备、质量及模拟元数据 Schema，保留旧演示单库布局。 |
 | `app/tools/enterprise_data/provider_contracts.py` | 纯 | EnterpriseDataProvider 和主体 Protocol。 |
 | `app/bootstrap/enterprise_data_assembly.py` | 装配 | 显式 Provider 注册、选择及旧 Tool 的可信上下文绑定，无合成实现。 |
 | `app/demo_data/synthetic_fab.py` | 演示 | SyntheticFabProvider 与确定性模拟数据及游标实现。 |
@@ -436,8 +438,10 @@ Skill 格式/加载/发布模块只依赖标准库和自身；新增 policies �
 | `app/core/storage_identity_ports.py` | 纯 | 存储/身份窄 Port：`PrincipalView`、`StorageIdentityBindings` 与安装/读取函数；只加载标准库，未安装时报错并写明安装函数。 |
 | `app/core/model_capabilities.py` | 纯 | 模型能力默认值与 `normalize_capabilities`，供 registry 与数据库迁移共用。 |
 | `app/persistence/__init__.py` | 包 | 存储包锚点。 |
-| `app/persistence/database.py` | 存储/过渡 | SQLite 连接、初始化、部门库挂载与建表。 |
-| `app/persistence/department_schemas.py` | 纯 | 部门数据库 schema 定义。 |
+| `app/persistence/database.py` | 存储 | 仅知识与 Agent 应用状态的初始化、会话、写表定位；不依赖或初始化模拟模块。 |
+| `app/persistence/connection.py` | 存储 | 共用 SQLite 连接/PRAGMA/数学函数及行转换；不声明业务 Schema 或生成数据。 |
+| `app/persistence/migrations.py` | 存储 | 会话、模型、执行记录与个人知识的增量迁移。 |
+| `app/persistence/department_schemas.py` | 纯 | 仅应用自有知识与 Agent 状态的 Schema 和表归属。 |
 | `app/persistence/execution_store.py` | 存储/过渡 | 计划、步骤、事件和中断状态记录；尚非安全恢复协议。 |
 | `app/telemetry/__init__.py` | 包 | 可观测包锚点。 |
 | `app/telemetry/audit.py` | 存储 | JSONL 审计、内容指纹和运行日志。 |
@@ -597,3 +601,5 @@ TOOLS/TOOL_HANDLERS 的容器身份，但有意改变清单内容及默认解析
 通过。第四批最终 354 项必要回归、82 文件隔离及上述兼容门也通过；第五批最终 413 项必要回归、RAG 15/15、66 文件知识切片及兼容门通过，首轮仓库边界失败记录保留。第六批 F1 的 431 项必要回归、32 主路径、60 文件具名切片及上述兼容门也通过。F2a 版本化消费映射已验收；F2b 默认切换及 SQL 退出已通过功能/质量复核和 r5 正式性能及原始墙钟独立重算，整个 MOD-008 已验证。MOD-016～019、MOD-009、MOD-012 及 MOD-015a～e 也已验证，具体范围见 [测试与验收索引](testing-strategy.md#当前验证记录索引2026-11-11)。MOD-015 的逐模块基线对照保留既有环境失败，不代表在该环境重跑完整离线门全绿；MOD-024 的首批组合交付已通过两端独立安装；Checkpoint 与后续整体集成按 MOD-020～023、MOD-025～028 分别验收。此后变化须随工作树重新核对。文档为 UTF-8/LF，源码表不展开测试、日志、runtime 产物或工作簿内容。
 
 历史参考例外：`evaluations/mod_002_reference_v4.json` 和 `scripts/build_modularization_reference.py` 保留批准 v4 ZIP 的旧成员标识，不是当前运行/交付路径。不能对冻结制品按当前目录机械改名；本次恢复到 5239c04 原字节，ZIP 未变。
+
+本轮存储职责拆分、接口迁移、独立交付和验证限制见[报告](reports/persistence-demo-separation.md)。默认应用仍为演示装配，独立应用状态不等于完整生产应用或 LDAP 授权。

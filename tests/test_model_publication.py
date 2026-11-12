@@ -4,7 +4,7 @@ from tests.system.support import isolated_system_environment
 isolated_system_environment()
 
 from app.bootstrap.storage_identity_assembly import install_default_storage_identity  # noqa: E402
-from app.persistence.database import db_session, ensure_department_databases
+from app.demo_data.database import db_session, ensure_department_databases
 from app.model_gateway.registry import delete_model, publish_model, save_model_compatibility_report, set_model_status, update_model_capabilities
 
 

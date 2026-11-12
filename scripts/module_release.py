@@ -111,6 +111,7 @@ def profile_sources(spec: dict[str, Any] | None = None) -> dict[str, list[str]]:
     sources = {
         "tool_sources": tool,
         "skill_release": spec["profiles"]["skill_release"]["source_files"],
+        "application_storage": spec["profiles"]["application_storage"]["source_files"],
         "model_transport": [
             item
             for item in portable

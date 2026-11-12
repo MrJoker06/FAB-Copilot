@@ -386,7 +386,7 @@ class EquipmentHealthToolTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
 
     def test_new_sqlite_matches_legacy_reports_for_equipment_scope(self):
-        import app.persistence.database as _report_app_persistence_database
+        import app.demo_data.database as _report_app_persistence_database
         import app.tools.equipment_health.reports as _report_app_tools_equipment_health_reports
 
 

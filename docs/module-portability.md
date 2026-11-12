@@ -16,17 +16,18 @@
 
 五个 ZIP 是同一版本发布组的组成部分，不能各自升级成任意版本组合。发布清单记录源码提交或显式构建 ID、各文件唯一所有者、每个 ZIP 的成员和所需版本，以及目标环境锁。共享包锚点只由一个制品拥有；选择多个 Profile 时，共用文件只安装一次。
 
-“制品包含源码”与“已形成可运行 Profile”分别记录。首批 Profile：
+“制品包含源码”与“已形成可运行 Profile”分别记录。当前 Profile（保留首批三类，新增独立应用状态切片）：
 
 | Profile | 安装范围 | 外部依赖 |
 | --- | --- | --- |
 | `tool_sources` | MOD-009 的 104 个真实 Python 文件，包含 21 项原生工具的 Fake Ready/Loop 演示 | 标准库 |
-| `skill_release` | 100 个 Python 文件及 4 个原路径 Skill 文本资源，覆盖光刻 Cpk 与进程内发布机制 | 标准库 |
+| `skill_release` | 111 个 Python 文件及 4 个原路径 Skill 文本资源，覆盖光刻 Cpk 与进程内发布机制 | 标准库 |
 | `model_transport` | 5 个 app 文件，覆盖 SSE、聊天模板整形及 `ModelGatewayPort` HTTP Adapter | httpx 与锁定的传递依赖 |
+| `application_storage` | 10 个 app 文件，独立初始化/读写知识和 Agent 状态，不安装模拟包 | 标准库 |
 
 仅选 tool_sources 时不启用 Skill；如 AgentDefinition 声明非空 skill_refs，必须同时选择 skill_release。TYPE_CHECKING 中的类型声明依赖不计为运行 Profile，完整源码类型检查另行进行。
 
-当前发布组包含 309 个受管 app 文件及 4 个 Skill 文本资源，共 313 个源码/资源成员；这是 MOD-031 实现后的口径。MOD-024 原报告保留当时 286 + 4 的历史基线。安装器仅安装所选 Profile 的声明文件；其余源码标为尚未纳入运行 Profile。源码入包不代表全部 API、Checkpoint 或公司真实集成已通过。
+当前发布组包含 313 个受管 app 文件及 4 个 Skill 文本资源，共 317 个源码/资源成员；这是本轮 persistence 拆分后的口径。MOD-024 原报告保留当时 286 + 4 的历史基线。安装器仅安装所选 Profile 的声明文件；其余源码标为尚未纳入运行 Profile。源码入包不代表全部 API、Checkpoint 或公司真实集成已通过。
 
 ### 构建与安装
 
@@ -67,7 +68,7 @@ python scripts/build_module_release.py --output runtime/module-release --build-i
 
 首批锁定目标为 Linux/WSL CPython 3.11.15 x86_64 与原生 Windows CPython 3.13.5 AMD64，分别记录平台、架构、解释器版本和 ABI。安装器探测实际目标解释器，不以宿主 Python 的信息代替。其他环境需单独解析、生成目标锁并验收，不能直接把已有锁当作跨平台通用锁。
 
-`model_transport` 需要 pip 可用的新 venv，以及显式准备的本地 wheelhouse。直接依赖与传递依赖按精确版本记录；安装器只从该目录离线解析和安装，不借用宿主 site-packages，不自动联网补包。命令增加 `--profiles model_transport --wheelhouse <本地Wheel目录>`；也可在同一次安装中组合三个 Profile。
+`model_transport` 需要 pip 可用的新 venv，以及显式准备的本地 wheelhouse。直接依赖与传递依赖按精确版本记录；安装器只从该目录离线解析和安装，不借用宿主 site-packages，不自动联网补包。命令增加 `--profiles model_transport --wheelhouse <本地Wheel目录>`；也可在同一次安装中组合所需 Profile；独立应用状态使用 `--profiles application_storage`，不要求模型传输依赖。
 
 源文件安装前验证完整发布组的版本、所有权、成员、路径和目标依赖；拒绝缺失成员、重复文件、版本不符、平台不匹配与依赖缺失。不新增自建内容哈希门。完整验收结果和实际验证命令见 [MOD-024 报告](reports/mod-024-module-delivery.md)。
 
@@ -122,6 +123,8 @@ python scripts/build_portable_unit.py --verify
 
 ## MOD-031 实现后的成员口径（2026-11-11）
 
-当前清单为 309 个受管应用文件加 4 份 Skill 资源，共 313 个唯一成员；tool_sources 为 104 个源码，skill_release 为 111 个源码加 4 资源，model_transport 为 5 个源码。三 Profile 源码并集 153、加资源 157。旧目录已退出，来源与 Tool 同组，Fake/模拟数据单独归 simulation_fixtures；共享策略和 Tool 语义描述各有唯一文件所有者。当前验证与未验证项见 [MOD-031 报告](reports/mod-031-validator.md)。历史 MOD-024/MOD-030 报告保留原值，冻结 v4 参考保留旧成员身份，不能与当前 Profile 清单混用。
+当前清单为 313 个受管应用文件加 4 份 Skill 资源，共 317 个唯一成员；tool_sources 为 104 个源码，skill_release 为 111 个源码加 4 资源，model_transport 为 5 个源码，application_storage 为 10 个源码。原三 Profile 并集仍为 153、加资源 157；四 Profile 源码并集 160、加资源 164。旧目录已退出，来源与 Tool 同组，Fake/模拟数据单独归 simulation_fixtures；共享策略和 Tool 语义描述各有唯一文件所有者。当前验证与未验证项见 [MOD-031 报告](reports/mod-031-validator.md)。历史 MOD-024/MOD-030 报告保留原值，冻结 v4 参考保留旧成员身份，不能与当前 Profile 清单混用。
 
 光刻默认交付组合为 Skill 2.0.0 / Workflow 3.0.0 / capability-evidence 2.0.0；旧发布可通过固定 Workflow 2.1.0 使用原 1.3.0 策略。发布对象仍在进程内，必须随制品提供匹配的源码、资源和可信版本配置；回退不能只修改清单版本或删除必需策略。默认诊断使用 2.0.0，旧 1.2.0 保留为有消费者的明确版本配置。
+
+独立应用状态切片的真实安装、接口迁移和未验证范围见[persistence 拆分报告](reports/persistence-demo-separation.md)。默认 HTTP 仍是演示组合；安装无模拟包的状态切片不代表完整生产 HTTP 应用已经交付。

@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import app.demo_data.seed as seed
-from app.persistence.database import db_session, initialize, validate_department_databases
+from app.demo_data.database import db_session, initialize, validate_department_databases
 from app.persistence.department_schemas import SCHEMA_VERSION
 
 

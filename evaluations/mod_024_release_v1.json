@@ -268,6 +268,21 @@
         "idna==3.20",
         "typing_extensions==4.16.0"
       ]
+    },
+    "application_storage": {
+      "source_files": [
+        "app/__init__.py",
+        "app/core/__init__.py",
+        "app/core/model_capabilities.py",
+        "app/core/settings.py",
+        "app/core/sqlite_support.py",
+        "app/persistence/__init__.py",
+        "app/persistence/connection.py",
+        "app/persistence/database.py",
+        "app/persistence/department_schemas.py",
+        "app/persistence/migrations.py"
+      ],
+      "external_dependencies": []
     }
   },
   "environment_locks": {
@@ -285,7 +300,8 @@
           "typing_extensions==4.16.0"
         ],
         "skill_release": [],
-        "tool_sources": []
+        "tool_sources": [],
+        "application_storage": []
       },
       "python_implementation": "CPython",
       "python_version": "3.11.15",
@@ -305,7 +321,8 @@
           "typing_extensions==4.16.0"
         ],
         "skill_release": [],
-        "tool_sources": []
+        "tool_sources": [],
+        "application_storage": []
       },
       "python_implementation": "CPython",
       "python_version": "3.13.5",
