@@ -19,7 +19,7 @@
 
 - local-Qwen Thinking 合并：按模型配置档位与方言、管理端设置、Windows 夹具适配及必要冲突修正已验证，见 [合并报告](docs/reports/local-qwen-thinking-merge.md)。
 
-- 后续计划：MOD-031 已实现，规则版本及未验证范围见 [报告](docs/reports/mod-031-validator.md)。MOD-029 的[重审稿 v3.0](docs/tool-result-offloading-plan.md)于 2026-11-15 重整为独立结果库、Session 级保留与引用回读，默认开启且分别提示关闭截断/开启卸载；方向已确认，细节待审核、未实施。模块化待做 9 项（020～023、025～029），不自动启动下一项或企业真实接入。
+- 后续计划：MOD-031 已实现，规则版本及未验证范围见 [报告](docs/reports/mod-031-validator.md)。MOD-029 的[重审稿 v3.0](docs/tool-result-offloading-plan.md)于 2026-11-15 重整为独立结果库、Session 级保留与引用回读，默认开启且分别提示关闭截断/开启卸载；已获执行指令，029a 核对完成，029b～e 待实现。模块化待做 9 项（020～023、025～029），不自动启动下一项或企业真实接入。
 
 - 当前结构：业务 Tool 与真实来源归 app/tools，Fake/模拟 Provider/seed 归 app/demo_data；规划视图与选择归 planning_runtime，证据声明及业务规则的唯一来源归 app/skills/policies，默认装配归 bootstrap。旧制造/接入目录已退出。历史 v4 参考保留旧成员标识，不代表当前运行依赖旧目录。
 

@@ -9,7 +9,7 @@ MOD-029 单项更新：2026-11-15，方案基线 `c5312d1`；仅重整方案，�
 | 工作包 | 阶段 | 状态 | 依赖 | 当前验收证据 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
 | `MOD-020`～`MOD-023` | P4 | 计划中 | P2 | Checkpoint、提交和恢复协议 | 按需求启用 |
-| `MOD-029` | P2/P5 | **v3.0 方向已确认，细节待审核，未实施** | MOD-030/031 已完成；不等待完整恢复链 | [重审稿](../tool-result-offloading-plan.md)于 2026-11-15 按 c5312d1 重整：独立结果库、Session 保留/永久删除、结构分页、引用回读、双模式提醒与配额；029a～e 均未实施 | 核对删除/并发协议、旧结果追问接缝和候选额度，获准后排在 MOD-025 前实施 |
+| `MOD-029` | P2/P5 | **已获执行指令；029a 核对完成，029b～e 待实现** | MOD-030/031 已完成；不等待完整恢复链 | [v3.0](../tool-result-offloading-plan.md)与 [029a 契约](../reports/mod-029a-result-access-contract.md)：独立结果库、Session 生命周期、结构分页与预算；运行功能未接入 | 继续 029b 独立结果库与生命周期，再按 c～e 接入验收；不自动开始 MOD-025 |
 | `MOD-025`～`MOD-028` | P5 | 计划中 | 对应稳定 Ports | 交付制品、演示、Fake 集成与迁移评审；MOD-027 另承接 MOD-015 收尾时保留的 `run_agent` 兼容 facade、`TOOLS`/`TOOL_HANDLERS`、`compatibility` 装配边和 `core/settings.py` 配置锚点（台账 exit_task 已改为 MOD-027） | 与里程碑交错执行 |
 
 业务数据访问、量化小模型的受控查询约束及交付验收依据[解耦总方案](../architecture-modularization-master-plan.md)；[当前结构](../current-project-structure.md)说明实际模块归属。历史目录与分层不是不可调整的实现要求。

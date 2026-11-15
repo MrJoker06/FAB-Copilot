@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0.0",
+  "classification": "synthetic_non_production",
+  "snapshot_time": "2026-11-15T00:00:00+00:00",
+  "cases": [
+    {
+      "id": "ordered_records",
+      "input": [{"equipment_id": "A", "value": 0}, {"equipment_id": "B", "value": 2}, {"equipment_id": "C", "value": null}],
+      "unit_kind": "records",
+      "expected_units": [{"equipment_id": "A", "value": 0}, {"equipment_id": "B", "value": 2}, {"equipment_id": "C", "value": null}]
+    },
+    {
+      "id": "paragraph_separators",
+      "input": "第一段\n仍在第一段\n\nSecond paragraph\n\n尾段\n",
+      "unit_kind": "paragraphs",
+      "expected_units": ["第一段\n仍在第一段\n\n", "Second paragraph\n\n", "尾段\n"]
+    },
+    {
+      "id": "object_shape",
+      "input": {"zero": 0, "nested": {"text": "引号\"与换行\n", "items": [false, null]}},
+      "unit_kind": "entries",
+      "expected_units": [{"key": "zero", "value": 0}, {"key": "nested", "value": {"text": "引号\"与换行\n", "items": [false, null]}}]
+    },
+    {"id": "empty_list", "input": [], "unit_kind": "records", "expected_units": []},
+    {"id": "scalar_false", "input": false, "unit_kind": "scalar", "expected_units": [false]}
+  ]
+}
