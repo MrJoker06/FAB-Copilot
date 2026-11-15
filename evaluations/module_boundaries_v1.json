@@ -268,7 +268,8 @@
       "app.tools.named_queries.binding",
       "app.planning_runtime.named_playbooks",
       "app.planning_runtime.named_planner",
-      "app.demo_data.schemas"
+      "app.demo_data.schemas",
+      "app.core.tool_result_units"
     ],
     "pure_forbidden_targets": [
       "app.persistence.database",
@@ -281,7 +282,8 @@
       "app.personal_knowledge_runtime.service",
       "app.persistence.connection",
       "app.persistence.migrations",
-      "app.demo_data.database"
+      "app.demo_data.database",
+      "app.persistence.tool_result_store"
     ],
     "pure_forbidden_prefixes": [
       "sqlite3",

@@ -685,6 +685,11 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/core/tool_result_units.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/demo_data/__init__.py",
       "primary_module": "simulation",
       "artifact_group": "simulation_fixtures"
@@ -986,6 +991,11 @@
     },
     {
       "path": "app/persistence/migrations.py",
+      "primary_module": "persistence",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/persistence/tool_result_store.py",
       "primary_module": "persistence",
       "artifact_group": "enterprise_adapters"
     },
@@ -2611,6 +2621,21 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
+      "source_file": "app/persistence/tool_result_store.py",
+      "imports": [],
+      "calls": [
+        "connection.execute",
+        "connection.executemany"
+      ],
+      "table_hints": [
+        "result_store_meta",
+        "result_store_sessions",
+        "sqlite_master",
+        "tool_result_snapshots"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
       "source_file": "app/personal_knowledge_runtime/documents.py",
       "imports": [],
       "calls": [
@@ -2967,6 +2992,14 @@
         "stores": "application SQLite state",
         "exit_task": "MOD-027",
         "init_effects": "explicit application schema/migrations or SQLite connection setup; no simulation data"
+      },
+      {
+        "source_file": "app/persistence/tool_result_store.py",
+        "owner": "persistence",
+        "classification": "internal-store",
+        "stores": "result_store_meta, result_store_sessions, tool_result_snapshots",
+        "init_effects": "Explicit host-supplied independent SQLite result store; no import-time initialization or demo generation. Transactional publication, quotas and persistent session revocation. Host session deletion integration is a later MOD-029 batch.",
+        "exit_task": "MOD-029 (retain result store)"
       },
       {
         "source_file": "app/personal_knowledge_runtime/documents.py",

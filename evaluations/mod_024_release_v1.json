@@ -276,11 +276,13 @@
         "app/core/model_capabilities.py",
         "app/core/settings.py",
         "app/core/sqlite_support.py",
+        "app/core/tool_result_units.py",
         "app/persistence/__init__.py",
         "app/persistence/connection.py",
         "app/persistence/database.py",
         "app/persistence/department_schemas.py",
-        "app/persistence/migrations.py"
+        "app/persistence/migrations.py",
+        "app/persistence/tool_result_store.py"
       ],
       "external_dependencies": []
     }

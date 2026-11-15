@@ -141,7 +141,7 @@ class ModuleReleaseTests(unittest.TestCase):
 
     def _build(self, root: Path) -> Path:
         module_release.build(root, build_id="test-build")
-        self.assertEqual(module_release.verify(root)["members"], 317)
+        self.assertEqual(module_release.verify(root)["members"], 319)
         return root
 
     @staticmethod
@@ -194,7 +194,7 @@ class ModuleReleaseTests(unittest.TestCase):
             )
             self.assertTrue((first / "install_module_release.py").is_file())
             self.assertTrue((first / "verify_module_release.py").is_file())
-            self.assertEqual(len(release["ownership"]), 317)
+            self.assertEqual(len(release["ownership"]), 319)
             self.assertEqual(
                 len(release["profiles"]["tool_sources"]["source_files"]), 104
             )
@@ -208,8 +208,8 @@ class ModuleReleaseTests(unittest.TestCase):
                 *(set(item["source_files"]) for item in release["profiles"].values())
             )
             resources = set(release["profiles"]["skill_release"]["resource_files"])
-            self.assertEqual(len(union), 160)
-            self.assertEqual(len(union | resources), 164)
+            self.assertEqual(len(union), 162)
+            self.assertEqual(len(union | resources), 166)
             self.assertTrue(
                 all(name.startswith("app/") for name in release["ownership"])
             )

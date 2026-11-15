@@ -2,7 +2,9 @@
 
 快照日期：2026-11-12。当前为 `experiment/parallel-platform` 的 persistence/模拟数据职责拆分工作树，执行起点 `251b612`（运行代码基线为 MOD-031 的 `7859df9`）；提交及远程状态以 Git 记录为准。MOD-001～019、MOD-024、MOD-030 的历史验收不变；MOD-031 的规则拆分与限制见 [031 报告](reports/mod-031-validator.md)，本轮存储拆分见[报告](reports/persistence-demo-separation.md)。MOD-020～023、MOD-025～029 保持待做/暂缓；默认 HTTP 未启用 Skill，保留兼容 facade 与配置锚点归 MOD-027。
 
-当前实扫 `app/` 为 **313 文件：285 个 Python、28 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。
+当前实扫 `app/` 为 **315 文件：287 个 Python、28 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。
+
+2026-11-15 MOD-029b 增补：独立结果库存储核心与结构分页已实现，实际聊天/后台及 Session 永久删除联动尚未接入，见[本批报告](reports/mod-029b-result-store.md)。不将未来结果库当成默认启动已具备的能力。
 
 ## 平台启动入口
 
@@ -441,6 +443,8 @@ Skill 格式/加载/发布模块只依赖标准库和自身；新增 policies �
 | `app/persistence/database.py` | 存储 | 仅知识与 Agent 应用状态的初始化、会话、写表定位；不依赖或初始化模拟模块。 |
 | `app/persistence/connection.py` | 存储 | 共用 SQLite 连接/PRAGMA/数学函数及行转换；不声明业务 Schema 或生成数据。 |
 | `app/persistence/migrations.py` | 存储 | 会话、模型、执行记录与个人知识的增量迁移。 |
+| `app/persistence/tool_result_store.py` | 存储 | 显式初始化的独立结果库、配额、引用/游标、实时许可与持久 Session 撤销；宿主接入归 MOD-029 后续批次。 |
+| `app/core/tool_result_units.py` | 纯 | 有限 JSON、记录/段落/键值单元分页与明确片段，按完整响应字节控制。 |
 | `app/persistence/department_schemas.py` | 纯 | 仅应用自有知识与 Agent 状态的 Schema 和表归属。 |
 | `app/persistence/execution_store.py` | 存储/过渡 | 计划、步骤、事件和中断状态记录；尚非安全恢复协议。 |
 | `app/telemetry/__init__.py` | 包 | 可观测包锚点。 |

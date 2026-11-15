@@ -210,7 +210,7 @@ class PersistenceSeparationTests(unittest.TestCase):
                 delivery, ["application_storage"]
             )
             selected = release["profiles"]["application_storage"]["source_files"]
-            self.assertEqual(len(selected), 10)
+            self.assertEqual(len(selected), 12)
             self.assertFalse(
                 any(path.startswith("app/demo_data/") for path in selected)
             )
@@ -237,6 +237,14 @@ import json, sqlite3, sys
 from pathlib import Path
 from contextlib import closing
 from app.persistence import database
+from app.persistence.tool_result_store import ToolResultStore
+store = ToolResultStore(Path.cwd() / 'results.db')
+store.initialize()
+scope = dict(tenant_id='tenant', owner_id='owner', session_id='isolated')
+reference = store.save(**scope, run_id='run', call_id='call', metadata={'queried_at':'2026-11-15'}, content=[{'value':7}], permit=lambda:True)
+store = ToolResultStore(Path.cwd() / 'results.db')
+assert store.read(**scope, result_ref=reference, permit=lambda:True)['units'] == [{'value':7}]
+store.revoke_session(**scope)
 database.initialize()
 with database.db_session() as connection:
     connection.execute("INSERT INTO agent.chat_sessions(session_id,title,created_at,updated_at) VALUES ('isolated','outside','2026-01-01','2026-01-01')")
