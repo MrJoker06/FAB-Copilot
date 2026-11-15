@@ -6,7 +6,7 @@
 
 ## 当前安排
 
-- MOD-029：[重审稿 v2.0](docs/tool-result-offloading-plan.md)待审核、未实施；随后按 025 → 026 → 027 → 028，恢复链 020 → 021 → 022 → 023 按需求启用。见[执行计划](docs/todos/execution-plan.md)和[模块化追踪](docs/todos/modularization.md)。
+- MOD-029：[重审稿 v3.0](docs/tool-result-offloading-plan.md)已按独立结果库、Session 级保留与引用回读重整，方向已确认、细节待审核，未实施；随后按 025 → 026 → 027 → 028，恢复链 020 → 021 → 022 → 023 按需求启用。见[执行计划](docs/todos/execution-plan.md)和[模块化追踪](docs/todos/modularization.md)。
 - GitHub [#1](https://github.com/MrJoker06/FAB-Copilot/issues/1)、[#2](https://github.com/MrJoker06/FAB-Copilot/issues/2)、[#3](https://github.com/MrJoker06/FAB-Copilot/issues/3)维护其余改造方向；未实施项不因方向确认或本次归档而完成，不自动启动 LDAP、公司接入或 Live。
 
 ## 未完成任务入口
