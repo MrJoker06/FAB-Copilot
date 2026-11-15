@@ -2,9 +2,11 @@
 
 快照日期：2026-11-12。当前为 `experiment/parallel-platform` 的 persistence/模拟数据职责拆分工作树，执行起点 `251b612`（运行代码基线为 MOD-031 的 `7859df9`）；提交及远程状态以 Git 记录为准。MOD-001～019、MOD-024、MOD-030 的历史验收不变；MOD-031 的规则拆分与限制见 [031 报告](reports/mod-031-validator.md)，本轮存储拆分见[报告](reports/persistence-demo-separation.md)。MOD-020～023、MOD-025～029 保持待做/暂缓；默认 HTTP 未启用 Skill，保留兼容 facade 与配置锚点归 MOD-027。
 
-当前实扫 `app/` 为 **315 文件：287 个 Python、28 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。
+当前实扫 `app/` 为 **316 文件：288 个 Python、28 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。
 
 2026-11-15 MOD-029b 增补：独立结果库存储核心与结构分页已实现，实际聊天/后台及 Session 永久删除联动尚未接入，见[本批报告](reports/mod-029b-result-store.md)。不将未来结果库当成默认启动已具备的能力。
+
+MOD-029c 增补：`app/agent_runtime/tools/result_access.py` 提供每 Run 辅助 ToolDefinition/绑定、阶段/主体检查与共享调用认领；见[报告](reports/mod-029c-result-read-tool.md)，实际聊天/后台仍待 029d。
 
 ## 平台启动入口
 

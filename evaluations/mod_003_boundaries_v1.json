@@ -333,6 +333,11 @@
       "exit_task": "MOD-008"
     },
     {
+      "path": "app/agent_runtime/tools/result_access.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/agent_runtime/tools/tool_registry.py",
       "primary_module": "tool_system",
       "artifact_group": "platform_core"

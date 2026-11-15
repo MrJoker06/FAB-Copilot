@@ -15,11 +15,11 @@
 
 - Skill 状态：MOD-016～019 已验证。`app/skills/` 处理声明、依赖、Catalog、渐进加载与进程内不可变发布；`app/bootstrap/skill_assembly.py` 显式装配精确 skill_refs，光刻包复用原 Playbook/Planner 与 Ready/Fake Loop/Dispatcher。完整资源固定、显式激活/禁用/回退已验收，默认 HTTP 未启用，见 [发布验收报告](docs/reports/mod-019-skill-releases.md)。
 
-- 当前进度（2026-11-12）：MOD-031 已完成，本轮进一步分离 persistence 与模拟数据，见[存储报告](docs/reports/persistence-demo-separation.md)。Windows 本轮全量 1472 项保留可在基线复现的 12 失败/10 错误（后追加边界反例另跑），Linux 浏览器 17/17；full 门未通过。受管源码 315（287 Python + 28 静态）、依赖债务 10、兼容入口 7/消费 95，DB 候选 34；产品统计不变。当前分支 experiment/parallel-platform，本项执行基线 251b612；提交与远程状态以 Git 为准。
+- 当前进度（2026-11-12）：MOD-031 已完成，本轮进一步分离 persistence 与模拟数据，见[存储报告](docs/reports/persistence-demo-separation.md)。Windows 本轮全量 1472 项保留可在基线复现的 12 失败/10 错误（后追加边界反例另跑），Linux 浏览器 17/17；full 门未通过。受管源码 316（288 Python + 28 静态）、依赖债务 10、兼容入口 7/消费 95，DB 候选 34；产品统计不变。当前分支 experiment/parallel-platform，本项执行基线 251b612；提交与远程状态以 Git 为准。
 
 - local-Qwen Thinking 合并：按模型配置档位与方言、管理端设置、Windows 夹具适配及必要冲突修正已验证，见 [合并报告](docs/reports/local-qwen-thinking-merge.md)。
 
-- 后续计划：MOD-031 已实现，规则版本及未验证范围见 [报告](docs/reports/mod-031-validator.md)。MOD-029 的[重审稿 v3.0](docs/tool-result-offloading-plan.md)于 2026-11-15 重整为独立结果库、Session 级保留与引用回读，默认开启且分别提示关闭截断/开启卸载；已获执行指令，029a 核对完成，029b 存储核心已实现，029c～e 待实现。模块化待做 9 项（020～023、025～029），不自动启动下一项或企业真实接入。
+- 后续计划：MOD-031 已实现，规则版本及未验证范围见 [报告](docs/reports/mod-031-validator.md)。MOD-029 的[重审稿 v3.0](docs/tool-result-offloading-plan.md)于 2026-11-15 重整为独立结果库、Session 级保留与引用回读，默认开启且分别提示关闭截断/开启卸载；已获执行指令，029a 核对完成，029b/c 核心已实现，029d/e 待接入验收。模块化待做 9 项（020～023、025～029），不自动启动下一项或企业真实接入。
 
 - 当前结构：业务 Tool 与真实来源归 app/tools，Fake/模拟 Provider/seed 归 app/demo_data；规划视图与选择归 planning_runtime，证据声明及业务规则的唯一来源归 app/skills/policies，默认装配归 bootstrap。旧制造/接入目录已退出。历史 v4 参考保留旧成员标识，不代表当前运行依赖旧目录。
 

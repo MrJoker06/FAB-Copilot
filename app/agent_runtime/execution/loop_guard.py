@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from collections import Counter
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -20,6 +21,7 @@ class ToolCallDecision:
 class ToolLoopGuard:
     def __init__(self, plan: ExecutionPlan):
         self.plan = plan
+        self._claim_lock = threading.Lock()
         self.total_calls = 0
         self.tool_calls: Counter[str] = Counter()
         self.signature_calls: Counter[str] = Counter()
@@ -69,6 +71,20 @@ class ToolLoopGuard:
         return ToolCallDecision(False, code, message, signature_hash)
 
     def check_call(self, tool: str, arguments: dict[str, Any]) -> ToolCallDecision:
+        with self._claim_lock:
+            return self._check_business_call(tool, arguments)
+
+    def claim_auxiliary_read(self) -> bool:
+        """Share total calls without changing business or evidence accounting."""
+        with self._claim_lock:
+            if self.stop_reason not in {None, "required_evidence_complete", "no_progress"}:
+                return False
+            if self.total_calls >= self.plan.budget.max_tool_calls:
+                return False
+            self.total_calls += 1
+            return True
+
+    def _check_business_call(self, tool: str, arguments: dict[str, Any]) -> ToolCallDecision:
         signature, signature_hash = self._signature(tool, arguments)
         if self.force_synthesis:
             return self._blocked(

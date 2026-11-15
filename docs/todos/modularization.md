@@ -9,7 +9,7 @@ MOD-029 单项更新：2026-11-15，方案基线 `c5312d1`；仅重整方案，�
 | 工作包 | 阶段 | 状态 | 依赖 | 当前验收证据 | 下一步 |
 | --- | --- | --- | --- | --- | --- |
 | `MOD-020`～`MOD-023` | P4 | 计划中 | P2 | Checkpoint、提交和恢复协议 | 按需求启用 |
-| `MOD-029` | P2/P5 | **029a 完成，029b 存储核心已实现，c～e 待实现** | MOD-030/031 已完成；不等待完整恢复链 | [v3.0](../tool-result-offloading-plan.md)、[029a](../reports/mod-029a-result-access-contract.md)、[029b](../reports/mod-029b-result-store.md)：已验证存储层，不代表实际聊天/后台/Session 清理已接入 | 继续回读与宿主/删除联动，再做完整阶段门；不自动开始 MOD-025 |
+| `MOD-029` | P2/P5 | **029a 完成，029b/c 核心已实现，d/e 待接入验收** | MOD-030/031 已完成；不等待完整恢复链 | [v3.0](../tool-result-offloading-plan.md)、[029a](../reports/mod-029a-result-access-contract.md)、[029b](../reports/mod-029b-result-store.md)：已验证存储层，不代表实际聊天/后台/Session 清理已接入 | 继续回读与宿主/删除联动，再做完整阶段门；不自动开始 MOD-025 |
 | `MOD-025`～`MOD-028` | P5 | 计划中 | 对应稳定 Ports | 交付制品、演示、Fake 集成与迁移评审；MOD-027 另承接 MOD-015 收尾时保留的 `run_agent` 兼容 facade、`TOOLS`/`TOOL_HANDLERS`、`compatibility` 装配边和 `core/settings.py` 配置锚点（台账 exit_task 已改为 MOD-027） | 与里程碑交错执行 |
 
 业务数据访问、量化小模型的受控查询约束及交付验收依据[解耦总方案](../architecture-modularization-master-plan.md)；[当前结构](../current-project-structure.md)说明实际模块归属。历史目录与分层不是不可调整的实现要求。
