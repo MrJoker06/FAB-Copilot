@@ -22,6 +22,7 @@ from ..agent_runtime.tools.dispatcher import ToolDispatcher
 from ..agent_runtime.tools.tool_registry import ToolRegistry
 
 if TYPE_CHECKING:
+    from ..agent_runtime.result_access_run import ResultAccessRun
     from .skill_assembly import (
         SkillAssemblyConfiguration,
         SkillBinding,
@@ -93,7 +94,8 @@ class AgentApplication:
     skill_binding: SkillBinding | None = None
 
     def new_run(
-        self, context: RuntimeContext, *, result_policy: ToolResultPolicy | None = None
+        self, context: RuntimeContext, *, result_policy: ToolResultPolicy | None = None,
+        result_access: ResultAccessRun | None = None,
     ) -> AgentRun:
         if not isinstance(context, RuntimeContext):
             raise AssemblyError()
@@ -125,6 +127,20 @@ class AgentApplication:
                 allowed_tools=self.effective_capabilities,
                 result_policy=result_policy,
             )
+            from ..agent_runtime.execution.loop_guard import ToolLoopGuard
+            from ..agent_runtime.result_access_run import ResultAccessRun
+
+            if result_access is None:
+                result_access = ResultAccessRun(run_id=context.run_id, principal=context.principal)
+                if isinstance(getattr(budget, "guard", None), ToolLoopGuard):
+                    result_access.bind(budget.guard)
+            else:
+                if (not isinstance(result_access, ResultAccessRun)
+                    or result_access.run_id != context.run_id
+                    or result_access.principal != context.principal
+                    or not isinstance(getattr(budget, "guard", None), ToolLoopGuard)):
+                    raise AssemblyError()
+                result_access.bind(budget.guard, registry)
         except AssemblyError:
             raise
         except Exception:  # noqa: BLE001 - assembly errors are deliberately opaque
@@ -138,6 +154,7 @@ class AgentApplication:
             tools_json,
             skill_context,
             skill_metadata,
+            result_access,
         )
 
 

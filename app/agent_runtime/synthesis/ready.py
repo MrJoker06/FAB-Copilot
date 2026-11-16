@@ -9,7 +9,8 @@ import traceback
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
-from ...core.tool_result_projection import project_result, truncation_prompt_note
+from ...core.tool_result_projection import truncation_prompt_note
+from ..result_access_run import current_result_access, result_prompt_payload, stream_result_model, ResultRequestLimit
 
 
 READY_SYNTHESIS_MAX_TOKENS = 8192
@@ -162,7 +163,7 @@ async def request_synthesis_correction(
               wall_time_budget_ms=round(wall_time_seconds * 1000, 1))
     try:
         assistant, usage, response_id = await asyncio.wait_for(
-            session.stream(payload, None, state),
+            stream_result_model(session, payload, None, state),
             timeout=wall_time_seconds,
         )
     except Exception as exc:
@@ -209,11 +210,13 @@ def ready_synthesis_messages(
     deps: ReadySynthesisDependencies,
 ) -> list[dict[str, str]]:
     evidence: list[dict[str, Any]] = []
-    for item in observations:
+    for index, item in enumerate(observations):
         result = item.result if item.status == "success" else None
         meta: dict[str, Any] | None = None
         if item.status == "success":
-            result, meta = project_result(item.tool, result)
+            view = result_prompt_payload(item.tool, result, call_id=item.source_ref or f"ready-{index}",
+                source_ref=item.source_ref or f"TOOL:{index}", scope=getattr(item, "arguments", {}))
+            result, meta = view["data"], view.get("truncation")
         entry: dict[str, Any] = {
             "source_ref": item.source_ref,
             "tool": item.tool,
@@ -225,6 +228,10 @@ def ready_synthesis_messages(
             entry["truncation"] = dict(
                 meta, note=truncation_prompt_note(item.tool, meta)
             )
+        if item.status == "success":
+            for field in ("result_access", "preview", "preview_format"):
+                if field in view:
+                    entry[field] = view[field]
         evidence.append(entry)
     task = {
         "question": question,
@@ -252,11 +259,13 @@ def ready_synthesis_messages(
     return deps.stage_memory_messages("ready_synthesis", None) + [
         {
             "role": "system",
-            "content": "你是 Fab Copilot 的最终综合器。业务工具已由服务端确定性执行；你只能依据下面的已验证证据调用 submit_analysis 一次，不能选择、请求或虚构业务工具。",
+            "content": ("你是 Fab Copilot 的最终综合器。业务工具已由服务端确定性执行；依据下面已验证证据最终单独调用 submit_analysis。"
+                        "仅当服务端提供 read_tool_result 时，可在剩余额度内先单独回读已保存结果；回读不产生新证据，不能重新查询或虚构业务来源。"),
         },
-        {"role": "system", "content": deps.synthesizer_system_message(contract)},
+        {"role": "system", "content": deps.synthesizer_system_message(contract), "_fab_tool_result":True},
         {
             "role": "user",
+            "_fab_tool_result":True,
             "content": json.dumps(
                 task, ensure_ascii=False, separators=(",", ":"), default=str
             ),
@@ -359,6 +368,37 @@ def synthesize_ready_assistant(
 
 
 async def request_ready_synthesis(
+    session, connection, settings, messages, run_id, thinking, retry_budget, *, deps,
+    thinking_effort="off", thinking_dialect="",
+):
+    access = current_result_access()
+    if access is None or not any(item.get("status") == "saved" for item in access.notices):
+        return await _request_ready_once(session, connection, settings, messages, run_id, thinking, retry_budget,
+            deps=deps, thinking_effort=thinking_effort, thinking_dialect=thinking_dialect)
+    active_messages = list(messages)
+    totals = {"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}
+    for _ in range(6):
+        if access.request_count >= 5 and access.reader is not None:
+            access.reader.phase = "final"
+        assistant, usage, response_id, state = await _request_ready_once(
+            session,connection,settings,active_messages,run_id,thinking,retry_budget,
+            deps=deps,thinking_effort=thinking_effort,thinking_dialect=thinking_dialect)
+        for key in totals:
+            totals[key] += int(usage.get(key,0) or 0)
+        calls = assistant.get("tool_calls") or []
+        reads = [call for call in calls if call.get("function",{}).get("name") == "read_tool_result"]
+        if not reads:
+            return assistant,totals,response_id,state
+        if len(calls) != 1 or not access.can_read():
+            raise ResultRequestLimit("回读必须单独调用且具有剩余额度")
+        call = reads[0]
+        page = await access.read(call["function"].get("arguments") or "{}")
+        active_messages.extend([assistant, {"role":"tool","tool_call_id":call["id"],
+            "content":json.dumps(page,ensure_ascii=False,separators=(",",":")),"_fab_result_read":True}])
+    raise ResultRequestLimit("综合请求次数已用尽")
+
+
+async def _request_ready_once(
     session: Any,
     connection: Any,
     settings: Any,
@@ -385,6 +425,9 @@ async def request_ready_synthesis(
             thinking_dialect,
         ),
     }
+    access = current_result_access()
+    if access is not None and access.can_read() and any(item.get("status") == "saved" for item in access.notices):
+        payload["tools"].append(access.tool_view())
     if not (connection.provider == "deepseek" and thinking):
         payload["tool_choice"] = "auto"
     for attempt in range(1, retry_budget + 2):
@@ -409,7 +452,7 @@ async def request_ready_synthesis(
             "suppress_embedded_tool_json": True,
         }
         try:
-            assistant, usage, response_id = await session.stream(payload, None, state)
+            assistant, usage, response_id = await stream_result_model(session, payload, None, state)
         except Exception as exc:
             retryable = deps.retryable_model_error(exc)
             will_retry = retryable and attempt <= retry_budget

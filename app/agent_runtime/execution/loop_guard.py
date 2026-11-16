@@ -77,7 +77,7 @@ class ToolLoopGuard:
     def claim_auxiliary_read(self) -> bool:
         """Share total calls without changing business or evidence accounting."""
         with self._claim_lock:
-            if self.stop_reason not in {None, "required_evidence_complete", "no_progress"}:
+            if self.stop_reason not in {None, "required_evidence_complete", "no_progress", "deterministic_plan_completed"}:
                 return False
             if self.total_calls >= self.plan.budget.max_tool_calls:
                 return False

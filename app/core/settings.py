@@ -104,6 +104,7 @@ class Settings:
     # Opt-in chat-template compatibility mode (``FAB_CHAT_TEMPLATE_COMPAT``);
     # defaulted so explicitly constructed settings snapshots stay valid.
     chat_template_compat: str | None = None
+    tool_result_database_path: Path | None = None
 
 
 def get_settings() -> Settings:
@@ -183,4 +184,5 @@ def get_settings() -> Settings:
         or "fab-insight-local-demo-secret",
         admin_api_token=os.getenv("FAB_ADMIN_API_TOKEN", "").strip(),
         chat_template_compat=os.getenv("FAB_CHAT_TEMPLATE_COMPAT", "").strip() or None,
+        tool_result_database_path=department_path("FAB_TOOL_RESULT_DATABASE_PATH", "tool_results.db"),
     )

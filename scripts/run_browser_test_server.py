@@ -239,6 +239,7 @@ def browser_test_environment(root: Path, environ: dict[str, str] | None = None) 
     prepare_browser_test_journey_fixtures(
         snapshots["FAB_AGENT_DATABASE_PATH"], snapshots["FAB_KNOWLEDGE_DATABASE_PATH"]
     )
+    prepare_browser_test_result_fixture(snapshots["FAB_AGENT_DATABASE_PATH"], departments / "tool_results.db")
     environment.update({
         "FAB_DATABASE_DIR": str(departments),
         "FAB_DATABASE_PATH": str(root / "legacy.db"),
@@ -269,6 +270,28 @@ def browser_test_environment(root: Path, environ: dict[str, str] | None = None) 
         "AGENT_LOG_CONTENT": "metadata",
     })
     return environment
+
+
+def prepare_browser_test_result_fixture(agent_path: Path, result_path: Path) -> None:
+    """Use the real result store with isolated, explicitly synthetic content."""
+    from app.persistence.tool_result_store import ToolResultStore
+    store = ToolResultStore(result_path)
+    store.initialize()
+    timestamp = "2026-11-15T00:00:00+00:00"
+    reference = store.save(tenant_id="mod029-fixture", owner_id="mod029-owner",
+        session_id="mod029-result-session", run_id="fixture-run", call_id="fixture-call",
+        metadata={"tool":"fixture_records", "source_ref":"TOOL:fixture", "queried_at":timestamp,
+                  "scope":{"equipment_id":"CVD-01"}},
+        content=[{"record":index,"value":"synthetic " * 80} for index in range(30)], permit=lambda:True)
+    notice = {"status":"saved","result_ref":reference,"queried_at":timestamp,
+              "message":"结果较大，当前展示预览；已保存，可按需读取。"}
+    with closing(sqlite3.connect(agent_path)) as connection:
+        connection.execute("INSERT OR REPLACE INTO chat_sessions(session_id,tenant_id,owner_user_id,title,created_at,updated_at) VALUES (?,?,?,?,?,?)",
+            ("mod029-result-session","mod029-fixture","mod029-owner","MOD-029 合成结果",timestamp,timestamp))
+        connection.execute("DELETE FROM chat_messages WHERE session_id=?", ("mod029-result-session",))
+        connection.execute("INSERT INTO chat_messages(session_id,role,content,metadata_json,created_at) VALUES (?,'assistant',?,?,?)",
+            ("mod029-result-session","合成结果预览",json.dumps({"tool_result_access":[notice]},ensure_ascii=False),timestamp))
+        connection.commit()
 
 
 def parse_port(value: str) -> int:

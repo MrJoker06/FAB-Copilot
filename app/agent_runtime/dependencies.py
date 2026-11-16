@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, fields
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
@@ -65,6 +66,7 @@ if TYPE_CHECKING:
         ToolRunFactory,
         ValidationMessageBuilder,
     )
+    from .result_access_run import ResultAccessRun
 
 
 @lru_cache(maxsize=32)
@@ -162,6 +164,7 @@ class CoordinatorDependencies:
     loop: LoopDependencies
     tool_run_factory: ToolRunFactory | None = None
     offline_tool_runner: OfflineToolRunner | None = None
+    result_access_factory: Callable[[str | None, str], ResultAccessRun] | None = None
 
     def __getattr__(self, name: str) -> Any:
         """Keep existing ``deps.name`` consumers and patch tests source-compatible."""

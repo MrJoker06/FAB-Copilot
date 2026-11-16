@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from .definition import AgentDefinition
 from .execution.pilot_stages import (
@@ -23,6 +24,9 @@ from .execution.runtime_contracts import (
 from .execution.runtime_ports import EventSink, ModelResponsePort, ToolDispatcherPort
 from .tools.contracts import ToolResult
 
+if TYPE_CHECKING:
+    from .result_access_run import ResultAccessRun
+
 
 @dataclass(frozen=True, slots=True)
 class AgentRun:
@@ -34,6 +38,7 @@ class AgentRun:
     tools_json: str
     skill_context: tuple[ModelMessage, ...] = ()
     skill_metadata: tuple[tuple[str, str], ...] = ()
+    result_access: ResultAccessRun | None = None
 
     async def model_stage(
         self, *, call_id: str, messages: tuple[ModelMessage, ...]
@@ -51,7 +56,10 @@ class AgentRun:
             ),
             tools_json=self.tools_json,
         )
-        return await execute_model_stage(self.context, request, model=self.model)
+        if self.result_access is None:
+            return await execute_model_stage(self.context, request, model=self.model)
+        from .result_access_run import typed_model_stage
+        return await typed_model_stage(self, request, model_stage=execute_model_stage)
 
     async def tool_stage(
         self,
@@ -60,13 +68,33 @@ class AgentRun:
         call_id: str,
         step_id: str | None = None,
     ) -> StageResult[ToolResult[object]]:
-        return await execute_tool_stage(
+        if self.result_access is not None and self.result_access.closed:
+            raise RuntimeContractError("Run is closed")
+        dispatcher = self.dispatcher
+        if self.result_access is not None and call.name == "read_tool_result":
+            if self.result_access.dispatcher is None:
+                raise RuntimeContractError("Result access is unavailable")
+            dispatcher = self.result_access
+        stage = await execute_tool_stage(
             self.context,
             call,
-            dispatcher=self.dispatcher,
+            dispatcher=dispatcher,
             call_id=call_id,
             step_id=step_id,
         )
+        if self.result_access is not None:
+            from .result_access_run import typed_result_view
+            typed_result_view(self, call, call_id, stage.value)
+        return stage
+
+    def begin_synthesis(self, *, timeout: float = 60, max_output: int = 8192) -> None:
+        if self.result_access is None:
+            raise RuntimeContractError("Result access is unavailable")
+        self.result_access.begin_synthesis(timeout, max_output)
+
+    def close(self) -> None:
+        if self.result_access is not None:
+            self.result_access.close()
 
     async def publish(self, event: RuntimeEvent) -> None:
         if event.run_id != self.context.run_id:

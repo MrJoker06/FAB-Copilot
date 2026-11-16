@@ -1,4 +1,5 @@
 from __future__ import annotations
+from ..result_access_run import handle_result_read_round
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Awaitable, Callable
@@ -157,9 +158,7 @@ async def run_agent_loop(
         context.connection,
         chat_template=getattr(settings, "chat_template_compat", None),
     )
-    async with model_gateway.open(
-        model_endpoint, timeout_seconds=settings.api_timeout_seconds
-    ) as session:
+    async with model_gateway.open(model_endpoint, timeout_seconds=settings.api_timeout_seconds) as session:
         for iteration in range(loop_guard.max_model_iterations):
             request_payload = await prepare_round_request(
                 context, state, dispatch_binding, iteration
@@ -176,6 +175,8 @@ async def run_agent_loop(
                 else None
             )
             context.messages.append(turn.assistant)
+            if await handle_result_read_round(context, turn.assistant):
+                continue
             tool_calls = (
                 list(classified_response.tool_calls)
                 if classified_response is not None

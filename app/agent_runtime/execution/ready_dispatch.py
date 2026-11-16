@@ -9,6 +9,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from ...planning_runtime.contracts import ExecutionPlan, PlanBudget, PlanStep
+from ..result_access_run import ResultAccessRun
 from ..tools.contracts import ToolExecutionLimits, ToolResult, ToolStatus
 from .loop_guard import ToolLoopGuard
 from .ready_graph import ready_step_order
@@ -28,6 +29,7 @@ class ReadyDispatchBinding:
     raw_rows_for: Callable[[str], int | None]
     extract_sources: Callable[[ToolResult[object]], tuple[dict[str, object], ...]]
     cleanup: Callable[[], None]
+    result_access: ResultAccessRun | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -276,6 +278,11 @@ async def execute_dispatched_ready_plan(
             trace.append(item)
             observation = dict(projection.observation)
             observations.append(observation)
+            access = binding.result_access
+            if access is not None and result.status is ToolStatus.SUCCEEDED:
+                access.render(step.tool, result.data, call_id=call_id,
+                    source_ref=f"TOOL:{step.step_id}", scope=observation["arguments"])
+                await access.flush(progress)
             _add_sources(sources, binding.extract_sources, result)
             status = item["status"]
             outcomes[step.step_id] = "success" if status == "ok" else status

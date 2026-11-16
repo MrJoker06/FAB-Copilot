@@ -28,10 +28,12 @@ async def _run_agent_impl(
     question: str, history: list[dict] | None, run_id: str,
     progress=None, thinking: bool = False,
     thinking_effort: str = "off", thinking_dialect: str = "",
+    *, session_id: str | None = None, result_ref: str | None = None, result_cursor: str | None = None,
 ) -> dict:
     return await coordinate_agent_run(
         AgentRunRequest(
-            question, history, run_id, thinking, thinking_effort, thinking_dialect
+            question, history, run_id, thinking, thinking_effort, thinking_dialect,
+            session_id=session_id, result_ref=result_ref, result_cursor=result_cursor,
         ),
         progress, deps=_coordinator_dependencies(),
     )
@@ -46,6 +48,8 @@ async def run_agent(
     thinking_dialect: str = "",
     session_id: str | None = None,
     user_message_id: int | None = None,
+    result_ref: str | None = None,
+    result_cursor: str | None = None,
 ) -> dict:
     run_id = str(uuid.uuid4())
     lifecycle = AgentRunLifecycle(
@@ -84,6 +88,7 @@ async def run_agent(
             thinking,
             thinking_effort,
             thinking_dialect,
+            **({"session_id": session_id, "result_ref": result_ref, "result_cursor": result_cursor} if session_id or result_ref else {}),
         )
         result.setdefault("thinking_policy", {
             "requested": thinking,

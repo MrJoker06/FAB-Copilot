@@ -18,6 +18,8 @@
     {"id": "E2E-ADMIN-002", "spec": "admin-governance.spec.js"},
     {"id": "E2E-JOURNEY-001", "spec": "desktop-journeys.spec.js"},
     {"id": "E2E-JOURNEY-002", "spec": "desktop-journeys.spec.js"},
-    {"id": "E2E-JOURNEY-003", "spec": "desktop-journeys.spec.js"}
+    {"id": "E2E-JOURNEY-003", "spec": "desktop-journeys.spec.js"},
+    {"id": "E2E-RESULT-001", "spec": "tool-result-access.spec.js"},
+    {"id": "E2E-RESULT-002", "spec": "tool-result-access.spec.js"}
   ]
 }

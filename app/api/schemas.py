@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
 ThinkingEffort = Literal["off", "low", "medium", "high", "xhigh"]
 ThinkingDialect = Literal["qwen", "deepseek", "openai"]
@@ -18,6 +18,14 @@ class ChatRequest(BaseModel):
     client_message_id: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
     thinking: StrictBool = False
     thinking_effort: ThinkingEffort | None = None
+    tool_result_ref: str | None = Field(default=None, pattern=r"^tr_[a-f0-9]{32}$")
+    tool_result_cursor: str | None = Field(default=None, min_length=1, max_length=2048)
+
+    @model_validator(mode="after")
+    def result_cursor_requires_reference(self):
+        if self.tool_result_cursor is not None and self.tool_result_ref is None:
+            raise ValueError("tool_result_cursor requires tool_result_ref")
+        return self
 
 
 class StreamTelemetryRequest(BaseModel):
@@ -46,6 +54,11 @@ class StreamTelemetryRequest(BaseModel):
 class ModelConfigRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     model: str = Field(min_length=2, max_length=64)
+
+
+class ResultStorageSettingsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    enabled: StrictBool
 
 
 class ModelCapabilitiesRequest(BaseModel):

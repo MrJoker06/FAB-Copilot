@@ -6,8 +6,8 @@ import threading
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Protocol
 from types import SimpleNamespace
+from typing import Any, Protocol
 
 from ...core.tool_result_units import canonical_json
 from ..execution.loop_guard import ToolLoopGuard
@@ -225,6 +225,14 @@ class ResultReadAccess:
         # Auxiliary reads never become a new evidence observation/progress item.
         return False
 
+    def charge_rejected_input(self, result) -> BudgetDecision:
+        decision = self.claim(RESULT_READ_DEFINITION.name, {})
+        if decision.allowed:
+            with self._lock:
+                self._pending -= 1
+                self.response_bytes += len(result_read_content(result).encode("utf-8"))
+        return decision
+
     def policy(self, principal, name, scope):
         allowed = name == RESULT_READ_DEFINITION.name and self.permitted(principal)
         return PolicyDecision(
@@ -278,7 +286,7 @@ class ResultReadAccess:
                     ToolExecutionState.COMPLETED,
                     data=data,
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - never expose reader/backend details
                 code = getattr(exc, "code", None)
                 if code is None and str(exc) == "RESULT_UNAVAILABLE":
                     code = "RESULT_UNAVAILABLE"

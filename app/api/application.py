@@ -23,12 +23,15 @@ class ApplicationDependencies:
     process_personal_document: Callable
     process_personal_document_deletion: Callable
     to_thread: Callable = asyncio.to_thread
+    initialize_result_storage: Callable[[], None] | None = None
 
 
 def lifespan_for(deps: ApplicationDependencies):
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         deps.ensure_department_databases()
+        if deps.initialize_result_storage is not None:
+            deps.initialize_result_storage()
         deps.recover_interrupted_executions()
         deps.ensure_model_catalog()
         with deps.db_session() as connection:

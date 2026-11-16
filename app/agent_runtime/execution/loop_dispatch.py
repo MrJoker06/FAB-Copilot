@@ -9,6 +9,11 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from ...planning_runtime.contracts import ExecutionPlan, PlanBudget, PlanStep
+from ..result_access_run import (
+    ResultAccessRun,
+    current_result_access,
+    result_prompt_payload,
+)
 from ..tools.contracts import ToolExecutionLimits, ToolResult, ToolStatus
 from .loop_guard import ToolLoopGuard
 from .loop_response import LoopResponse
@@ -30,6 +35,7 @@ class LoopDispatchBinding:
     cleanup: Callable[[], None]
     tools_json: str
     initial_total_calls: int
+    result_access: ResultAccessRun | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -262,27 +268,33 @@ async def execute_dispatched_loop_round(
                 raw_rows=raw_rows,
                 error_code=result.error.code if result.error else None,
             )
+            access = current_result_access() or binding.result_access
+            view = (access.render if access is not None else result_prompt_payload)(
+                call.name, result.data, call_id=call_id,
+                source_ref=str(projection.observation.get("source_ref") or f"TOOL:{call_id}"),
+                scope=safe_arguments,
+                envelope={"error_code":None,"execution_state":result.execution_state.value,"error":None},
+            ) if result.status is ToolStatus.SUCCEEDED else {
+                "ok":False, "data":None, "error_code":result.error.code if result.error else None,
+                "execution_state":result.execution_state.value,
+                "error":result.error.public_message if result.error else None,
+            }
+            if access is not None:
+                access.views[call.call_id] = view
             messages.append(
                 {
                     "role": "tool",
                     "tool_call_id": call.call_id,
                     "content": json.dumps(
-                        {
-                            "ok": result.status is ToolStatus.SUCCEEDED,
-                            "data": result.data
-                            if result.status is ToolStatus.SUCCEEDED
-                            else None,
-                            "error_code": result.error.code if result.error else None,
-                            "execution_state": result.execution_state.value,
-                            "error": result.error.public_message
-                            if result.error
-                            else None,
-                        },
+                        view,
                         ensure_ascii=False,
+                        separators=(",", ":") if access is not None else None,
                         default=str,
                     ),
                 }
             )
+            if access is not None:
+                await access.flush(progress)
         loop_guard.finish_round()
         finished = True
         return LoopDispatchOutcome(

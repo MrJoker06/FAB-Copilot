@@ -271,6 +271,7 @@ class DependencyAnnotationGuardTests(unittest.TestCase):
                 "loop",
                 "tool_run_factory",
                 "offline_tool_runner",
+                "result_access_factory",
             ],
         )
         self.assertEqual(

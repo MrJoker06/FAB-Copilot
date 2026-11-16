@@ -19,6 +19,7 @@ async def execute_ready_synthesis(
 
     A non-ready plan is deliberately left for the model/tool loop stage.
     """
+    from ..result_access_run import current_result_access
     if state.execution_plan.status != "ready":
         return None
 
@@ -43,6 +44,15 @@ async def execute_ready_synthesis(
     state.knowledge_fallback = deps.knowledge_fallback_state(
         state.intent_route, state.evidence_observations, state.sources,
     )
+    access = current_result_access()
+    if access is not None and getattr(state.evidence_validation,"assessment_status",None) != "check_failed":
+        access.begin_synthesis(state.settings.api_timeout_seconds,
+            32768 if state.connection.provider == "deepseek" and state.thinking else 8192)
+        for index,item in enumerate(state.evidence_observations):
+            if item.status == "success":
+                access.render(item.tool,item.result,call_id=item.source_ref or f"ready-{index}",
+                    source_ref=item.source_ref or f"TOOL:{index}",scope=item.arguments)
+        await access.flush(state.progress)
     truncation = truncation_details(state.evidence_observations)
     if truncation:
         deps.emit("evidence_truncated", state.run_id, tools=truncation)
@@ -51,7 +61,7 @@ async def execute_ready_synthesis(
         allow_model_knowledge_fallback=state.knowledge_fallback["used"],
         question=state.question,
         resolved_question=state.analysis_question,
-        extra_limitations=truncation_notices(state.evidence_observations),
+        extra_limitations=([item["message"] for item in access.notices] if access is not None else truncation_notices(state.evidence_observations)),
     )
     deps.emit_evidence_validation(state.run_id, 1, state.evidence_validation.to_dict())
     await deps.notify(state.progress, {

@@ -44,6 +44,7 @@ function newClientMessageId() {
 const sourcePresenter = globalThis.FabSourcePresenter;
 const presenter = globalThis.FabChatPresenter.createChatPresenter({
   $, escapeHtml, sourcePresenter, toolLabels,
+  onReadResult: (resultRef, resultCursor) => chat.sendChat('查看之前保存的工具结果', {resultRef, resultCursor, effort:'off'}),
 });
 let layout;
 

@@ -34,6 +34,10 @@
           <span id="logPolicyMode" class="log-policy-mode">metadata</span>
         </section>
         <div id="runtimeKpis" class="admin-kpis"></div>
+        <section class="admin-panel" aria-labelledby="resultStorageTitle">
+          <div class="panel-heading"><div><h2 id="resultStorageTitle">大结果卸载</h2><p id="resultStorageDetail">正在读取当前设置</p><p>开启后保存超限结果，可在当前会话按需读取；关闭后只保留截断预览。设置对新运行生效，不删除已有结果。</p></div><button id="toggleResultStorage" class="quiet-button" type="button" disabled>正在加载</button></div>
+          <p id="resultStorageNotice" class="admin-notice" role="status" hidden></p>
+        </section>
         <section class="admin-panel user-status-panel">
           <div class="panel-heading"><div><h2>用户状态</h2><p>当前活动与窗口期运行汇总</p></div><span id="runtimeUpdated" class="panel-meta"></span></div>
           <div class="admin-table-wrap"><table><thead><tr><th>租户 / 用户</th><th>状态</th><th>当前模型</th><th>会话</th><th>运行</th><th>成功率</th><th>Token</th><th>最近活动</th></tr></thead><tbody id="userStatusBody"></tbody></table></div>

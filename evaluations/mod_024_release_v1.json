@@ -114,7 +114,11 @@
         "app/planning_runtime/contracts.py",
         "app/demo_data/__init__.py",
         "app/demo_data/tool_sources/__init__.py",
-        "app/tools/__init__.py"
+        "app/tools/__init__.py",
+        "app/agent_runtime/result_access_run.py",
+        "app/agent_runtime/result_review.py",
+        "app/agent_runtime/tools/result_access.py",
+        "app/core/tool_result_units.py"
       ],
       "external_dependencies": []
     },
@@ -230,7 +234,11 @@
         "app/skills/policies/__init__.py",
         "app/skills/policies/manufacturing.py",
         "app/evidence/contracts.py",
-        "app/tools/evidence_descriptors.py"
+        "app/tools/evidence_descriptors.py",
+        "app/agent_runtime/result_access_run.py",
+        "app/agent_runtime/result_review.py",
+        "app/agent_runtime/tools/result_access.py",
+        "app/core/tool_result_units.py"
       ],
       "resource_files": [
         "app/skills/litho-cpk-diagnostic/manifest.json",

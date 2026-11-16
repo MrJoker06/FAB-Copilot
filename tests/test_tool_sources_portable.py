@@ -17,6 +17,10 @@ ROOT = Path(__file__).resolve().parents[1]
 # It deliberately copies individual files, including package anchors, not an app tree
 # and not replacement stubs.
 SOURCE_FILES = (
+    "app/agent_runtime/result_review.py",
+    "app/agent_runtime/result_access_run.py",
+    "app/agent_runtime/tools/result_access.py",
+    "app/core/tool_result_units.py",
     "app/__init__.py",
     "app/agent_runtime/__init__.py",
     "app/agent_runtime/application.py",
@@ -227,6 +231,7 @@ print(json.dumps({'cases':cases,'file_count':len(allowed),'guard_events':len(eve
                 cwd=tempfile.gettempdir(),
                 env=child_env,
                 text=True,
+                errors="backslashreplace",
                 capture_output=True,
                 check=False,
             )

@@ -10,6 +10,7 @@ from app.planning_runtime.named_playbooks import select_named_playbook
 from ..planning_runtime.named_planner import create_named_execution_plan
 from .legacy_agent_assembly import build_legacy_coordinator_dependencies
 from .storage_identity_assembly import install_default_storage_identity
+from .result_access_assembly import make_result_access_run
 
 if TYPE_CHECKING:
     from ..agent_runtime.coordinator_state import CoordinatorRunState
@@ -135,4 +136,5 @@ def build_default_coordinator_dependencies(
         ),
         tool_run_factory=tool_run_factory,
         offline_tool_runner=offline_tool_runner,
+        result_access_factory=make_result_access_run,
     )

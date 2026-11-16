@@ -3,13 +3,14 @@ import uuid
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..schemas import (
     AdminModelCapabilitiesRequest,
     AdminModelCredentialRequest,
     AdminModelPublishRequest,
     AdminModelStatusRequest,
+    ResultStorageSettingsRequest,
 )
 from .runtime import NamespaceProvider, RouterBundle
 
@@ -36,7 +37,24 @@ def create_router(deps: NamespaceProvider, current_admin) -> RouterBundle:
             "version": runtime["APP_VERSION"],
             "git_commit": runtime["GIT_COMMIT"],
         }
+        try:
+            overview["tool_result_storage"] = admin_result_storage(_)
+        except HTTPException:
+            overview["tool_result_storage"] = {"enabled":None,"state":"unavailable"}
         return overview
+
+    def admin_result_storage(_: Annotated[str, Depends(current_admin)]) -> dict:
+        try:
+            return {"enabled": deps()["configured_result_store"]().enabled(), "applies_to": "new_runs"}
+        except Exception:  # noqa: BLE001 - configured backend details are private
+            raise deps()["http_problem"](503, "RESULT_STORE_UNAVAILABLE", "结果存储设置当前不可用。", True) from None
+
+    def admin_set_result_storage(request: ResultStorageSettingsRequest, _: Annotated[str, Depends(current_admin)]) -> dict:
+        try:
+            deps()["configured_result_store"]().set_enabled(request.enabled)
+        except Exception:  # noqa: BLE001 - report persistence failure without connection details
+            raise deps()["http_problem"](503, "RESULT_STORE_UNAVAILABLE", "结果存储设置未能保存。", True) from None
+        return {"enabled": request.enabled, "applies_to": "new_runs"}
 
     def admin_models(_: Annotated[str, Depends(current_admin)]) -> list[dict]:
         return deps()["list_models"](include_retired=True)
@@ -281,6 +299,8 @@ def create_router(deps: NamespaceProvider, current_admin) -> RouterBundle:
 
     router = APIRouter()
     router.add_api_route("/api/admin/overview", admin_overview, methods=["GET"])
+    router.add_api_route("/api/admin/tool-result-storage", admin_result_storage, methods=["GET"])
+    router.add_api_route("/api/admin/tool-result-storage", admin_set_result_storage, methods=["PUT"])
     router.add_api_route("/api/admin/models", admin_models, methods=["GET"])
     router.add_api_route(
         "/api/admin/models", admin_publish_model, methods=["POST"], status_code=201

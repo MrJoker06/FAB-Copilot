@@ -190,6 +190,8 @@
     } else if (event.event === 'tool_finished') {
       const item = [...live.steps].reverse().find(step => step.tool === event.tool && step.status === 'running');
       if (item) Object.assign(item, {status:event.status || 'ok', rows:event.rows, error:event.error});
+    } else if (event.event === 'tool_result_access') {
+      if (!live.steps.some(item => item.resultCallId === event.notice?.call_id)) live.steps.push({resultCallId:event.notice?.call_id, label:event.notice?.message || '工具结果内容状态已更新', status:event.notice?.status === 'saved' ? 'ok' : 'blocked'});
     } else if (event.event === 'run_failed') {
       live.steps.push({label:event.message || '分析失败', status:'error'});
       live.el.querySelector('.live-path').open = true;
@@ -200,10 +202,11 @@
     renderLiveAnalysis(live);
   }
 
-  async function streamAgent(message, clientMessageId, onProgress, diagnostics, effort = 'off') {
+  async function streamAgent(message, clientMessageId, onProgress, diagnostics, effort = 'off', resultRef = null, resultCursor = null) {
     let response;
     try {
       const payload = thinkingControl.requestPayload({message, session_id:state.sessionId, client_message_id:clientMessageId}, state.modelConfig, effort);
+      if (resultRef) Object.assign(payload, {tool_result_ref:resultRef, tool_result_cursor:resultCursor});
       const headers = identityHeaders({'Content-Type':'application/json'});
       response = await fetch('/api/chat/stream', {method:'POST', headers, body:JSON.stringify(payload)});
     } catch {
@@ -264,7 +267,7 @@
     live.el.querySelector('.live-indicator').textContent = '失败';
   }
 
-  async function sendChat(message, {clientMessageId = newClientMessageId(), isRetry = false, effort = thinkingEffort()} = {}) {
+  async function sendChat(message, {clientMessageId = newClientMessageId(), isRetry = false, effort = thinkingEffort(), resultRef = null, resultCursor = null} = {}) {
     const text = message.trim(); if (!text || state.streaming) return;
     if (!state.sessionId) await createConversation();
     $('.suggestions')?.remove();
@@ -276,18 +279,18 @@
     $('#sendButton').disabled = true; state.streaming = true;
     const live = createLiveAnalysis();
     try {
-      const result = await streamAgent(text, clientMessageId, event => updateLiveAnalysis(live, event), live.telemetry, effort);
+      const result = await streamAgent(text, clientMessageId, event => updateLiveAnalysis(live, event), live.telemetry, effort, resultRef, resultCursor);
       await finishLiveAnswer(live, result.answer);
       reportStreamTelemetry(live, result.answer);
       renderAssistantInto(live.el, result.answer, result);
       state.history.push({role:'assistant', content:result.answer});
-      $('#agentMode').textContent = result.mode === 'deepseek' ? `${state.modelConfig?.model || 'DeepSeek'} · 工具分析` : '本地规则分析';
+      $('#agentMode').textContent = result.mode === 'snapshot_review' ? '已保存结果查看' : (result.mode === 'deepseek' ? `${state.modelConfig?.model || 'DeepSeek'} · 工具分析` : '本地规则分析');
     } catch (error) {
       cancelLiveAnswer(live);
       updateLiveAnalysis(live, {event:'run_failed', message:error.message});
       renderAgentRequestError(live, error, () => {
         live.el.remove();
-        sendChat(text, {clientMessageId, isRetry:true, effort});
+        sendChat(text, {clientMessageId, isRetry:true, effort, resultRef, resultCursor});
       });
     }
     finally {

@@ -55,6 +55,8 @@ class StorageIdentityBindings:
     executions_for_session: ExecutionsForSession
     reconcile_plan_steps: PlanStepReconciler
     factory_search_backend_factory: FactorySearchBackendFactory
+    result_store_factory: Callable[[], Any] | None = None
+    cancel_session_runs: Callable[[str, str, str], None] | None = None
 
 
 class StorageIdentityNotConfiguredError(RuntimeError):

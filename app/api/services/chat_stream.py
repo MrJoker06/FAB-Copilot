@@ -92,6 +92,7 @@ class ChatStreamService:
                     user_message_id=user_message["message_id"]
                     if user_message
                     else None,
+                    **({"result_ref": request.tool_result_ref, "result_cursor": request.tool_result_cursor} if request.tool_result_ref else {}),
                 )
             )
             try:

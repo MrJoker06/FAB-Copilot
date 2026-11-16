@@ -185,7 +185,8 @@ class ToolLoopGuardTests(unittest.TestCase):
         self.assertEqual(result["loop_guard"]["blocked_calls"], 2)
         self.assertEqual([request["tool_choice"] for request in requests[:3]], ["auto", "auto", "auto"])
         self.assertEqual(requests[-1]["tool_choice"], "none")
-        self.assertNotIn("max_tokens", requests[-1])
+        # MOD-029 also bounds unstructured final synthesis requests.
+        self.assertLessEqual(requests[-1]["max_tokens"], 10240)
         self.assertIn(
             "get_process_capability",
             [tool["function"]["name"] for tool in requests[-1]["tools"]],

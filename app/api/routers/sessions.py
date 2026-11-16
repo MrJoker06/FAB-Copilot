@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
+from ...conversation.result_lifecycle import SessionResultCleanupPending
 from ..schemas import BulkSessionDeleteRequest, SessionUpdateRequest
 from .runtime import NamespaceProvider, RouterBundle
 
@@ -38,11 +39,16 @@ def create_router(deps: NamespaceProvider) -> RouterBundle:
     def permanently_delete_session(session_id: str) -> dict:
         try:
             return deps()["delete_session_permanently"](session_id)
+        except SessionResultCleanupPending as exc:
+            raise HTTPException(status_code=503, detail={"code":"SESSION_RESULT_CLEANUP_PENDING", "message":str(exc)}) from None
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     def bulk_delete_sessions(request: BulkSessionDeleteRequest) -> dict:
-        return deps()["delete_sessions_permanently"](request.session_ids)
+        result = deps()["delete_sessions_permanently"](request.session_ids)
+        if result.get("failed_session_ids"):
+            raise HTTPException(status_code=503, detail={"code":"SESSION_RESULT_CLEANUP_PENDING", "message":"部分会话结果尚未清理完成，请稍后重试。", **result})
+        return result
 
     def read_session(session_id: str) -> dict:
         try:

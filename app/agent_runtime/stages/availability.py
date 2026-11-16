@@ -99,6 +99,7 @@ async def handle_model_availability(
 
 
 async def _ready_fallback(state: CoordinatorRunState, deps: "CoordinatorDependencies", reason: str) -> dict:
+    from ..result_access_run import current_result_access, present_observations
     await deps.notify(state.progress, {
         "event": "stage", "stage": "tools",
         "message": f"正在按依赖顺序执行 {len(state.execution_plan.steps)} 个已批准步骤",
@@ -115,9 +116,14 @@ async def _ready_fallback(state: CoordinatorRunState, deps: "CoordinatorDependen
             dispatch_binding=ready_binding,
         )
     validation = deps.validate_evidence(state.execution_plan, state.selected_playbook, observations)
+    present_observations(observations)
+    access = current_result_access()
+    if access is not None:
+        await access.flush(state.progress)
     contract = deps.create_answer_contract(
         validation, list(sources.values()), question=state.question,
         resolved_question=state.analysis_question,
+        extra_limitations=[item["message"] for item in access.notices] if access is not None else (),
     )
     synthesis = deps.ready_synthesis_fallback(
         validation, contract, observations, "模型未配置或模型熔断器当前阻止综合请求",

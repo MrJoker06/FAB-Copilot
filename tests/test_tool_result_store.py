@@ -22,9 +22,9 @@ class ToolResultStoreTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.path = Path(self.temp.name) / "results.db"
         self.store = ToolResultStore(self.path)
-        self.scope = dict(
-            tenant_id="tenant-a", owner_id="owner-a", session_id="session-a"
-        )
+        self.scope = {
+            "tenant_id": "tenant-a", "owner_id": "owner-a", "session_id": "session-a"
+        }
         self.meta = {
             "tool": "get_equipment_health",
             "source_ref": "TOOL:S1",

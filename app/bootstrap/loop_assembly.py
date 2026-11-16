@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 from ..agent_runtime.application import AgentRun
 from ..agent_runtime.execution.loop_dispatch import LoopDispatchBinding
@@ -87,4 +88,5 @@ def bind_loop_run(
 ) -> LoopDispatchBinding:
     if not isinstance(run, AgentRun):
         raise AssemblyError()
-    return bind_loop_dispatcher(plan, guard, run.context, run.dispatcher, projector)
+    return replace(bind_loop_dispatcher(plan, guard, run.context, run.dispatcher, projector),
+                   result_access=run.result_access)

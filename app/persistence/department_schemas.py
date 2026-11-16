@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
+
+SESSION_RESULT_DELETION_SCHEMA = """
+CREATE TABLE IF NOT EXISTS session_result_deletions (
+ tenant_id TEXT NOT NULL, owner_user_id TEXT NOT NULL, session_id TEXT NOT NULL,
+ status TEXT NOT NULL CHECK(status IN ('pending','completed')),
+ requested_at TEXT NOT NULL,
+ PRIMARY KEY(tenant_id,owner_user_id,session_id)
+);
+"""
 
 
 SCHEMA_METADATA = """
@@ -313,6 +322,8 @@ CREATE INDEX IF NOT EXISTS idx_message_sources_message ON message_sources(messag
 )
 
 
+AGENT_SCHEMA += SESSION_RESULT_DELETION_SCHEMA
+
 DEPARTMENT_SCHEMAS = {"knowledge": KNOWLEDGE_SCHEMA, "agent": AGENT_SCHEMA}
 
 TABLE_DEPARTMENTS = {
@@ -332,6 +343,7 @@ TABLE_DEPARTMENTS = {
     "agent_execution_plans": "agent",
     "agent_plan_steps": "agent",
     "message_sources": "agent",
+    "session_result_deletions": "agent",
 }
 
 MIGRATION_ORDER = tuple(TABLE_DEPARTMENTS)

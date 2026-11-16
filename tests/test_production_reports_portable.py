@@ -46,7 +46,7 @@ class ProductionReportsPortableTests(unittest.TestCase):
             + DIAGNOSTICS_FILES
             + PRODUCTION_FILES
         )
-        self.assertEqual((len(files), len(set(files))), (73, 73))
+        self.assertEqual((len(files), len(set(files))), (77, 77))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

@@ -33,7 +33,7 @@ def result_units(value: object) -> tuple[str, list]:
         return "records", value
     if type(value) is str:
         return "paragraphs", [
-            part for part in re.findall(r".*?(?:\n[ \t]*\n|\Z)", value, re.S) if part
+            part for part in re.findall(r".*?(?:\n[ \t]*\n|\Z)", value, re.DOTALL) if part
         ]
     if type(value) is dict:
         return "entries", [{"key": key, "value": item} for key, item in value.items()]

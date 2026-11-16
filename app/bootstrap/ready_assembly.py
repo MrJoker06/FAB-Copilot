@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from ..agent_runtime.application import AgentRun
 from ..agent_runtime.execution.loop_guard import ToolLoopGuard
 from ..agent_runtime.execution.ready_dispatch import ReadyDispatchBinding
@@ -54,4 +56,5 @@ def bind_ready_run(
     """Bind a Ready plan to a run assembled by the native application factory."""
     if not isinstance(run, AgentRun):
         raise AssemblyError()
-    return bind_ready_dispatcher(plan, guard, run.context, run.dispatcher, projector)
+    return replace(bind_ready_dispatcher(plan, guard, run.context, run.dispatcher, projector),
+                   result_access=run.result_access)

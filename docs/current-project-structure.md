@@ -1,12 +1,12 @@
 # 当前项目精细结构快照
 
-快照日期：2026-11-12。当前为 `experiment/parallel-platform` 的 persistence/模拟数据职责拆分工作树，执行起点 `251b612`（运行代码基线为 MOD-031 的 `7859df9`）；提交及远程状态以 Git 记录为准。MOD-001～019、MOD-024、MOD-030 的历史验收不变；MOD-031 的规则拆分与限制见 [031 报告](reports/mod-031-validator.md)，本轮存储拆分见[报告](reports/persistence-demo-separation.md)。MOD-020～023、MOD-025～029 保持待做/暂缓；默认 HTTP 未启用 Skill，保留兼容 facade 与配置锚点归 MOD-027。
+当前快照：2026-11-16，`experiment/parallel-platform`；MOD-029 以 `c5312d1` 为起点完成 a～d 接入，e 阶段验收中，见[实施报告](reports/mod-029-tool-result-access.md)。提交及远程状态以 Git 为准。MOD-031 和此前存储拆分分别见 [031 报告](reports/mod-031-validator.md)、[存储报告](reports/persistence-demo-separation.md)，保留其历史验收限制。MOD-020～023、MOD-025～028 仍待做/暂缓，默认 HTTP 未启用 Skill，兼容 facade 与配置锚点归 MOD-027。
 
-当前实扫 `app/` 为 **316 文件：288 个 Python、28 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。
+当前实扫 `app/` 为 **320 文件：292 个 Python、28 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。
 
-2026-11-15 MOD-029b 增补：独立结果库存储核心与结构分页已实现，实际聊天/后台及 Session 永久删除联动尚未接入，见[本批报告](reports/mod-029b-result-store.md)。不将未来结果库当成默认启动已具备的能力。
+2026-11-16 MOD-029 增补：独立结果库、实际聊天/后台和 Session 删除联动已接入，029e 正在验收，见[实施报告](reports/mod-029-tool-result-access.md)。默认结果库为 FAB_DATABASE_DIR/tool_results.db，后台开关跨重启保留，新 Run 生效。
 
-MOD-029c 增补：`app/agent_runtime/tools/result_access.py` 提供每 Run 辅助 ToolDefinition/绑定、阶段/主体检查与共享调用认领；见[报告](reports/mod-029c-result-read-tool.md)，实际聊天/后台仍待 029d。
+MOD-029c 增补：`app/agent_runtime/tools/result_access.py` 提供每 Run 辅助 ToolDefinition/绑定、阶段/主体检查与共享调用认领；见[报告](reports/mod-029c-result-read-tool.md)，实际接入见 MOD-029 实施报告，阶段验收进行中。
 
 ## 平台启动入口
 
@@ -179,6 +179,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/bootstrap/default_coordinator_assembly.py` | 装配 | 从 live namespace 构造默认协调器依赖，注入 v2 规划、每次运行的工具装配及受控原生离线降级；导入时安装默认存储/身份绑定，直接调用 `run_agent` 也可用。 |
 | `app/bootstrap/default_tool_assembly.py` | 装配 | 业务运行组合 21 项原生绑定，通识仅授权知识检索；组合延迟来源、可信身份 Policy、同一 Guard 和结果策略。未暴露目录时使用不可变 Schema 快照；公开访问后的可变清单按运行独立物化，后续绑定反映实际修改。 |
 | `app/bootstrap/legacy_agent_assembly.py` | 装配/兼容 | 从一次 service globals 快照构建旧 CoordinatorDependencies。 |
+| `app/bootstrap/result_access_assembly.py` | 装配 | 可信 Session/主体与独立结果库绑定，实时许可和本地在途取消登记。 |
 | `app/bootstrap/storage_identity_assembly.py` | 装配 | 存储/身份 Port 的默认绑定：调用时读取 database、identity、audit、execution_store 和 SQLite 检索后端的模块属性；`install_default_storage_identity()` 可重复调用，不覆盖自定义绑定。 |
 | `app/bootstrap/agent_assembly.py` | 装配 | 校验 Definition/Binding/能力并建立 AgentApplication；非空 skill_refs 必须显式配置，未启用路径保持兼容。 |
 | `app/bootstrap/skill_assembly.py` | 装配 | 根据实际绑定校验 Skill，连接文件目录或显式发布对象；新 Run 前检查声明或发布准入，将固定文本和基础元数据交给 Runtime。 |
@@ -206,7 +207,9 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/agent_runtime/assistant_capabilities.py` | 纯 | 助手能力/元响应规则。 |
 | `app/agent_runtime/compatibility.py` | 兼容 | 旧 facade、动态导出和 live patch 依赖快照入口。 |
 | `app/agent_runtime/contracts.py` | 纯 | 旧 Runtime 的请求、进度与结果契约。 |
-| `app/agent_runtime/coordinator.py` | 业务 | Coordinator 主流程与阶段切换。 |
+| `app/agent_runtime/coordinator.py` | 业务 | Coordinator 主流程与阶段切换，绑定本轮结果访问及关闭生命周期。 |
+| `app/agent_runtime/result_access_run.py` | 运行/展示 | 本轮模型视图、卸载提醒、辅助回读与共享模型请求预算；Typed 入口也经同一边界。 |
+| `app/agent_runtime/result_review.py` | 运行 | 显式选择旧引用的一页展示，保留时间/范围，不重查业务来源或生成新证据。 |
 | `app/agent_runtime/coordinator_state.py` | 业务 | `CoordinatorRunState` 和阶段受限状态视图。 |
 | `app/agent_runtime/definition.py` | 纯 | 冻结 `AgentDefinition`、`ComponentReference`。 |
 | `app/agent_runtime/application.py` | 纯 | `AgentRun` 对 Model/Tool/Event ports 的小门面；可携带装配层传入的 Skill 文本消息与基础元数据，自身不依赖 Skill/业务模块。 |
@@ -421,6 +424,7 @@ Skill 格式/加载/发布模块只依赖标准库和自身；新增 policies �
 | `app/memory_system/context/resolver.py` | 业务 | 解析上下文、预算和模型回退。 |
 | `app/conversation/__init__.py` | 包 | 会话包锚点。 |
 | `app/conversation/decision_arbiter.py` | 业务/过渡 | 单次会话决策权和 active flow 恢复。上下文解析结果经只读 `DecisionContext` Protocol 读取，不导入 memory_system（MOD-015e）。 |
+| `app/conversation/result_lifecycle.py` | 会话/存储 | 永久删除意图、结果撤销、部分失败与启动补偿恢复。 |
 | `app/conversation/sessions.py` | 业务/存储 | 会话 CRUD、历史、执行记录组合；数据库会话、执行存储和身份经存储/身份 Port 读取。 |
 | `app/conversation/turn_decision.py` | 纯 | 单轮决定数据结构。 |
 | `app/model_gateway/__init__.py` | 包 | 模型网关包锚点。 |
@@ -445,7 +449,7 @@ Skill 格式/加载/发布模块只依赖标准库和自身；新增 policies �
 | `app/persistence/database.py` | 存储 | 仅知识与 Agent 应用状态的初始化、会话、写表定位；不依赖或初始化模拟模块。 |
 | `app/persistence/connection.py` | 存储 | 共用 SQLite 连接/PRAGMA/数学函数及行转换；不声明业务 Schema 或生成数据。 |
 | `app/persistence/migrations.py` | 存储 | 会话、模型、执行记录与个人知识的增量迁移。 |
-| `app/persistence/tool_result_store.py` | 存储 | 显式初始化的独立结果库、配额、引用/游标、实时许可与持久 Session 撤销；宿主接入归 MOD-029 后续批次。 |
+| `app/persistence/tool_result_store.py` | 存储 | 显式初始化的独立结果库、配额、引用/游标、实时许可与持久 Session 撤销；宿主已接入；Session 删除使用持久意图协调，完整验收见 MOD-029 报告。 |
 | `app/core/tool_result_units.py` | 纯 | 有限 JSON、记录/段落/键值单元分页与明确片段，按完整响应字节控制。 |
 | `app/persistence/department_schemas.py` | 纯 | 仅应用自有知识与 Agent 状态的 Schema 和表归属。 |
 | `app/persistence/execution_store.py` | 存储/过渡 | 计划、步骤、事件和中断状态记录；尚非安全恢复协议。 |
@@ -513,7 +517,7 @@ MOD-016～018 已实现独立 Manifest、依赖校验、安全资源、显式 Ca
 
 ## 5. 当前耦合与迁移事实
 
-当前边界清单记录 **10 条精确依赖债务、30 个 DB 调用候选文件、7 个兼容入口、95 个静态消费者**。MOD-031 新增 compatibility 到 evidence_assembly 的精确装配债务及一条实际测试 patch 消费，均登记；保留兼容项仍由其真实后续任务处理。
+当前边界清单记录 **10 条精确依赖债务、35 个 DB 调用候选文件、7 个兼容入口、99 个静态消费者**。MOD-031 新增 compatibility 到 evidence_assembly 的精确装配债务及一条实际测试 patch 消费，均登记；保留兼容项仍由其真实后续任务处理。
 兼容消费者扫描只覆盖 app/scripts/tests 内的静态 import、字面动态 import 与常见 mock patch；
 外部调用方和计算出的动态引用仍需人工审查。
 

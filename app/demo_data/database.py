@@ -24,6 +24,7 @@ from ..persistence.migrations import (
     _migrate_model_catalog_compatibility,
     _migrate_model_health,
     _migrate_personal_knowledge_tags_source,
+    migrate_session_result_deletions,
 )
 from .schemas import (
     SCHEMA,
@@ -145,6 +146,7 @@ def _initialize_legacy(path: Path) -> None:
         _migrate_model_catalog_capabilities(connection)
         _migrate_model_catalog_compatibility(connection)
         _migrate_model_health(connection)
+        migrate_session_result_deletions(connection)
         connection.execute(
             """INSERT INTO schema_migrations(version, description) VALUES (?, 'legacy schema')
                ON CONFLICT(version) DO UPDATE SET description = excluded.description""",

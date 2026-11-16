@@ -16,6 +16,10 @@ ROOT = Path(__file__).resolve().parents[1]
 # every module in the real Ready/Loop demo's static import closure and package
 # initializers that Python imports while resolving it.
 SOURCE_FILES = (
+    "app/agent_runtime/result_review.py",
+    "app/agent_runtime/result_access_run.py",
+    "app/agent_runtime/tools/result_access.py",
+    "app/core/tool_result_units.py",
     "app/__init__.py",
     "app/agent_runtime/__init__.py",
     "app/agent_runtime/application.py",

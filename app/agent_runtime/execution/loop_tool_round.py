@@ -8,7 +8,7 @@ import traceback
 from typing import TYPE_CHECKING, Any
 
 from .loop_dispatch import execute_dispatched_loop_round
-from ...core.tool_result_projection import prompt_content
+from ..result_access_run import current_result_access, result_prompt_payload
 
 if TYPE_CHECKING:
     from .agent_loop import AgentLoopContext
@@ -238,7 +238,12 @@ async def _execute_legacy_call(context: AgentLoopContext, call: dict) -> None:
             rows=row_count,
             full_content={"result": result},
         )
-        content = prompt_content(name, result)
+        content = json.dumps(result_prompt_payload(name, result, call_id=f"legacy-{len(trace)}",
+            source_ref=f"TOOL:{call.get('id') or name or 'unknown'}", scope=arguments), ensure_ascii=False,
+            separators=(",",":") if current_result_access() is not None else None)
+        access = current_result_access()
+        if access is not None:
+            await access.flush(progress)
     except Exception as exc:
         loop_guard.record_result(name or "unknown", None, False)
         evidence_observations.append(

@@ -41,6 +41,8 @@ async def prepare_model_stage(
         "rewritten_query": None, "assumptions": [], "model_knowledge_allowed": False, "disclosure": None,
     }
     if state.intent_route.intent == "general_knowledge":
+        from ...core.tool_result_units import canonical_json
+        from ..result_access_run import current_result_access, result_prompt_payload
         prefetch_args = (
             state.analysis_question, state.run_id, state.loop_guard, state.evidence_observations,
             state.trace, state.sources, state.progress,
@@ -67,8 +69,17 @@ async def prepare_model_stage(
             question=state.question,
             resolved_question=state.analysis_question,
         )
+        view = result_prompt_payload("search_knowledge", list(state.sources.values()),
+            call_id="knowledge-context", source_ref="TOOL:knowledge-context", scope={"query":state.analysis_question})
+        view_sources = view["data"] if isinstance(view["data"], list) else []
+        knowledge_message = deps.retrieval_system_message(decision, view_sources)
+        if view.get("result_access"):
+            knowledge_message += "\n知识展示限制=" + canonical_json({key:view[key] for key in ("result_access","preview","preview_format") if key in view})
+        access = current_result_access()
+        if access is not None:
+            await access.flush(state.progress)
         state.messages.extend([
-            {"role": "system", "content": deps.retrieval_system_message(decision, list(state.sources.values()))},
+            {"role": "system", "_fab_tool_result":True, "content": knowledge_message},
             {"role": "system", "content": deps.synthesizer_system_message(state.answer_contract)},
             {"role": "system", "content": (
                 "当前是知识型问题的最终回答阶段。只输出面向用户的中文 Markdown 正文；"

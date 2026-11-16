@@ -5,7 +5,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
   function createChatPresenter(deps = {}) {
     const {
-      $, escapeHtml, sourcePresenter, toolLabels,
+      $, escapeHtml, sourcePresenter, toolLabels, onReadResult,
       windowImpl = root, documentImpl = root.document, navigatorImpl = root.navigator,
     } = deps;
     const window = windowImpl;
@@ -149,7 +149,12 @@
     const sourcePanel = renderSourcePanel(sources);
     const copyButton = '<button type="button" class="copy-answer" title="复制回答" aria-label="复制回答"><span aria-hidden="true">⧉</span><span>复制</span></button>';
     el.className = 'message assistant';
-    el.innerHTML = `<div class="message-meta"><div class="message-label">FAB COPILOT</div></div>${renderToolTrace(extra.tool_trace, extra.run_id)}<div class="message-content markdown-content">${renderedContent}</div><div class="message-actions">${copyButton}</div>${sourcePanel}`;
+    const notices = Array.isArray(extra.tool_result_access) ? extra.tool_result_access : [];
+    const resultPanel = notices.length ? `<section class="source-list" aria-label="工具结果内容状态">${notices.map(item => `<p data-result-state="${escapeHtml(item.status)}">${escapeHtml(item.message)}${item.queried_at ? ` · 查询时间 ${escapeHtml(item.queried_at)}` : ''}${item.result_ref && item.status === 'saved' ? ` <button type="button" class="source-link" data-read-result="${escapeHtml(item.result_ref)}">查看已保存结果</button>` : ''}</p>`).join('')}</section>` : '';
+    const page = extra.tool_result_page;
+    const nextPage = page?.has_more && page.next_cursor ? `<button type="button" class="source-link" data-read-result="${escapeHtml(page.result_ref)}" data-result-cursor="${escapeHtml(page.next_cursor)}">下一页已保存结果</button>` : '';
+    el.innerHTML = `<div class="message-meta"><div class="message-label">FAB COPILOT</div></div>${renderToolTrace(extra.tool_trace, extra.run_id)}${resultPanel}<div class="message-content markdown-content">${renderedContent}</div>${nextPage}<div class="message-actions">${copyButton}</div>${sourcePanel}`;
+    for (const button of el.querySelectorAll?.('[data-read-result]') || []) button.addEventListener('click', () => onReadResult?.(button.dataset.readResult, button.dataset.resultCursor || null));
     const copyAnswer = el.querySelector('.copy-answer');
     copyAnswer.addEventListener('click', async () => {
       try {

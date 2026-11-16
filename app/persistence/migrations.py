@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from ..core.model_capabilities import normalize_capabilities
+from .department_schemas import SESSION_RESULT_DELETION_SCHEMA
 
 CASE_GOVERNANCE_COLUMNS = {
     "equipment_family": "TEXT NOT NULL DEFAULT ''",
@@ -228,6 +229,7 @@ def migrate_knowledge(connection: sqlite3.Connection) -> None:
 
 
 def migrate_agent(connection: sqlite3.Connection) -> None:
+    migrate_session_result_deletions(connection)
     for table, definitions in (
         ("chat_sessions", CHAT_SESSION_COLUMNS),
         ("chat_messages", CHAT_MESSAGE_COLUMNS),
@@ -249,3 +251,7 @@ def migrate_agent(connection: sqlite3.Connection) -> None:
     connection.execute(
         "CREATE INDEX IF NOT EXISTS idx_chat_sessions_owner_updated ON chat_sessions(tenant_id, owner_user_id, updated_at DESC)"
     )
+
+
+def migrate_session_result_deletions(connection: sqlite3.Connection) -> None:
+    connection.executescript(SESSION_RESULT_DELETION_SCHEMA)

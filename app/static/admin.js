@@ -131,11 +131,36 @@ function renderOverview(data) {
 async function loadOverview() {
   try {
     const data = await adminApi(`/api/admin/overview?hours=${$('#runtimeHours').value}&recent_limit=40`);
-    renderOverview(data); setConnection(true); showNotice('#adminNotice', '');
+    renderOverview(data); renderResultStorage(data.tool_result_storage); setConnection(true); showNotice('#adminNotice', '');
   } catch (error) {
     if (error.status === 401 || error.status === 503) showAuth(error.message);
     else showNotice('#adminNotice', error.message, true);
     throw error;
+  }
+}
+
+function renderResultStorage(settings) {
+  const button = $('#toggleResultStorage');
+  if (!button) return;
+  const valid = typeof settings?.enabled === 'boolean';
+  adminState.resultStorageEnabled = valid ? settings.enabled : null;
+  button.disabled = !valid;
+  button.textContent = valid ? (settings.enabled ? '关闭卸载' : '开启卸载') : '设置不可用';
+  button.setAttribute('aria-pressed', String(valid && settings.enabled));
+  $('#resultStorageDetail').textContent = valid ? (settings.enabled ? '当前已开启：超限结果保存后可按需回读。' : '当前已关闭：超限结果仅保留截断预览，省略内容不可回读。') : '未能读取设置，请刷新重试。';
+}
+
+async function toggleResultStorage() {
+  if (typeof adminState.resultStorageEnabled !== 'boolean') return;
+  const button = $('#toggleResultStorage');
+  button.disabled = true;
+  try {
+    const settings = await adminApi('/api/admin/tool-result-storage', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:!adminState.resultStorageEnabled})});
+    renderResultStorage(settings);
+    showNotice('#resultStorageNotice', '设置已保存，对新运行生效；已有结果保留。');
+  } catch (error) {
+    button.disabled = false;
+    showNotice('#resultStorageNotice', error.message, true);
   }
 }
 
@@ -350,6 +375,7 @@ function init() {
   $('#adminAuthForm').addEventListener('submit', authenticate);
   $('#adminLogout').addEventListener('click', () => { adminState.token = ''; sessionStorage.removeItem('fabInsightAdminToken'); showAuth(); });
   $('#refreshRuntime').addEventListener('click', () => loadOverview().catch(() => {}));
+  $('#toggleResultStorage')?.addEventListener('click', toggleResultStorage);
   $('#runtimeHours').addEventListener('change', () => loadOverview().catch(() => {}));
   $('#refreshModels').addEventListener('click', () => loadModels().catch(() => {}));
   $('#openPublishModel').addEventListener('click', () => { $('#publishModelMessage').hidden = true; $('#publishModelDialog').showModal(); $('#publishDisplayName').focus(); });

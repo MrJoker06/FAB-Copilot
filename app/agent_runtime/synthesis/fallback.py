@@ -3,6 +3,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
+from ..result_access_run import current_result_access, present_observations
 
 
 @dataclass(slots=True)
@@ -273,6 +274,7 @@ def offline_answer(
         observations = list(precomputed_tools.observations)
         overview = precomputed_tools.results.get("get_fab_overview")
         equipment = precomputed_tools.results.get("get_equipment_health")
+    present_observations(observations)
     unavailable = fallback_reason != "missing_api_key"
     lines = [
         "模型暂时不可用，已启用本地规则分析。"
@@ -314,7 +316,8 @@ def offline_answer(
     validation = deps.validate_evidence(
         execution_plan, playbook_selection.selected_playbook, observations
     )
-    contract = deps.create_answer_contract(validation)
+    access = current_result_access()
+    contract = deps.create_answer_contract(validation, extra_limitations=[item["message"] for item in access.notices]) if access is not None else deps.create_answer_contract(validation)
     synthesis = deps.synthesize_legacy_answer("\n\n".join(lines), contract)
     return _result(
         "offline",

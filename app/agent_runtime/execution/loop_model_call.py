@@ -8,6 +8,7 @@ import traceback
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
+from ..result_access_run import stream_result_model
 from .failure import decide_model_failure
 
 if TYPE_CHECKING:
@@ -83,7 +84,7 @@ async def call_model(
             "required_disclosure": state.knowledge_fallback.get("disclosure") or "",
         }
         try:
-            assistant, usage, response_id = await session.stream(
+            assistant, usage, response_id = await stream_result_model(session,
                 request_payload,
                 None if state.answer_contract.status == "required" else progress,
                 stream_state,

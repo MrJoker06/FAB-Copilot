@@ -179,6 +179,7 @@ class ModelRequest:
     call_id: str
     messages: tuple[ModelMessage, ...]
     tools_json: str = "[]"
+    max_output_tokens: int | None = None
 
     def __post_init__(self) -> None:
         _non_empty_string(self.call_id, "call_id")
@@ -187,6 +188,10 @@ class ModelRequest:
         ):
             raise ValueError("messages must be a tuple of ModelMessage")
         _validate_tools_json(self.tools_json)
+        if self.max_output_tokens is not None:
+            _non_negative_int(self.max_output_tokens, "max_output_tokens")
+            if self.max_output_tokens < 1:
+                raise ValueError("max_output_tokens must be positive")
 
 
 @dataclass(frozen=True, slots=True)

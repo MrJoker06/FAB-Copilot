@@ -43,6 +43,7 @@ from .api.runtime_dependencies import (
     enterprise_router,
     generate_database,
     get_settings,
+    initialize_result_storage,
     knowledge_router,
     models_router,
     monitor_router,
@@ -76,6 +77,7 @@ def _application_dependencies() -> ApplicationDependencies:
         process_personal_document=process_personal_document,
         process_personal_document_deletion=process_personal_document_deletion,
         to_thread=asyncio.to_thread,
+        initialize_result_storage=initialize_result_storage,
     )
 
 

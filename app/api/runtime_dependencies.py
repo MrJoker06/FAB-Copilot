@@ -7,7 +7,7 @@ import os
 from app.tools.enterprise_data.operations import read_enterprise_manifest, read_enterprise_summary, read_enterprise_page
 
 from ..agent_runtime.service import run_agent
-from ..bootstrap.storage_identity_assembly import install_default_storage_identity
+from ..bootstrap.storage_identity_assembly import install_default_storage_identity, initialize_result_storage, configured_result_store
 from ..telemetry.audit import (
     GIT_COMMIT,
     current_request_id,
@@ -135,6 +135,8 @@ install_default_storage_identity()
 
 
 __all__ = (
+    "initialize_result_storage",
+    "configured_result_store",
     "read_enterprise_manifest",
     "read_enterprise_summary",
     "read_enterprise_page",

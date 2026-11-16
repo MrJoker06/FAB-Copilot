@@ -199,6 +199,16 @@
       "artifact_group": "platform_core"
     },
     {
+      "path": "app/agent_runtime/result_access_run.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/agent_runtime/result_review.py",
+      "primary_module": "runtime",
+      "artifact_group": "platform_core"
+    },
+    {
       "path": "app/agent_runtime/retrieval/__init__.py",
       "primary_module": "runtime",
       "artifact_group": "platform_core"
@@ -563,6 +573,11 @@
       "artifact_group": "application_bundle"
     },
     {
+      "path": "app/bootstrap/result_access_assembly.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
       "path": "app/bootstrap/skill_assembly.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"
@@ -605,6 +620,11 @@
     {
       "path": "app/conversation/decision_arbiter.py",
       "primary_module": "orchestration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/conversation/result_lifecycle.py",
+      "primary_module": "context_memory",
       "artifact_group": "platform_core"
     },
     {
@@ -2326,6 +2346,26 @@
       "kind": "patch"
     },
     {
+      "file": "tests/test_result_access_runtime.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_result_access_runtime.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.dict"
+    },
+    {
+      "file": "tests/test_result_access_runtime.py",
+      "symbol": "app.agent_runtime.service",
+      "kind": "patch.object"
+    },
+    {
+      "file": "tests/test_result_access_runtime.py",
+      "symbol": "app.agent_runtime.service.TOOL_HANDLERS",
+      "kind": "patch.dict"
+    },
+    {
       "file": "tests/test_runtime_convergence_acceptance.py",
       "symbol": "app.agent_runtime.service",
       "kind": "import"
@@ -2414,9 +2454,24 @@
       "source_file": "app/bootstrap/storage_identity_assembly.py",
       "imports": [],
       "calls": [
-        "database.db_session"
+        "database.db_session",
+        "store.initialize"
       ],
       "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/conversation/result_lifecycle.py",
+      "imports": [],
+      "calls": [
+        "connection.execute"
+      ],
+      "table_hints": [
+        "agent.chat_sessions",
+        "agent.session_result_deletions",
+        "chat_sessions",
+        "session_result_deletions"
+      ],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
@@ -2424,6 +2479,7 @@
       "imports": [],
       "calls": [
         "connection.execute",
+        "connection.executemany",
         "db_session"
       ],
       "table_hints": [
@@ -2432,9 +2488,11 @@
         "agent.chat_messages",
         "agent.chat_sessions",
         "agent.message_sources",
+        "agent.session_result_deletions",
         "agent_runs",
         "chat_messages",
-        "chat_sessions"
+        "chat_sessions",
+        "session_result_deletions"
       ],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
@@ -2612,7 +2670,8 @@
         "sqlite3"
       ],
       "calls": [
-        "connection.execute"
+        "connection.execute",
+        "connection.executescript"
       ],
       "table_hints": [
         "agent_runs",
@@ -2903,6 +2962,14 @@
         "exit_task": "MOD-027"
       },
       {
+        "source_file": "app/conversation/result_lifecycle.py",
+        "owner": "context_memory",
+        "classification": "internal-store",
+        "stores": "chat_sessions, session_result_deletions; injected result store",
+        "init_effects": "Durable session deletion recovery and permission checks through installed bindings; no import-time initialization, no business-data access.",
+        "exit_task": "MOD-029 (retain lifecycle use case)"
+      },
+      {
         "source_file": "app/conversation/sessions.py",
         "owner": "context_memory",
         "classification": "internal-store",
@@ -3003,7 +3070,7 @@
         "owner": "persistence",
         "classification": "internal-store",
         "stores": "result_store_meta, result_store_sessions, tool_result_snapshots",
-        "init_effects": "Explicit host-supplied independent SQLite result store; no import-time initialization or demo generation. Transactional publication, quotas and persistent session revocation. Host session deletion integration is a later MOD-029 batch.",
+        "init_effects": "Explicit independent SQLite store; no import-time IO. Host-controlled initialization, session retention and transactional publication/revocation. Durable deletion intent and startup recovery are owned by the conversation use case.",
         "exit_task": "MOD-029 (retain result store)"
       },
       {

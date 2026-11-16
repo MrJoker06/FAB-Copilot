@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+from ..result_access_run import current_result_access
 from .runtime_contracts import RuntimeContractError
 
 if TYPE_CHECKING:
@@ -35,6 +36,11 @@ async def prepare_round_request(
             {"role": "system", "content": loop_guard.synthesis_instruction()}
         )
         state.applied_synthesis_reason = loop_guard.stop_reason
+    access = current_result_access()
+    if access is not None and synthesis_only:
+        access.begin_synthesis(context.settings.api_timeout_seconds, LOOP_SYNTHESIS_MAX_TOKENS)
+        if (access.request_count >= 5 or iteration == loop_guard.max_model_iterations - 1) and access.reader is not None:
+            access.reader.phase = "final"
     await context.notify(
         context.progress,
         {
@@ -78,10 +84,14 @@ async def prepare_round_request(
             if synthesis_only and answer_contract.status == "required"
             else loop_tools
         )
+        if access is not None and access.can_read() and any(item.get("status") == "saved" for item in access.notices):
+            request_payload["tools"] = [*request_payload["tools"], access.tool_view()]
+            if messages and not any(item.get("_fab_read_instruction") for item in messages):
+                messages.append({"role":"system","content":"业务工具已停止。允许在剩余额度内单独调用 read_tool_result 读取已保存快照，或单独最终提交；不得重新查询业务来源。","_fab_read_instruction":True})
         if not (connection.provider == "deepseek" and thinking):
             request_payload["tool_choice"] = (
                 "none"
-                if synthesis_only and answer_contract.status != "required"
+                if synthesis_only and answer_contract.status != "required" and not (access is not None and access.can_read())
                 else "auto"
             )
         if answer_contract.status == "required":

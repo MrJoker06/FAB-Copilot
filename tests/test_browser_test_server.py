@@ -30,6 +30,7 @@ class BrowserTestServerTests(unittest.TestCase):
                 patch.object(server, "prepare_browser_test_model_capabilities") as prepare,
                 patch.object(server, "prepare_browser_test_visual_fixtures") as prepare_visual,
                 patch.object(server, "prepare_browser_test_journey_fixtures") as prepare_journey,
+                patch.object(server, "prepare_browser_test_result_fixture") as prepare_result,
             ):
                 environment = server.browser_test_environment(root, {
                     "FAB_MODEL_API_KEY": "secret", "FAB_REQUIRE_IDENTITY": "true", "FAB_DATA_PROVIDER": "live",
@@ -40,6 +41,7 @@ class BrowserTestServerTests(unittest.TestCase):
                     "FAB_MODEL_CREDENTIALS_PATH": "/host/model_credentials.json",
                 })
             self.assertEqual(backup.call_count, 5)
+            prepare_result.assert_called_once_with(Path(environment["FAB_AGENT_DATABASE_PATH"]), root / "departments/tool_results.db")
             prepare.assert_called_once_with(Path(environment["FAB_AGENT_DATABASE_PATH"]))
             prepare_visual.assert_called_once_with(
                 Path(environment["FAB_AGENT_DATABASE_PATH"]), Path(environment["FAB_KNOWLEDGE_DATABASE_PATH"])

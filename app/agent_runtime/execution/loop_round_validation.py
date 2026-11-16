@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ...core.tool_result_projection import truncation_notices
+from ..result_access_run import current_result_access
 
 if TYPE_CHECKING:
     from .agent_loop import AgentLoopContext
@@ -58,18 +59,21 @@ async def validate_round(
         allow_model_knowledge_fallback=knowledge_fallback["used"],
         question=context.question,
         resolved_question=context.analysis_question,
-        extra_limitations=truncation_notices(context.evidence_observations),
+        extra_limitations=([item["message"] for item in current_result_access().notices]
+                           if current_result_access() is not None else truncation_notices(context.evidence_observations)),
     )
     state.answer_contract = answer_contract
     messages.append(
         {
             "role": "system",
+            **({"_fab_tool_result":True} if current_result_access() is not None else {}),
             "content": context.validator_system_message(evidence_validation),
         }
     )
     messages.append(
         {
             "role": "system",
+            **({"_fab_tool_result":True} if current_result_access() is not None else {}),
             "content": context.synthesizer_system_message(answer_contract),
         }
     )

@@ -41,6 +41,10 @@
   },
   "optional_extension": "get_equipment_health_summary",
   "portable_source_files": [
+    "app/agent_runtime/result_review.py",
+    "app/agent_runtime/result_access_run.py",
+    "app/agent_runtime/tools/result_access.py",
+    "app/core/tool_result_units.py",
     "app/__init__.py",
     "app/agent_runtime/__init__.py",
     "app/agent_runtime/application.py",

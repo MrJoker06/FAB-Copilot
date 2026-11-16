@@ -20,6 +20,9 @@ class AgentRunRequest:
     thinking: bool = False
     thinking_effort: str = "off"
     thinking_dialect: str = ""
+    session_id: str | None = None
+    result_ref: str | None = None
+    result_cursor: str | None = None
 
 
 @dataclass(slots=True)

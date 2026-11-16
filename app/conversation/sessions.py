@@ -5,6 +5,11 @@ import uuid
 from datetime import datetime, timezone
 
 from ..core.storage_identity_ports import storage_identity_bindings
+from .result_lifecycle import (
+    SessionResultCleanupPending,
+    finish_result_deletion,
+    session_results_permitted,
+)
 
 
 def db_session():
@@ -51,6 +56,8 @@ def create_session(title: str = "新会话") -> dict:
 
 def get_session(session_id: str) -> dict:
     tenant_id, owner_user_id = _scope()
+    if storage_identity_bindings().result_store_factory is not None and not session_results_permitted(session_id, tenant_id, owner_user_id):
+        raise ValueError("会话不存在或正在删除")
     with db_session() as connection:
         session = connection.execute(
             """SELECT session_id, title, created_at, updated_at, model, archived_at
@@ -87,6 +94,8 @@ def list_sessions(query: str = "", limit: int = 100, include_archived: bool = Fa
     params: list[object] = [tenant_id, owner_user_id]
     if not include_archived:
         clauses.append("s.archived_at IS NULL")
+    if storage_identity_bindings().result_store_factory is not None:
+        clauses.append("NOT EXISTS (SELECT 1 FROM session_result_deletions d WHERE d.session_id=s.session_id AND d.tenant_id=s.tenant_id AND d.owner_user_id=s.owner_user_id)")
     if query.strip():
         clauses.append("(s.title LIKE ? OR s.last_message_preview LIKE ?)")
         value = f"%{query.strip()}%"
@@ -158,6 +167,8 @@ def restore_session(session_id: str) -> dict:
 
 def delete_session_permanently(session_id: str) -> dict:
     result = delete_sessions_permanently([session_id])
+    if result.get("failed_session_ids"):
+        raise SessionResultCleanupPending()
     if not result["deleted_session_ids"]:
         raise ValueError("会话不存在")
     return {"session_id": session_id, "deleted": True}
@@ -188,22 +199,40 @@ def delete_sessions_permanently(session_ids: list[str]) -> dict:
                 "missing_session_ids": missing_ids,
             }
         delete_placeholders = ", ".join("?" for _ in deleted_ids)
-        connection.execute(
-            f"""DELETE FROM agent.chat_sessions
-                WHERE tenant_id = ? AND owner_user_id = ?
-                  AND session_id IN ({delete_placeholders})""",
-            [tenant_id, owner_user_id, *deleted_ids],
-        )
+        result_cleanup = storage_identity_bindings().result_store_factory is not None
+        if result_cleanup:
+            connection.executemany(
+                "INSERT OR IGNORE INTO agent.session_result_deletions(tenant_id,owner_user_id,session_id,status,requested_at) VALUES (?,?,?,'pending',?)",
+                [(tenant_id, owner_user_id, item, _now()) for item in deleted_ids],
+            )
+        else:
+            connection.execute(
+                f"""DELETE FROM agent.chat_sessions
+                    WHERE tenant_id = ? AND owner_user_id = ?
+                      AND session_id IN ({delete_placeholders})""",
+                [tenant_id, owner_user_id, *deleted_ids],
+            )
         connection.commit()
+    failed_ids = []
+    if result_cleanup:
+        for item in deleted_ids:
+            try:
+                finish_result_deletion(item, tenant_id, owner_user_id)
+            except SessionResultCleanupPending:
+                failed_ids.append(item)
+        deleted_ids = [item for item in deleted_ids if item not in failed_ids]
     return {
         "deleted_session_ids": deleted_ids,
         "deleted_count": len(deleted_ids),
         "missing_session_ids": missing_ids,
+        **({"failed_session_ids": failed_ids} if failed_ids else {}),
     }
 
 
 def session_history(session_id: str, limit: int = 20) -> list[dict]:
     tenant_id, owner_user_id = _scope()
+    if storage_identity_bindings().result_store_factory is not None and not session_results_permitted(session_id, tenant_id, owner_user_id):
+        raise ValueError("会话不存在或正在删除")
     with db_session() as connection:
         exists = connection.execute(
             """SELECT 1 FROM chat_sessions
@@ -283,6 +312,14 @@ def append_message(
     timestamp = _now()
     tenant_id, owner_user_id = _scope()
     with db_session() as connection:
+        if storage_identity_bindings().result_store_factory is not None:
+            connection.execute("BEGIN IMMEDIATE")
+            deleting = connection.execute(
+                "SELECT 1 FROM session_result_deletions WHERE session_id=? AND tenant_id=? AND owner_user_id=?",
+                (session_id, tenant_id, owner_user_id),
+            ).fetchone()
+            if deleting is not None:
+                raise ValueError("会话正在删除")
         session = connection.execute(
             """SELECT title FROM chat_sessions
                WHERE session_id = ? AND tenant_id = ? AND owner_user_id = ?""",
