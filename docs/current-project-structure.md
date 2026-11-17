@@ -1,12 +1,12 @@
 # 当前项目精细结构快照
 
-当前快照：2026-11-16，`experiment/parallel-platform`；MOD-029 以 `c5312d1` 为起点完成 a～d 接入，e 阶段验收中，见[实施报告](reports/mod-029-tool-result-access.md)。提交及远程状态以 Git 为准。MOD-031 和此前存储拆分分别见 [031 报告](reports/mod-031-validator.md)、[存储报告](reports/persistence-demo-separation.md)，保留其历史验收限制。MOD-020～023、MOD-025～028 仍待做/暂缓，默认 HTTP 未启用 Skill，兼容 facade 与配置锚点归 MOD-027。
+当前快照：2026-11-16，`experiment/parallel-platform`；MOD-029 以 `c5312d1` 为起点完成 a～e，保留完整门既有失败，见[实施报告](reports/mod-029-tool-result-access.md)。提交及远程状态以 Git 为准。MOD-031 和此前存储拆分分别见 [031 报告](reports/mod-031-validator.md)、[存储报告](reports/persistence-demo-separation.md)，保留其历史验收限制。MOD-020～023、MOD-025～028 仍待做/暂缓，默认 HTTP 未启用 Skill，兼容 facade 与配置锚点归 MOD-027。
 
 当前实扫 `app/` 为 **320 文件：292 个 Python、28 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。
 
-2026-11-16 MOD-029 增补：独立结果库、实际聊天/后台和 Session 删除联动已接入，029e 正在验收，见[实施报告](reports/mod-029-tool-result-access.md)。默认结果库为 FAB_DATABASE_DIR/tool_results.db，后台开关跨重启保留，新 Run 生效。
+2026-11-16 MOD-029 增补：独立结果库、实际聊天/后台和 Session 删除联动已接入，029e 已按基线失败子集完成验收，见[实施报告](reports/mod-029-tool-result-access.md)。默认结果库为 FAB_DATABASE_DIR/tool_results.db，后台开关跨重启保留，新 Run 生效。
 
-MOD-029c 增补：`app/agent_runtime/tools/result_access.py` 提供每 Run 辅助 ToolDefinition/绑定、阶段/主体检查与共享调用认领；见[报告](reports/mod-029c-result-read-tool.md)，实际接入见 MOD-029 实施报告，阶段验收进行中。
+MOD-029c 增补：`app/agent_runtime/tools/result_access.py` 提供每 Run 辅助 ToolDefinition/绑定、阶段/主体检查与共享调用认领；见[报告](reports/mod-029c-result-read-tool.md)，实际接入见 MOD-029 实施报告，阶段验收完成，保留既有完整门失败。
 
 ## 平台启动入口
 
@@ -270,6 +270,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/agent_runtime/tools/contracts.py` | 纯 | ToolResult、错误、Scope、执行上下文和来源契约。 |
 | `app/agent_runtime/tools/definition.py` | 纯 | ToolDefinition、ToolBinding、输入输出验证与准备结果。 |
 | `app/agent_runtime/tools/tool_registry.py` | 纯 | 单一 Registry、原生/LegacyBindingAdapter 和默认容器。 |
+| `app/agent_runtime/tools/result_access.py` | 运行 | 运行内辅助回读定义/绑定、严格输入与输出、主体/阶段许可及共享读取预算；不进入默认业务目录。 |
 | `app/agent_runtime/tools/dispatch_contracts.py` | 纯 | ToolPolicy、ToolBudget、ToolResultPolicy 契约。 |
 | `app/agent_runtime/tools/dispatch_policy.py` | 纯 | Demo 授权 Policy。 |
 | `app/agent_runtime/tools/dispatcher.py` | 纯 | JSON 解码、授权、预算、取消/期限、调用和最终采用的权威执行器。 |

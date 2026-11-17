@@ -1,12 +1,12 @@
 # TODO 执行计划
 
-状态核对：2026-11-12，`experiment/parallel-platform`，源码基线 `7859df9`。本文件只维护未完成任务的执行顺序与启用条件；历史阶段记录见[执行历史](execution-history.md)，已完成任务见[完成索引](completed.md)。
+状态核对：2026-11-16，`experiment/parallel-platform`，MOD-029 应用源码基线 `0cae608`。本文件只维护未完成任务的执行顺序与启用条件；历史阶段记录见[执行历史](execution-history.md)，已完成任务见[完成索引](completed.md)。
 
 ## 当前安排
 
-文档治理和 persistence 拆分记录见[完成索引](completed.md)；当前未完成工作包按下方队列处理，不因本次归档推进 MOD-029 或激活企业级任务。
+文档治理和 persistence 拆分记录见[完成索引](completed.md)；当前未完成工作包按下方队列处理，不因本次归档自动激活企业级任务。
 
-2026-11-16 单项更新：MOD-029 a～d 已接入，e 阶段验收进行中，尚未整体完成；接入与限制见 [实施报告](../reports/mod-029-tool-result-access.md)，不改变其他排期。
+2026-11-16 单项更新：MOD-029 a～e 已完成，完整门保留基线失败；接入与限制见 [实施报告](../reports/mod-029-tool-result-access.md)，不改变其他排期。
 
 产品未完成 45 项：用户暂缓 2、企业级暂缓 43；既有产品当前队列为 0。可选候选 4 项不计入产品主统计，唯一完整定义见分类清单：
 
@@ -33,8 +33,7 @@ GitHub #1～#3 记录的新需求仍由对应 Issue 维护；本次治理不重�
 
 | 顺序 | 工作包 | 当前安排 |
 | --- | --- | --- |
-| 1 | MOD-029 | [029a](../reports/mod-029a-result-access-contract.md)契约完成，[029b](../reports/mod-029b-result-store.md)存储和 [029c](../reports/mod-029c-result-read-tool.md)辅助核心已实现；d 已接入；继续 e 完整审计和基线对照，尚未整体完成 |
-| 2 | MOD-025 → MOD-026 → MOD-027 → MOD-028 | 原迁移链顺延，保持已有依赖与验收要求 |
+| 1 | MOD-025 → MOD-026 → MOD-027 → MOD-028 | 原迁移链顺延，保持已有依赖与验收要求 |
 | 按需求启用 | MOD-020 → MOD-021 → MOD-022 → MOD-023 | 保持恢复链依赖；029 的 Session 级结果持久化不代表业务原子提交、Checkpoint 或恢复链完成 |
 
 ## 用户暂缓（非当前）

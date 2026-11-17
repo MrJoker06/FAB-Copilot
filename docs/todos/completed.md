@@ -18,7 +18,7 @@
 
 产品总量 228 = 本页各归档的 183 个已完成任务 + 当前分类清单的 45 个未完成任务；4 个 OPTIONAL 候选不计入主统计。统计只读取本页列出的分类文件及对应归档，不扫描执行历史或重复汇总表。
 
-模块化另计：已完成 MOD-001～019、MOD-024、MOD-030、MOD-031 共 22 项，见[定义及验收归档](archive/modularization.md)；其余 9 项见[当前追踪](modularization.md)。保留 full 未通过、既有失败及未验证范围，不因移入归档宣称全绿。
+模块化另计：已完成 MOD-001～019、MOD-024、MOD-029、MOD-030、MOD-031 共 23 项，见[定义及验收归档](archive/modularization.md)；其余 8 项见[当前追踪](modularization.md)。保留 full 未通过、既有失败及未验证范围，不因移入归档宣称全绿。
 
 历史施工顺序和检查点见[执行历史](execution-history.md)，当前验证记录见[测试策略](../testing-strategy.md)。
 
@@ -35,6 +35,10 @@ WSL 的 `python scripts/check_repository.py` 通过，模块化边界为 `files=
 ## persistence 功能拆分与模拟数据分离
 
 2026-11-12，关联 GitHub [Issue #2 第 2 项](https://github.com/MrJoker06/FAB-Copilot/issues/2)。应用状态与演示 Schema/初始化分离，新增仓库外 `application_storage` Profile；定义、接口迁移和实际验证及既有失败见[报告](../reports/persistence-demo-separation.md)。此项不新增产品或 MOD 编号，后续运行 DB 物理分离与 LDAP 仍未实施，提交与远程状态以 Git 记录为准。
+
+## MOD-029：结果卸载与 Session 级回读
+
+2026-11-16 完成，源码基线 `0cae608`；独立结果库、默认开启及后台开关、共享预算回读、旧结果复核及可靠 Session 删除已接入。两端仓库外交付、进程重启和浏览器验收见[报告](../reports/mod-029-tool-result-access.md)；保留 Windows/WSL 完整门既有失败，不自动开始下一项或关闭 Issue。
 
 ## 维护方式
 

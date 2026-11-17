@@ -27,7 +27,7 @@
 
 仅选 tool_sources 时不启用 Skill；如 AgentDefinition 声明非空 skill_refs，必须同时选择 skill_release。TYPE_CHECKING 中的类型声明依赖不计为运行 Profile，完整源码类型检查另行进行。
 
-当前发布组包含 320 个受管 app 文件及 4 个 Skill 文本资源，共 324 个源码/资源成员；这是MOD-029d 接入后、029e 验收中的口径。MOD-024 原报告保留当时 286 + 4 的历史基线。安装器仅安装所选 Profile 的声明文件；其余源码标为尚未纳入运行 Profile。源码入包不代表全部 API、Checkpoint 或公司真实集成已通过。
+当前发布组包含 320 个受管 app 文件及 4 个 Skill 文本资源，共 324 个源码/资源成员；这是MOD-029 完成后的口径。MOD-024 原报告保留当时 286 + 4 的历史基线。安装器仅安装所选 Profile 的声明文件；其余源码标为尚未纳入运行 Profile。源码入包不代表全部 API、Checkpoint 或公司真实集成已通过。
 
 ### 构建与安装
 
@@ -117,11 +117,17 @@ python scripts/build_portable_unit.py --verify
 
 后续切片、依赖次序和验收门由 [总方案](architecture-modularization-master-plan.md) 与 [模块化工作包追踪](todos/modularization.md) 管理。本轮 P0 的七单元基线、工作树范围和构建记录见 [MOD-001 便携基线报告](reports/mod-001-portable-baseline.md)。每片仍需提供显式文件清单、离线验收、隔离解压验证和可回滚的兼容接入。
 
+## 结果库与会话状态的迁移
+
+`application_storage` 交付独立结果库；与 `tool_sources` 组合时，支持宿主显式装配的运行结果保存及辅助回读。跨进程保存、游标续读、撤销及导入来源的仓库外证据见 [MOD-029 报告](reports/mod-029-tool-result-access.md)。这些制品不包含业务数据或已有会话数据库。
+
+结果库默认是 `FAB_DATABASE_DIR/tool_results.db`，可用 `FAB_TOOL_RESULT_DATABASE_PATH` 指定。迁移已有会话结果时，应在停止相关运行的维护窗口配套处理会话主库与结果库，保留原主体/Session 归属；不能只搬主库后宣称旧引用仍可读取。当前 `scripts/manage_databases.py` 的五部门库备份流程未自动纳入该独立结果库。空间复用、可选压缩及失败恢复限制见实施报告。
+
 ## decision_core 1.0.1 增量（历史记录）
 
 以下描述 MOD-002 当时的结构验证，保留原结果；当前版本及阶段状态以实际清单和工作包追踪为准。`decision_core` 从 1.0.0 升至 1.0.1，仅将 `app/evidence/serialization.py` 纳入显式文件清单，以服务于 Evidence/Answer 域的等价序列化 helper；当时其余六个单元仍为 1.0.0。`python scripts/build_portable_unit.py --verify --output-dir runtime/portable/mod-002-20261022-r5` 已验证全部七个单元（含 `decision_core-1.0.1.zip`），全部新 ZIP 成员均为普通 100644 模式。该结构验证不替代当时尚未通过的 MOD-002 墙钟性能门；后续通过记录见对应报告。
 
-## MOD-031 实现后的成员口径（2026-11-11）
+## MOD-029 实现后的成员口径（2026-11-16）
 
 当前清单为 320 个受管应用文件加 4 份 Skill 资源，共 324 个唯一成员；tool_sources 为 108 个源码，skill_release 为 115 个源码加 4 资源，model_transport 为 5 个源码，application_storage 为 12 个源码。原三 Profile 源码并集 157、加资源 161；四 Profile 源码并集 165、加资源 169。旧目录已退出，来源与 Tool 同组，Fake/模拟数据单独归 simulation_fixtures；共享策略和 Tool 语义描述各有唯一文件所有者。当前结果存储及接入验收见 [MOD-029 报告](reports/mod-029-tool-result-access.md)；此前规则拆分见 [MOD-031 报告](reports/mod-031-validator.md)。历史 MOD-024/MOD-030 报告保留原值，冻结 v4 参考保留旧成员身份，不能与当前 Profile 清单混用。
 

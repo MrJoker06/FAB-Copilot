@@ -129,6 +129,72 @@ class SessionResultLifecycleTests(unittest.TestCase):
         with self.assertRaises(ResultStoreError):
             self.store.read(**self.scope, result_ref=self.ref, permit=lambda: True)
 
+    def test_cleanup_commit_then_session_delete_failure_recovers_without_result_revival(
+        self,
+    ):
+        with database.db_session() as connection:
+            connection.execute(
+                "CREATE TRIGGER agent.reject_session_delete BEFORE DELETE ON chat_sessions BEGIN SELECT RAISE(ABORT,'injected delete failure'); END"
+            )
+            connection.commit()
+        with self.assertRaises(SessionResultCleanupPending):
+            sessions.delete_session_permanently(self.session)
+        with database.db_session() as connection:
+            self.assertEqual(
+                connection.execute(
+                    "SELECT COUNT(*) FROM chat_sessions WHERE session_id=?",
+                    (self.session,),
+                ).fetchone()[0],
+                1,
+            )
+            self.assertEqual(
+                connection.execute(
+                    "SELECT status FROM session_result_deletions WHERE session_id=?",
+                    (self.session,),
+                ).fetchone()[0],
+                "pending",
+            )
+        # The result transaction committed before the main DB failure. The
+        # surviving session is blocked and cannot revive content on retry.
+        self.assertFalse(
+            session_results_permitted(
+                self.session, self.scope["tenant_id"], self.scope["owner_id"]
+            )
+        )
+        with self.assertRaises(ResultStoreError):
+            ToolResultStore(self.store.path).read(
+                **self.scope, result_ref=self.ref, permit=lambda: True
+            )
+        with self.assertRaises(ResultStoreError):
+            self.store.save(
+                **self.scope,
+                run_id="late",
+                call_id="late",
+                metadata={},
+                content=[2],
+                permit=lambda: True,
+            )
+        with database.db_session() as connection:
+            connection.execute("DROP TRIGGER agent.reject_session_delete")
+            connection.commit()
+        recover_result_deletions()
+        recover_result_deletions()
+        with database.db_session() as connection:
+            self.assertEqual(
+                connection.execute(
+                    "SELECT COUNT(*) FROM chat_sessions WHERE session_id=?",
+                    (self.session,),
+                ).fetchone()[0],
+                0,
+            )
+            self.assertEqual(
+                connection.execute(
+                    "SELECT status FROM session_result_deletions WHERE session_id=?",
+                    (self.session,),
+                ).fetchone()[0],
+                "completed",
+            )
+
     def test_batch_reports_partial_failure_without_deleting_unowned_sessions(self):
         other = sessions.create_session()["session_id"]
         original = self.store.revoke_session

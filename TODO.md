@@ -1,12 +1,12 @@
 # Fab Insight Agent TODO
 
-状态核对：2026-11-12，`experiment/parallel-platform`，源码基线 `7859df9`。本入口只列未完成任务、可选候选与索引；已完成任务及验收见[完成索引](docs/todos/completed.md)，历史施工顺序见[执行历史](docs/todos/execution-history.md)。
+状态核对：2026-11-16，`experiment/parallel-platform`，MOD-029 应用源码基线 `0cae608`。本入口只列未完成任务、可选候选与索引；已完成任务及验收见[完成索引](docs/todos/completed.md)，历史施工顺序见[执行历史](docs/todos/execution-history.md)。
 
-产品任务共 228 项：已完成 183、未完成 45（用户暂缓 2、企业级暂缓 43）；另有 4 项 OPTIONAL，不计入主统计。未完成定义在分类清单，已完成定义在对应归档，统计口径见[完成索引](docs/todos/completed.md)。模块化另计，未完成 9 项。
+产品任务共 228 项：已完成 183、未完成 45（用户暂缓 2、企业级暂缓 43）；另有 4 项 OPTIONAL，不计入主统计。未完成定义在分类清单，已完成定义在对应归档，统计口径见[完成索引](docs/todos/completed.md)。模块化另计，未完成 8 项。
 
 ## 当前安排
 
-- MOD-029：[重审稿 v3.0](docs/tool-result-offloading-plan.md)已获执行指令，029a～d 已实现，029e 阶段验收进行中，尚未整体完成；随后按 025 → 026 → 027 → 028，恢复链 020 → 021 → 022 → 023 按需求启用。见[执行计划](docs/todos/execution-plan.md)和[模块化追踪](docs/todos/modularization.md)。
+- 模块化后续为 MOD-025 → MOD-026 → MOD-027 → MOD-028，恢复链 MOD-020 → MOD-021 → MOD-022 → MOD-023 按需求启用；MOD-029 已完成，验收与既有失败见[报告](docs/reports/mod-029-tool-result-access.md)。见[执行计划](docs/todos/execution-plan.md)和[模块化追踪](docs/todos/modularization.md)。
 - GitHub [#1](https://github.com/MrJoker06/FAB-Copilot/issues/1)、[#2](https://github.com/MrJoker06/FAB-Copilot/issues/2)、[#3](https://github.com/MrJoker06/FAB-Copilot/issues/3)维护其余改造方向；未实施项不因方向确认或本次归档而完成，不自动启动 LDAP、公司接入或 Live。
 
 ## 未完成任务入口
