@@ -107,3 +107,22 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .model-catalog-table td[data-label="操作"] { grid-template-columns: 92px minmax(0, 1fr); }
   .model-catalog-table td[data-label="能力"] .capability-chips { gap: 6px; }
 }
+/* Report folders and shared-document administration. */
+.report-folder-sidebar { margin: 4px 0 12px; padding: 8px 5px; border-bottom: 1px solid #52665e; }
+.report-folder-sidebar[hidden] { display: none; }
+.folder-sidebar-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+.folder-sidebar-actions .quiet-button { min-width: 0; padding: 6px; font-size: 11px; }
+.report-folder-sidebar ul { list-style: none; padding-left: 12px; margin: 0; }
+.report-folder-sidebar > div > ul { padding-left: 0; }
+.report-folder-button { width: 100%; text-align: left; border: 0; padding: 8px 5px; font-size: 12px; color: #d8e5e0; background: transparent; overflow-wrap: anywhere; }
+.report-folder-button:hover, .report-folder-button.active { background: #344a42; color: #fff; }
+.report-directory-url { max-width: 400px; overflow-wrap: anywhere; font-size: 11px; color: #53645e; margin-top: 5px; }
+.report-row-actions { display: flex; flex-wrap: wrap; gap: 5px; }
+.report-directory-editor { padding-bottom: 20px; }
+.report-directory-editor form { padding: 0 20px; }
+.model-form-grid label.report-enabled-field { display: flex; align-items: center; gap: 8px; }
+.report-enabled-field input[type=checkbox] { width: 16px; height: 16px; }
+.shared-document-dialog { width: min(760px,calc(100vw - 40px)); }
+.shared-document-preview { max-height: 360px; overflow-y: auto; border-top: 1px solid #d4dfda; }
+.shared-document-preview p { white-space: pre-wrap; line-height: 1.8; font-size: 12px; }
+.shared-document-error { color: #944732; }

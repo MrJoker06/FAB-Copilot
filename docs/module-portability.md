@@ -27,9 +27,11 @@
 
 仅选 tool_sources 时不启用 Skill；如 AgentDefinition 声明非空 skill_refs，必须同时选择 skill_release。TYPE_CHECKING 中的类型声明依赖不计为运行 Profile，完整源码类型检查另行进行。
 
-当前发布组包含 321 个受管 app 文件及 4 个 Skill 文本资源，共 325 个源码/资源成员；这是值班工作区新增一个静态控制器后的口径。MOD-024 原报告保留当时 286 + 4 的历史基线。安装器仅安装所选 Profile 的声明文件；其余源码标为尚未纳入运行 Profile。源码入包不代表全部 API、Checkpoint 或公司真实集成已通过。
+当前发布组包含 324 个受管 app 文件及 4 个 Skill 文本资源，共 328 个源码/资源成员；这是值班工作区及报表目录/共享资料追加后的口径。MOD-024 原报告保留当时 286 + 4 的历史基线。安装器仅安装所选 Profile 的声明文件；其余源码标为尚未纳入运行 Profile。源码入包不代表全部 API、Checkpoint 或公司真实集成已通过。
 
 值班页面的根目录 `display_mock_data/` 是完整应用附带的合成展示资料，由 `run.py` 源码快照/导出复制；不归入以上独立模块 Profile。移除它不影响工具/Skill 切片，完整应用中的新资料页面将明确提示不可用。真实公司报表和文档需要单独确定接入与权限，不能直接放进此公开目录。
+
+新增报表目录配置和用户共享上传属于应用运行状态，不打入源码制品。当前默认位于工作树根下的 `runtime/local/report_directory.json`、`runtime/local/shared_documents/`；迁移页面状态时需单独带上配置、共享库及原文文件，或显式配置目标持久路径。模型配置、凭据、个人知识和原业务数据库继续按其原有存储职责迁移，不因新页面改为重新初始化。
 
 ### 构建与安装
 
@@ -131,7 +133,7 @@ python scripts/build_portable_unit.py --verify
 
 ## 当前成员口径（2026-11-17）
 
-当前清单为 321 个受管应用文件加 4 份 Skill 资源，共 325 个唯一成员；tool_sources 为 108 个源码，skill_release 为 115 个源码加 4 资源，model_transport 为 5 个源码，application_storage 为 12 个源码。原三 Profile 源码并集 157、加资源 161；四 Profile 源码并集 165、加资源 169。旧目录已退出，来源与 Tool 同组，Fake/模拟数据单独归 simulation_fixtures；共享策略和 Tool 语义描述各有唯一文件所有者。当前结果存储及接入验收见 [MOD-029 报告](reports/mod-029-tool-result-access.md)；此前规则拆分见 [MOD-031 报告](reports/mod-031-validator.md)。历史 MOD-024/MOD-030 报告保留原值，冻结 v4 参考保留旧成员身份，不能与当前 Profile 清单混用。
+当前清单为 324 个受管应用文件加 4 份 Skill 资源，共 328 个唯一成员；tool_sources 为 108 个源码，skill_release 为 115 个源码加 4 资源，model_transport 为 5 个源码，application_storage 为 12 个源码。原三 Profile 源码并集 157、加资源 161；四 Profile 源码并集 165、加资源 169。旧目录已退出，来源与 Tool 同组，Fake/模拟数据单独归 simulation_fixtures；共享策略和 Tool 语义描述各有唯一文件所有者。当前结果存储及接入验收见 [MOD-029 报告](reports/mod-029-tool-result-access.md)；此前规则拆分见 [MOD-031 报告](reports/mod-031-validator.md)。历史 MOD-024/MOD-030 报告保留原值，冻结 v4 参考保留旧成员身份，不能与当前 Profile 清单混用。
 
 光刻默认交付组合为 Skill 2.0.0 / Workflow 3.0.0 / capability-evidence 2.0.0；旧发布可通过固定 Workflow 2.1.0 使用原 1.3.0 策略。发布对象仍在进程内，必须随制品提供匹配的源码、资源和可信版本配置；回退不能只修改清单版本或删除必需策略。默认诊断使用 2.0.0，旧 1.2.0 保留为有消费者的明确版本配置。
 

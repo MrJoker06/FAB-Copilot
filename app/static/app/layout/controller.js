@@ -10,7 +10,7 @@
   function createLayoutController(deps = {}) {
     const {
       state, $, loadCapability = () => {}, loadPersonalKnowledgeDocuments = () => {},
-      loadKnowledgeIndex = () => {}, loadCaseIndex = () => {}, loadSessionLibrary = () => {},
+      loadKnowledgeIndex = () => {}, loadSessionLibrary = () => {},
       stopPersonalJobEvents = () => {}, drawYieldChart = () => {}, windowImpl = root,
       loadShiftView = () => {},
       documentImpl = root.document, localStorageImpl = root.localStorage,
@@ -22,6 +22,7 @@
     const requestAnimationFrame = requestAnimationFrameImpl;
 
     function showView(name) {
+      if (name === 'cases') name = 'procedures';
       if (name !== 'sessions') state.previousView = name;
       state.activeView = name;
       if (name !== 'knowledge') stopPersonalJobEvents({ complete: true });
@@ -31,7 +32,7 @@
       document.querySelector(`[data-view="${name}"]`)?.setAttribute('aria-current', 'page');
       $(`#${name}View`).classList.add('active');
       document.querySelector(`[data-view="${name}"]`)?.classList.add('active');
-      if (['dashboard', 'capability', 'knowledge', 'cases'].includes(name)) {
+      if (['dashboard', 'capability', 'knowledge'].includes(name)) {
         const group = $('#allFunctions');
         if (group) group.open = true;
       }
@@ -50,8 +51,7 @@
       else if (name === 'knowledge') {
         if (state.knowledgeMode === 'personal') loadPersonalKnowledgeDocuments();
         else loadKnowledgeIndex();
-      } else if (name === 'cases') loadCaseIndex();
-      else if (name === 'sessions') loadSessionLibrary();
+      } else if (name === 'sessions') loadSessionLibrary();
       else requestAnimationFrame(() => state.dashboard && drawYieldChart(state.dashboard.yield_trend));
     }
 

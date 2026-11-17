@@ -203,6 +203,12 @@ def _environment(
                 "FAB_WORKSPACE_ENV_FILE", str(root.parent.parent / ".env")
             ),
             "FAB_PROJECT_ENV_FILE": env.get("FAB_PROJECT_ENV_FILE", str(root / ".env")),
+            "FAB_REPORT_DIRECTORY_PATH": str(
+                (root / env.get("FAB_REPORT_DIRECTORY_PATH", "runtime/local/report_directory.json")).resolve()
+            ),
+            "FAB_SHARED_DOCUMENTS_ROOT": str(
+                (root / env.get("FAB_SHARED_DOCUMENTS_ROOT", "runtime/local/shared_documents")).resolve()
+            ),
             "FAB_DATABASE_PATH": str(instance / "data" / "fab_history.db"),
             "FAB_DATABASE_DIR": str(departments),
             "FAB_MANUFACTURING_DATABASE_PATH": str(

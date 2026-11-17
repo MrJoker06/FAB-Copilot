@@ -52,7 +52,9 @@ class StartupScriptTests(unittest.TestCase):
             "import json, os\n"
             "from pathlib import Path\n"
             "Path(os.environ['TEST_LAUNCH_LOG']).open('a', encoding='utf-8').write("
-            "json.dumps({'step':'server','source':os.environ['FAB_SOURCE_MODE']}, "
+            "json.dumps({'step':'server','source':os.environ['FAB_SOURCE_MODE'],"
+            "'report_directory':os.environ['FAB_REPORT_DIRECTORY_PATH'],"
+            "'shared_documents':os.environ['FAB_SHARED_DOCUMENTS_ROOT']}, "
             "ensure_ascii=False)+'\\n')\n"
             "raise SystemExit(int(os.environ.get('TEST_SERVER_EXIT', '0')))\n",
             encoding="utf-8",
@@ -66,6 +68,9 @@ class StartupScriptTests(unittest.TestCase):
 
     def _environment(self, instance: Path, log: Path, **extra: str) -> dict[str, str]:
         environment = os.environ.copy()
+        # Exercise launcher defaults without inheriting a system suite's store roots.
+        environment.pop("FAB_REPORT_DIRECTORY_PATH", None)
+        environment.pop("FAB_SHARED_DOCUMENTS_ROOT", None)
         environment.update(
             {"FAB_INSTANCE_ROOT": str(instance), "TEST_LAUNCH_LOG": str(log)}
         )
@@ -94,6 +99,8 @@ class StartupScriptTests(unittest.TestCase):
         self.assertEqual(events[0]["days"], "1")
         self.assertEqual(events[0]["id"], "space")
         self.assertTrue(events[0]["db"].startswith(str(instance)))
+        self.assertEqual(events[1]["report_directory"], str((self.repo / "runtime/local/report_directory.json").resolve()))
+        self.assertEqual(events[1]["shared_documents"], str((self.repo / "runtime/local/shared_documents").resolve()))
         manifest = json.loads((instance / "instance.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["source_mode"], "snapshot")
         self.assertEqual(manifest["platform"], os.name)

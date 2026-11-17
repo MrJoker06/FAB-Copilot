@@ -65,7 +65,8 @@ const dashboard = globalThis.FabDashboardController.createDashboardController({
   state, $, escapeHtml, formatNumber, api, processLabels,
 });
 const shift = globalThis.FabShiftController.createShiftController({
-  $, escapeHtml, showToast, setAgentOpen: (...args) => layout.setAgentOpen(...args),
+  $, escapeHtml, showToast, api, identityHeaders, processLabels,
+  setAgentOpen: (...args) => layout.setAgentOpen(...args), showView: (...args) => layout.showView(...args),
 });
 const sessions = globalThis.FabSessionController.createSessionController({
   state, $, escapeHtml, api, showToast, sourcePresenter, presenter,

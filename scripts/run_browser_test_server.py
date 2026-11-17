@@ -247,6 +247,8 @@ def browser_test_environment(root: Path, environ: dict[str, str] | None = None) 
         "FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH": str(root / "personal_knowledge"),
         "FAB_LOCAL_MODELS_PATH": str(root / "local_models.json"),
         "FAB_MODEL_CREDENTIALS_PATH": str(root / "model_credentials.json"),
+        "FAB_REPORT_DIRECTORY_PATH": str(root / "report_directory.json"),
+        "FAB_SHARED_DOCUMENTS_ROOT": str(root / "shared_documents"),
         "AGENT_LOG_PATH": str(root / "agent_events.jsonl"),
         "AGENT_RUN_LOG_DIR": str(root / "agent_runs"),
         "FAB_INSTANCE_ID": "playwright-browser-test",

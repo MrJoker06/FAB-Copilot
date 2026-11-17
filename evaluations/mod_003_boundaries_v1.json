@@ -373,6 +373,11 @@
       "artifact_group": "application_bundle"
     },
     {
+      "path": "app/api/report_directory.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
       "path": "app/api/report_service.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"
@@ -424,6 +429,11 @@
     },
     {
       "path": "app/api/routers/sessions.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/api/routers/shared_documents.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"
     },
@@ -896,6 +906,11 @@
     },
     {
       "path": "app/knowledge/search_registry.py",
+      "primary_module": "knowledge",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/knowledge/shared_documents.py",
       "primary_module": "knowledge",
       "artifact_group": "platform_core"
     },
@@ -2431,6 +2446,13 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
+      "source_file": "app/api/routers/shared_documents.py",
+      "imports": ["sqlite3"],
+      "calls": [],
+      "table_hints": [],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
       "source_file": "app/api/routers/system.py",
       "imports": [],
       "calls": [
@@ -2565,6 +2587,13 @@
         "lots",
         "process_runs"
       ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/knowledge/shared_documents.py",
+      "imports": ["sqlite3"],
+      "calls": ["conn.execute", "sqlite3.connect"],
+      "table_hints": ["documents"],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
@@ -2943,6 +2972,14 @@
         "exit_task": "MOD-027"
       },
       {
+        "source_file": "app/api/routers/shared_documents.py",
+        "owner": "application_bootstrap",
+        "classification": "storage-binding",
+        "stores": "shared documents metadata and source files",
+        "init_effects": "Resolves an explicit shared-document storage root and binds authenticated upload/read/admin routes to it; imports sqlite3 only for sanitized storage errors. Does not access model settings or private knowledge ownership.",
+        "exit_task": "PE/EE duty workspace (retain binding)"
+      },
+      {
         "source_file": "app/api/routers/system.py",
         "owner": "application_bootstrap",
         "classification": "mixed-diagnostic",
@@ -3005,6 +3042,14 @@
         "stores": "lots, process_runs",
         "init_effects": "App-owned simulation demo initializer and seed writes; not a company-source prerequisite; startup separation retained at MOD-015 closeout and owned by MOD-027.",
         "exit_task": "MOD-027"
+      },
+      {
+        "source_file": "app/knowledge/shared_documents.py",
+        "owner": "knowledge",
+        "classification": "internal-store",
+        "stores": "documents (dedicated documents.db) and uploaded source files",
+        "init_effects": "Creates only the injected shared-document store on explicit read/upload/manage access. Recovers processing rows on startup only if its database already exists; retains disabled originals, uses fixed bound SQL and never initializes business or model databases.",
+        "exit_task": "PE/EE duty workspace (retain store)"
       },
       {
         "source_file": "app/knowledge/sqlite_backend.py",

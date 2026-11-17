@@ -199,7 +199,7 @@ test(
   );
     await item.click();
     expect((await caseResponse).status()).toBe(200);
-    await expect(page.locator("#caseTitle")).toContainText(
+    await expect(page.locator("#shiftDocumentReader h2")).toContainText(
       "QA009 CVD 历史案例",
     );
   },
@@ -258,17 +258,16 @@ test(
   await expect(page.locator("#knowledgeContent")).not.toBeEmpty();
   await noOverflow(page);
   const cases = page.waitForResponse((r) => r.url().endsWith("/api/cases"));
-  if (!await page.locator('#allFunctions').evaluate(group => group.open)) await page.locator('#allFunctions summary').click();
-  await page.locator('[data-view="cases"]').click();
+  await page.locator('[data-view="procedures"]').click();
   expect((await cases).status()).toBe(200);
-  const caseItem = page.locator("[data-case-id]").first();
-  const caseId = await caseItem.getAttribute("data-case-id");
+  const caseItem = page.locator('[data-shift-document^="case:"]').first();
+  const caseId = (await caseItem.getAttribute('data-shift-document')).slice(5);
   const detailCase = page.waitForResponse((r) =>
     r.url().endsWith(`/api/cases/${caseId}`),
   );
     await caseItem.click();
     expect((await detailCase).status()).toBe(200);
-    await expect(page.locator("#caseContent")).not.toBeEmpty();
+    await expect(page.locator("#shiftDocumentReader")).toContainText('问题');
     await noOverflow(page);
   },
 );

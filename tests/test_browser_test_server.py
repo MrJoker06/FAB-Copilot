@@ -39,6 +39,8 @@ class BrowserTestServerTests(unittest.TestCase):
                     "SAFE": "kept", "PATH": "/safe/path",
                     "FAB_LOCAL_MODELS_PATH": "/host/local_models.json",
                     "FAB_MODEL_CREDENTIALS_PATH": "/host/model_credentials.json",
+                    "FAB_REPORT_DIRECTORY_PATH": "/host/report_directory.json",
+                    "FAB_SHARED_DOCUMENTS_ROOT": "/host/shared_documents",
                 })
             self.assertEqual(backup.call_count, 5)
             prepare_result.assert_called_once_with(Path(environment["FAB_AGENT_DATABASE_PATH"]), root / "departments/tool_results.db")
@@ -68,6 +70,8 @@ class BrowserTestServerTests(unittest.TestCase):
                 "FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH",
                 "FAB_LOCAL_MODELS_PATH",
                 "FAB_MODEL_CREDENTIALS_PATH",
+                "FAB_REPORT_DIRECTORY_PATH",
+                "FAB_SHARED_DOCUMENTS_ROOT",
                 "AGENT_LOG_PATH",
                 "AGENT_RUN_LOG_DIR",
             )

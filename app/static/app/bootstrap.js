@@ -17,7 +17,7 @@
       resetKnowledgeUploadForm, downloadSelectedPersonalKnowledge,
       openPersonalKnowledgeMetadataDialog, retrySelectedPersonalKnowledge,
       openPersonalKnowledgeDeleteDialog, deleteSelectedPersonalKnowledge,
-      savePersonalKnowledgeMetadata, renderCaseList, openHistoricalCase,
+      savePersonalKnowledgeMetadata, openHistoricalCase,
       clearSessionBatchSelection, loadSessionLibrary, filteredSessionLibrary,
       renderSessionLibrary, setSessionBatchMode, openSessionDeleteDialog,
       runSessionLibraryAction, openSessionLibraryPreview, openSessionRenameDialog,
@@ -174,12 +174,6 @@
         $('#personalKnowledgeMetadataMessage').hidden = true;
       });
 
-      $('#caseFilter').addEventListener('input', renderCaseList);
-      $('#caseStepFilter').addEventListener('change', renderCaseList);
-      $('#caseList').addEventListener('click', event => {
-        const target = event.target.closest('[data-case-id]');
-        if (target) openHistoricalCase(target.dataset.caseId);
-      });
 
       let sessionLibrarySearchTimer = null;
       $('#sessionLibrarySearch').addEventListener('input', event => {

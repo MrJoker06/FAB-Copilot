@@ -1,4 +1,4 @@
-const adminState = { token: sessionStorage.getItem('fabInsightAdminToken') || '', activeView: 'runtime', refreshTimer: null, models: [] };
+const adminState = { token: sessionStorage.getItem('fabInsightAdminToken') || '', activeView: 'runtime', refreshTimer: null, models: [], reportDirectory: null, editingReportId: null };
 const $ = selector => document.querySelector(selector);
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[character]));
 const formatNumber = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString('zh-CN') : '—';
@@ -347,6 +347,149 @@ async function deleteModel(modelId, displayName) {
   } catch (error) { showNotice('#modelNotice', error.message, true); }
 }
 
+let selectedReportFolder = null;
+let editingReportFolder = null;
+
+function reportFolderPath(id) {
+  const folders = adminState.reportDirectory?.folders || [];
+  const names = [], seen = new Set();
+  while (id && !seen.has(id)) {
+    seen.add(id);
+    const folder = folders.find(item => item.id === id);
+    if (!folder) break;
+    names.unshift(folder.name); id = folder.parent_id;
+  }
+  return names.join(' / ') || '根目录';
+}
+
+function renderReportDirectory() {
+  const data = adminState.reportDirectory;
+  if (!data) return;
+  const tree = parent => `<ul>${data.folders.filter(folder => folder.parent_id === parent).map(folder => `<li><button type="button" class="report-folder-button${folder.id === selectedReportFolder ? ' active' : ''}" data-report-folder="${escapeHtml(folder.id)}" aria-pressed="${folder.id === selectedReportFolder}">▱ ${escapeHtml(folder.name)}</button>${tree(folder.id)}</li>`).join('')}</ul>`;
+  $('#reportFolderTree').innerHTML = tree(null);
+  $('#allReportFolders').classList.toggle('active', selectedReportFolder === null);
+  $('#allReportFolders').setAttribute('aria-pressed', String(selectedReportFolder === null));
+  $('#editReportFolder').disabled = selectedReportFolder === null;
+  const selected = $('#reportFolder').value;
+  $('#reportFolder').innerHTML = '<option value="">根目录</option>' + data.folders.map(folder => `<option value="${escapeHtml(folder.id)}">${escapeHtml(reportFolderPath(folder.id))}</option>`).join('');
+  $('#reportFolder').value = selected;
+  const reports = data.reports.filter(item => selectedReportFolder === null || item.folder_id === selectedReportFolder).slice().sort((a,b) => a.sort_order - b.sort_order || a.id.localeCompare(b.id));
+  $('#reportDirectoryCount').textContent = `${selectedReportFolder ? reportFolderPath(selectedReportFolder) : '全部报表'} · ${reports.length} 份（目录共 ${data.reports.length} 份）`;
+  $('#reportDirectoryBody').innerHTML = reports.map(item => `<tr><td><strong>${escapeHtml(item.title)}</strong><div class="report-directory-url">${escapeHtml(item.url)}</div></td><td>${escapeHtml(reportFolderPath(item.folder_id))}</td><td>${item.sort_order}</td><td>${item.enabled ? '启用' : '停用'}</td><td><div class="report-row-actions"><button type="button" class="quiet-button" data-edit-report="${escapeHtml(item.id)}">编辑</button><button type="button" class="quiet-button" data-toggle-report="${escapeHtml(item.id)}">${item.enabled ? '停用' : '启用'}</button><button type="button" class="quiet-button" data-remove-report="${escapeHtml(item.id)}">移除</button></div></td></tr>`).join('') || '<tr><td colspan="5" class="empty-row">此目录暂无报表</td></tr>';
+  $('#saveReportDirectory').disabled = false;
+}
+
+async function loadReportDirectory() {
+  try {
+    const data = await adminApi('/api/admin/report-directory');
+    adminState.reportDirectory = data;
+    if (!data.folders.some(folder => folder.id === selectedReportFolder)) selectedReportFolder = null;
+    renderReportDirectory();
+    showNotice('#reportDirectoryNotice', '');
+  } catch (error) {
+    showNotice('#reportDirectoryNotice', error.message, true);
+    if (error.status === 401) showAuth();
+  }
+}
+
+function resetReportEditor() {
+  adminState.editingReportId = null;
+  $('#reportEditorForm').reset();
+  $('#reportFolder').value = selectedReportFolder || '';
+  $('#reportSortOrder').value = adminState.reportDirectory?.reports.length || 0;
+  $('#reportEditorTitle').textContent = '新增报表';
+  $('#stageReportEdit').textContent = '加入目录';
+}
+
+function stageReportEdit(event) {
+  event.preventDefault();
+  const data = adminState.reportDirectory;
+  if (!data) return;
+  const item = {id:adminState.editingReportId || `report-${crypto.randomUUID()}`, title:$('#reportTitle').value.trim(), url:$('#reportUrl').value.trim(), description:$('#reportDescription').value.trim(), object:$('#reportObject').value.trim(), folder_id:$('#reportFolder').value || null, sort_order:Number($('#reportSortOrder').value), enabled:$('#reportEnabled').checked, updated_at:''};
+  const previous = data.reports.findIndex(row => row.id === item.id);
+  if (previous < 0) data.reports.push(item); else data.reports[previous] = item;
+  renderReportDirectory(); resetReportEditor();
+  showNotice('#reportDirectoryNotice', '报表已加入本页修改，请点击「保存目录」使前台生效。');
+}
+
+async function saveReportDirectory() {
+  if (!adminState.reportDirectory) return;
+  $('#saveReportDirectory').disabled = true;
+  try {
+    adminState.reportDirectory = await adminApi('/api/admin/report-directory', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(adminState.reportDirectory)});
+    renderReportDirectory();
+    showNotice('#reportDirectoryNotice', '目录已保存。用户重新进入基础报表页后生效。');
+  } catch (error) { showNotice('#reportDirectoryNotice', error.message, true); }
+  finally { $('#saveReportDirectory').disabled = false; }
+}
+
+function openReportFolder(edit = false) {
+  if (!adminState.reportDirectory) return;
+  editingReportFolder = edit ? selectedReportFolder : null;
+  const current = adminState.reportDirectory.folders.find(folder => folder.id === editingReportFolder);
+  $('#reportFolderDialogTitle').textContent = current ? '编辑文件夹' : '新建文件夹';
+  $('#reportFolderName').value = current?.name || '';
+  $('#reportFolderParent').innerHTML = '<option value="">根目录</option>' + adminState.reportDirectory.folders.filter(folder => folder.id !== editingReportFolder).map(folder => `<option value="${escapeHtml(folder.id)}">${escapeHtml(reportFolderPath(folder.id))}</option>`).join('');
+  $('#reportFolderParent').value = current ? current.parent_id || '' : selectedReportFolder || '';
+  $('#removeReportFolder').hidden = !current;
+  $('#reportFolderMessage').hidden = true;
+  $('#reportFolderDialog').showModal(); $('#reportFolderName').focus();
+}
+
+function applyReportFolder(event) {
+  event.preventDefault();
+  const data = adminState.reportDirectory;
+  const id = editingReportFolder || `folder-${crypto.randomUUID()}`;
+  const parent = $('#reportFolderParent').value || null, name = $('#reportFolderName').value.trim();
+  let ancestor = parent;
+  while (ancestor) {
+    if (ancestor === id) { $('#reportFolderMessage').textContent = '不能将文件夹移到自己的子目录。'; $('#reportFolderMessage').hidden = false; return; }
+    ancestor = data.folders.find(folder => folder.id === ancestor)?.parent_id;
+  }
+  if (!name || data.folders.some(folder => folder.id !== id && folder.parent_id === parent && folder.name === name)) {
+    $('#reportFolderMessage').textContent = '名称不能为空，也不能与同级文件夹重名。'; $('#reportFolderMessage').hidden = false; return;
+  }
+  const folder = {id, name, parent_id:parent}, previous = data.folders.findIndex(item => item.id === id);
+  if (previous < 0) data.folders.push(folder); else data.folders[previous] = folder;
+  selectedReportFolder = id; $('#reportFolderDialog').close(); renderReportDirectory(); resetReportEditor();
+  showNotice('#reportDirectoryNotice', '文件夹已应用到本页，请保存目录。');
+}
+
+function bindReportDirectory() {
+  $('#refreshReportDirectory').addEventListener('click', loadReportDirectory);
+  $('#saveReportDirectory').addEventListener('click', saveReportDirectory);
+  $('#reportEditorForm').addEventListener('submit', stageReportEdit);
+  $('#cancelReportEdit').addEventListener('click', resetReportEditor);
+  $('#addReportFolder').addEventListener('click', () => openReportFolder());
+  $('#editReportFolder').addEventListener('click', () => openReportFolder(true));
+  $('#closeReportFolder').addEventListener('click', () => $('#reportFolderDialog').close());
+  $('#reportFolderForm').addEventListener('submit', applyReportFolder);
+  $('#removeReportFolder').addEventListener('click', () => {
+    const data = adminState.reportDirectory;
+    if (data.folders.some(folder => folder.parent_id === editingReportFolder) || data.reports.some(item => item.folder_id === editingReportFolder)) {
+      $('#reportFolderMessage').textContent = '请先移走子文件夹和报表，再移除空文件夹。'; $('#reportFolderMessage').hidden = false; return;
+    }
+    data.folders = data.folders.filter(folder => folder.id !== editingReportFolder);
+    selectedReportFolder = null; $('#reportFolderDialog').close(); renderReportDirectory();
+    showNotice('#reportDirectoryNotice', '已从本页移除空文件夹，请保存目录。');
+  });
+  $('#allReportFolders').addEventListener('click', () => { selectedReportFolder = null; renderReportDirectory(); });
+  $('#reportFolderTree').addEventListener('click', event => { const button = event.target.closest('[data-report-folder]'); if (button) { selectedReportFolder = button.dataset.reportFolder; renderReportDirectory(); resetReportEditor(); } });
+  $('#reportDirectoryBody').addEventListener('click', event => {
+    const button = event.target.closest('button'); if (!button) return;
+    const data = adminState.reportDirectory, id = button.dataset.editReport || button.dataset.toggleReport || button.dataset.removeReport;
+    const item = data.reports.find(row => row.id === id); if (!item) return;
+    if (button.dataset.toggleReport) item.enabled = !item.enabled;
+    else if (button.dataset.removeReport) data.reports = data.reports.filter(row => row.id !== id);
+    else {
+      adminState.editingReportId = id;
+      for (const [selector, value] of [['#reportTitle',item.title],['#reportUrl',item.url],['#reportDescription',item.description],['#reportObject',item.object],['#reportFolder',item.folder_id || ''],['#reportSortOrder',item.sort_order]]) $(selector).value = value;
+      $('#reportEnabled').checked = item.enabled; $('#reportEditorTitle').textContent = '编辑报表'; $('#stageReportEdit').textContent = '应用修改'; $('#reportTitle').focus(); return;
+    }
+    renderReportDirectory(); showNotice('#reportDirectoryNotice', '修改尚未保存，请点击「保存目录」。');
+  });
+}
+
 function showView(name) {
   adminState.activeView = name;
   document.querySelectorAll('.admin-view').forEach(view => view.classList.toggle('active', view.id === `${name}View`));
@@ -355,7 +498,57 @@ function showView(name) {
     if (button.dataset.adminView === name) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
   });
-  if (name === 'models') loadModels().catch(() => {}); else loadOverview().catch(() => {});
+  $('#adminReportFolders').hidden = name !== 'reports';
+  if (name === 'models') loadModels().catch(() => {});
+  else if (name === 'reports') loadReportDirectory();
+  else if (name === 'documents') loadSharedDocuments();
+  else loadOverview().catch(() => {});
+}
+
+let managedSharedDocuments = [], editingSharedDocumentId = null;
+async function loadSharedDocuments() {
+  try {
+    const data = await adminApi('/api/admin/shared-documents');
+    managedSharedDocuments = data.items;
+    $('#sharedDocumentsCount').textContent = `${data.items.length} 份`;
+    const status = {processing:'正在处理',ready:'可阅读',failed:'处理失败'};
+    $('#sharedDocumentsBody').innerHTML = data.items.map(item => `<tr><td><strong>${escapeHtml(item.title)}</strong><div>${escapeHtml(item.filename)}</div>${item.error_message ? `<small class="shared-document-error">${escapeHtml(item.error_message)}</small>` : ''}</td><td>${item.kind === 'sop' ? 'SOP' : '历史case'} · ${escapeHtml(item.process || '通用')}</td><td>${escapeHtml(item.tenant_id)} / ${escapeHtml(item.user_id)}</td><td>${escapeHtml(status[item.status] || item.status)}</td><td>${item.enabled ? '启用' : '停用'}</td><td><button type="button" class="quiet-button" data-manage-document="${escapeHtml(item.document_id)}">查看 / 编辑</button>${item.status === 'failed' ? `<button type="button" class="quiet-button" data-retry-document="${escapeHtml(item.document_id)}">重试</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="empty-row">暂无共享上传资料</td></tr>';
+    showNotice('#sharedDocumentsNotice','');
+  } catch (error) { showNotice('#sharedDocumentsNotice',error.message,true); if (error.status === 401) showAuth(); }
+}
+
+async function openSharedDocument(id) {
+  try {
+    const item = await adminApi(`/api/admin/shared-documents/${encodeURIComponent(id)}`);
+    editingSharedDocumentId = id;
+    $('#sharedDocumentTitle').value = item.title; $('#sharedDocumentKind').value = item.kind;
+    $('#sharedDocumentProcess').value = item.process; $('#sharedDocumentEnabled').checked = item.enabled;
+    $('#sharedDocumentMessage').hidden = true;
+    $('#sharedDocumentPreview').innerHTML = (item.sections || []).map(section => `<section><h3>${escapeHtml(section.title)}</h3><p>${escapeHtml(section.text)}</p></section>`).join('') || `<p>${escapeHtml(item.error_message || '资料还在处理中')}</p>`;
+    $('#sharedDocumentDialog').showModal(); $('#sharedDocumentTitle').focus();
+  } catch (error) { showNotice('#sharedDocumentsNotice',error.message,true); }
+}
+
+function bindSharedDocuments() {
+  $('#refreshSharedDocuments').addEventListener('click',loadSharedDocuments);
+  $('#closeSharedDocument').addEventListener('click',() => $('#sharedDocumentDialog').close());
+  $('#sharedDocumentsBody').addEventListener('click',async event => {
+    const button = event.target.closest('button'); if (!button) return;
+    if (button.dataset.manageDocument) { openSharedDocument(button.dataset.manageDocument); return; }
+    if (button.dataset.retryDocument) {
+      button.disabled = true;
+      try { await adminApi(`/api/admin/shared-documents/${encodeURIComponent(button.dataset.retryDocument)}/retry`,{method:'POST'}); await loadSharedDocuments(); }
+      catch (error) { showNotice('#sharedDocumentsNotice',error.message,true); button.disabled = false; }
+    }
+  });
+  $('#sharedDocumentForm').addEventListener('submit',async event => {
+    event.preventDefault(); const submit = event.submitter; if (submit) submit.disabled = true;
+    try {
+      await adminApi(`/api/admin/shared-documents/${encodeURIComponent(editingSharedDocumentId)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:$('#sharedDocumentTitle').value,kind:$('#sharedDocumentKind').value,process:$('#sharedDocumentProcess').value,enabled:$('#sharedDocumentEnabled').checked})});
+      $('#sharedDocumentDialog').close(); await loadSharedDocuments(); showToast('共享资料已更新');
+    } catch (error) { $('#sharedDocumentMessage').textContent = error.message; $('#sharedDocumentMessage').hidden = false; }
+    finally { if (submit) submit.disabled = false; }
+  });
 }
 
 async function authenticate(event) {
@@ -370,6 +563,8 @@ async function authenticate(event) {
 }
 
 function init() {
+  bindReportDirectory();
+  bindSharedDocuments();
   document.querySelectorAll('[data-admin-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.adminView)));
   $('#adminAuthDialog').addEventListener('cancel', event => event.preventDefault());
   $('#adminAuthForm').addEventListener('submit', authenticate);

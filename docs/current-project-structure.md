@@ -2,7 +2,7 @@
 
 当前快照：2026-11-17，`feat/pe-ee-duty-workspace`，起点为 `experiment/parallel-platform` 的 `dcca19f`。本轮优先实现 PE / EE 值班工作区，见[报告](reports/pe-ee-duty-workspace.md)；MOD-029 以 `c5312d1` 为起点完成 a～e，保留完整门既有失败，见[实施报告](reports/mod-029-tool-result-access.md)。提交及远程状态以 Git 为准。MOD-031 和此前存储拆分分别见 [031 报告](reports/mod-031-validator.md)、[存储报告](reports/persistence-demo-separation.md)，保留其历史验收限制。MOD-020～023、MOD-025～028 仍待做/暂缓，默认 HTTP 未启用 Skill，兼容 facade 与配置锚点归 MOD-027。
 
-当前实扫 `app/` 为 **321 文件：292 个 Python、29 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。
+当前实扫 `app/` 为 **324 文件：295 个 Python、29 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。
 
 2026-11-16 MOD-029 增补：独立结果库、实际聊天/后台和 Session 删除联动已接入，029e 已按基线失败子集完成验收，见[实施报告](reports/mod-029-tool-result-access.md)。默认结果库为 FAB_DATABASE_DIR/tool_results.db，后台开关跨重启保留，新 Run 生效。
 
@@ -10,9 +10,11 @@ MOD-029c 增补：`app/agent_runtime/tools/result_access.py` 提供每 Run 辅�
 
 ## 值班工作区与展示资料
 
-产品方向优先服务 PE / EE 值班工程师。`app/static/app/shift/controller.js` 负责基础报表、SOP&历史case 的加载、筛选、关联跳转及助手草稿；现有页面放入默认折叠的「所有功能」，中间总览与右侧助手结构保留。
+产品方向优先服务 PE / EE 值班工程师。`app/static/app/shift/controller.js` 负责基础报表、SOP&历史case 的加载、筛选、关联跳转及助手草稿；原案例入口合入历史case，其余原页面放入默认折叠的「所有功能」，中间总览与右侧助手结构保留。
 
 根目录 `display_mock_data/` 包含 `catalog.json`、六个报表 HTML、共享样式和内部 README，仅保存合成展示资料，不在 app 源码计数内。`app/api/application.py` 在目录存在时挂载公开静态路由；未放入 Tool、RAG 或业务数据库。`run.py` 的完整源码导出白名单包含该目录；独立模块 Profile 不包含它，真实公司接入与授权另行验收。
+
+后续补充以 `220a333` 为基线：报表前台平铺，管理员通过侧栏文件夹树维护目录；用户上传的 SOP/case 解析成功后立即向所有用户共享，管理员可编辑元数据、停用和恢复。原案例列表与来源跳转合入同一资料页，旧个人知识保持隔离。报表配置与上传资料分别保存在工作树根下的 `runtime/local/report_directory.json`、`runtime/local/shared_documents/`，可显式配置路径；后者不作为静态目录公开，也不自动加入 RAG 索引。模型配置及凭据未纳入新目录。
 
 ## 平台启动入口
 
@@ -158,6 +160,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/api/application.py` | 装配 | API 应用/路由安装与跨域等 HTTP 组合。 |
 | `app/api/dependencies.py` | 装配 | 请求级依赖与身份/设置获取。 |
 | `app/api/errors.py` | 业务 | HTTP 错误规范化。 |
+| `app/api/report_directory.py` | API/配置 | 报表目录模型、文件夹引用校验、原子保存及公开/管理接口；不访问模型配置。 |
 | `app/api/runtime_dependencies.py` | 装配/存储 | API 对运行时、数据库和服务的具体依赖组合。 |
 | `app/api/schemas.py` | 纯 | API Pydantic/数据传输结构。 |
 | `app/api/routers/__init__.py` | 包 | 路由包锚点。 |
@@ -170,6 +173,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/api/routers/reports.py` | API | 制造报告端点。 |
 | `app/api/routers/runtime.py` | API | Agent 运行状态端点。 |
 | `app/api/routers/sessions.py` | API/存储 | 会话读取、删除和恢复端点。 |
+| `app/api/routers/shared_documents.py` | API/装配 | 共享资料上传、阅读、原文下载及管理员编辑/停用/重试；解析存储路径并显式传入资料模块。 |
 | `app/api/routers/system.py` | API/存储 | 系统初始化和状态端点。 |
 | `app/api/services/__init__.py` | 包 | API 服务包锚点。 |
 | `app/api/services/chat.py` | API | 聊天请求编排。 |
@@ -368,6 +372,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/tools/knowledge_search/handler.py` | 纯 | 核对主体、owner、来源和候选，复用既有重排，保留引用及来源多样性，产生列表 ToolResult。 |
 | `app/tools/knowledge_search/binding.py` | 纯 | 原生 search_knowledge 1.0.0；准备租户 Scope，空查询不咨询来源。 |
 | `app/knowledge/search_registry.py` | 装配/过渡 | 搜索/目录后端注册和选择；`sqlite` 后端由 Port 绑定的工厂创建。 |
+| `app/knowledge/shared_documents.py` | 存储/处理 | 独立共享资料库、原文和抽取结果；沿用文件校验/抽取/OCR 质量规则，保存处理状态，执行共享与停用边界；路径由应用层提供。 |
 | `app/knowledge/sqlite_backend.py` | Adapter | 工厂知识/目录 SQLite 后端。 |
 | `app/demo_data/tool_sources/knowledge_search.py` | Adapter | 按完整查询/租户/用户读取深复制的精确候选夹具，来源明确为 FAKE。 |
 | `app/tools/knowledge_search/backend_search.py` | Adapter | 显式组合 FactorySearchBackend 与个人搜索 Port，核对 owner envelope、固定请求及错误/超时脱敏；无全局选择或故障回退。 |
@@ -525,7 +530,7 @@ MOD-016～018 已实现独立 Manifest、依赖校验、安全资源、显式 Ca
 
 ## 5. 当前耦合与迁移事实
 
-当前边界清单记录 **10 条精确依赖债务、35 个 DB 调用候选文件、7 个兼容入口、99 个静态消费者**。MOD-031 新增 compatibility 到 evidence_assembly 的精确装配债务及一条实际测试 patch 消费，均登记；保留兼容项仍由其真实后续任务处理。
+当前边界清单记录 **10 条精确依赖债务、37 个 DB 调用候选文件、7 个兼容入口、99 个静态消费者**。MOD-031 新增 compatibility 到 evidence_assembly 的精确装配债务及一条实际测试 patch 消费，均登记；保留兼容项仍由其真实后续任务处理。
 兼容消费者扫描只覆盖 app/scripts/tests 内的静态 import、字面动态 import 与常见 mock patch；
 外部调用方和计算出的动态引用仍需人工审查。
 
@@ -540,12 +545,7 @@ MOD-016～018 已实现独立 Manifest、依赖校验、安全资源、显式 Ca
 会话、rag/search_registry、模型 health/registry、个人知识 service 和 runtime_status 已改为依赖 `core/storage_identity_ports.py`，
 默认实现由 `bootstrap/storage_identity_assembly.py` 在 `app.main` 与 `agent_runtime.service` 的装配路径安装；不经过这两条路径的直接 Python 消费者需先调用 `install_default_storage_identity()`。
 
-30 个 DB 候选是 `api/application.py`、`api/routers/admin.py`、`api/routers/system.py`、
-`api/runtime_dependencies.py`、`bootstrap/storage_identity_assembly.py`、`conversation/sessions.py`、`core/sqlite_support.py`、设备健康/过程诊断/生产报表/运行报表/具名查询/趋势六个 SQLite 来源、知识 SQLite 后端、默认知识运行时的显式知识库/质量库只读来源、
-`main.py`、四组 Tool 的 `reports.py`、`demo_data/seed.py`、模型 health/registry、
-`persistence/database.py`、`persistence/execution_store.py`、个人知识的 documents/ingestion/jobs/search，
-以及 `telemetry/runtime_status.py`。它们并不都是公司业务数据库：其中很多是应用自有会话、
-索引、审计或合成 FAB 数据。
+37 个 DB 候选的唯一明细与初始化影响见 `evaluations/mod_003_boundaries_v1.json` 的 `database_candidates`、`database_ledger`。共享资料追加两项：HTTP 绑定仅为统一存储错误而导入 sqlite3，实际固定 SQL 位于共享资料模块。其余包括受控业务来源、应用自有会话/索引/审计/结果存储以及合成 FAB 数据；候选数不等于公司业务数据库数量。
 
 F2b 从默认清单、提示和 Dispatcher 移除旧 SQL 能力，但历史代码仍保留：
 `planning_runtime/queries.py` 的旧模板、`steps.py` 的 v1 步骤、

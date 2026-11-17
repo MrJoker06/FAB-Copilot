@@ -6,7 +6,7 @@
 
 ## 当前安排
 
-2026-11-17 用户最高优先级：PE / EE 值班工作区与根目录 `display_mock_data/` 展示资料已在 `feat/pe-ee-duty-workspace`（起点 `dcca19f`）完成，验收与限制见[报告](docs/reports/pe-ee-duty-workspace.md)。不自动启动其他 MOD 或企业级任务，产品任务统计口径不变。
+2026-11-17 用户最高优先级：PE / EE 值班工作区与根目录 `display_mock_data/` 展示资料已在 `feat/pe-ee-duty-workspace`（起点 `dcca19f`）完成，并追加报表目录管理、共享上传与原案例入口合并；验收与限制见[报告](docs/reports/pe-ee-duty-workspace.md)。不自动启动其他 MOD 或企业级任务，产品任务统计口径不变。
 
 - 模块化后续为 MOD-025 → MOD-026 → MOD-027 → MOD-028，恢复链 MOD-020 → MOD-021 → MOD-022 → MOD-023 按需求启用；MOD-029 已完成，验收与既有失败见[报告](docs/reports/mod-029-tool-result-access.md)。见[执行计划](docs/todos/execution-plan.md)和[模块化追踪](docs/todos/modularization.md)。
 - GitHub [#1](https://github.com/MrJoker06/FAB-Copilot/issues/1)、[#2](https://github.com/MrJoker06/FAB-Copilot/issues/2)、[#3](https://github.com/MrJoker06/FAB-Copilot/issues/3)维护其余改造方向；未实施项不因方向确认或本次归档而完成，不自动启动 LDAP、公司接入或 Live。

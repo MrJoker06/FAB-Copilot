@@ -4,11 +4,13 @@
 
 ## 值班工作区
 
-左侧依次为「基础报表」「SOP&历史case」「Autosystem 平台」「值班智能助手」；原制造总览、制程能力、知识库和案例库移入底部默认折叠的「所有功能」。初始中间总览、右侧助手及其余布局保持原样。
+左侧依次为「基础报表」「SOP&历史case」「Autosystem 平台」「值班智能助手」；原制造总览、制程能力和知识库放入底部默认折叠的「所有功能」，原案例库合入「SOP&历史case」的历史case。初始中间总览、右侧助手及其余布局保留。
 
-根目录 [display_mock_data](display_mock_data/README.md) 保存六类报表页面、三份 SOP 和三个历史 case 的合成展示资料。基础报表支持搜索、岗位筛选与最近查看，SOP/case 支持检索、制程和岗位筛选、关联 SOP 跳转；可将资料填入助手草稿，用户确认发送后才会提交。
+根目录 [display_mock_data](display_mock_data/README.md) 保存六类报表页面、三份 SOP 和三个历史 case 的合成展示资料。基础报表统一平铺，支持搜索与最近查看；管理员在与运行状态、模型目录并列的「报表目录」中维护侧栏文件夹树、链接、排序及启用状态。SOP/case 支持检索、制程和岗位筛选、关联 SOP 跳转；可将资料填入助手草稿，用户确认发送后才会提交。
 
-完整应用通过 `/display_mock_data/` 提供这些公开静态资料；不要向该目录放置公司文档、凭据或真实业务数据。目录不存在时页面明确提示资料不可用。后续报表链接和 Autosystem 地址在 `catalog.json` 中配置；当前 Autosystem 未配置，点击会提示。真实公司接入、身份授权和文档同步尚未实现。页面不额外显示「演示报表」标签。实现与验证见[工作区报告](docs/reports/pe-ee-duty-workspace.md)。
+用户可在「SOP&历史case」上传资料；解析成功后立即向所有用户共享，失败资料保留状态与原因。管理员可编辑标题、类别、制程，停用或恢复共享；停用后正文和原文下载均不可用。上传资料单独保存在 `runtime/local/shared_documents/`，不写入公开展示目录，也不自动加入 RAG 索引。既有个人知识仍按原方式隔离。
+
+完整应用通过 `/display_mock_data/` 提供公开静态展示资料；不要向该目录放置公司文档、凭据或真实业务数据。管理员首次保存前，报表目录读取 `catalog.json` 默认链接，之后以 `runtime/local/report_directory.json` 为准；Autosystem 地址仍在该 catalog 配置，当前为空。可通过 `FAB_REPORT_DIRECTORY_PATH`、`FAB_SHARED_DOCUMENTS_ROOT` 指定新功能的持久路径；启动器默认指向工作树根目录下的这些位置。模型目录、连接配置及凭据沿用原有机制。本轮不实现公司系统、LDAP 或生产权限接入，页面不额外显示「演示报表」标签。实现与验证见[工作区报告](docs/reports/pe-ee-duty-workspace.md)。
 
 ## 已实现能力
 

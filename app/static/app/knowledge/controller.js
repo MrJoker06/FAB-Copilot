@@ -521,42 +521,7 @@ async function openKnowledgeChunk(chunkId) {
   window.setTimeout(() => document.querySelector(`#knowledge-chunk-${chunkId}`)?.scrollIntoView({behavior:'smooth', block:'start'}), 80);
 }
 
-function renderCaseList() {
-  const query = $('#caseFilter').value.trim().toLowerCase();
-  const step = $('#caseStepFilter').value;
-  const cases = state.cases.filter(item => {
-    const searchable = `${item.case_id} ${item.title} ${item.process_step} ${item.equipment_id || ''} ${item.problem} ${item.summary} ${item.tags}`.toLowerCase();
-    return (!step || item.process_step === step) && (!query || searchable.includes(query));
-  });
-  $('#caseCount').textContent = `${cases.length} 个案例`;
-  $('#caseList').innerHTML = cases.map(item => `<button class="case-list-item" data-case-id="${escapeHtml(item.case_id)}"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.case_id)} · ${escapeHtml(item.process_step)} · ${escapeHtml(item.occurred_date)}</span></button>`).join('') || '<p class="empty">没有匹配的历史案例</p>';
-}
-
-async function loadCaseIndex() {
-  if (!state.cases.length) {
-    state.casesPromise ||= api('/api/cases');
-    state.cases = await state.casesPromise;
-    const steps = [...new Set(state.cases.map(item => item.process_step))].sort();
-    $('#caseStepFilter').insertAdjacentHTML('beforeend', steps.map(step => `<option value="${escapeHtml(step)}">${escapeHtml(step)}</option>`).join(''));
-  }
-  renderCaseList();
-  return state.cases;
-}
-
-async function openHistoricalCase(caseId) {
-  showView('cases');
-  await loadCaseIndex();
-  const item = await api(`/api/cases/${encodeURIComponent(caseId)}`);
-  $('#caseReference').textContent = item.case_id;
-  $('#caseTitle').textContent = item.title;
-  $('#caseMeta').innerHTML = `<span>${escapeHtml(item.process_step)}</span>${item.equipment_id ? `<span>${escapeHtml(item.equipment_id)}</span>` : ''}<span>${escapeHtml(item.defect_type)}</span><span>${escapeHtml(item.occurred_date)}</span><span class="severity-${item.severity.toLowerCase()}">${escapeHtml(item.severity)}</span><span>${escapeHtml(item.case_status)}</span><span>RCA ${(Number(item.root_cause_confidence) * 100).toFixed(0)}%</span>`;
-  const sections = [['问题', item.problem], ['解决方案', item.solution], ['解决结果', item.result], ['案例总结', item.summary]];
-  $('#caseContent').innerHTML = `<div class="case-governance"><strong>已验证根因</strong><span>${escapeHtml(item.root_cause)}</span><small>${escapeHtml(item.validation_method)} · ${escapeHtml(item.recurrence_status)} · ${escapeHtml(item.approved_by)}</small></div>${sections.map(([title, content]) => `<section class="case-section"><h3>${title}</h3><p>${escapeHtml(content)}</p></section>`).join('')}`;
-  document.querySelectorAll('.case-list-item').forEach(button => button.classList.toggle('active', button.dataset.caseId === caseId));
-  document.querySelector('.case-reader')?.scrollIntoView({behavior:'smooth', block:'start'});
-}
-
-    return { renderKnowledgeDocuments, personalKnowledgeStatusLabel, resetKnowledgeReader, renderPersonalKnowledgeDocuments, schedulePersonalKnowledgeRefresh, personalKnowledgeProcessing, stopPersonalJobEvents, debouncePersonalKnowledgeEventRefresh, personalJobEventHeaders, enablePersonalJobEventsFallback, startPersonalJobEvents, loadPersonalKnowledgeDocuments, personalKnowledgeMeta, renderPersonalKnowledgeContent, openPersonalKnowledgeDocument, openPersonalKnowledgeChunk, setKnowledgeMode, renderKnowledgeUploadQueue, mergeKnowledgeUploadFiles, showKnowledgeUploadMessage, resetKnowledgeUploadForm, openKnowledgeUploadDialog, uploadPersonalKnowledge, retrySelectedPersonalKnowledge, openPersonalKnowledgeMetadataDialog, refreshRenderedPersonalSourceName, savePersonalKnowledgeMetadata, openPersonalKnowledgeDeleteDialog, deleteSelectedPersonalKnowledge, downloadSelectedPersonalKnowledge, loadKnowledgeIndex, openKnowledgeChunk, renderCaseList, loadCaseIndex, openHistoricalCase };
+    return { renderKnowledgeDocuments, personalKnowledgeStatusLabel, resetKnowledgeReader, renderPersonalKnowledgeDocuments, schedulePersonalKnowledgeRefresh, personalKnowledgeProcessing, stopPersonalJobEvents, debouncePersonalKnowledgeEventRefresh, personalJobEventHeaders, enablePersonalJobEventsFallback, startPersonalJobEvents, loadPersonalKnowledgeDocuments, personalKnowledgeMeta, renderPersonalKnowledgeContent, openPersonalKnowledgeDocument, openPersonalKnowledgeChunk, setKnowledgeMode, renderKnowledgeUploadQueue, mergeKnowledgeUploadFiles, showKnowledgeUploadMessage, resetKnowledgeUploadForm, openKnowledgeUploadDialog, uploadPersonalKnowledge, retrySelectedPersonalKnowledge, openPersonalKnowledgeMetadataDialog, refreshRenderedPersonalSourceName, savePersonalKnowledgeMetadata, openPersonalKnowledgeDeleteDialog, deleteSelectedPersonalKnowledge, downloadSelectedPersonalKnowledge, loadKnowledgeIndex, openKnowledgeChunk };
   }
   return { createKnowledgeController };
 });

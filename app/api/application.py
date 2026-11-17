@@ -24,6 +24,7 @@ class ApplicationDependencies:
     process_personal_document_deletion: Callable
     to_thread: Callable = asyncio.to_thread
     initialize_result_storage: Callable[[], None] | None = None
+    resume_shared_documents: Callable[[], None] | None = None
 
 
 def lifespan_for(deps: ApplicationDependencies):
@@ -33,6 +34,8 @@ def lifespan_for(deps: ApplicationDependencies):
         if deps.initialize_result_storage is not None:
             deps.initialize_result_storage()
         deps.recover_interrupted_executions()
+        if deps.resume_shared_documents is not None:
+            await deps.to_thread(deps.resume_shared_documents)
         deps.ensure_model_catalog()
         with deps.db_session() as connection:
             populated_steps = {

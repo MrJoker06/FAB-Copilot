@@ -15,7 +15,7 @@
 
 - Skill 状态：MOD-016～019 已验证。`app/skills/` 处理声明、依赖、Catalog、渐进加载与进程内不可变发布；`app/bootstrap/skill_assembly.py` 显式装配精确 skill_refs，光刻包复用原 Playbook/Planner 与 Ready/Fake Loop/Dispatcher。完整资源固定、显式激活/禁用/回退已验收，默认 HTTP 未启用，见 [发布验收报告](docs/reports/mod-019-skill-releases.md)。
 
-- 当前进度（2026-11-17）：优先实现 PE / EE 值班工作区，分支 `feat/pe-ee-duty-workspace` 从 `experiment/parallel-platform` 的 `dcca19f` 分出，根目录 `display_mock_data/` 隔离展示资料，见[工作区报告](docs/reports/pe-ee-duty-workspace.md)。MOD-031 已完成；MOD-029 a～e 已完成，保留既有完整门失败，见[实施报告](docs/reports/mod-029-tool-result-access.md)。受管源码 321（292 Python + 29 静态），依赖债务 10，兼容入口 7/消费 99，DB 候选 35；产品统计不变。本项源码起点 c5312d1，当前工作树/提交/远程状态以 Git 为准。历史存储拆分与既有完整门失败见[报告](docs/reports/persistence-demo-separation.md)。
+- 当前进度（2026-11-17）：优先实现 PE / EE 值班工作区，分支 `feat/pe-ee-duty-workspace` 从 `experiment/parallel-platform` 的 `dcca19f` 分出，根目录 `display_mock_data/` 隔离展示资料；追加报表目录管理、共享上传及原案例入口合并，见[工作区报告](docs/reports/pe-ee-duty-workspace.md)。MOD-031 已完成；MOD-029 a～e 已完成，保留既有完整门失败，见[实施报告](docs/reports/mod-029-tool-result-access.md)。受管源码 324（295 Python + 29 静态），依赖债务 10，兼容入口 7/消费 99，DB 候选 37；产品统计不变。本项源码起点 c5312d1，当前工作树/提交/远程状态以 Git 为准。历史存储拆分与既有完整门失败见[报告](docs/reports/persistence-demo-separation.md)。
 
 - local-Qwen Thinking 合并：按模型配置档位与方言、管理端设置、Windows 夹具适配及必要冲突修正已验证，见 [合并报告](docs/reports/local-qwen-thinking-merge.md)。
 

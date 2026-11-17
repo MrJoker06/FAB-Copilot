@@ -4,7 +4,7 @@
 
 ## 当前安排
 
-2026-11-17 用户最高优先级：PE / EE 值班工作区与根目录 `display_mock_data/` 展示资料已在 `feat/pe-ee-duty-workspace`（起点 `dcca19f`）完成，验收与限制见[报告](../reports/pe-ee-duty-workspace.md)。不自动启动其他 MOD 或企业级任务，产品任务统计口径不变。
+2026-11-17 用户最高优先级：PE / EE 值班工作区与根目录 `display_mock_data/` 展示资料已在 `feat/pe-ee-duty-workspace`（起点 `dcca19f`）完成，并追加报表目录管理、共享上传与原案例入口合并；验收与限制见[报告](../reports/pe-ee-duty-workspace.md)。不自动启动其他 MOD 或企业级任务，产品任务统计口径不变。
 
 文档治理和 persistence 拆分记录见[完成索引](completed.md)；当前未完成工作包按下方队列处理，不因本次归档自动激活企业级任务。
 

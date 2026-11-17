@@ -36,8 +36,7 @@ test('report catalog filters and opens real report pages, with actual recent his
   await ready(page, 'reports');
   await expect(page.locator('.shift-report-card')).toHaveCount(6);
   await expect(page.locator('#reportsView')).not.toContainText('演示');
-  await page.locator('[data-report-role="PE"]').click();
-  await expect(page.locator('.shift-report-card')).toHaveCount(3);
+  await expect(page.locator('[data-report-role]')).toHaveCount(0);
   await page.locator('#shiftReportSearch').fill('不存在的报表');
   await expect(page.locator('#shiftReportCards')).toContainText('没有符合条件的报表');
   await page.locator('#shiftReportSearch').fill('SPC');
@@ -53,8 +52,8 @@ test('report catalog filters and opens real report pages, with actual recent his
 
 test('case search opens a linked SOP and hands content to an editable assistant draft without sending', async ({page}) => {
   await ready(page, 'procedures');
-  await expect(page.locator('.shift-document-item')).toHaveCount(3);
-  await page.locator('#shiftDocumentSearch').fill('膜厚');
+  await expect(page.locator('[data-shift-document^="case:"]').first()).toBeVisible();
+  await page.locator('#shiftDocumentSearch').fill('CASE-CVD-003');
   await expect(page.locator('.shift-document-item')).toHaveCount(1);
   await expect(page.locator('#shiftDocumentReader')).toContainText('保养后部分批次膜厚均值上移');
   await page.locator('[data-related-sop]').click();
@@ -69,12 +68,13 @@ test('case search opens a linked SOP and hands content to an editable assistant 
   await accessible(page);
 });
 
-test('malformed materials are reported as unavailable and can be retried', async ({page}) => {
-  await page.route('**/display_mock_data/catalog.json', route => route.fulfill({contentType: 'application/json', body: '{"reports": null}'}));
-  await ready(page, 'reports');
-  await expect(page.locator('#shiftReportsStatus')).toHaveText('资料格式不正确');
-  await expect(page.locator('.shift-report-card')).toHaveCount(0);
+test('malformed materials are reported separately while original cases remain available', async ({page}) => {
+  await page.route('**/display_mock_data/catalog.json', route => route.fulfill({contentType: 'application/json', body: '{"documents": null}'}));
+  await ready(page, 'procedures');
+  await expect(page.locator('#shiftDocumentsStatus')).toContainText('展示资料格式不正确');
+  await expect(page.locator('[data-shift-document^="sample:"]')).toHaveCount(0);
+  await expect(page.locator('[data-shift-document^="case:"]').first()).toBeVisible();
   await page.unroute('**/display_mock_data/catalog.json');
-  await page.locator('[data-view="reports"]').click();
-  await expect(page.locator('.shift-report-card')).toHaveCount(6);
+  await page.locator('#refreshShiftDocuments').click();
+  await expect(page.locator('[data-shift-document^="sample:"]')).toHaveCount(3);
 });

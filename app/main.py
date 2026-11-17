@@ -10,27 +10,41 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from .api.application import ApplicationDependencies, create_application, lifespan_for
-from .api.services.history import LiveHistoryReader
 from .api.dependencies import (
     AuthenticationDependencies,
+)
+from .api.dependencies import (
     current_admin as _current_admin,
+)
+from .api.dependencies import (
     current_personal_user as _current_personal_user,
 )
 from .api.errors import (
     ErrorDependencies,
-    error_payload as _error_payload,
-    handlers as _error_handlers,
     http_problem,
+)
+from .api.errors import (
+    error_payload as _error_payload,
+)
+from .api.errors import (
+    handlers as _error_handlers,
+)
+from .api.errors import (
     personal_problem as _personal_problem,
 )
+from .api.report_directory import create_router as create_report_directory_router
+from .api.routers.shared_documents import (
+    create_router as create_shared_documents_router,
+)
+from .api.routers.shared_documents import resume_shared_documents
 from .api.runtime_dependencies import (
     MANUFACTURING_STEPS,
     PROJECT_DIR,
+    RUNTIME_DEPENDENCIES,
     ChatService,
     ChatStreamService,
     PersonalKnowledgeError,
     PrincipalContextMiddleware,
-    RUNTIME_DEPENDENCIES,
     RequestAuditMiddleware,
     admin_router,
     chat_router,
@@ -56,7 +70,7 @@ from .api.runtime_dependencies import (
     sessions_router,
     system_router,
 )
-
+from .api.services.history import LiveHistoryReader
 
 # Route and service factories obtain this module namespace on every call. Publish
 # the original objects once so existing patch("app.main.<name>") call sites retain
@@ -78,6 +92,7 @@ def _application_dependencies() -> ApplicationDependencies:
         process_personal_document_deletion=process_personal_document_deletion,
         to_thread=asyncio.to_thread,
         initialize_result_storage=initialize_result_storage,
+        resume_shared_documents=resume_shared_documents,
     )
 
 
@@ -195,6 +210,8 @@ _enterprise_routes = enterprise_router.create_router(_router_namespace)
 _model_routes = models_router.create_router(_router_namespace)
 _admin_routes = admin_router.create_router(_router_namespace, current_admin)
 _report_routes = reports_router.create_router(_router_namespace)
+_report_directory_routes = create_report_directory_router(current_admin)
+_shared_document_routes = create_shared_documents_router(_router_namespace, current_personal_user, current_admin)
 _knowledge_routes = knowledge_router.create_router(
     _router_namespace, current_personal_user
 )
@@ -205,6 +222,8 @@ _register_bundles(
     _model_routes,
     _admin_routes,
     _report_routes,
+    _report_directory_routes,
+    _shared_document_routes,
     _knowledge_routes,
 )
 

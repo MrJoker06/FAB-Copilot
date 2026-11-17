@@ -2,6 +2,8 @@
 
 日期：2026-11-17。源码起点为 `experiment/parallel-platform` 的 `dcca19f`，独立分支为 `feat/pe-ee-duty-workspace`。本轮按用户确认的页面方向优先实施，旧 `main` 和 experiment 分支引用不变；最终提交及推送状态以 Git 为准。
 
+下方原有范围、数字和验证记录描述首轮 `220a333`。最新的报表目录管理、共享上传和案例入口合并见文末追加记录，不能将首轮的 321 文件/23 项浏览器数量当成当前值。
+
 ## 目标与范围
 
 产品主要服务 PE / EE 值班工程师。左侧顺序为基础报表、SOP&历史case、Autosystem 平台、值班智能助手；原制造总览、制程能力、知识库、案例库放入底部默认折叠的「所有功能」。原中间总览、右侧助手和原业务分析能力保留。用户指定页面不显示额外的演示报表标识。
@@ -49,3 +51,56 @@
 ## 后续接入边界
 
 真实公司报表链接、Autosystem 地址以及 SOP/case 来源尚待确定。当前只交付可交互的展示页面及独立资料文件，不宣称公司接口、LDAP、生产权限或正式 SOP 已生效。本轮不自动推进 MOD-025～028 或恢复链任务，产品统计 228/183/45 保持原口径。
+
+## 报表目录与共享资料追加（基线 220a333）
+
+### 用户确认的范围
+
+- 基础报表前台统一平铺、搜索和最近查看，不显示分类筛选。管理端在与运行状态、模型目录并列的「报表目录」中配置文件夹树。
+- SOP&历史case 增加用户上传入口；处理完成后立即向所有用户共享，不增加审批流程。管理员可编辑标题、类别、制程和启用状态。
+- 原「所有功能」里的案例库入口合入历史case，原案例记录和来源跳转保留；原个人知识的私有存储不改为共享。
+- 用户说明公司 Qwen 配置位于公司电脑，本机不需要恢复。保留现有模型配置、连接、凭据与思考档位机制；本次不修改模型注册或接入代码。
+
+### 实际实现与存储
+
+`api/report_directory.py` 为管理端提供目录读写，验证文件夹引用/环、同级重名、报表 ID、字段长度与安全链接；公开接口只返回已启用的平铺链接。目录首次保存前读取展示 catalog 默认值，之后使用独立 JSON 配置，原子替换且通过 revision 拒绝过期覆盖。管理端支持建立/改名/移动文件夹、删除空文件夹，以及报表新增/编辑/移动/排序/启停/移除；本页编辑需点击「保存目录」生效。原子替换与进程内锁不宣称多工作进程的事务隔离。
+
+`api/routers/shared_documents.py` 复用现有用户/管理员认证依赖，装配上传、列表、阅读、下载、管理员编辑与失败重试。`knowledge/shared_documents.py` 接收显式存储根路径，沿用现有文件校验、正文抽取、OCR 和质量判断，独立保存原文、元数据和抽取结果，不引用应用配置。应用启动只恢复已有库中的 processing 记录，不因启动创建新共享库。读取/上传/管理共享资料时才建立对应库。
+
+默认持久位置是工作树根目录下的 `runtime/local/report_directory.json` 与 `runtime/local/shared_documents/{documents.db,files/}`；可通过 `FAB_REPORT_DIRECTORY_PATH`、`FAB_SHARED_DOCUMENTS_ROOT` 指定路径。启动器将其显式传给源码快照，避免更换源码快照后丢失这些新功能的页面数据。它们不写入公开展示目录、模型目录或个人知识库，也不纳入 Git。备份共享资料应同时保存数据库和原文目录。生产公司接口与 LDAP 未接入。
+
+处理中和失败的元数据由上传者查看，失败原因明确展示；ready 且启用后向所有用户共享。停用会拒绝普通用户（包括上传者）的正文和下载接口，其他用户列表隐藏该资料；上传者仍可看到停用提示，管理员保留原文与内容供管理。恢复启用后重新共享，不删除或冒充处理成功。已下载到用户电脑的副本不在停用控制范围内。
+
+前端合并展示 catalog、原案例 API 与共享资料 API，分别显示加载错误；一个来源失败不遮蔽其他来源。原案例通过原 ID 读取详情，旧来源链接和旧 cases 视图 URL 进入合并页面。桌面端长列表与正文分别滚动。上传资料当前用于页面阅读、下载及填入助手草稿，不自动加入 RAG 索引；原工厂案例 RAG 保留。管理员本次编辑指元数据与启用状态，不包含在线修改原文。
+
+新增 3 个 app Python 文件后，受管源码为 **324（295 Python + 29 静态）**，版本一致源码/资源制品为 **328 成员**；新增两个 DB 调用候选（HTTP 绑定的 sqlite3 错误处理、共享资料真实存储），台账共 37 项。依赖债务仍为 10，兼容入口/消费仍为 7/99，独立模块 Profile 成员不变。未扩展业务 Tool 清单、输入 Schema 或证据策略。
+
+### 追加验证
+
+以下均使用隔离测试目录；不调用真实模型或公司接口。原始日志保留在 `runtime/quality/`，不提交。
+
+| 命令 / 范围 | 实测结果 |
+| --- | --- |
+| 两端 `python -m unittest tests.test_startup_script tests.test_display_materials tests.test_api_runtime_boundaries tests.test_module_release tests.test_duty_workspace_management tests.test_browser_test_server` | 各 56/56；Windows 使用 `-X utf8`。验证新路径在快照外持久保存、328 成员交付清单、测试存储与宿主隔离，以及真实上传/跨用户阅读/停用/恢复/非法文件拒绝/处理恢复 |
+| 路径装配修正后，两端 `python -m unittest tests.test_duty_workspace_management tests.test_api_runtime_boundaries` | 各 13/13；实际 HTTP、SQLite、原文与拒绝结果通过 |
+| `python -m unittest tests.test_modularization_boundaries`（Windows） | 28/28；边界台账更新后复验，不将拒绝场景中的故意错误当成检查失败 |
+| WSL `node --test tests/*.test.js` | 64/64 |
+| WSL `npm run test:e2e`（最终非更新模式） | 25/25，2.0 分钟；报表文件夹持久化/前台平铺/模型目录前后相同，共享上传/跨用户阅读/管理员编辑与停用后内容下载拒绝均通过；包含 Axe 扫描和原案例来源跳转 |
+| WSL `python scripts/check_repository.py`、`check_module_boundaries.py`、`check_modularization_boundaries.py` | 均通过，`files=324 errors=0` |
+| Ruff 全仓差异 / 新增文件 | 506 条既有问题，对照首轮 507 条按文件/规则/描述计数无新增；新增 4 个 Python 文件单独检查通过，不宣称全仓 Ruff 全绿 |
+| 实际原生 Windows 启动 | 真实临时 FastAPI 服务的目录保存、共享上传/阅读/下载、管理员停用与模型目录不变验证通过；使用离线协议夹具和隔离存储 |
+| WSL 预览 | `run.sh --source-mode worktree --port 8888`，显式复用此前预览实例，日志确认已有部门数据未重新生成；health、6 个平铺报表和共享列表实际响应通过 |
+| Windows 完整 Python 审计 | 1528 项，14 失败、10 错误、3 跳过，419.521 秒；保留结果，不宣称全绿。与基线及随后定向修正的关系见下文 |
+
+日志包括 `duty-management-python-{linux,windows}-final.log`、`duty-management-injection-{linux,windows}.log`、`duty-management-boundary-unit-windows.log`、`duty-management-browser-complete.log`、`duty-management-checks-final.log`、`duty-management-ruff.json`、`duty-management-windows-start-result.log`。实际截图为 `duty-admin-report-folders.png`、`duty-shared-case.png`，保存在同一忽略目录。
+
+首次 6 项专项有两项因工厂函数内 Depends 注解未正确解析而返回 422，移除延迟注解后通过。首次浏览器为 24 通过/1 失败，原因为测试选择器匹配了两个嵌套列表，修正后两项新增链路及最终全部 25 项均通过。首次边界检查发现资料模块读取配置的问题，已改为应用层注入路径；随后显式补齐两个新增 DB 候选。首次完整审计包含这两项台账未登记造成的边界失败，保留日志，不将其抹去为一次通过。
+
+Windows 完整审计先后两轮均为 1528 项、14 失败/10 错误/3 跳过，分别耗时 483.579、419.521 秒。首轮包含两项已修正的边界台账失败，随后 28 项边界测试通过；第二轮无这些边界失败。第二轮相对 `220a333` 留存的 12 失败/10 错误基线，失败 ID 增加两项，错误 ID 无新增：
+
+1. `test_snapshot_launches_seed_then_server_with_isolated_unicode_paths`：本次追加的默认路径断言继承了完整系统测试留下的显式临时存储环境，导致期望根目录与显式覆盖路径不一致。已只修改启动测试夹具，在未显式传参时移除继承的两个新路径变量；原生 Windows 与 WSL 均注入宿主干扰路径后实际运行整个启动测试模块，各 20/20。没有修改应用以忽略显式配置，也未据此再跑第三轮完整审计。
+2. `test_fixture_proxy_environment_is_hidden_and_restored`：Windows 环境变量不区分大小写，而旧测试用 frozenset 同时生成 HTTP_PROXY/http_proxy 等不同值，取决于哈希遍历顺序。首次基线单项对照通过；固定 `PYTHONHASHSEED=1` 后，在 `git archive 220a333` 导出树和当前树上用相同 `.venv-win` 各跑该单项，均出现相同 `sentinel-http_proxy != sentinel-HTTP_PROXY` 失败。保留为可复现的既有 Windows 测试问题，本次不夹带修复。
+
+相关记录为 `duty-management-audit-{final-windows,windows}/{summary.json,unittest.log}`、`duty-management-startup-fixture-fixed-{windows,linux}.log`、`duty-management-proxy-{baseline,baseline-seed1,current-seed1}/`。未重新导出旧树跑全套；12 项既有失败集合仍来自首轮保留日志，API/DOM 冻结契约存在本次明确获准的新接口/页面差异，不能将同名失败理解为契约已通过。最终应用代码的桌面浏览器、两端新增后端链路及边界检查通过；完整门仍保留失败，定向修正后的完整套件未再次运行。
+
+未新增有效覆盖率、性能门、Live、远程 CI 或公司模型接入证据。产品统计 228/183/45 及其他 MOD 排期不变。
