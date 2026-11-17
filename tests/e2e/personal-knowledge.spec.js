@@ -14,6 +14,7 @@ async function openPersonalKnowledge(page, testInfo) {
   }, identity);
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('data-app-ready', 'true');
+  if (!await page.locator('#allFunctions').evaluate(group => group.open)) await page.locator('#allFunctions summary').click();
   await page.locator('[data-view="knowledge"]').click();
   await page.locator('[data-knowledge-mode="personal"]').click();
   await expect(page.locator('[data-open-knowledge-upload]')).toHaveCount(1);

@@ -64,13 +64,16 @@ const model = globalThis.FabModelController.createModelController({
 const dashboard = globalThis.FabDashboardController.createDashboardController({
   state, $, escapeHtml, formatNumber, api, processLabels,
 });
+const shift = globalThis.FabShiftController.createShiftController({
+  $, escapeHtml, showToast, setAgentOpen: (...args) => layout.setAgentOpen(...args),
+});
 const sessions = globalThis.FabSessionController.createSessionController({
   state, $, escapeHtml, api, showToast, sourcePresenter, presenter,
   getShowView: () => layout.showView,
   getSetAgentOpen: () => layout.setAgentOpen,
 });
 layout = globalThis.FabLayoutController.createLayoutController({
-  state, $, ...knowledge, ...dashboard, ...sessions,
+  state, $, ...knowledge, ...dashboard, ...sessions, ...shift,
 });
 const chat = globalThis.FabChatController.createChatController({
   state, $, escapeHtml, api, identityHeaders, FabApiError, apiError,
@@ -84,7 +87,7 @@ const chat = globalThis.FabChatController.createChatController({
 const bootstrap = globalThis.FabAppBootstrap.createBootstrap({
   state, $, api, setInitialDates, updateSystemStatus, handleBuildVersion,
   checkAppVersion, showToast, personalUploadQueue: globalThis.FabPersonalUploadQueue,
-  ...knowledge, ...model, ...dashboard, ...sessions, ...chat, ...layout,
+  ...knowledge, ...model, ...dashboard, ...sessions, ...chat, ...layout, ...shift,
 });
 
 document.addEventListener('DOMContentLoaded', bootstrap.init);

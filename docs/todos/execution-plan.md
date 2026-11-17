@@ -1,8 +1,10 @@
 # TODO 执行计划
 
-状态核对：2026-11-16，`experiment/parallel-platform`，MOD-029 应用源码基线 `0cae608`。本文件只维护未完成任务的执行顺序与启用条件；历史阶段记录见[执行历史](execution-history.md)，已完成任务见[完成索引](completed.md)。
+状态核对：2026-11-17，`feat/pe-ee-duty-workspace`，起点为 `experiment/parallel-platform` 的 `dcca19f`。本文件只维护未完成任务的执行顺序与启用条件；历史阶段记录见[执行历史](execution-history.md)，已完成任务见[完成索引](completed.md)。
 
 ## 当前安排
+
+2026-11-17 用户最高优先级：PE / EE 值班工作区与根目录 `display_mock_data/` 展示资料已在 `feat/pe-ee-duty-workspace`（起点 `dcca19f`）完成，验收与限制见[报告](../reports/pe-ee-duty-workspace.md)。不自动启动其他 MOD 或企业级任务，产品任务统计口径不变。
 
 文档治理和 persistence 拆分记录见[完成索引](completed.md)；当前未完成工作包按下方队列处理，不因本次归档自动激活企业级任务。
 

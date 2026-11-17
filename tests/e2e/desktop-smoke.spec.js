@@ -26,7 +26,7 @@ test('E2E-SMOKE-001 desktop user dashboard loads without overflow or critical ov
   await expect(page.locator('.topbar')).toBeVisible();
   await expect(page.locator('.sidebar[aria-label="主导航"]')).toBeVisible();
   await expect(page.locator('.main-content')).toBeVisible();
-  await expect(page.locator('.agent-panel[aria-label="Fab Copilot"]')).toBeVisible();
+  await expect(page.locator('.agent-panel[aria-label="值班智能助手"]')).toBeVisible();
   await expect(page.locator('#kpiGrid')).not.toBeEmpty();
   await expect(page.locator('#systemStatus')).not.toHaveText(/正在连接数据源/);
   await expectDesktopLayout(page, ['.sidebar', '.main-content', '.agent-panel']);

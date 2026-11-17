@@ -54,6 +54,7 @@ test('E2E-WORKFLOW-002 desktop personal knowledge upload reaches ready content t
   const filename = `ux013-${testInfo.workerIndex}-upload.txt`;
 
   await test.step('open the sole personal-knowledge upload entry', async () => {
+    if (!await page.locator('#allFunctions').evaluate(group => group.open)) await page.locator('#allFunctions summary').click();
     await page.locator('[data-view="knowledge"]').click();
     await page.locator('[data-knowledge-mode="personal"]').click();
     await expect(page.locator('[data-open-knowledge-upload]')).toHaveCount(1);

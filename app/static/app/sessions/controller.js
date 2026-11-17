@@ -40,7 +40,7 @@
       try {
         const session = await api(`/api/sessions/${encodeURIComponent(savedSessionId)}`);
         state.sessionId = session.session_id; renderConversation(session.messages);
-        $('#agentMode').textContent = session.messages.length ? `已恢复 · ${session.messages.length} 条消息` : '数据分析助手';
+        $('#agentMode').textContent = session.messages.length ? `已恢复 · ${session.messages.length} 条消息` : 'PE / EE 值班助手';
         return;
       } catch { localStorage.removeItem('fabInsightSessionId'); }
     }
@@ -63,7 +63,7 @@
     state.sessionId = session.session_id;
     localStorage.setItem('fabInsightSessionId', state.sessionId);
     renderConversation(session.messages);
-    $('#agentMode').textContent = session.messages.length ? `已恢复 · ${session.messages.length} 条消息` : '数据分析助手';
+    $('#agentMode').textContent = session.messages.length ? `已恢复 · ${session.messages.length} 条消息` : 'PE / EE 值班助手';
   }
 
   function filteredSessionLibrary() {
@@ -149,7 +149,7 @@
         : escapeHtml(item.content).replace(/\n/g, '<br>');
       const timestamp = new Date(item.created_at).toLocaleString('zh-CN', {hour12:false});
       const sources = assistant ? renderSourcePanel(messageSources) : '';
-      return `<section class="session-transcript-item ${assistant ? 'assistant' : 'user'}"><div class="session-transcript-heading"><strong>${assistant ? 'FAB COPILOT' : '使用者'}</strong><time>${timestamp}</time></div><div class="session-transcript-content markdown-content">${content}${sources}</div></section>`;
+      return `<section class="session-transcript-item ${assistant ? 'assistant' : 'user'}"><div class="session-transcript-heading"><strong>${assistant ? '值班智能助手' : '使用者'}</strong><time>${timestamp}</time></div><div class="session-transcript-content markdown-content">${content}${sources}</div></section>`;
     }).join('') || '<p class="empty">该会话尚无消息。</p>';
   }
 

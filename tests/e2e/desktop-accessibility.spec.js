@@ -38,6 +38,7 @@ async function expectVisibleFocusRing(locator) {
 test('E2E-A11Y-001 desktop user views and model dialog have no WCAG A/AA violations', async ({page}) => {
   await readyUser(page);
   await expectNoAxeViolations(page);
+  if (!await page.locator('#allFunctions').evaluate(group => group.open)) await page.locator('#allFunctions summary').click();
   await page.locator('[data-view="knowledge"]').click();
   await page.locator('[data-knowledge-mode="personal"]').click();
   // The sole upload entry intentionally follows the personal-document list and
@@ -53,6 +54,8 @@ test('E2E-A11Y-002 desktop keyboard navigation keeps modal focus and activates n
   await readyUser(page);
   await page.keyboard.press('Tab');
   await expect(page.locator('#modelSettingsButton')).toBeFocused();
+  await tabUntilFocused(page, page.locator('#allFunctions summary'));
+  await page.keyboard.press('Enter');
   await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');

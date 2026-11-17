@@ -229,6 +229,7 @@ test(
       r.url().includes("/api/reports/capability") &&
       r.url().includes("process_step=ETCH"),
   );
+  if (!await page.locator('#allFunctions').evaluate(group => group.open)) await page.locator('#allFunctions summary').click();
   await page.locator('[data-view="capability"]').click();
   const initialCapabilityResponse = await initialCapability;
   expect(initialCapabilityResponse.status()).toBe(200);
@@ -244,6 +245,7 @@ test(
   const index = page.waitForResponse((r) =>
     r.url().endsWith("/api/knowledge/documents"),
   );
+  if (!await page.locator('#allFunctions').evaluate(group => group.open)) await page.locator('#allFunctions summary').click();
   await page.locator('[data-view="knowledge"]').click();
   expect((await index).status()).toBe(200);
   const chunk = page.locator("[data-knowledge-chunk]").first();
@@ -256,6 +258,7 @@ test(
   await expect(page.locator("#knowledgeContent")).not.toBeEmpty();
   await noOverflow(page);
   const cases = page.waitForResponse((r) => r.url().endsWith("/api/cases"));
+  if (!await page.locator('#allFunctions').evaluate(group => group.open)) await page.locator('#allFunctions summary').click();
   await page.locator('[data-view="cases"]').click();
   expect((await cases).status()).toBe(200);
   const caseItem = page.locator("[data-case-id]").first();

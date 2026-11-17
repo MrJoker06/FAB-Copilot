@@ -109,6 +109,7 @@ test('LIVE-PROVIDER-002 real provider retrieves newly uploaded personal knowledg
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('data-app-ready', 'true');
   const config = await page.evaluate(() => fetch('/api/settings/model').then(response => response.json()));
+  if (!await page.locator('#allFunctions').evaluate(group => group.open)) await page.locator('#allFunctions summary').click();
   await page.locator('[data-view="knowledge"]').click();
   await page.locator('[data-knowledge-mode="personal"]').click();
   await page.locator('[data-open-knowledge-upload]').click();
@@ -120,6 +121,7 @@ test('LIVE-PROVIDER-002 real provider retrieves newly uploaded personal knowledg
   await expect.poll(async () => document.locator('.personal-status').textContent(), {timeout: turnTimeout}).toMatch(/可检索/);
   await document.click();
   const documentId = await document.getAttribute('data-personal-document-id');
+  if (!await page.locator('#allFunctions').evaluate(group => group.open)) await page.locator('#allFunctions summary').click();
   await page.locator('[data-view="dashboard"]').click();
   const result = await sendThroughUi(page, `What is the exact personal knowledge value for lookup key ${lookupKey}?`, false);
   expect(result.model).toBe(config.provider_model);

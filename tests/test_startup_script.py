@@ -58,6 +58,10 @@ class StartupScriptTests(unittest.TestCase):
             encoding="utf-8",
         )
         (self.repo / "knowledge").mkdir()
+        (self.repo / "display_mock_data").mkdir()
+        (self.repo / "display_mock_data" / "catalog.json").write_text(
+            '{"synthetic":true,"title":"值班报表"}\n', encoding="utf-8"
+        )
         (self.repo / "README.md").write_text("fixture", encoding="utf-8")
 
     def _environment(self, instance: Path, log: Path, **extra: str) -> dict[str, str]:
@@ -94,6 +98,10 @@ class StartupScriptTests(unittest.TestCase):
         self.assertEqual(manifest["source_mode"], "snapshot")
         self.assertEqual(manifest["platform"], os.name)
         self.assertTrue((instance / "source" / ".fab-git-commit").is_file())
+        self.assertEqual(
+            json.loads((instance / "source" / "display_mock_data" / "catalog.json").read_text(encoding="utf-8")),
+            {"synthetic": True, "title": "值班报表"},
+        )
 
     def test_snapshot_excludes_uncommitted_changes_and_worktree_includes_them(
         self,
@@ -151,12 +159,17 @@ class StartupScriptTests(unittest.TestCase):
         export = self.root / "export"
         export.mkdir()
         shutil.copytree(self.repo / "app", export / "app")
+        shutil.copytree(self.repo / "display_mock_data", export / "display_mock_data")
         (export / "data").mkdir()
         (export / "data" / "secret.db").write_text("no", encoding="utf-8")
         (export / "user.xlsx").write_text("no", encoding="utf-8")
         copied = self.root / "copied"
         run._copy_export(export, copied)
         self.assertTrue((copied / "app" / "demo_data" / "seed.py").is_file())
+        self.assertEqual(
+            json.loads((copied / "display_mock_data" / "catalog.json").read_text(encoding="utf-8")),
+            {"synthetic": True, "title": "值班报表"},
+        )
         self.assertFalse((copied / "data").exists())
         self.assertFalse((copied / "user.xlsx").exists())
 

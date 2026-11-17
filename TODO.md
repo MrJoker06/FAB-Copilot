@@ -1,10 +1,12 @@
 # Fab Insight Agent TODO
 
-状态核对：2026-11-16，`experiment/parallel-platform`，MOD-029 应用源码基线 `0cae608`。本入口只列未完成任务、可选候选与索引；已完成任务及验收见[完成索引](docs/todos/completed.md)，历史施工顺序见[执行历史](docs/todos/execution-history.md)。
+状态核对：2026-11-17，`feat/pe-ee-duty-workspace`，起点为 `experiment/parallel-platform` 的 `dcca19f`。本入口只列未完成任务、可选候选与索引；已完成任务及验收见[完成索引](docs/todos/completed.md)，历史施工顺序见[执行历史](docs/todos/execution-history.md)。
 
 产品任务共 228 项：已完成 183、未完成 45（用户暂缓 2、企业级暂缓 43）；另有 4 项 OPTIONAL，不计入主统计。未完成定义在分类清单，已完成定义在对应归档，统计口径见[完成索引](docs/todos/completed.md)。模块化另计，未完成 8 项。
 
 ## 当前安排
+
+2026-11-17 用户最高优先级：PE / EE 值班工作区与根目录 `display_mock_data/` 展示资料已在 `feat/pe-ee-duty-workspace`（起点 `dcca19f`）完成，验收与限制见[报告](docs/reports/pe-ee-duty-workspace.md)。不自动启动其他 MOD 或企业级任务，产品任务统计口径不变。
 
 - 模块化后续为 MOD-025 → MOD-026 → MOD-027 → MOD-028，恢复链 MOD-020 → MOD-021 → MOD-022 → MOD-023 按需求启用；MOD-029 已完成，验收与既有失败见[报告](docs/reports/mod-029-tool-result-access.md)。见[执行计划](docs/todos/execution-plan.md)和[模块化追踪](docs/todos/modularization.md)。
 - GitHub [#1](https://github.com/MrJoker06/FAB-Copilot/issues/1)、[#2](https://github.com/MrJoker06/FAB-Copilot/issues/2)、[#3](https://github.com/MrJoker06/FAB-Copilot/issues/3)维护其余改造方向；未实施项不因方向确认或本次归档而完成，不自动启动 LDAP、公司接入或 Live。
@@ -24,7 +26,7 @@
 | Agent 架构 | [清单](docs/todos/agent-architecture.md) | 0 | AGENT-039 为 OPTIONAL |
 | 代码可维护性 | [清单](docs/todos/code-maintainability.md) | 0 | REF-025、REF-026 为 OPTIONAL |
 | Memory System | [清单](docs/todos/memory-system.md) | 0 | 无已排期任务 |
-| 模块化（另计） | [追踪](docs/todos/modularization.md) | 9 | 保持原依赖及审核安排 |
+| 模块化（另计） | [追踪](docs/todos/modularization.md) | 8 | 保持原依赖及审核安排 |
 
 ## 维护规则
 

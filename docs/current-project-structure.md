@@ -1,12 +1,18 @@
 # 当前项目精细结构快照
 
-当前快照：2026-11-16，`experiment/parallel-platform`；MOD-029 以 `c5312d1` 为起点完成 a～e，保留完整门既有失败，见[实施报告](reports/mod-029-tool-result-access.md)。提交及远程状态以 Git 为准。MOD-031 和此前存储拆分分别见 [031 报告](reports/mod-031-validator.md)、[存储报告](reports/persistence-demo-separation.md)，保留其历史验收限制。MOD-020～023、MOD-025～028 仍待做/暂缓，默认 HTTP 未启用 Skill，兼容 facade 与配置锚点归 MOD-027。
+当前快照：2026-11-17，`feat/pe-ee-duty-workspace`，起点为 `experiment/parallel-platform` 的 `dcca19f`。本轮优先实现 PE / EE 值班工作区，见[报告](reports/pe-ee-duty-workspace.md)；MOD-029 以 `c5312d1` 为起点完成 a～e，保留完整门既有失败，见[实施报告](reports/mod-029-tool-result-access.md)。提交及远程状态以 Git 为准。MOD-031 和此前存储拆分分别见 [031 报告](reports/mod-031-validator.md)、[存储报告](reports/persistence-demo-separation.md)，保留其历史验收限制。MOD-020～023、MOD-025～028 仍待做/暂缓，默认 HTTP 未启用 Skill，兼容 facade 与配置锚点归 MOD-027。
 
-当前实扫 `app/` 为 **320 文件：292 个 Python、28 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。
+当前实扫 `app/` 为 **321 文件：292 个 Python、29 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。
 
 2026-11-16 MOD-029 增补：独立结果库、实际聊天/后台和 Session 删除联动已接入，029e 已按基线失败子集完成验收，见[实施报告](reports/mod-029-tool-result-access.md)。默认结果库为 FAB_DATABASE_DIR/tool_results.db，后台开关跨重启保留，新 Run 生效。
 
 MOD-029c 增补：`app/agent_runtime/tools/result_access.py` 提供每 Run 辅助 ToolDefinition/绑定、阶段/主体检查与共享调用认领；见[报告](reports/mod-029c-result-read-tool.md)，实际接入见 MOD-029 实施报告，阶段验收完成，保留既有完整门失败。
+
+## 值班工作区与展示资料
+
+产品方向优先服务 PE / EE 值班工程师。`app/static/app/shift/controller.js` 负责基础报表、SOP&历史case 的加载、筛选、关联跳转及助手草稿；现有页面放入默认折叠的「所有功能」，中间总览与右侧助手结构保留。
+
+根目录 `display_mock_data/` 包含 `catalog.json`、六个报表 HTML、共享样式和内部 README，仅保存合成展示资料，不在 app 源码计数内。`app/api/application.py` 在目录存在时挂载公开静态路由；未放入 Tool、RAG 或业务数据库。`run.py` 的完整源码导出白名单包含该目录；独立模块 Profile 不包含它，真实公司接入与授权另行验收。
 
 ## 平台启动入口
 
@@ -492,6 +498,7 @@ Skill 格式/加载/发布模块只依赖标准库和自身；新增 policies �
 | `app/static/app/chat/controller.js` | 前端 | 聊天交互控制。 |
 | `app/static/app/chat/presenter.js` | 前端 | 聊天消息呈现。 |
 | `app/static/app/dashboard/controller.js` | 前端 | 仪表盘控制。 |
+| `app/static/app/shift/controller.js` | 前端 | 值班报表、SOP/case 加载筛选、关联跳转与助手草稿。 |
 | `app/static/app/knowledge/controller.js` | 前端 | 知识上传/搜索控制。 |
 | `app/static/app/layout/controller.js` | 前端 | 页面布局与导航控制。 |
 | `app/static/app/model/controller.js` | 前端 | 模型设置控制。 |

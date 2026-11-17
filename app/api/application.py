@@ -87,4 +87,12 @@ def create_application(
         RevalidatingStaticFiles(directory=project_dir / "app" / "static"),
         name="static",
     )
+    # Only public, synthetic display materials belong in this optional folder.
+    display_materials = project_dir / "display_mock_data"
+    if display_materials.is_dir():
+        app.mount(
+            "/display_mock_data",
+            RevalidatingStaticFiles(directory=display_materials),
+            name="display_mock_data",
+        )
     return app

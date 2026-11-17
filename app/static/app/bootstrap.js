@@ -8,6 +8,7 @@
   function createBootstrap(deps = {}) {
     const {
       state, $, api, setInitialDates, initializeAgentResize, restoreAgentPanelWidth,
+      bindShiftEvents = () => {},
       loadModelConfig, updateSystemStatus, handleBuildVersion, loadDashboard,
       restoreConversation, setAgentOpen, showView, loadCapability,
       renderKnowledgeDocuments, loadPersonalKnowledgeDocuments, setKnowledgeMode,
@@ -54,6 +55,7 @@
     }
 
     function bindEvents() {
+      bindShiftEvents();
       $('#dateForm').addEventListener('submit', event => {
         event.preventDefault();
         state.capabilityCache.clear();
@@ -347,7 +349,7 @@
       await restoreConversation();
       setAgentOpen(true, false);
       const requestedView = new URLSearchParams(window.location.search).get('view');
-      if (['dashboard', 'capability', 'knowledge', 'cases', 'sessions'].includes(requestedView)) {
+      if (['dashboard', 'capability', 'knowledge', 'cases', 'sessions', 'reports', 'procedures'].includes(requestedView)) {
         showView(requestedView);
       }
       bindEvents();

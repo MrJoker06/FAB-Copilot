@@ -22,6 +22,10 @@
 
 历史施工顺序和检查点见[执行历史](execution-history.md)，当前验证记录见[测试策略](../testing-strategy.md)。
 
+## PE / EE 值班工作区
+
+2026-11-17，按用户确认的页面方向优先完成导航调整、折叠旧功能、基础报表和 SOP&历史case 页面，以及根目录 `display_mock_data/` 合成展示资料。新工作分支从 experiment 分出，未修改旧 main。实现、跨平台验证和既有完整门失败见[报告](../reports/pe-ee-duty-workspace.md)。此项不重复分配产品或 MOD 编号，不改变 228/183/45 统计，不代表公司系统接入。
+
 ## TODO 文档治理
 
 2026-11-12，关联 GitHub [Issue #2 第 1 项](https://github.com/MrJoker06/FAB-Copilot/issues/2)。文档整理完成；提交与推送状态以 Git 记录为准，不新增产品或 MOD 编号。

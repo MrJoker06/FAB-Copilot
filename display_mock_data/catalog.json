@@ -1,0 +1,260 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "autosystem_url": null,
+  "reports": [
+    {
+      "id": "spc",
+      "title": "SPC 趋势报表",
+      "roles": [
+        "PE"
+      ],
+      "description": "CD / 膜厚趋势与异常点",
+      "object": "LITHO-02 · CD 偏移",
+      "updated_at": "2026-11-17 10:24",
+      "url": "/display_mock_data/reports/spc.html"
+    },
+    {
+      "id": "wip",
+      "title": "在制批次报表",
+      "roles": [
+        "PE"
+      ],
+      "description": "WIP、Hold 与批次流转",
+      "object": "LOT-017 · Hold",
+      "updated_at": "2026-11-17 10:21",
+      "url": "/display_mock_data/reports/wip.html"
+    },
+    {
+      "id": "alarms",
+      "title": "设备报警报表",
+      "roles": [
+        "EE"
+      ],
+      "description": "当班报警与重复告警",
+      "object": "CVD-02 · 压力波动",
+      "updated_at": "2026-11-17 10:18",
+      "url": "/display_mock_data/reports/alarms.html"
+    },
+    {
+      "id": "equipment",
+      "title": "设备状态报表",
+      "roles": [
+        "EE"
+      ],
+      "description": "运行、待机与维护状态",
+      "object": "ETCH-01 · 待机",
+      "updated_at": "2026-11-17 10:15",
+      "url": "/display_mock_data/reports/equipment.html"
+    },
+    {
+      "id": "yield",
+      "title": "良率与缺陷报表",
+      "roles": [
+        "PE"
+      ],
+      "description": "批次良率及缺陷分布",
+      "object": "CMP-03 · Particle",
+      "updated_at": "2026-11-17 10:12",
+      "url": "/display_mock_data/reports/yield.html"
+    },
+    {
+      "id": "pm",
+      "title": "PM 与点检报表",
+      "roles": [
+        "EE"
+      ],
+      "description": "保养计划与点检记录",
+      "object": "CVD-02 · 点检到期",
+      "updated_at": "2026-11-17 10:09",
+      "url": "/display_mock_data/reports/pm.html"
+    }
+  ],
+  "documents": [
+    {
+      "id": "SOP-CVD-012",
+      "kind": "sop",
+      "title": "CVD 膜厚偏移复核流程",
+      "process": "CVD",
+      "roles": [
+        "PE",
+        "EE"
+      ],
+      "summary": "异常复核与记录流程",
+      "version": "v1.2",
+      "updated_at": "2026-11-16",
+      "sections": [
+        {
+          "title": "适用范围",
+          "text": "CVD 当班异常资料复核与交接记录。"
+        },
+        {
+          "title": "复核步骤",
+          "steps": [
+            "核对批次、recipe 与量测时间窗",
+            "对照保养记录及 chamber 分组趋势",
+            "记录工程师复核与后续验证结果"
+          ]
+        },
+        {
+          "title": "记录要求",
+          "text": "保留原始报表、批次范围、时间窗及工程师复核记录；设备操作按现场有效规程和授权执行。"
+        }
+      ]
+    },
+    {
+      "id": "CASE-CVD-003",
+      "kind": "case",
+      "title": "CVD-02 膜厚偏移复核",
+      "process": "CVD",
+      "roles": [
+        "PE",
+        "EE"
+      ],
+      "summary": "对照保养前后批次，复核膜厚均值上移现象。",
+      "updated_at": "2026-11-16",
+      "related_sop": "SOP-CVD-012",
+      "sections": [
+        {
+          "title": "异常现象",
+          "text": "保养后部分批次膜厚均值上移。"
+        },
+        {
+          "title": "复核过程",
+          "steps": [
+            "核对批次、recipe 与量测时间窗",
+            "对照保养记录及 chamber 分组趋势",
+            "记录工程师复核与后续验证结果"
+          ]
+        },
+        {
+          "title": "处置记录",
+          "text": "已整理报警、批次与维护时间线；后续由当班工程师确认验证范围和交接事项。"
+        }
+      ]
+    },
+    {
+      "id": "SOP-ETCH-012",
+      "kind": "sop",
+      "title": "ETCH 腔体压力重复报警流程",
+      "process": "ETCH",
+      "roles": [
+        "PE",
+        "EE"
+      ],
+      "summary": "异常复核与记录流程",
+      "version": "v1.2",
+      "updated_at": "2026-11-16",
+      "sections": [
+        {
+          "title": "适用范围",
+          "text": "ETCH 当班异常资料复核与交接记录。"
+        },
+        {
+          "title": "复核步骤",
+          "steps": [
+            "核对报警时间、编号与设备状态",
+            "对照维护记录及同一时间窗的压力趋势",
+            "保存复核信息并按现行规程确认后续动作"
+          ]
+        },
+        {
+          "title": "记录要求",
+          "text": "保留原始报表、批次范围、时间窗及工程师复核记录；设备操作按现场有效规程和授权执行。"
+        }
+      ]
+    },
+    {
+      "id": "CASE-ETCH-003",
+      "kind": "case",
+      "title": "ETCH-01 腔体压力重复报警",
+      "process": "ETCH",
+      "roles": [
+        "EE"
+      ],
+      "summary": "复核同一腔体当班重复压力报警与相关维护记录。",
+      "updated_at": "2026-11-16",
+      "related_sop": "SOP-ETCH-012",
+      "sections": [
+        {
+          "title": "异常现象",
+          "text": "同一腔体在当班时间内重复出现压力报警。"
+        },
+        {
+          "title": "复核过程",
+          "steps": [
+            "核对报警时间、编号与设备状态",
+            "对照维护记录及同一时间窗的压力趋势",
+            "保存复核信息并按现行规程确认后续动作"
+          ]
+        },
+        {
+          "title": "处置记录",
+          "text": "已整理报警、批次与维护时间线；后续由当班工程师确认验证范围和交接事项。"
+        }
+      ]
+    },
+    {
+      "id": "SOP-LITHO-012",
+      "kind": "sop",
+      "title": "LITHO CD 均值偏移流程",
+      "process": "LITHO",
+      "roles": [
+        "PE",
+        "EE"
+      ],
+      "summary": "异常复核与记录流程",
+      "version": "v1.2",
+      "updated_at": "2026-11-16",
+      "sections": [
+        {
+          "title": "适用范围",
+          "text": "LITHO 当班异常资料复核与交接记录。"
+        },
+        {
+          "title": "复核步骤",
+          "steps": [
+            "确认量测设备、recipe 与样本分组",
+            "对照工艺变更、校准及维护时间",
+            "记录批次范围并确认是否需要追加量测"
+          ]
+        },
+        {
+          "title": "记录要求",
+          "text": "保留原始报表、批次范围、时间窗及工程师复核记录；设备操作按现场有效规程和授权执行。"
+        }
+      ]
+    },
+    {
+      "id": "CASE-LITHO-003",
+      "kind": "case",
+      "title": "LITHO-02 CD 均值偏移",
+      "process": "LITHO",
+      "roles": [
+        "PE",
+        "EE"
+      ],
+      "summary": "复核连续批次 CD 均值偏移及既有控制窗口。",
+      "updated_at": "2026-11-16",
+      "related_sop": "SOP-LITHO-012",
+      "sections": [
+        {
+          "title": "异常现象",
+          "text": "连续批次的 CD 均值相对既有窗口发生偏移。"
+        },
+        {
+          "title": "复核过程",
+          "steps": [
+            "确认量测设备、recipe 与样本分组",
+            "对照工艺变更、校准及维护时间",
+            "记录批次范围并确认是否需要追加量测"
+          ]
+        },
+        {
+          "title": "处置记录",
+          "text": "已整理报警、批次与维护时间线；后续由当班工程师确认验证范围和交接事项。"
+        }
+      ]
+    }
+  ]
+}

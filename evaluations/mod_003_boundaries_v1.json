@@ -1310,6 +1310,11 @@
       "artifact_group": "application_bundle"
     },
     {
+      "path": "app/static/app/shift/controller.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
       "path": "app/static/index.html",
       "primary_module": "static_ui",
       "artifact_group": "application_bundle"

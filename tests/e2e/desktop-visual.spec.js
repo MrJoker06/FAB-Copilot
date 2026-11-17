@@ -41,6 +41,7 @@ test('E2E-VISUAL-001 desktop long assistant answer keeps Markdown readable witho
 
 test('E2E-VISUAL-002 desktop personal knowledge renders a long multilingual filename and ready content', async ({ page }) => {
   await openVisualFixture(page);
+  if (!await page.locator('#allFunctions').evaluate(group => group.open)) await page.locator('#allFunctions summary').click();
   await page.locator('[data-view="knowledge"]').click();
   await page.locator('[data-knowledge-mode="personal"]').click();
   const document = page.locator(`[data-personal-document-id="${VISUAL_DOCUMENT_ID}"]`);

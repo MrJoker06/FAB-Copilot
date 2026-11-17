@@ -1,5 +1,7 @@
 # FAB-Agent 架构解耦与分块迁移总方案
 
+产品方向补充（2026-11-17）：最高优先级转为 PE / EE 值班工程师助手。本轮值班导航、报表与 SOP/case 展示在 `feat/pe-ee-duty-workspace` 实施，详见[工作区报告](reports/pe-ee-duty-workspace.md)。现有能力保留；根目录合成展示资料与业务 Tool、RAG、存储隔离，不代表真实公司接入或改变下文模块验收状态。
+
 版本：实施中 v1.4。编制日期：2026-10-21；修订日期：2026-11-16。状态：P0、MOD-004～MOD-014 及 MOD-016～019 已验收；跨平台启动维护已验证并同步。Skill 已具备声明、安全资源、Catalog、渐进加载、显式光刻装配，以及进程内发布/禁用/回退与完整资源固定。MOD-009 已验证七类 Port / 21 工具来源替换、可选查询注册和 101 文件隔离；MOD-012 已验证 ModelGatewayPort 与客户端生命周期收口；MOD-015 已验证（分 a～e 五批，2026-11-07 全部验证：兼容台账收敛、依赖组类型化与 EventSink、Loop 拆分、存储/身份 Port、Skill 启用/未启用完整链路与取消/异常无泄漏验收），保留的兼容 facade 与配置锚点改由 MOD-027 处理；MOD-024 已通过版本一致源码制品、首批三个组合 Profile 与两端独立安装验收，见 [报告](reports/mod-024-module-delivery.md)；其余源码已入包但不代表完整应用可运行。默认 HTTP 未启用 Skill，MOD-020～023、MOD-025～028 仍待完成，MOD-030 已完成本轮标准化与迁移验收（保留既有失败，full 门未通过），MOD-029 v3.0 已获执行指令，029a～e 已完成，完整质量门保留基线失败。逐项状态见 [模块化追踪](todos/modularization.md)，逐文件职责见 [项目结构](current-project-structure.md)。
 
 当前状态更新（2026-11-16）：MOD-031 已按 [确定版 v1.0](validator-responsibility-plan.md) 实现，业务声明/策略、纯评估、收集决定与答案约束分离；Windows 全量保留起点同名失败，full 门未通过，两端仓库外交付与 Linux 浏览器通过，见 [报告](reports/mod-031-validator.md)。MOD-031 完成提交为 7859df9，远程状态以 Git 为准。模块化未完成 8 项；MOD-029 已于 2026-11-15 按 c5312d1 重整[重审稿 v3.0](tool-result-offloading-plan.md)，采用独立结果库、Session 级保留与引用回读；已获执行指令，029a～e 已完成，完整质量门保留基线失败；MOD-030 旧目录迁移的历史结论保留。

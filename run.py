@@ -22,7 +22,7 @@ from scripts.instance_lock import InstanceLock
 
 PROJECT = Path(__file__).resolve().parent
 ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
-COPY_TOP_LEVEL = ("app", "knowledge", "cases", "evaluations", "scripts")
+COPY_TOP_LEVEL = ("app", "knowledge", "cases", "evaluations", "scripts", "display_mock_data")
 COPY_FILES = (
     "requirements.txt",
     "requirements-test.txt",

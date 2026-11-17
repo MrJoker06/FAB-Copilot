@@ -12,6 +12,7 @@
       state, $, loadCapability = () => {}, loadPersonalKnowledgeDocuments = () => {},
       loadKnowledgeIndex = () => {}, loadCaseIndex = () => {}, loadSessionLibrary = () => {},
       stopPersonalJobEvents = () => {}, drawYieldChart = () => {}, windowImpl = root,
+      loadShiftView = () => {},
       documentImpl = root.document, localStorageImpl = root.localStorage,
       requestAnimationFrameImpl = root.requestAnimationFrame,
     } = deps;
@@ -30,6 +31,10 @@
       document.querySelector(`[data-view="${name}"]`)?.setAttribute('aria-current', 'page');
       $(`#${name}View`).classList.add('active');
       document.querySelector(`[data-view="${name}"]`)?.classList.add('active');
+      if (['dashboard', 'capability', 'knowledge', 'cases'].includes(name)) {
+        const group = $('#allFunctions');
+        if (group) group.open = true;
+      }
 
       const historyActive = name === 'sessions';
       const historyButton = $('#sessionHistoryButton');
@@ -40,7 +45,8 @@
       if (!document.querySelector('.app-shell').classList.contains('agent-collapsed')) {
         $('#focusAgent').classList.add('active');
       }
-      if (name === 'capability') loadCapability();
+      if (name === 'reports' || name === 'procedures') loadShiftView(name);
+      else if (name === 'capability') loadCapability();
       else if (name === 'knowledge') {
         if (state.knowledgeMode === 'personal') loadPersonalKnowledgeDocuments();
         else loadKnowledgeIndex();
@@ -56,7 +62,7 @@
       $('#focusAgent').classList.toggle('active', open);
       $('#focusAgent').setAttribute('aria-expanded', String(open));
       $('#mobileAgentToggle').setAttribute('aria-expanded', String(open));
-      $('#collapseAgent').setAttribute('aria-label', open ? '收起分析助手' : '展开分析助手');
+      $('#collapseAgent').setAttribute('aria-label', open ? '收起值班智能助手' : '展开值班智能助手');
       if (!open) return;
       panel.classList.remove('agent-panel-focus');
       void panel.offsetWidth;

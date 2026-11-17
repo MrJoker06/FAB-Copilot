@@ -138,8 +138,8 @@
     return `<details class="analysis-trace" ${failed ? 'open' : ''}><summary><span>${summary}</span><small>可展开</small></summary><ol>${items}</ol><div class="trace-footer"><span>可审计工具路径，不包含模型内部草稿</span>${runLabel}</div></details>`;
   }
 
-  function welcomeMarkup(message = '我可以查询制造报表、定位设备异常，并结合厂内 SOP 给出分析建议。') {
-    return `<div class="message assistant"><div class="message-meta"><div class="message-label">FAB COPILOT</div></div><div class="message-content">${escapeHtml(message)}</div></div><div class="suggestions"><button>最近三个月哪些设备风险最高？</button><button>CVD-02 的膜厚是否发生漂移？</button><button>分析刻蚀设备 CD 偏移的潜在原因</button></div>`;
+  function welcomeMarkup(message = '协助 PE / EE 查询报表、定位异常，并结合 SOP 与历史 case 提供处置参考。') {
+    return `<div class="message assistant"><div class="message-meta"><div class="message-label">值班智能助手</div></div><div class="message-content">${escapeHtml(message)}</div></div><div class="suggestions"><button>查看当班设备报警</button><button>检索膜厚漂移处置 SOP</button><button>查找类似异常历史 case</button></div>`;
   }
 
 
@@ -153,7 +153,7 @@
     const resultPanel = notices.length ? `<section class="source-list" aria-label="工具结果内容状态">${notices.map(item => `<p data-result-state="${escapeHtml(item.status)}">${escapeHtml(item.message)}${item.queried_at ? ` · 查询时间 ${escapeHtml(item.queried_at)}` : ''}${item.result_ref && item.status === 'saved' ? ` <button type="button" class="source-link" data-read-result="${escapeHtml(item.result_ref)}">查看已保存结果</button>` : ''}</p>`).join('')}</section>` : '';
     const page = extra.tool_result_page;
     const nextPage = page?.has_more && page.next_cursor ? `<button type="button" class="source-link" data-read-result="${escapeHtml(page.result_ref)}" data-result-cursor="${escapeHtml(page.next_cursor)}">下一页已保存结果</button>` : '';
-    el.innerHTML = `<div class="message-meta"><div class="message-label">FAB COPILOT</div></div>${renderToolTrace(extra.tool_trace, extra.run_id)}${resultPanel}<div class="message-content markdown-content">${renderedContent}</div>${nextPage}<div class="message-actions">${copyButton}</div>${sourcePanel}`;
+    el.innerHTML = `<div class="message-meta"><div class="message-label">值班智能助手</div></div>${renderToolTrace(extra.tool_trace, extra.run_id)}${resultPanel}<div class="message-content markdown-content">${renderedContent}</div>${nextPage}<div class="message-actions">${copyButton}</div>${sourcePanel}`;
     for (const button of el.querySelectorAll?.('[data-read-result]') || []) button.addEventListener('click', () => onReadResult?.(button.dataset.readResult, button.dataset.resultCursor || null));
     const copyAnswer = el.querySelector('.copy-answer');
     copyAnswer.addEventListener('click', async () => {

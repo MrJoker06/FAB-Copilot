@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="半导体制造报表与数据分析 Agent">
+  <meta name="description" content="面向 PE、EE 值班工程师的报表、SOP 与异常复核助手">
   <meta name="app-version" content="__APP_VERSION__">
   <title>Fab Insight</title>
   <link rel="stylesheet" href="/static/styles.css?v=__APP_VERSION__">
@@ -12,11 +12,11 @@
   <header class="topbar">
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">FI</span>
-      <div><strong>Fab Insight</strong><small>制造分析控制台</small></div>
+      <div><strong>Fab Insight</strong><small>PE / EE 值班工作台</small></div>
     </div>
     <div class="topbar-actions">
       <div class="system-status"><span class="status-dot"></span><span id="systemStatus">正在连接数据源</span></div>
-      <button id="mobileAgentToggle" class="mobile-agent-toggle" title="显示或隐藏分析助手" aria-label="显示或隐藏分析助手" aria-expanded="true">◇</button>
+      <button id="mobileAgentToggle" class="mobile-agent-toggle" title="显示或隐藏值班智能助手" aria-label="显示或隐藏值班智能助手" aria-expanded="true">◇</button>
       <button id="modelSettingsButton" class="model-settings-button" title="模型设置"><span aria-hidden="true">⚙</span><span id="activeModelLabel">模型设置</span></button>
     </div>
   </header>
@@ -25,15 +25,46 @@
 
   <div class="app-shell">
     <aside class="sidebar" aria-label="主导航">
-      <button class="nav-item active" data-view="dashboard" title="制造总览" aria-current="page"><span aria-hidden="true">▦</span><span>制造总览</span></button>
-      <button class="nav-item" data-view="capability" title="制程能力"><span aria-hidden="true">◎</span><span>制程能力</span></button>
-      <button class="nav-item" data-view="knowledge" title="知识库"><span aria-hidden="true">▤</span><span>知识库</span></button>
-      <button class="nav-item" data-view="cases" title="历史案例库"><span aria-hidden="true">▥</span><span>案例库</span></button>
-      <button class="nav-item" id="focusAgent" title="显示或隐藏分析助手" aria-expanded="true"><span aria-hidden="true">◇</span><span>分析助手</span></button>
-      <div class="sidebar-meta"><span>DEMO FAB</span><small>历史数据 24 个月</small></div>
+      <button class="nav-item" data-view="reports" title="基础报表"><span aria-hidden="true">▥</span><span>基础报表</span></button>
+      <button class="nav-item" data-view="procedures" title="SOP&历史case"><span aria-hidden="true">▤</span><span>SOP&amp;历史case</span></button>
+      <button class="nav-item" id="autosystemLink" title="Autosystem 平台"><span aria-hidden="true">↗</span><span>Autosystem 平台</span></button>
+      <button class="nav-item" id="focusAgent" title="显示或隐藏值班智能助手" aria-expanded="true"><span aria-hidden="true">◇</span><span>值班智能助手</span></button>
+      <details id="allFunctions" class="all-functions">
+        <summary title="展开或收起所有功能"><span>所有功能</span><span class="nav-chevron" aria-hidden="true">›</span></summary>
+        <div class="all-functions-items">
+          <button class="nav-item active" data-view="dashboard" title="制造总览" aria-current="page"><span aria-hidden="true">▦</span><span>制造总览</span></button>
+          <button class="nav-item" data-view="capability" title="制程能力"><span aria-hidden="true">◎</span><span>制程能力</span></button>
+          <button class="nav-item" data-view="knowledge" title="知识库"><span aria-hidden="true">▤</span><span>知识库</span></button>
+          <button class="nav-item" data-view="cases" title="历史案例库"><span aria-hidden="true">▥</span><span>案例库</span></button>
+        </div>
+      </details>
+      <div class="sidebar-meta"><span>PE / EE</span><small>值班工程师助手</small></div>
     </aside>
 
     <main class="main-content">
+      <section id="reportsView" class="view">
+        <div class="page-heading"><div><p class="eyebrow">BASIC REPORTS</p><h1>基础报表</h1><p>当班常用报表与系统入口</p></div></div>
+        <div class="shift-toolbar">
+          <input id="shiftReportSearch" type="search" placeholder="搜索报表、设备或批次" aria-label="搜索基础报表">
+          <div id="shiftReportRoles" class="segmented" aria-label="筛选报表岗位"><button type="button" data-report-role="" class="active" aria-pressed="true">全部</button><button type="button" data-report-role="PE" aria-pressed="false">PE</button><button type="button" data-report-role="EE" aria-pressed="false">EE</button></div>
+        </div>
+        <p id="shiftReportsStatus" class="shift-status" role="status"></p>
+        <div id="shiftReportCards" class="shift-report-grid"></div>
+        <section class="panel shift-recent"><div class="panel-heading"><div><h2>最近查看</h2></div></div><div class="table-wrap"><table><thead><tr><th>报表</th><th>关联对象</th><th>更新时间</th><th>操作</th></tr></thead><tbody id="shiftRecentReports"><tr><td colspan="4" class="empty">尚未查看报表</td></tr></tbody></table></div></section>
+      </section>
+
+      <section id="proceduresView" class="view">
+        <div class="page-heading"><div><p class="eyebrow">SHIFT KNOWLEDGE</p><h1>SOP&amp;历史case</h1><p>查流程、找案例，辅助当班异常处置</p></div></div>
+        <div class="shift-toolbar"><input id="shiftDocumentSearch" type="search" placeholder="搜索 SOP、现象、设备或 case" aria-label="搜索 SOP 和历史case"></div>
+        <div class="shift-document-filters">
+          <div id="shiftDocumentTabs" class="segmented" aria-label="选择资料类别"><button type="button" data-document-kind="sop" aria-pressed="false">SOP</button><button type="button" data-document-kind="case" class="active" aria-pressed="true">历史case</button></div>
+          <select id="shiftDocumentProcess" aria-label="筛选资料制程"><option value="">全部制程</option></select>
+          <select id="shiftDocumentRole" aria-label="筛选资料岗位"><option value="">PE / EE</option><option value="PE">PE</option><option value="EE">EE</option></select>
+        </div>
+        <p id="shiftDocumentsStatus" class="shift-status" role="status"></p>
+        <div class="shift-document-layout"><section class="panel shift-document-index" aria-label="资料列表"><p id="shiftDocumentCount" class="shift-document-count"></p><div id="shiftDocumentList"></div></section><article id="shiftDocumentReader" class="panel shift-document-reader" aria-label="资料详情"><p class="empty">选择一份资料查看详情</p></article></div>
+      </section>
+
       <section id="dashboardView" class="view active">
         <div class="page-heading">
           <div><p class="eyebrow">FAB OPERATIONS</p><h1>制造绩效总览</h1><p id="rangeSummary">加载数据中</p></div>
@@ -134,7 +165,7 @@
 
       <section id="sessionsView" class="view">
         <div class="page-heading">
-          <div class="session-page-title"><button id="closeSessionLibrary" class="icon-btn" type="button" title="返回上一工作区" aria-label="返回上一工作区">‹</button><div><p class="eyebrow">CONVERSATION ARCHIVE</p><h1>历史会话</h1><p>集中检索、回看和继续 Fab Copilot 分析</p></div></div>
+          <div class="session-page-title"><button id="closeSessionLibrary" class="icon-btn" type="button" title="返回上一工作区" aria-label="返回上一工作区">‹</button><div><p class="eyebrow">CONVERSATION ARCHIVE</p><h1>历史会话</h1><p>集中检索、回看和继续值班智能助手分析</p></div></div>
           <div class="session-library-controls">
             <input id="sessionLibrarySearch" type="search" maxlength="100" placeholder="搜索标题或对话摘要" aria-label="搜索历史会话">
             <div id="sessionLibraryFilter" class="segmented session-filter" aria-label="会话状态">
@@ -174,19 +205,19 @@
 
     </main>
 
-    <aside class="agent-panel" aria-label="Fab Copilot">
-      <div id="agentResizeHandle" class="agent-resize-handle" role="separator" tabindex="0" aria-label="调整 Fab Copilot 宽度" aria-orientation="vertical" aria-valuemin="300" aria-valuemax="620" aria-valuenow="380" title="拖动调整宽度，双击恢复默认"></div>
-      <div class="agent-heading"><div class="agent-icon">◇</div><div class="agent-heading-copy"><strong>Fab Copilot</strong><small id="agentMode">数据分析助手</small></div><button id="sessionHistoryButton" class="session-history-button" title="打开历史会话" aria-label="打开历史会话" aria-expanded="false"><span aria-hidden="true">◷</span><span>历史会话</span></button><button id="clearChat" class="icon-btn" title="新建会话" aria-label="新建会话">＋</button><button id="collapseAgent" class="icon-btn" title="收起分析助手" aria-label="收起分析助手">›</button></div>
+    <aside class="agent-panel" aria-label="值班智能助手">
+      <div id="agentResizeHandle" class="agent-resize-handle" role="separator" tabindex="0" aria-label="调整值班智能助手宽度" aria-orientation="vertical" aria-valuemin="300" aria-valuemax="620" aria-valuenow="380" title="拖动调整宽度，双击恢复默认"></div>
+      <div class="agent-heading"><div class="agent-icon">◇</div><div class="agent-heading-copy"><strong>值班智能助手</strong><small id="agentMode">PE / EE 值班助手</small></div><button id="sessionHistoryButton" class="session-history-button" title="打开历史会话" aria-label="打开历史会话" aria-expanded="false"><span aria-hidden="true">◷</span><span>历史会话</span></button><button id="clearChat" class="icon-btn" title="新建会话" aria-label="新建会话">＋</button><button id="collapseAgent" class="icon-btn" title="收起值班智能助手" aria-label="收起值班智能助手">›</button></div>
       <div id="chatMessages" class="chat-messages" aria-live="polite">
-        <div class="message assistant"><div class="message-label">FAB COPILOT</div><div class="message-content">我可以查询制造报表、定位设备异常，并结合厂内 SOP 给出分析建议。</div></div>
+        <div class="message assistant"><div class="message-label">值班智能助手</div><div class="message-content">协助 PE / EE 查询报表、定位异常，并结合 SOP 与历史 case 提供处置参考。</div></div>
         <div class="suggestions">
-          <button>最近三个月哪些设备风险最高？</button>
-          <button>CVD-02 的膜厚是否发生漂移？</button>
-          <button>分析刻蚀设备 CD 偏移的潜在原因</button>
+          <button>查看当班设备报警</button>
+          <button>检索膜厚漂移处置 SOP</button>
+          <button>查找类似异常历史 case</button>
         </div>
       </div>
       <form id="chatForm" class="chat-form">
-        <textarea id="chatInput" rows="3" maxlength="4000" placeholder="询问良率、设备、批次或制程异常…" required></textarea>
+        <textarea id="chatInput" rows="3" maxlength="4000" placeholder="描述当班问题、设备或批次异常…" required></textarea>
         <div class="chat-actions"><span id="chatHint">基于历史数据库与厂内知识</span><div class="chat-action-buttons"><select id="thinkingEffort" class="thinking-toggle thinking-select" aria-label="思考强度" title="当前模型不支持 Thinking" disabled><option value="off">Thinking 关闭</option></select><button id="sendButton" type="submit" class="send-btn" aria-label="发送">发送</button></div></div>
       </form>
     </aside>
@@ -287,6 +318,7 @@
   <script src="/static/app/knowledge/controller.js?v=__APP_VERSION__" defer></script>
   <script src="/static/app/model/controller.js?v=__APP_VERSION__" defer></script>
   <script src="/static/app/dashboard/controller.js?v=__APP_VERSION__" defer></script>
+  <script src="/static/app/shift/controller.js?v=__APP_VERSION__" defer></script>
   <script src="/static/app/chat/presenter.js?v=__APP_VERSION__" defer></script>
   <script src="/static/app/sessions/controller.js?v=__APP_VERSION__" defer></script>
   <script src="/static/app/chat/controller.js?v=__APP_VERSION__" defer></script>
