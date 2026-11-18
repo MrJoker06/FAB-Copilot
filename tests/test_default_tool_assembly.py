@@ -487,7 +487,7 @@ class DefaultToolAssemblyTests(unittest.TestCase):
                 )
             )
         self.assertEqual(result.status, ToolStatus.DENIED)
-        self.assertEqual(result.error.code, "POLICY_DENIED")
+        self.assertEqual(result.error.code, "ROLE_DENIED")
 
     def test_enterprise_uses_one_injected_snapshot_and_synthetic_metadata(self) -> None:
         captured: dict[str, object] = {}

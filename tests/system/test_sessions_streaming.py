@@ -14,19 +14,71 @@ isolated_system_environment()
 
 from fastapi.testclient import TestClient
 
-from app.telemetry.audit import read_events
-from app.demo_data.database import db_session
-from app.persistence.execution_store import persist_execution_plan, recover_interrupted_executions, start_run_record, start_tool_event
 import app.main as main
-from app.main import app
-from app.demo_data.seed import seed_reference_data
 from app.conversation.sessions import append_message, record_agent_result
-from scripts.evaluate_trace_replay import load_dataset as load_trace_replay_dataset, replay_case
+from app.demo_data.database import db_session
+from app.demo_data.seed import seed_reference_data
+from app.main import app
+from app.persistence.execution_store import (
+    persist_execution_plan,
+    recover_interrupted_executions,
+    start_run_record,
+    start_tool_event,
+)
+from app.telemetry.audit import read_events
+from scripts.evaluate_trace_replay import load_dataset as load_trace_replay_dataset
+from scripts.evaluate_trace_replay import replay_case
+
 
 class SessionsStreamingSystemTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         seed_reference_data()
+
+    def test_tool_failure_code_survives_real_http_stream_and_session_reload(self):
+        from uuid import uuid4
+
+        from app.agent_runtime.execution.tool_result_bridge import project_tool_result
+        from app.agent_runtime.tools.dispatch_contracts import PolicyDecision
+        from tests import test_tool_dispatcher as tool_fixture
+
+        calls = []
+        async def agent(_question, _history, progress=None, **_kwargs):
+            fixture = tool_fixture.DispatcherTests()
+            def forbidden(*_args):
+                calls.append("unexpected")
+                raise AssertionError("denied handler must never run")
+            dispatcher = fixture.dispatcher(fixture.binding(forbidden),
+                policy=tool_fixture.Policy(PolicyDecision(False, "ROLE_DENIED", "password=secret")))
+            result = await dispatcher.dispatch("native", {"value":"x"}, fixture.context())
+            projection = project_tool_result(result)
+            run_id = "error-catalog-" + uuid4().hex
+            await progress({"event":"run_started", "run_id":run_id})
+            await progress({"event":"tool_started", "tool":"native"})
+            await progress(projection.event)
+            return {"answer":"当前身份无权执行该查询。", "run_id":run_id,
+                    "tool_trace":[projection.trace], "sources":[], "mode":"test", "model":"offline"}
+
+        principal = tool_fixture.DispatcherTests().context().principal
+        with patch("app.main.run_agent", new=agent), patch("app.main._validate_chat_model_capabilities", return_value=(principal,"offline")), TestClient(app) as client:
+            session_id = client.post("/api/sessions").json()["session_id"]
+            try:
+                response = client.post("/api/chat/stream", json={"message":"查询设备状态", "session_id":session_id})
+                self.assertEqual(response.status_code, 200)
+                events = [json.loads(line) for line in response.text.splitlines() if line]
+                progress = next(item for item in events if item.get("event") == "tool_finished")
+                self.assertEqual(progress["error_code"], "ROLE_DENIED")
+                self.assertEqual(progress["recovery_action"], "request_access")
+                self.assertFalse(progress["retryable"])
+                self.assertIn("当前身份", progress["user_message"])
+                self.assertNotIn("secret", response.text)
+                self.assertEqual(events[-1]["type"], "result")
+                saved = client.get(f"/api/sessions/{session_id}").json()["messages"][-1]["metadata"]
+                self.assertEqual(saved["tool_trace"][0]["error_code"], "ROLE_DENIED")
+                self.assertEqual(saved["tool_trace"][0]["user_message"], progress["user_message"])
+                self.assertEqual(calls, [])
+            finally:
+                client.delete(f"/api/sessions/{session_id}/permanent")
 
     def test_sessions_are_isolated_by_tenant_and_user(self):
         owner_headers = {"X-Tenant-ID": "fab-a", "X-User-ID": "owner"}
@@ -551,6 +603,7 @@ class SessionsStreamingSystemTests(unittest.TestCase):
         """
         import gc
         from contextlib import ExitStack
+
         from app.bootstrap import evidence_assembly
         from app.core.identity import current_principal
         from tests import test_default_native_runtime as native_tests

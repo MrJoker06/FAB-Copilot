@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..tools.contracts import ToolResult, ToolStatus
+from ..tools.contracts import ToolResult, ToolStatus, tool_error_details
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,4 +154,8 @@ def project_tool_result(
         "duration_ms": result.elapsed_ms,
         "row_count": result.row_count,
     }
+    if result.error is not None:
+        details = tool_error_details(result.error, result.execution_state)
+        trace.update(details)
+        event.update(details)
     return ToolResultProjection(observation, trace, sources, sources, event)

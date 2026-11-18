@@ -10,7 +10,14 @@ from typing import Any
 
 from ...planning_runtime.contracts import ExecutionPlan, PlanBudget, PlanStep
 from ..result_access_run import ResultAccessRun
-from ..tools.contracts import ToolExecutionLimits, ToolResult, ToolStatus
+from ..tools.contracts import (
+    ToolExecutionLimits,
+    ToolExecutionState,
+    ToolResult,
+    ToolStatus,
+    make_tool_error,
+    tool_error_details,
+)
 from .loop_guard import ToolLoopGuard
 from .ready_graph import ready_step_order
 from .runtime_contracts import RuntimeContext, RuntimeContractError
@@ -194,7 +201,7 @@ async def execute_dispatched_ready_plan(
                     "arguments": {},
                     "plan_step_id": step.step_id,
                     "status": "blocked",
-                    "error_code": "dependency_failed",
+                    **tool_error_details(make_tool_error("DEPENDENCY_FAILED"), ToolExecutionState.NOT_STARTED),
                     "error": message,
                     "execution_state": "not_started",
                     "execution_mode": "deterministic",
@@ -218,7 +225,7 @@ async def execute_dispatched_ready_plan(
                     tool_call_id=call_id,
                     plan_step_id=step.step_id,
                     execution_mode="deterministic",
-                    reason_code="dependency_failed",
+                    reason_code="DEPENDENCY_FAILED",
                 )
                 emit_event(
                     "tool_call_finished",
@@ -227,7 +234,7 @@ async def execute_dispatched_ready_plan(
                     tool=step.tool,
                     plan_step_id=step.step_id,
                     execution_mode="deterministic",
-                    error_code="dependency_failed",
+                    error_code="DEPENDENCY_FAILED",
                 )
                 continue
             context = replace(

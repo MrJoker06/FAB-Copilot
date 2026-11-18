@@ -24,6 +24,8 @@
 
 ## PE / EE 值班工作区
 
+2026-11-18 补充：GitHub #1 剩余错误码统一和场景处理已实现，完成门及既有失败见[报告](../reports/issue-1-error-standardization.md)；产品重心持续为值班助手。此项不新增产品/MOD 编号，#3 Guardrail 保持未完成。
+
 2026-11-17，按用户确认的页面方向优先完成导航调整、折叠旧功能、基础报表和 SOP&历史case 页面，以及根目录 `display_mock_data/` 合成展示资料。新工作分支从 experiment 分出，未修改旧 main。实现、跨平台验证和既有完整门失败见[报告](../reports/pe-ee-duty-workspace.md)。此项不重复分配产品或 MOD 编号，不改变 228/183/45 统计，不代表公司系统接入。
 
 ## TODO 文档治理

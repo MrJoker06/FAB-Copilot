@@ -9,6 +9,8 @@ from typing import Any
 
 from ...evidence.validator import EvidenceObservation
 from ...planning_runtime.contracts import ExecutionPlan
+from ..tools.contracts import ToolExecutionState, make_tool_error, tool_error_details
+from ..tools.dispatch_contracts import exception_tool_failure
 from .loop_guard import ToolLoopGuard
 from .ready_dispatch import ReadyDispatchBinding
 from .ready_graph import ready_step_order
@@ -90,7 +92,7 @@ async def execute_ready_plan(
                 "arguments": arguments,
                 "plan_step_id": step.step_id,
                 "status": "blocked",
-                "error_code": "dependency_failed",
+                **tool_error_details(make_tool_error("DEPENDENCY_FAILED"), ToolExecutionState.NOT_STARTED),
                 "error": message,
                 "duration_ms": duration_ms,
                 "execution_mode": "deterministic",
@@ -112,7 +114,7 @@ async def execute_ready_plan(
                 tool_call_id=f"plan-{step.step_id}",
                 plan_step_id=step.step_id,
                 execution_mode="deterministic",
-                reason_code="dependency_failed",
+                reason_code="DEPENDENCY_FAILED",
                 duration_ms=duration_ms,
                 full_content={"arguments": arguments, "message": message},
             )
@@ -124,7 +126,7 @@ async def execute_ready_plan(
                 plan_step_id=step.step_id,
                 execution_mode="deterministic",
                 duration_ms=duration_ms,
-                error_code="dependency_failed",
+                error_code="DEPENDENCY_FAILED",
             )
             continue
 
@@ -136,7 +138,7 @@ async def execute_ready_plan(
                 "arguments": arguments,
                 "plan_step_id": step.step_id,
                 "status": "blocked",
-                "error_code": decision.reason_code,
+                **tool_error_details(make_tool_error(decision.reason_code or "BUDGET_BLOCKED"), ToolExecutionState.NOT_STARTED),
                 "error": decision.message,
                 "duration_ms": duration_ms,
                 "execution_mode": "deterministic",
@@ -171,7 +173,7 @@ async def execute_ready_plan(
                 plan_step_id=step.step_id,
                 execution_mode="deterministic",
                 duration_ms=duration_ms,
-                error_code=decision.reason_code,
+                error_code=make_tool_error(decision.reason_code or "BUDGET_BLOCKED").code,
             )
             continue
 
@@ -228,12 +230,13 @@ async def execute_ready_plan(
                 full_content={"result": result},
             )
         except Exception as exc:
+            failure = exception_tool_failure(exc)
             loop_guard.record_result(step.tool, None, False)
             observations.append(EvidenceObservation(
                 step.tool,
                 arguments,
                 "error",
-                error=str(exc),
+                error=str(failure["error"]),
                 source_ref=f"TOOL:{step.step_id}",
             ))
             duration_ms = round((time.perf_counter() - tool_started) * 1000, 1)
@@ -242,7 +245,7 @@ async def execute_ready_plan(
                 "arguments": arguments,
                 "plan_step_id": step.step_id,
                 "status": "error",
-                "error": str(exc),
+                **failure,
                 "duration_ms": duration_ms,
                 "execution_mode": "deterministic",
             }

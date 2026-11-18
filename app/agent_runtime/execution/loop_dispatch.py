@@ -14,7 +14,14 @@ from ..result_access_run import (
     current_result_access,
     result_prompt_payload,
 )
-from ..tools.contracts import ToolExecutionLimits, ToolResult, ToolStatus
+from ..tools.contracts import (
+    ToolExecutionLimits,
+    ToolExecutionState,
+    ToolResult,
+    ToolStatus,
+    make_tool_error,
+    tool_error_details,
+)
 from .loop_guard import ToolLoopGuard
 from .loop_response import LoopResponse
 from .runtime_contracts import ModelRequest, RuntimeContext, RuntimeContractError
@@ -158,8 +165,7 @@ async def execute_dispatched_loop_round(
                         "content": json.dumps(
                             {
                                 "ok": False,
-                                "error_code": "SUBMISSION_MIXED",
-                                "error": "submit_analysis 必须单独调用，不能与数据工具处于同一轮。",
+                                **tool_error_details(make_tool_error("SUBMISSION_MIXED"), ToolExecutionState.NOT_STARTED),
                             },
                             ensure_ascii=False,
                         ),
@@ -275,9 +281,8 @@ async def execute_dispatched_loop_round(
                 scope=safe_arguments,
                 envelope={"error_code":None,"execution_state":result.execution_state.value,"error":None},
             ) if result.status is ToolStatus.SUCCEEDED else {
-                "ok":False, "data":None, "error_code":result.error.code if result.error else None,
-                "execution_state":result.execution_state.value,
-                "error":result.error.public_message if result.error else None,
+                "ok":False, "data":None,
+                **tool_error_details(result.error, result.execution_state),
             }
             if access is not None:
                 access.views[call.call_id] = view

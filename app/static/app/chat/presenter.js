@@ -121,12 +121,19 @@
     if (!copied) throw new Error('浏览器未允许复制');
   }
 
+  function renderToolFailure(item) {
+    const message = item.user_message || item.error;
+    if (!message) return '';
+    const code = item.error_code ? ` <code>${escapeHtml(item.error_code)}</code>` : '';
+    return `<p class="trace-error">${escapeHtml(message)}${code}</p>`;
+  }
+
   function renderToolTrace(trace, runId) {
     if (!trace?.length) return '';
     const items = trace.map((item, index) => {
       const status = item.status === 'error' ? '失败' : (item.status === 'blocked' ? '已拦截' : (item.status === 'local' ? '本地' : (item.status === 'running' ? '进行中' : '成功')));
       const result = item.rows == null ? status : `${status} · ${item.rows} 条结果`;
-      const error = item.error ? `<p class="trace-error">${escapeHtml(item.error)}</p>` : '';
+      const error = renderToolFailure(item);
       const statusClass = item.status === 'error' ? 'error' : (item.status === 'blocked' ? 'blocked' : (item.status === 'running' ? 'running' : 'ok'));
       return `<li><div class="trace-step-heading"><span>${index + 1}. ${escapeHtml(item.label || toolLabels[item.tool] || item.tool || '未知工具')}</span><small class="trace-status-${statusClass}">${result}</small></div>${error}</li>`;
     }).join('');
@@ -183,7 +190,7 @@
 
 
     return {
-      formatDuration, copyText, renderToolTrace, welcomeMarkup, sourceNavigationAttributes, sourceLink,
+      formatDuration, copyText, renderToolTrace, renderToolFailure, welcomeMarkup, sourceNavigationAttributes, sourceLink,
       sourceReferenceMap, renderSourcePanel, inlineMarkdown, markdownCells, renderMarkdown,
       renderAssistantInto, addMessage,
     };

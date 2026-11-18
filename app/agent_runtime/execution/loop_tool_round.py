@@ -7,8 +7,10 @@ import time
 import traceback
 from typing import TYPE_CHECKING, Any
 
-from .loop_dispatch import execute_dispatched_loop_round
 from ..result_access_run import current_result_access, result_prompt_payload
+from ..tools.contracts import ToolExecutionState, make_tool_error, tool_error_details
+from ..tools.dispatch_contracts import exception_tool_failure
+from .loop_dispatch import execute_dispatched_loop_round
 
 if TYPE_CHECKING:
     from .agent_loop import AgentLoopContext
@@ -85,7 +87,7 @@ async def _execute_legacy_call(context: AgentLoopContext, call: dict) -> None:
                 "content": json.dumps(
                     {
                         "ok": False,
-                        "error": "submit_analysis 必须单独调用，不能与数据工具处于同一轮。",
+                        **tool_error_details(make_tool_error("SUBMISSION_MIXED"), ToolExecutionState.NOT_STARTED),
                     },
                     ensure_ascii=False,
                 ),
@@ -110,7 +112,7 @@ async def _execute_legacy_call(context: AgentLoopContext, call: dict) -> None:
             "tool": name or "unknown",
             "arguments": arguments,
             "status": "blocked",
-            "error_code": decision.reason_code,
+            **tool_error_details(make_tool_error(decision.reason_code or "BUDGET_BLOCKED"), ToolExecutionState.NOT_STARTED),
             "error": decision.message,
             "duration_ms": tool_duration_ms,
         }
@@ -140,12 +142,12 @@ async def _execute_legacy_call(context: AgentLoopContext, call: dict) -> None:
             status="blocked",
             tool=name or "unknown",
             duration_ms=tool_duration_ms,
-            error_code=decision.reason_code,
+            error_code=make_tool_error(decision.reason_code or "BUDGET_BLOCKED").code,
         )
         content = json.dumps(
             {
                 "ok": False,
-                "error_code": decision.reason_code,
+                **tool_error_details(make_tool_error(decision.reason_code or "BUDGET_BLOCKED"), ToolExecutionState.NOT_STARTED),
                 "error": decision.message,
             },
             ensure_ascii=False,
@@ -245,13 +247,14 @@ async def _execute_legacy_call(context: AgentLoopContext, call: dict) -> None:
         if access is not None:
             await access.flush(progress)
     except Exception as exc:
+        failure = exception_tool_failure(exc, invalid_arguments=parse_error is not None)
         loop_guard.record_result(name or "unknown", None, False)
         evidence_observations.append(
             EvidenceObservation(
                 name or "unknown",
                 arguments,
                 "error",
-                error=str(exc),
+                error=str(failure["error"]),
                 source_ref=f"TOOL:{call.get('id') or name or 'unknown'}",
             )
         )
@@ -260,7 +263,7 @@ async def _execute_legacy_call(context: AgentLoopContext, call: dict) -> None:
                 "tool": name or "unknown",
                 "arguments": arguments,
                 "status": "error",
-                "error": str(exc),
+                **failure,
             }
         )
         await notify(
@@ -270,7 +273,7 @@ async def _execute_legacy_call(context: AgentLoopContext, call: dict) -> None:
                 "tool": name or "unknown",
                 "arguments": arguments,
                 "status": "error",
-                "error": str(exc),
+                **failure,
             },
         )
         emit(
@@ -285,7 +288,7 @@ async def _execute_legacy_call(context: AgentLoopContext, call: dict) -> None:
                 "traceback": traceback.format_exc(),
             },
         )
-        content = json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
+        content = json.dumps({"ok": False, **failure}, ensure_ascii=False)
     messages.append(
         {
             "role": "tool",

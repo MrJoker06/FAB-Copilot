@@ -9,18 +9,19 @@ import math
 import threading
 import time
 from collections.abc import Mapping
-from dataclasses import replace
 from contextvars import copy_context
+from dataclasses import replace
 from typing import Any
 
 from .contracts import (
-    ToolError,
+    TOOL_ERROR_CATALOG,
     ToolErrorKind,
     ToolExecutionContext,
     ToolExecutionState,
     ToolResult,
     ToolScope,
     ToolStatus,
+    make_tool_error,
 )
 from .definition import ToolBinding, ToolPreparation
 from .dispatch_contracts import (
@@ -93,8 +94,10 @@ class ToolDispatcher:
         self.result_policy = result_policy
 
     @staticmethod
-    def _error(code: str, message: str, kind: ToolErrorKind) -> ToolError:
-        return ToolError(code, message, kind)
+    def _decision_code(code: str | None, kind: ToolErrorKind, fallback: str) -> str:
+        canonical = (code or "").upper()
+        spec = TOOL_ERROR_CATALOG.get(canonical)
+        return canonical if spec is not None and spec.kind is kind else fallback
 
     def _result(
         self,
@@ -103,7 +106,6 @@ class ToolDispatcher:
         status: ToolStatus,
         state: ToolExecutionState,
         code: str,
-        message: str,
         kind: ToolErrorKind,
         version: str = "unresolved-v1",
         elapsed: float | None = None,
@@ -114,7 +116,7 @@ class ToolDispatcher:
             version,
             status,
             state,
-            error=self._error(code, message, kind),
+            error=make_tool_error(code, kind),
             elapsed_ms=elapsed,
         )
 
@@ -243,7 +245,6 @@ class ToolDispatcher:
                 ToolStatus.FAILED,
                 ToolExecutionState.NOT_STARTED,
                 "RUN_ID_MISMATCH",
-                "The tool call does not belong to this run.",
                 ToolErrorKind.INTERNAL,
             )
         public_name = name if self._valid_name(name) else "unknown"
@@ -254,7 +255,6 @@ class ToolDispatcher:
                 ToolStatus.FAILED,
                 ToolExecutionState.NOT_STARTED,
                 "UNKNOWN_TOOL",
-                "The requested tool is unavailable.",
                 ToolErrorKind.INTERNAL,
             )
         try:
@@ -266,7 +266,6 @@ class ToolDispatcher:
                 ToolStatus.INVALID_ARGUMENTS,
                 ToolExecutionState.NOT_STARTED,
                 "INVALID_ARGUMENTS",
-                "Tool arguments must be a JSON object.",
                 ToolErrorKind.PARSING,
             )
         if name not in self.allowed_tools:
@@ -276,7 +275,6 @@ class ToolDispatcher:
                 ToolStatus.DENIED,
                 ToolExecutionState.NOT_STARTED,
                 "TOOL_DENIED",
-                "This tool is not authorized.",
                 ToolErrorKind.AUTHORIZATION,
             )
         try:
@@ -288,7 +286,6 @@ class ToolDispatcher:
                 ToolStatus.FAILED,
                 ToolExecutionState.NOT_STARTED,
                 "TOOL_UNAVAILABLE",
-                "The requested tool is unavailable.",
                 ToolErrorKind.INTERNAL,
             )
 
@@ -300,7 +297,6 @@ class ToolDispatcher:
                 ToolStatus.DENIED,
                 ToolExecutionState.NOT_STARTED,
                 "LEGACY_DENIED",
-                "This tool is not authorized.",
                 ToolErrorKind.AUTHORIZATION,
             )
         if is_legacy and not self._legacy_arguments_are_valid(name, arguments):
@@ -310,7 +306,6 @@ class ToolDispatcher:
                 ToolStatus.INVALID_ARGUMENTS,
                 ToolExecutionState.NOT_STARTED,
                 "INVALID_ARGUMENTS",
-                "Tool arguments are invalid.",
                 ToolErrorKind.VALIDATION,
                 "legacy-v1",
             )
@@ -321,7 +316,6 @@ class ToolDispatcher:
                 ToolStatus.FAILED,
                 ToolExecutionState.NOT_STARTED,
                 "TOOL_UNAVAILABLE",
-                "The requested tool is unavailable.",
                 ToolErrorKind.INTERNAL,
             )
         if not is_legacy and binding.definition.name != name:
@@ -331,7 +325,6 @@ class ToolDispatcher:
                 ToolStatus.FAILED,
                 ToolExecutionState.NOT_STARTED,
                 "TOOL_CONFIGURATION",
-                "The tool could not be prepared.",
                 ToolErrorKind.INTERNAL,
                 binding.definition.version,
             )
@@ -342,7 +335,6 @@ class ToolDispatcher:
                 ToolStatus.DENIED,
                 ToolExecutionState.NOT_STARTED,
                 "READ_ONLY_REQUIRED",
-                "This tool is not authorized.",
                 ToolErrorKind.AUTHORIZATION,
                 binding.definition.version,
             )
@@ -361,7 +353,6 @@ class ToolDispatcher:
                     ToolStatus.INVALID_ARGUMENTS,
                     ToolExecutionState.NOT_STARTED,
                     "INVALID_ARGUMENTS",
-                    "Tool arguments are invalid.",
                     ToolErrorKind.VALIDATION,
                     version,
                 )
@@ -372,7 +363,6 @@ class ToolDispatcher:
                     ToolStatus.FAILED,
                     ToolExecutionState.NOT_STARTED,
                     "TOOL_CONFIGURATION",
-                    "The tool could not be prepared.",
                     ToolErrorKind.INTERNAL,
                     version,
                 )
@@ -383,7 +373,6 @@ class ToolDispatcher:
                     ToolStatus.FAILED,
                     ToolExecutionState.NOT_STARTED,
                     "TOOL_CONFIGURATION",
-                    "The tool could not be prepared.",
                     ToolErrorKind.INTERNAL,
                     version,
                 )
@@ -398,7 +387,6 @@ class ToolDispatcher:
                         ToolStatus.INVALID_ARGUMENTS,
                         ToolExecutionState.NOT_STARTED,
                         "INVALID_ARGUMENTS",
-                        "Tool arguments are invalid.",
                         ToolErrorKind.VALIDATION,
                         version,
                     )
@@ -409,7 +397,6 @@ class ToolDispatcher:
                         ToolStatus.FAILED,
                         ToolExecutionState.NOT_STARTED,
                         "TOOL_PREPARATION_FAILED",
-                        "The tool could not be prepared.",
                         ToolErrorKind.INTERNAL,
                         version,
                     )
@@ -426,7 +413,6 @@ class ToolDispatcher:
                         ToolStatus.FAILED,
                         ToolExecutionState.NOT_STARTED,
                         "TOOL_CONFIGURATION",
-                        "The tool could not be prepared.",
                         ToolErrorKind.INTERNAL,
                         version,
                     )
@@ -444,7 +430,6 @@ class ToolDispatcher:
                     ToolStatus.FAILED,
                     ToolExecutionState.NOT_STARTED,
                     "TOOL_CONFIGURATION",
-                    "The tool could not be prepared.",
                     ToolErrorKind.INTERNAL,
                     version,
                 )
@@ -458,7 +443,6 @@ class ToolDispatcher:
                 ToolStatus.FAILED,
                 ToolExecutionState.NOT_STARTED,
                 "POLICY_FAILED",
-                "The tool could not be authorized.",
                 ToolErrorKind.INTERNAL,
                 version,
             )
@@ -469,7 +453,6 @@ class ToolDispatcher:
                 ToolStatus.FAILED,
                 ToolExecutionState.NOT_STARTED,
                 "POLICY_FAILED",
-                "The tool could not be authorized.",
                 ToolErrorKind.INTERNAL,
                 version,
             )
@@ -479,8 +462,7 @@ class ToolDispatcher:
                 name,
                 ToolStatus.DENIED,
                 ToolExecutionState.NOT_STARTED,
-                "POLICY_DENIED",
-                "This tool is not authorized.",
+                self._decision_code(decision.code, ToolErrorKind.AUTHORIZATION, "POLICY_DENIED"),
                 ToolErrorKind.AUTHORIZATION,
                 version,
             )
@@ -491,7 +473,6 @@ class ToolDispatcher:
                 ToolStatus.CANCELLED,
                 ToolExecutionState.NOT_STARTED,
                 "CANCELLED",
-                "The tool call was cancelled.",
                 ToolErrorKind.CANCELLATION,
                 version,
             )
@@ -503,7 +484,6 @@ class ToolDispatcher:
                 ToolStatus.TIMED_OUT,
                 ToolExecutionState.NOT_STARTED,
                 "DEADLINE_EXCEEDED",
-                "The tool deadline was exceeded.",
                 ToolErrorKind.TIMEOUT,
                 version,
             )
@@ -514,7 +494,6 @@ class ToolDispatcher:
                 ToolStatus.BLOCKED,
                 ToolExecutionState.NOT_STARTED,
                 "BUDGET_EXHAUSTED",
-                "The tool budget is exhausted.",
                 ToolErrorKind.BUDGET,
                 version,
             )
@@ -527,7 +506,6 @@ class ToolDispatcher:
                 ToolStatus.FAILED,
                 ToolExecutionState.NOT_STARTED,
                 "BUDGET_FAILED",
-                "The tool budget could not be checked.",
                 ToolErrorKind.INTERNAL,
                 version,
             )
@@ -538,7 +516,6 @@ class ToolDispatcher:
                 ToolStatus.FAILED,
                 ToolExecutionState.NOT_STARTED,
                 "BUDGET_FAILED",
-                "The tool budget could not be checked.",
                 ToolErrorKind.INTERNAL,
                 version,
             )
@@ -548,8 +525,7 @@ class ToolDispatcher:
                 name,
                 ToolStatus.BLOCKED,
                 ToolExecutionState.NOT_STARTED,
-                "BUDGET_BLOCKED",
-                "The tool budget blocked this call.",
+                self._decision_code(claim.code, ToolErrorKind.BUDGET, "BUDGET_BLOCKED"),
                 ToolErrorKind.BUDGET,
                 version,
             )
@@ -585,7 +561,6 @@ class ToolDispatcher:
                     ToolStatus.CANCELLED,
                     ToolErrorKind.CANCELLATION,
                     "CANCELLED",
-                    "The tool call was cancelled.",
                     ToolExecutionState.NOT_STARTED,
                 )
             if deadline is not None and float(self.clock()) >= deadline:
@@ -597,7 +572,6 @@ class ToolDispatcher:
                     ToolStatus.TIMED_OUT,
                     ToolErrorKind.TIMEOUT,
                     "DEADLINE_EXCEEDED",
-                    "The tool deadline was exceeded.",
                     ToolExecutionState.NOT_STARTED,
                 )
             worker_context = copy_context()
@@ -623,7 +597,6 @@ class ToolDispatcher:
                         ToolStatus.CANCELLED,
                         state,
                         "CANCELLED",
-                        "The tool call was cancelled.",
                         ToolErrorKind.CANCELLATION,
                         version,
                         self._elapsed(started_at),
@@ -645,7 +618,6 @@ class ToolDispatcher:
                         ToolStatus.TIMED_OUT,
                         state,
                         "DEADLINE_EXCEEDED",
-                        "The tool deadline was exceeded.",
                         ToolErrorKind.TIMEOUT,
                         version,
                         self._elapsed(started_at),
@@ -671,7 +643,6 @@ class ToolDispatcher:
                 ToolStatus.TIMED_OUT,
                 ToolErrorKind.TIMEOUT,
                 "SOURCE_TIMEOUT",
-                "The tool timed out.",
                 ToolExecutionState.UNKNOWN,
             )
         except ToolDataSourceError:
@@ -683,7 +654,6 @@ class ToolDispatcher:
                 ToolStatus.FAILED,
                 ToolErrorKind.DATA_SOURCE,
                 "DATA_SOURCE_FAILED",
-                "The tool data source failed.",
             )
         except Exception:  # noqa: BLE001 - handlers must not leak exception details
             return self._finish_error(
@@ -694,7 +664,6 @@ class ToolDispatcher:
                 ToolStatus.FAILED,
                 ToolErrorKind.INTERNAL,
                 "TOOL_FAILED",
-                "The tool could not complete.",
             )
         if value is _NOT_STARTED:
             return self._finish_error(
@@ -705,7 +674,6 @@ class ToolDispatcher:
                 ToolStatus.CANCELLED,
                 ToolErrorKind.CANCELLATION,
                 "CANCELLED",
-                "The tool call was cancelled.",
                 ToolExecutionState.NOT_STARTED,
             )
         if inspect.isawaitable(value):
@@ -720,7 +688,6 @@ class ToolDispatcher:
                 ToolStatus.FAILED,
                 ToolErrorKind.INTERNAL,
                 "INVALID_RESULT",
-                "The tool returned an invalid result.",
             )
         if is_legacy:
             result = ToolResult(
@@ -742,7 +709,6 @@ class ToolDispatcher:
                 ToolStatus.FAILED,
                 ToolErrorKind.INTERNAL,
                 "INVALID_RESULT",
-                "The tool returned an invalid result.",
             )
         else:
             result = value
@@ -756,7 +722,6 @@ class ToolDispatcher:
                 ToolStatus.CANCELLED,
                 ToolErrorKind.CANCELLATION,
                 "CANCELLED",
-                "The tool call was cancelled.",
                 ToolExecutionState.UNKNOWN,
             )
         if deadline is not None and float(self.clock()) >= deadline:
@@ -768,7 +733,6 @@ class ToolDispatcher:
                 ToolStatus.TIMED_OUT,
                 ToolErrorKind.TIMEOUT,
                 "DEADLINE_EXCEEDED",
-                "The tool deadline was exceeded.",
                 ToolExecutionState.UNKNOWN,
             )
         valid = self._validate_result(
@@ -797,7 +761,6 @@ class ToolDispatcher:
                     ToolStatus.FAILED,
                     ToolErrorKind.INTERNAL,
                     "RESULT_POLICY_FAILED",
-                    "The tool result could not be finalized.",
                 )
             if inspect.isawaitable(projected):
                 close = getattr(projected, "close", None)
@@ -811,7 +774,6 @@ class ToolDispatcher:
                     ToolStatus.FAILED,
                     ToolErrorKind.INTERNAL,
                     "INVALID_RESULT",
-                    "The tool returned an invalid result.",
                 )
             if (
                 not isinstance(projected, ToolResult)
@@ -830,7 +792,6 @@ class ToolDispatcher:
                     ToolStatus.FAILED,
                     ToolErrorKind.INTERNAL,
                     "INVALID_RESULT",
-                    "The tool returned an invalid result.",
                 )
             valid = self._validate_result(
                 projected,
@@ -850,7 +811,6 @@ class ToolDispatcher:
                 ToolStatus.CANCELLED,
                 ToolErrorKind.CANCELLATION,
                 "CANCELLED",
-                "The tool call was cancelled.",
                 ToolExecutionState.UNKNOWN,
             )
         if (
@@ -866,7 +826,6 @@ class ToolDispatcher:
                 ToolStatus.TIMED_OUT,
                 ToolErrorKind.TIMEOUT,
                 "DEADLINE_EXCEEDED",
-                "The tool deadline was exceeded.",
                 ToolExecutionState.UNKNOWN,
             )
         if (
@@ -883,7 +842,6 @@ class ToolDispatcher:
                 ToolStatus.FAILED,
                 ToolExecutionState.COMPLETED,
                 "ACCOUNTING_FAILED",
-                "The tool result could not be recorded.",
                 ToolErrorKind.INTERNAL,
                 version,
                 self._elapsed(started_at),
@@ -913,7 +871,6 @@ class ToolDispatcher:
         status: ToolStatus,
         kind: ToolErrorKind,
         code: str,
-        message: str,
         state: ToolExecutionState = ToolExecutionState.COMPLETED,
     ) -> ToolResult[object]:
         result = self._result(
@@ -922,7 +879,6 @@ class ToolDispatcher:
             status,
             state,
             code,
-            message,
             kind,
             version,
             self._elapsed(started),
@@ -952,7 +908,6 @@ class ToolDispatcher:
                 ToolStatus.FAILED,
                 ToolExecutionState.COMPLETED,
                 "INVALID_RESULT",
-                "The tool returned an invalid result.",
                 ToolErrorKind.INTERNAL,
                 version,
                 self._elapsed(started),

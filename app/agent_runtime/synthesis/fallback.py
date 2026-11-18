@@ -1,9 +1,12 @@
 """Offline answer stage, with live legacy functions supplied by the facade."""
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any, Callable
+
 from ..result_access_run import current_result_access, present_observations
+from ..tools.contracts import ToolExecutionState, make_tool_error, tool_error_details
 
 
 @dataclass(slots=True)
@@ -253,7 +256,7 @@ def offline_answer(
                 {
                     "tool": name,
                     "status": "blocked",
-                    "error_code": decision.reason_code,
+                    **tool_error_details(make_tool_error(decision.reason_code or "BUDGET_BLOCKED"), ToolExecutionState.NOT_STARTED),
                     "error": decision.message,
                 }
             )

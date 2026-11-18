@@ -12,11 +12,12 @@ from typing import Any, Protocol
 from ...core.tool_result_units import canonical_json
 from ..execution.loop_guard import ToolLoopGuard
 from .contracts import (
-    ToolError,
     ToolErrorKind,
     ToolExecutionState,
     ToolResult,
     ToolStatus,
+    make_tool_error,
+    tool_error_details,
 )
 from .definition import ToolBinding, ToolDefinition
 from .dispatch_contracts import BudgetDecision, PolicyDecision
@@ -167,8 +168,7 @@ def result_read_content(result: ToolResult) -> str:
     return canonical_json(
         {
             "ok": False,
-            "error_code": result.error.code,
-            "error": result.error.public_message,
+            **tool_error_details(result.error, result.execution_state),
         }
     )
 
@@ -242,14 +242,14 @@ class ResultReadAccess:
         )
 
     def read(self, value: ResultReadInput, context) -> ToolResult:
-        def failure(code, status, kind, message, state=ToolExecutionState.NOT_STARTED):
+        def failure(code, status, kind, state=ToolExecutionState.NOT_STARTED):
             return ToolResult(
                 context.call_id,
                 RESULT_READ_DEFINITION.name,
                 "1.0.0",
                 status,
                 state,
-                error=ToolError(code, message, kind),
+                error=make_tool_error(code, kind),
             )
 
         # The Dispatcher owns the claim; each claim can fund only one handler.
@@ -259,7 +259,6 @@ class ResultReadAccess:
                     "RESULT_UNAVAILABLE",
                     ToolStatus.DENIED,
                     ToolErrorKind.AUTHORIZATION,
-                    "结果当前不可读取。",
                 )
             self._pending -= 1
             try:
@@ -295,28 +294,24 @@ class ResultReadAccess:
                         code,
                         ToolStatus.DENIED,
                         ToolErrorKind.AUTHORIZATION,
-                        "结果当前不可读取。",
                     )
                 elif code in {"RESULT_CURSOR_INVALID", "RESULT_INVALID"}:
                     result = failure(
                         code,
                         ToolStatus.INVALID_ARGUMENTS,
                         ToolErrorKind.VALIDATION,
-                        "结果分页参数无效。",
                     )
                 elif code == "RESULT_RESPONSE_LIMIT":
                     result = failure(
                         code,
                         ToolStatus.BLOCKED,
                         ToolErrorKind.BUDGET,
-                        "结果读取响应额度不足。",
                     )
                 else:
                     result = failure(
                         "RESULT_READ_FAILED",
                         ToolStatus.FAILED,
                         ToolErrorKind.INTERNAL,
-                        "结果存储当前不可用。",
                         ToolExecutionState.COMPLETED,
                     )
             self.response_bytes += len(result_read_content(result).encode("utf-8"))

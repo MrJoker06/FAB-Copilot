@@ -98,7 +98,7 @@
      ]
     },
     {
-     "content": "{\"ok\": false, \"error_code\": \"SUBMISSION_MIXED\", \"error\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
+     "content": "{\"ok\": false, \"error_code\": \"SUBMISSION_MIXED\", \"error\": \"submit_analysis must be called alone.\", \"error_kind\": \"validation\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"correct_arguments\", \"user_message\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
      "role": "tool",
      "tool_call_id": "mixed-submit"
     },
@@ -509,7 +509,7 @@
        ]
       },
       {
-       "content": "{\"ok\": false, \"error_code\": \"SUBMISSION_MIXED\", \"error\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
+       "content": "{\"ok\": false, \"error_code\": \"SUBMISSION_MIXED\", \"error\": \"submit_analysis must be called alone.\", \"error_kind\": \"validation\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"correct_arguments\", \"user_message\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
        "role": "tool",
        "tool_call_id": "mixed-submit"
       },
@@ -1633,7 +1633,7 @@
      ]
     },
     {
-     "content": "{\"ok\": false, \"error_code\": \"SUBMISSION_MIXED\", \"error\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
+     "content": "{\"ok\": false, \"error_code\": \"SUBMISSION_MIXED\", \"error\": \"submit_analysis must be called alone.\", \"error_kind\": \"validation\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"correct_arguments\", \"user_message\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
      "role": "tool",
      "tool_call_id": "mixed-submit"
     },
@@ -2025,7 +2025,7 @@
        ]
       },
       {
-       "content": "{\"ok\": false, \"error_code\": \"SUBMISSION_MIXED\", \"error\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
+       "content": "{\"ok\": false, \"error_code\": \"SUBMISSION_MIXED\", \"error\": \"submit_analysis must be called alone.\", \"error_kind\": \"validation\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"correct_arguments\", \"user_message\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
        "role": "tool",
        "tool_call_id": "mixed-submit"
       },
@@ -3122,7 +3122,7 @@
      ]
     },
     {
-     "content": "{\"ok\": false, \"error_code\": \"SUBMISSION_MIXED\", \"error\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
+     "content": "{\"ok\": false, \"error_code\": \"SUBMISSION_MIXED\", \"error\": \"submit_analysis must be called alone.\", \"error_kind\": \"validation\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"correct_arguments\", \"user_message\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
      "role": "tool",
      "tool_call_id": "mixed-submit"
     },
@@ -3514,7 +3514,7 @@
        ]
       },
       {
-       "content": "{\"ok\": false, \"error_code\": \"SUBMISSION_MIXED\", \"error\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
+       "content": "{\"ok\": false, \"error_code\": \"SUBMISSION_MIXED\", \"error\": \"submit_analysis must be called alone.\", \"error_kind\": \"validation\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"correct_arguments\", \"user_message\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
        "role": "tool",
        "tool_call_id": "mixed-submit"
       },
@@ -5450,7 +5450,7 @@
      ]
     },
     {
-     "content": "{\"ok\": false, \"error_code\": \"synthesis_only\", \"error\": \"运行时守卫已进入仅综合模式：已进入最后一个模型轮次，只允许基于现有证据组织答案。\"}",
+     "content": "{\"ok\": false, \"error_code\": \"SYNTHESIS_ONLY\", \"error\": \"运行时守卫已进入仅综合模式：已进入最后一个模型轮次，只允许基于现有证据组织答案。\", \"error_kind\": \"budget\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"use_existing_results\", \"user_message\": \"当前任务已进入综合阶段，请使用已有结果。\"}",
      "role": "tool",
      "tool_call_id": "i2"
     },
@@ -5488,9 +5488,14 @@
       "q": 2
      },
      "error": "运行时守卫已进入仅综合模式：已进入最后一个模型轮次，只允许基于现有证据组织答案。",
-     "error_code": "synthesis_only",
+     "error_code": "SYNTHESIS_ONLY",
+     "error_kind": "budget",
+     "execution_state": "not_started",
+     "recovery_action": "use_existing_results",
+     "retryable": false,
      "status": "blocked",
-     "tool": "alpha"
+     "tool": "alpha",
+     "user_message": "当前任务已进入综合阶段，请使用已有结果。"
     }
    ]
   },
@@ -5989,10 +5994,15 @@
       "q": 2
      },
      "error": "运行时守卫已进入仅综合模式：已进入最后一个模型轮次，只允许基于现有证据组织答案。",
-     "error_code": "synthesis_only",
+     "error_code": "SYNTHESIS_ONLY",
+     "error_kind": "budget",
      "event": "tool_finished",
+     "execution_state": "not_started",
+     "recovery_action": "use_existing_results",
+     "retryable": false,
      "status": "blocked",
-     "tool": "alpha"
+     "tool": "alpha",
+     "user_message": "当前任务已进入综合阶段，请使用已有结果。"
     },
     "progress": "progress-sink"
    },
@@ -6015,7 +6025,7 @@
    },
    {
     "fields": {
-     "error_code": "synthesis_only",
+     "error_code": "SYNTHESIS_ONLY",
      "status": "blocked",
      "tool": "alpha"
     },
@@ -12522,7 +12532,7 @@
     {
      "__type__": "EvidenceObservation",
      "arguments": {},
-     "error": "tool exploded",
+     "error": "The tool could not complete.",
      "result": null,
      "source_ref": "TOOL:n1",
      "status": "error",
@@ -12533,7 +12543,7 @@
      "arguments": {
       "again": 1
      },
-     "error": "tool exploded",
+     "error": "The tool could not complete.",
      "result": null,
      "source_ref": "TOOL:n2",
      "status": "error",
@@ -12606,7 +12616,7 @@
      ]
     },
     {
-     "content": "{\"ok\": false, \"error\": \"tool exploded\"}",
+     "content": "{\"ok\": false, \"error_code\": \"TOOL_FAILED\", \"error\": \"The tool could not complete.\", \"error_kind\": \"internal\", \"execution_state\": \"unknown\", \"retryable\": false, \"recovery_action\": \"check_execution_state\", \"user_message\": \"工具执行状态尚未确认，请先核实，勿直接重复调用。\"}",
      "role": "tool",
      "tool_call_id": "n1"
     },
@@ -12633,7 +12643,7 @@
      ]
     },
     {
-     "content": "{\"ok\": false, \"error\": \"tool exploded\"}",
+     "content": "{\"ok\": false, \"error_code\": \"TOOL_FAILED\", \"error\": \"The tool could not complete.\", \"error_kind\": \"internal\", \"execution_state\": \"unknown\", \"retryable\": false, \"recovery_action\": \"check_execution_state\", \"user_message\": \"工具执行状态尚未确认，请先核实，勿直接重复调用。\"}",
      "role": "tool",
      "tool_call_id": "n2"
     },
@@ -12668,17 +12678,29 @@
    "trace": [
     {
      "arguments": {},
-     "error": "tool exploded",
+     "error": "The tool could not complete.",
+     "error_code": "TOOL_FAILED",
+     "error_kind": "internal",
+     "execution_state": "unknown",
+     "recovery_action": "check_execution_state",
+     "retryable": false,
      "status": "error",
-     "tool": "broken"
+     "tool": "broken",
+     "user_message": "工具执行状态尚未确认，请先核实，勿直接重复调用。"
     },
     {
      "arguments": {
       "again": 1
      },
-     "error": "tool exploded",
+     "error": "The tool could not complete.",
+     "error_code": "TOOL_FAILED",
+     "error_kind": "internal",
+     "execution_state": "unknown",
+     "recovery_action": "check_execution_state",
+     "retryable": false,
      "status": "error",
-     "tool": "broken"
+     "tool": "broken",
+     "user_message": "工具执行状态尚未确认，请先核实，勿直接重复调用。"
     }
    ]
   },
@@ -12844,10 +12866,16 @@
     "kind": "notify",
     "payload": {
      "arguments": {},
-     "error": "tool exploded",
+     "error": "The tool could not complete.",
+     "error_code": "TOOL_FAILED",
+     "error_kind": "internal",
      "event": "tool_finished",
+     "execution_state": "unknown",
+     "recovery_action": "check_execution_state",
+     "retryable": false,
      "status": "error",
-     "tool": "broken"
+     "tool": "broken",
+     "user_message": "工具执行状态尚未确认，请先核实，勿直接重复调用。"
     },
     "progress": "progress-sink"
    },
@@ -12870,7 +12898,7 @@
      {
       "__type__": "EvidenceObservation",
       "arguments": {},
-      "error": "tool exploded",
+      "error": "The tool could not complete.",
       "result": null,
       "source_ref": "TOOL:n1",
       "status": "error",
@@ -12978,7 +13006,7 @@
          ]
         },
         {
-         "content": "{\"ok\": false, \"error\": \"tool exploded\"}",
+         "content": "{\"ok\": false, \"error_code\": \"TOOL_FAILED\", \"error\": \"The tool could not complete.\", \"error_kind\": \"internal\", \"execution_state\": \"unknown\", \"retryable\": false, \"recovery_action\": \"check_execution_state\", \"user_message\": \"工具执行状态尚未确认，请先核实，勿直接重复调用。\"}",
          "role": "tool",
          "tool_call_id": "n1"
         },
@@ -13045,7 +13073,7 @@
        ]
       },
       {
-       "content": "{\"ok\": false, \"error\": \"tool exploded\"}",
+       "content": "{\"ok\": false, \"error_code\": \"TOOL_FAILED\", \"error\": \"The tool could not complete.\", \"error_kind\": \"internal\", \"execution_state\": \"unknown\", \"retryable\": false, \"recovery_action\": \"check_execution_state\", \"user_message\": \"工具执行状态尚未确认，请先核实，勿直接重复调用。\"}",
        "role": "tool",
        "tool_call_id": "n1"
       },
@@ -13157,10 +13185,16 @@
      "arguments": {
       "again": 1
      },
-     "error": "tool exploded",
+     "error": "The tool could not complete.",
+     "error_code": "TOOL_FAILED",
+     "error_kind": "internal",
      "event": "tool_finished",
+     "execution_state": "unknown",
+     "recovery_action": "check_execution_state",
+     "retryable": false,
      "status": "error",
-     "tool": "broken"
+     "tool": "broken",
+     "user_message": "工具执行状态尚未确认，请先核实，勿直接重复调用。"
     },
     "progress": "progress-sink"
    },
@@ -13183,7 +13217,7 @@
      {
       "__type__": "EvidenceObservation",
       "arguments": {},
-      "error": "tool exploded",
+      "error": "The tool could not complete.",
       "result": null,
       "source_ref": "TOOL:n1",
       "status": "error",
@@ -13194,7 +13228,7 @@
       "arguments": {
        "again": 1
       },
-      "error": "tool exploded",
+      "error": "The tool could not complete.",
       "result": null,
       "source_ref": "TOOL:n2",
       "status": "error",
@@ -13302,7 +13336,7 @@
          ]
         },
         {
-         "content": "{\"ok\": false, \"error\": \"tool exploded\"}",
+         "content": "{\"ok\": false, \"error_code\": \"TOOL_FAILED\", \"error\": \"The tool could not complete.\", \"error_kind\": \"internal\", \"execution_state\": \"unknown\", \"retryable\": false, \"recovery_action\": \"check_execution_state\", \"user_message\": \"工具执行状态尚未确认，请先核实，勿直接重复调用。\"}",
          "role": "tool",
          "tool_call_id": "n1"
         },
@@ -13329,7 +13363,7 @@
          ]
         },
         {
-         "content": "{\"ok\": false, \"error\": \"tool exploded\"}",
+         "content": "{\"ok\": false, \"error_code\": \"TOOL_FAILED\", \"error\": \"The tool could not complete.\", \"error_kind\": \"internal\", \"execution_state\": \"unknown\", \"retryable\": false, \"recovery_action\": \"check_execution_state\", \"user_message\": \"工具执行状态尚未确认，请先核实，勿直接重复调用。\"}",
          "role": "tool",
          "tool_call_id": "n2"
         },
@@ -13400,7 +13434,7 @@
        ]
       },
       {
-       "content": "{\"ok\": false, \"error\": \"tool exploded\"}",
+       "content": "{\"ok\": false, \"error_code\": \"TOOL_FAILED\", \"error\": \"The tool could not complete.\", \"error_kind\": \"internal\", \"execution_state\": \"unknown\", \"retryable\": false, \"recovery_action\": \"check_execution_state\", \"user_message\": \"工具执行状态尚未确认，请先核实，勿直接重复调用。\"}",
        "role": "tool",
        "tool_call_id": "n1"
       },
@@ -13427,7 +13461,7 @@
        ]
       },
       {
-       "content": "{\"ok\": false, \"error\": \"tool exploded\"}",
+       "content": "{\"ok\": false, \"error_code\": \"TOOL_FAILED\", \"error\": \"The tool could not complete.\", \"error_kind\": \"internal\", \"execution_state\": \"unknown\", \"retryable\": false, \"recovery_action\": \"check_execution_state\", \"user_message\": \"工具执行状态尚未确认，请先核实，勿直接重复调用。\"}",
        "role": "tool",
        "tool_call_id": "n2"
       },
@@ -13629,7 +13663,7 @@
     {
      "__type__": "EvidenceObservation",
      "arguments": {},
-     "error": "tool exploded",
+     "error": "The tool could not complete.",
      "result": null,
      "source_ref": "TOOL:c3",
      "status": "error",
@@ -13655,7 +13689,7 @@
     {
      "__type__": "EvidenceObservation",
      "arguments": {},
-     "error": "工具参数不是有效 JSON 对象: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)",
+     "error": "Tool arguments are invalid.",
      "result": null,
      "source_ref": "TOOL:c6",
      "status": "error",
@@ -13795,12 +13829,12 @@
      "tool_call_id": "c1"
     },
     {
-     "content": "{\"ok\": false, \"error_code\": \"duplicate_arguments\", \"error\": \"相同工具和参数已经调用过，重复调用不会产生新证据。\"}",
+     "content": "{\"ok\": false, \"error_code\": \"DUPLICATE_ARGUMENTS\", \"error\": \"相同工具和参数已经调用过，重复调用不会产生新证据。\", \"error_kind\": \"budget\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"use_existing_results\", \"user_message\": \"相同工具和参数已调用，请使用已有结果。\"}",
      "role": "tool",
      "tool_call_id": "c2"
     },
     {
-     "content": "{\"ok\": false, \"error\": \"tool exploded\"}",
+     "content": "{\"ok\": false, \"error_code\": \"TOOL_FAILED\", \"error\": \"The tool could not complete.\", \"error_kind\": \"internal\", \"execution_state\": \"unknown\", \"retryable\": false, \"recovery_action\": \"check_execution_state\", \"user_message\": \"工具执行状态尚未确认，请先核实，勿直接重复调用。\"}",
      "role": "tool",
      "tool_call_id": "c3"
     },
@@ -13810,17 +13844,17 @@
      "tool_call_id": "c4"
     },
     {
-     "content": "{\"ok\": false, \"error\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
+     "content": "{\"ok\": false, \"error_code\": \"SUBMISSION_MIXED\", \"error\": \"submit_analysis must be called alone.\", \"error_kind\": \"validation\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"correct_arguments\", \"user_message\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
      "role": "tool",
      "tool_call_id": "c5"
     },
     {
-     "content": "{\"ok\": false, \"error\": \"工具参数不是有效 JSON 对象: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)\"}",
+     "content": "{\"ok\": false, \"error_code\": \"INVALID_ARGUMENTS\", \"error\": \"Tool arguments are invalid.\", \"error_kind\": \"validation\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"correct_arguments\", \"user_message\": \"工具参数无效，请检查参数类型、必填项和查询范围。\"}",
      "role": "tool",
      "tool_call_id": "c6"
     },
     {
-     "content": "{\"ok\": false, \"error_code\": \"unplanned_tool\", \"error\": \"unknown 不在当前 Domain Playbook 的确定性执行计划中。\"}",
+     "content": "{\"ok\": false, \"error_code\": \"UNPLANNED_TOOL\", \"error\": \"unknown 不在当前 Domain Playbook 的确定性执行计划中。\", \"error_kind\": \"budget\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"use_existing_results\", \"user_message\": \"该工具不在当前执行计划内。\"}",
      "role": "tool",
      "tool_call_id": "dd3055751a553e87"
     },
@@ -13872,15 +13906,26 @@
       "q": 1
      },
      "error": "相同工具和参数已经调用过，重复调用不会产生新证据。",
-     "error_code": "duplicate_arguments",
+     "error_code": "DUPLICATE_ARGUMENTS",
+     "error_kind": "budget",
+     "execution_state": "not_started",
+     "recovery_action": "use_existing_results",
+     "retryable": false,
      "status": "blocked",
-     "tool": "alpha"
+     "tool": "alpha",
+     "user_message": "相同工具和参数已调用，请使用已有结果。"
     },
     {
      "arguments": {},
-     "error": "tool exploded",
+     "error": "The tool could not complete.",
+     "error_code": "TOOL_FAILED",
+     "error_kind": "internal",
+     "execution_state": "unknown",
+     "recovery_action": "check_execution_state",
+     "retryable": false,
      "status": "error",
-     "tool": "broken"
+     "tool": "broken",
+     "user_message": "工具执行状态尚未确认，请先核实，勿直接重复调用。"
     },
     {
      "arguments": {
@@ -13892,16 +13937,27 @@
     },
     {
      "arguments": {},
-     "error": "工具参数不是有效 JSON 对象: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)",
+     "error": "Tool arguments are invalid.",
+     "error_code": "INVALID_ARGUMENTS",
+     "error_kind": "validation",
+     "execution_state": "not_started",
+     "recovery_action": "correct_arguments",
+     "retryable": false,
      "status": "error",
-     "tool": "parse_me"
+     "tool": "parse_me",
+     "user_message": "工具参数无效，请检查参数类型、必填项和查询范围。"
     },
     {
      "arguments": {},
      "error": "unknown 不在当前 Domain Playbook 的确定性执行计划中。",
-     "error_code": "unplanned_tool",
+     "error_code": "UNPLANNED_TOOL",
+     "error_kind": "budget",
+     "execution_state": "not_started",
+     "recovery_action": "use_existing_results",
+     "retryable": false,
      "status": "blocked",
-     "tool": "unknown"
+     "tool": "unknown",
+     "user_message": "该工具不在当前执行计划内。"
     }
    ]
   },
@@ -14131,10 +14187,15 @@
       "q": 1
      },
      "error": "相同工具和参数已经调用过，重复调用不会产生新证据。",
-     "error_code": "duplicate_arguments",
+     "error_code": "DUPLICATE_ARGUMENTS",
+     "error_kind": "budget",
      "event": "tool_finished",
+     "execution_state": "not_started",
+     "recovery_action": "use_existing_results",
+     "retryable": false,
      "status": "blocked",
-     "tool": "alpha"
+     "tool": "alpha",
+     "user_message": "相同工具和参数已调用，请使用已有结果。"
     },
     "progress": "progress-sink"
    },
@@ -14157,7 +14218,7 @@
    },
    {
     "fields": {
-     "error_code": "duplicate_arguments",
+     "error_code": "DUPLICATE_ARGUMENTS",
      "status": "blocked",
      "tool": "alpha"
     },
@@ -14195,10 +14256,16 @@
     "kind": "notify",
     "payload": {
      "arguments": {},
-     "error": "tool exploded",
+     "error": "The tool could not complete.",
+     "error_code": "TOOL_FAILED",
+     "error_kind": "internal",
      "event": "tool_finished",
+     "execution_state": "unknown",
+     "recovery_action": "check_execution_state",
+     "retryable": false,
      "status": "error",
-     "tool": "broken"
+     "tool": "broken",
+     "user_message": "工具执行状态尚未确认，请先核实，勿直接重复调用。"
     },
     "progress": "progress-sink"
    },
@@ -14314,10 +14381,16 @@
     "kind": "notify",
     "payload": {
      "arguments": {},
-     "error": "工具参数不是有效 JSON 对象: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)",
+     "error": "Tool arguments are invalid.",
+     "error_code": "INVALID_ARGUMENTS",
+     "error_kind": "validation",
      "event": "tool_finished",
+     "execution_state": "not_started",
+     "recovery_action": "correct_arguments",
+     "retryable": false,
      "status": "error",
-     "tool": "parse_me"
+     "tool": "parse_me",
+     "user_message": "工具参数无效，请检查参数类型、必填项和查询范围。"
     },
     "progress": "progress-sink"
    },
@@ -14360,10 +14433,15 @@
     "payload": {
      "arguments": {},
      "error": "unknown 不在当前 Domain Playbook 的确定性执行计划中。",
-     "error_code": "unplanned_tool",
+     "error_code": "UNPLANNED_TOOL",
+     "error_kind": "budget",
      "event": "tool_finished",
+     "execution_state": "not_started",
+     "recovery_action": "use_existing_results",
+     "retryable": false,
      "status": "blocked",
-     "tool": "unknown"
+     "tool": "unknown",
+     "user_message": "该工具不在当前执行计划内。"
     },
     "progress": "progress-sink"
    },
@@ -14384,7 +14462,7 @@
    },
    {
     "fields": {
-     "error_code": "unplanned_tool",
+     "error_code": "UNPLANNED_TOOL",
      "status": "blocked",
      "tool": "unknown"
     },
@@ -14424,7 +14502,7 @@
      {
       "__type__": "EvidenceObservation",
       "arguments": {},
-      "error": "tool exploded",
+      "error": "The tool could not complete.",
       "result": null,
       "source_ref": "TOOL:c3",
       "status": "error",
@@ -14450,7 +14528,7 @@
      {
       "__type__": "EvidenceObservation",
       "arguments": {},
-      "error": "工具参数不是有效 JSON 对象: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)",
+      "error": "Tool arguments are invalid.",
       "result": null,
       "source_ref": "TOOL:c6",
       "status": "error",
@@ -14650,12 +14728,12 @@
          "tool_call_id": "c1"
         },
         {
-         "content": "{\"ok\": false, \"error_code\": \"duplicate_arguments\", \"error\": \"相同工具和参数已经调用过，重复调用不会产生新证据。\"}",
+         "content": "{\"ok\": false, \"error_code\": \"DUPLICATE_ARGUMENTS\", \"error\": \"相同工具和参数已经调用过，重复调用不会产生新证据。\", \"error_kind\": \"budget\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"use_existing_results\", \"user_message\": \"相同工具和参数已调用，请使用已有结果。\"}",
          "role": "tool",
          "tool_call_id": "c2"
         },
         {
-         "content": "{\"ok\": false, \"error\": \"tool exploded\"}",
+         "content": "{\"ok\": false, \"error_code\": \"TOOL_FAILED\", \"error\": \"The tool could not complete.\", \"error_kind\": \"internal\", \"execution_state\": \"unknown\", \"retryable\": false, \"recovery_action\": \"check_execution_state\", \"user_message\": \"工具执行状态尚未确认，请先核实，勿直接重复调用。\"}",
          "role": "tool",
          "tool_call_id": "c3"
         },
@@ -14665,17 +14743,17 @@
          "tool_call_id": "c4"
         },
         {
-         "content": "{\"ok\": false, \"error\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
+         "content": "{\"ok\": false, \"error_code\": \"SUBMISSION_MIXED\", \"error\": \"submit_analysis must be called alone.\", \"error_kind\": \"validation\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"correct_arguments\", \"user_message\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
          "role": "tool",
          "tool_call_id": "c5"
         },
         {
-         "content": "{\"ok\": false, \"error\": \"工具参数不是有效 JSON 对象: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)\"}",
+         "content": "{\"ok\": false, \"error_code\": \"INVALID_ARGUMENTS\", \"error\": \"Tool arguments are invalid.\", \"error_kind\": \"validation\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"correct_arguments\", \"user_message\": \"工具参数无效，请检查参数类型、必填项和查询范围。\"}",
          "role": "tool",
          "tool_call_id": "c6"
         },
         {
-         "content": "{\"ok\": false, \"error_code\": \"unplanned_tool\", \"error\": \"unknown 不在当前 Domain Playbook 的确定性执行计划中。\"}",
+         "content": "{\"ok\": false, \"error_code\": \"UNPLANNED_TOOL\", \"error\": \"unknown 不在当前 Domain Playbook 的确定性执行计划中。\", \"error_kind\": \"budget\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"use_existing_results\", \"user_message\": \"该工具不在当前执行计划内。\"}",
          "role": "tool",
          "tool_call_id": "dd3055751a553e87"
         },
@@ -14798,12 +14876,12 @@
        "tool_call_id": "c1"
       },
       {
-       "content": "{\"ok\": false, \"error_code\": \"duplicate_arguments\", \"error\": \"相同工具和参数已经调用过，重复调用不会产生新证据。\"}",
+       "content": "{\"ok\": false, \"error_code\": \"DUPLICATE_ARGUMENTS\", \"error\": \"相同工具和参数已经调用过，重复调用不会产生新证据。\", \"error_kind\": \"budget\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"use_existing_results\", \"user_message\": \"相同工具和参数已调用，请使用已有结果。\"}",
        "role": "tool",
        "tool_call_id": "c2"
       },
       {
-       "content": "{\"ok\": false, \"error\": \"tool exploded\"}",
+       "content": "{\"ok\": false, \"error_code\": \"TOOL_FAILED\", \"error\": \"The tool could not complete.\", \"error_kind\": \"internal\", \"execution_state\": \"unknown\", \"retryable\": false, \"recovery_action\": \"check_execution_state\", \"user_message\": \"工具执行状态尚未确认，请先核实，勿直接重复调用。\"}",
        "role": "tool",
        "tool_call_id": "c3"
       },
@@ -14813,17 +14891,17 @@
        "tool_call_id": "c4"
       },
       {
-       "content": "{\"ok\": false, \"error\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
+       "content": "{\"ok\": false, \"error_code\": \"SUBMISSION_MIXED\", \"error\": \"submit_analysis must be called alone.\", \"error_kind\": \"validation\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"correct_arguments\", \"user_message\": \"submit_analysis 必须单独调用，不能与数据工具处于同一轮。\"}",
        "role": "tool",
        "tool_call_id": "c5"
       },
       {
-       "content": "{\"ok\": false, \"error\": \"工具参数不是有效 JSON 对象: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)\"}",
+       "content": "{\"ok\": false, \"error_code\": \"INVALID_ARGUMENTS\", \"error\": \"Tool arguments are invalid.\", \"error_kind\": \"validation\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"correct_arguments\", \"user_message\": \"工具参数无效，请检查参数类型、必填项和查询范围。\"}",
        "role": "tool",
        "tool_call_id": "c6"
       },
       {
-       "content": "{\"ok\": false, \"error_code\": \"unplanned_tool\", \"error\": \"unknown 不在当前 Domain Playbook 的确定性执行计划中。\"}",
+       "content": "{\"ok\": false, \"error_code\": \"UNPLANNED_TOOL\", \"error\": \"unknown 不在当前 Domain Playbook 的确定性执行计划中。\", \"error_kind\": \"budget\", \"execution_state\": \"not_started\", \"retryable\": false, \"recovery_action\": \"use_existing_results\", \"user_message\": \"该工具不在当前执行计划内。\"}",
        "role": "tool",
        "tool_call_id": "dd3055751a553e87"
       },

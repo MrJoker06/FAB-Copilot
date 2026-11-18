@@ -205,7 +205,8 @@ class ToolContractTests(unittest.TestCase):
                 ToolErrorKind.AUTHORIZATION: {ToolExecutionState.NOT_STARTED}
             },
             ToolStatus.BLOCKED: {
-                ToolErrorKind.BUDGET: {ToolExecutionState.NOT_STARTED}
+                ToolErrorKind.BUDGET: {ToolExecutionState.NOT_STARTED},
+                ToolErrorKind.DEPENDENCY: {ToolExecutionState.NOT_STARTED},
             },
             ToolStatus.FAILED: {
                 ToolErrorKind.DATA_SOURCE: {

@@ -10,11 +10,16 @@ from typing import Any
 
 from ...evidence.validator import EvidenceObservation
 from ...knowledge.decision import RetrievalDecision
-from ..execution.loop_guard import ToolLoopGuard
 from ..execution.loop_dispatch import validate_loop_binding
+from ..execution.loop_guard import ToolLoopGuard
 from ..execution.runtime_contracts import RuntimeContractError
 from ..execution.tool_result_bridge import project_tool_result
-from ..tools.contracts import ToolResult
+from ..tools.contracts import (
+    ToolExecutionState,
+    ToolResult,
+    make_tool_error,
+    tool_error_details,
+)
 
 
 @dataclass(slots=True)
@@ -148,14 +153,14 @@ async def prefetch_general_knowledge(
                 attempts.append({
                     "scope": scope, "query_variant": query_variant, "query": query,
                     "status": "blocked", "raw_count": 0, "usable_count": 0,
-                    "error_code": guard_decision.reason_code,
+                    **tool_error_details(make_tool_error(guard_decision.reason_code or "BUDGET_BLOCKED"), ToolExecutionState.NOT_STARTED),
                 })
                 observations.append(EvidenceObservation(
                     "search_knowledge", arguments, "blocked", error=guard_decision.message
                 ))
                 item = {
                     "tool": "search_knowledge", "arguments": arguments, "status": "blocked",
-                    "rows": 0, "error_code": guard_decision.reason_code,
+                    "rows": 0, **tool_error_details(make_tool_error(guard_decision.reason_code or "BUDGET_BLOCKED"), ToolExecutionState.NOT_STARTED),
                     "error": guard_decision.message, "duration_ms": duration_ms,
                     "retrieval_scope": scope, "query_variant": query_variant,
                 }

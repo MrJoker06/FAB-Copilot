@@ -42,3 +42,15 @@ test('chat stream keeps the supplied client message id, thinking payload, and st
   assert.deepEqual(result, { answer: 'done' });
   assert.equal(progress.length, 2);
 });
+
+test('tool failures show the safe Chinese explanation and escaped error code in restored traces', () => {
+  const {createChatPresenter} = require('../app/static/app/chat/presenter.js');
+  const escapeHtml = value => String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+  const presenter = createChatPresenter({escapeHtml,toolLabels:{},sourcePresenter:{}});
+  const html = presenter.renderToolTrace([{tool:'native',status:'error',error:'technical message',
+    error_code:'DATA_SOURCE_FAILED',user_message:'数据来源失败。'}],'run-test');
+  assert.match(html,/DATA_SOURCE_FAILED/);
+  assert.match(html,/数据来源失败/);
+  assert.doesNotMatch(html,/technical message/);
+  assert.doesNotMatch(presenter.renderToolFailure({error:'<img src=x>',error_code:'<script>'}), /<img|<script>/);
+});

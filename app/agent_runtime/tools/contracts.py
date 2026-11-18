@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
 from math import isfinite
+from types import MappingProxyType
 from typing import Generic, Protocol, TypeVar
 
 TOOL_CONTRACT_VERSION = "1.0.0"
@@ -138,6 +139,7 @@ class ToolErrorKind(str, Enum):
     INTERNAL = "internal"
     TIMEOUT = "timeout"
     CANCELLATION = "cancellation"
+    DEPENDENCY = "dependency"
 
 
 class ToolExecutionState(str, Enum):
@@ -163,6 +165,121 @@ class ToolError:
             raise ValueError("kind must be a ToolErrorKind")  # noqa: TRY004
         if not isinstance(self.retryable, bool):
             raise ValueError("retryable must be a bool")  # noqa: TRY004
+
+
+@dataclass(frozen=True, slots=True)
+class ToolErrorSpec:
+    """Public code semantics shared by execution, model feedback and support docs."""
+
+    kind: ToolErrorKind
+    message: str
+    user_message: str
+    recovery_action: str
+
+
+def _error_specs():
+    specs = {}
+
+    def add(kind, action, rows):
+        for code, message, user_message in rows:
+            specs[code] = ToolErrorSpec(kind, message, user_message, action)
+
+    add(ToolErrorKind.INTERNAL, "contact_administrator", (
+        ("RUN_ID_MISMATCH", "The tool call does not belong to this run.", "工具调用与当前任务不匹配。"),
+        ("UNKNOWN_TOOL", "The requested tool is unavailable.", "请求的工具不存在。"),
+        ("TOOL_UNAVAILABLE", "The requested tool is unavailable.", "请求的工具当前不可用。"),
+        ("TOOL_CONFIGURATION", "The tool could not be prepared.", "工具配置不完整。"),
+        ("TOOL_PREPARATION_FAILED", "The tool could not be prepared.", "工具准备失败。"),
+        ("POLICY_FAILED", "The tool could not be authorized.", "工具授权检查失败。"),
+        ("BUDGET_FAILED", "The tool budget could not be checked.", "工具预算检查失败。"),
+        ("TOOL_FAILED", "The tool could not complete.", "工具执行失败，请凭任务编号联系管理员。"),
+        ("INVALID_RESULT", "The tool returned an invalid result.", "工具返回结果不符合契约，不能作为分析依据。"),
+        ("RESULT_POLICY_FAILED", "The tool result could not be finalized.", "工具结果处理失败，不能作为分析依据。"),
+        ("ACCOUNTING_FAILED", "The tool result could not be recorded.", "工具结果未能完成记账，不能标记为成功。"),
+    ))
+    add(ToolErrorKind.AUTHORIZATION, "request_access", (
+        ("TOOL_DENIED", "This tool is not authorized.", "当前身份无权使用该工具。"),
+        ("LEGACY_DENIED", "This tool is not authorized.", "当前运行未授权使用旧版工具。"),
+        ("READ_ONLY_REQUIRED", "This tool is not authorized.", "当前运行只允许只读工具。"),
+        ("POLICY_DENIED", "This tool is not authorized.", "工具调用被访问策略拒绝。"),
+        ("CAPABILITY_DENIED", "This tool is not authorized.", "当前运行未授权该能力。"),
+        ("ROLE_DENIED", "This principal is not authorized.", "当前身份角色无权使用该工具。"),
+        ("SCOPE_DENIED", "This scope is not authorized.", "当前身份无权访问请求的数据范围。"),
+        ("RESULT_UNAVAILABLE", "结果当前不可读取。", "结果当前不可读取。"),
+    ))
+    add(ToolErrorKind.VALIDATION, "correct_arguments", (
+        ("SUBMISSION_MIXED", "submit_analysis must be called alone.", "submit_analysis 必须单独调用，不能与数据工具处于同一轮。"),
+        ("INVALID_ARGUMENTS", "Tool arguments are invalid.", "工具参数无效，请检查参数类型、必填项和查询范围。"),
+        ("RESULT_CURSOR_INVALID", "结果分页参数无效。", "结果分页游标无效，请从第一页重新读取。"),
+        ("RESULT_INVALID", "结果分页参数无效。", "结果读取参数无效。"),
+    ))
+    add(ToolErrorKind.BUDGET, "use_existing_results", (
+        ("BUDGET_EXHAUSTED", "The tool budget is exhausted.", "工具调用额度已用尽，请使用已有结果完成回答。"),
+        ("BUDGET_BLOCKED", "The tool budget blocked this call.", "工具调用被预算策略阻止。"),
+        ("TOOL_BUDGET_DISABLED", "The execution plan does not allow tool calls.", "当前计划不允许调用工具。"),
+        ("DUPLICATE_ARGUMENTS", "Identical tool arguments have already been used.", "相同工具和参数已调用，请使用已有结果。"),
+        ("TOTAL_TOOL_BUDGET_EXHAUSTED", "The total tool budget is exhausted.", "工具总调用额度已用尽，请使用已有结果。"),
+        ("PER_TOOL_BUDGET_EXHAUSTED", "The per-tool budget is exhausted.", "该工具的调用额度已用尽，请使用已有结果或其他已授权步骤。"),
+        ("UNPLANNED_TOOL", "The tool is not part of the approved plan.", "该工具不在当前执行计划内。"),
+        ("SYNTHESIS_ONLY", "The run only permits synthesis from existing results.", "当前任务已进入综合阶段，请使用已有结果。"),
+        ("RESULT_READ_BUDGET", "结果读取预算已用尽。", "结果读取预算已用尽。"),
+        ("RESULT_RESPONSE_LIMIT", "结果读取响应额度不足。", "结果读取响应额度不足，请缩小读取范围。"),
+    ))
+    add(ToolErrorKind.DEPENDENCY, "skip_dependent_step", (
+        ("DEPENDENCY_FAILED", "A required prior step did not succeed.", "前置步骤未成功，当前步骤已跳过。"),
+    ))
+    add(ToolErrorKind.TIMEOUT, "start_new_run", (
+        ("DEADLINE_EXCEEDED", "The tool deadline was exceeded.", "当前任务时限已到。"),
+        ("SOURCE_TIMEOUT", "The tool timed out.", "数据来源响应超时。"),
+    ))
+    add(ToolErrorKind.DATA_SOURCE, "report_source_failure", (
+        ("DATA_SOURCE_FAILED", "The tool data source failed.", "数据来源失败，不能将其当作无数据或切换到模拟来源。"),
+    ))
+    add(ToolErrorKind.INTERNAL, "retry_read", (
+        ("RESULT_READ_FAILED", "结果存储当前不可用。", "结果存储当前不可用，请稍后重试读取。"),
+    ))
+    add(ToolErrorKind.CANCELLATION, "stop", (
+        ("CANCELLED", "The tool call was cancelled.", "工具调用已取消，不会自动继续。"),
+    ))
+    return MappingProxyType(specs)
+
+
+TOOL_ERROR_CATALOG = _error_specs()
+_TOOL_ERROR_ALIASES = MappingProxyType({
+    code.lower(): code for code in TOOL_ERROR_CATALOG
+})
+
+
+def make_tool_error(code: str, kind: ToolErrorKind | None = None) -> ToolError:
+    """Create a catalogued error, never from an exception's arbitrary message."""
+    canonical = _TOOL_ERROR_ALIASES.get(code, code)
+    spec = TOOL_ERROR_CATALOG[canonical]
+    return ToolError(canonical, spec.message, spec.kind if kind is None else kind)
+
+
+def tool_error_details(error: ToolError, state: ToolExecutionState) -> dict[str, object]:
+    """Recovery guidance is not permission to retry or bypass execution guards."""
+    code = _TOOL_ERROR_ALIASES.get(error.code, error.code)
+    spec = TOOL_ERROR_CATALOG.get(code)
+    action = spec.recovery_action if spec else "contact_administrator"
+    message = spec.user_message if spec else "工具调用失败，请凭任务编号联系管理员。"
+    if state is ToolExecutionState.UNKNOWN:
+        action = "check_execution_state"
+        message = "工具执行状态尚未确认，请先核实，勿直接重复调用。"
+    can_retry = (
+        error.retryable
+        and state is not ToolExecutionState.UNKNOWN
+        and error.kind in {ToolErrorKind.DATA_SOURCE, ToolErrorKind.TIMEOUT}
+    )
+    return {
+        "error_code": code,
+        "error": error.public_message,
+        "error_kind": error.kind.value,
+        "execution_state": state.value,
+        "retryable": can_retry,
+        "recovery_action": action,
+        "user_message": message,
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -218,7 +335,7 @@ class ToolSource:
 _ERROR_KINDS = {
     ToolStatus.INVALID_ARGUMENTS: {ToolErrorKind.PARSING, ToolErrorKind.VALIDATION},
     ToolStatus.DENIED: {ToolErrorKind.AUTHORIZATION},
-    ToolStatus.BLOCKED: {ToolErrorKind.BUDGET},
+    ToolStatus.BLOCKED: {ToolErrorKind.BUDGET, ToolErrorKind.DEPENDENCY},
     ToolStatus.FAILED: {ToolErrorKind.DATA_SOURCE, ToolErrorKind.INTERNAL},
     ToolStatus.TIMED_OUT: {ToolErrorKind.TIMEOUT},
     ToolStatus.CANCELLED: {ToolErrorKind.CANCELLATION},

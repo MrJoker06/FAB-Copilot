@@ -190,7 +190,8 @@ def main(argv: list[str] | None = None) -> int:
         payload = asyncio.run(_run(args))
     except Exception:  # noqa: BLE001 - the standalone operator output is always sanitized
         payload = {"error": "INTERNAL_ERROR"}
-    print(json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str))
+    # ASCII JSON escapes keep the CLI wire format independent of console encoding.
+    print(json.dumps(payload, ensure_ascii=True, separators=(",", ":"), default=str))
     return (
         0
         if "error" not in payload and payload["result"]["status"] == "succeeded"

@@ -1,5 +1,7 @@
 # 当前项目精细结构快照
 
+2026-11-18 补充：值班助手为持续最高优先级。错误码单一描述源在 `app/agent_runtime/tools/contracts.py`，由 Dispatcher、Ready/Loop、结果回读及前端错误轨迹使用；无新增应用目录。对应表与验证见[错误码参考](error-code-reference.md)和[报告](reports/issue-1-error-standardization.md)。下方源码数量不变。
+
 当前快照：2026-11-17，`feat/pe-ee-duty-workspace`，起点为 `experiment/parallel-platform` 的 `dcca19f`。本轮优先实现 PE / EE 值班工作区，见[报告](reports/pe-ee-duty-workspace.md)；MOD-029 以 `c5312d1` 为起点完成 a～e，保留完整门既有失败，见[实施报告](reports/mod-029-tool-result-access.md)。提交及远程状态以 Git 为准。MOD-031 和此前存储拆分分别见 [031 报告](reports/mod-031-validator.md)、[存储报告](reports/persistence-demo-separation.md)，保留其历史验收限制。MOD-020～023、MOD-025～028 仍待做/暂缓，默认 HTTP 未启用 Skill，兼容 facade 与配置锚点归 MOD-027。
 
 当前实扫 `app/` 为 **324 文件：295 个 Python、29 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。

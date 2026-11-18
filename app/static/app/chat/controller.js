@@ -22,7 +22,7 @@
     const FabSmoothTextBuffer = FabSmoothTextBufferImpl;
     const FabStreamDiagnostics = FabStreamDiagnosticsImpl;
     const FabIncrementalMarkdown = FabIncrementalMarkdownImpl;
-    const { renderMarkdown, renderAssistantInto, addMessage } = presenter;
+    const { renderMarkdown, renderAssistantInto, addMessage, renderToolFailure } = presenter;
   function createLiveAnalysis() {
     const el = document.createElement('div'); el.className = 'message assistant live-analysis';
     el.innerHTML = '<div class="message-meta"><div class="message-label">值班智能助手 · 分析中</div><span class="live-indicator">运行中</span></div><details class="live-path" open><summary><span class="live-path-title">正在建立分析路径</span><small class="live-path-count">准备中</small></summary><div class="live-path-body"><ol></ol><div class="trace-footer"><span>工具调用会在执行时实时更新</span><span class="live-run-id"></span></div></div></details><div class="message-content markdown-content streaming-answer" hidden></div>';
@@ -51,7 +51,7 @@
       const status = item.status === 'error' ? '失败' : (item.status === 'blocked' ? '已拦截' : (item.status === 'running' ? '进行中' : '完成'));
       const statusClass = item.status === 'error' ? 'error' : (item.status === 'blocked' ? 'blocked' : (item.status === 'running' ? 'running' : 'ok'));
       const result = item.rows == null ? status : `${status} · ${item.rows} 条结果`;
-      return `<li><div class="trace-step-heading"><span>${index + 1}. ${escapeHtml(item.label)}</span><small class="trace-status-${statusClass}">${result}</small></div>${item.error ? `<p class="trace-error">${escapeHtml(item.error)}</p>` : ''}</li>`;
+      return `<li><div class="trace-step-heading"><span>${index + 1}. ${escapeHtml(item.label)}</span><small class="trace-status-${statusClass}">${result}</small></div>${renderToolFailure(item)}</li>`;
     }).join('');
     live.el.querySelector('.live-run-id').textContent = live.runId ? `运行 ${live.runId.slice(0, 8)}` : '';
     const container = $('#chatMessages');
@@ -189,7 +189,7 @@
       live.steps.push({tool:event.tool, label:toolLabels[event.tool] || event.tool, status:'running'});
     } else if (event.event === 'tool_finished') {
       const item = [...live.steps].reverse().find(step => step.tool === event.tool && step.status === 'running');
-      if (item) Object.assign(item, {status:event.status || 'ok', rows:event.rows, error:event.error});
+      if (item) Object.assign(item, {status:event.status || 'ok', rows:event.rows, error:event.error, error_code:event.error_code, user_message:event.user_message, recovery_action:event.recovery_action, retryable:event.retryable, execution_state:event.execution_state});
     } else if (event.event === 'tool_result_access') {
       if (!live.steps.some(item => item.resultCallId === event.notice?.call_id)) live.steps.push({resultCallId:event.notice?.call_id, label:event.notice?.message || '工具结果内容状态已更新', status:event.notice?.status === 'saved' ? 'ok' : 'blocked'});
     } else if (event.event === 'run_failed') {

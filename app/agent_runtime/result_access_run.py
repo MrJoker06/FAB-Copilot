@@ -13,12 +13,12 @@ from datetime import datetime, timezone
 from ..core.tool_result_projection import project_result, truncation_prompt_note
 from ..core.tool_result_units import canonical_json
 from .tools.contracts import (
-    ToolError,
-    ToolErrorKind,
     ToolExecutionContext,
     ToolExecutionState,
     ToolResult,
     ToolStatus,
+    make_tool_error,
+    tool_error_details,
 )
 from .tools.projection import model_function_view
 from .tools.result_access import (
@@ -300,11 +300,7 @@ class ResultAccessRun:
                     "1.0.0",
                     ToolStatus.BLOCKED,
                     ToolExecutionState.NOT_STARTED,
-                    error=ToolError(
-                        "RESULT_READ_BUDGET",
-                        "结果读取预算已用尽。",
-                        ToolErrorKind.BUDGET,
-                    ),
+                    error=make_tool_error("RESULT_READ_BUDGET"),
                 )
         return result
 
@@ -455,9 +451,8 @@ def typed_result_view(agent_run, call, call_id, result):
         )
     else:
         access.views[call.call_id] = {
-            "ok":False, "data":None, "error_code":result.error.code,
-            "error":result.error.public_message[:1024],
-            "execution_state":result.execution_state.value,
+            "ok":False, "data":None,
+            **tool_error_details(result.error, result.execution_state),
         }
 
 

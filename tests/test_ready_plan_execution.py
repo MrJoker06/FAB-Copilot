@@ -128,8 +128,12 @@ class ReadyPlanExecutionTests(unittest.TestCase):
             ))
 
         self.assertEqual(calls, ["get_process_capability"])
+        self.assertEqual(trace[0]["error_code"], "TOOL_FAILED")
+        self.assertNotIn("forced dependency failure", trace[0]["error"])
+        self.assertTrue(all(item["error_kind"] == "dependency" for item in trace[1:]))
+        self.assertTrue(all(item["recovery_action"] == "skip_dependent_step" for item in trace[1:]))
         self.assertEqual([item["status"] for item in trace], ["error", "blocked", "blocked", "blocked"])
-        self.assertTrue(all(item.get("error_code") == "dependency_failed" for item in trace[1:]))
+        self.assertTrue(all(item.get("error_code") == "DEPENDENCY_FAILED" for item in trace[1:]))
         self.assertEqual([item.status for item in observations], ["error", "blocked", "blocked", "blocked"])
 
     def test_invalid_ready_plan_graph_fails_closed_before_execution(self):
