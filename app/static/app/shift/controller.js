@@ -180,7 +180,7 @@
           const response = await fetchImpl('/display_mock_data/catalog.json',{cache:'no-store'});
           if (!response.ok) throw new Error();
           const data = await response.json(), url = safeLink(data.autosystem_url);
-          if (url) windowImpl.open(url,'_blank','noopener,noreferrer'); else showToast('Autosystem 地址尚未配置');
+          if (url) windowImpl.open(url,'_blank','noopener,noreferrer'); else showView('autosystem');
         } catch { showToast('Autosystem 配置读取失败'); }
       });
     }

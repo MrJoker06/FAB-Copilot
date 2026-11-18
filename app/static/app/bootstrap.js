@@ -62,7 +62,8 @@
         loadDashboard();
         if ($('#capabilityView').classList.contains('active')) loadCapability();
       });
-      document.querySelectorAll('[data-view]').forEach(button => {
+      // Autosystem resolves its configured external link before choosing the local placeholder.
+      document.querySelectorAll('[data-view]:not(#autosystemLink)').forEach(button => {
         button.addEventListener('click', () => showView(button.dataset.view));
       });
       $('#focusAgent').addEventListener('click', toggleAgentPanel);

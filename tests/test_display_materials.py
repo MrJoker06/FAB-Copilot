@@ -56,7 +56,7 @@ class DisplayMaterialsTests(unittest.TestCase):
     def test_initial_http_html_selects_requested_view_before_javascript(self):
         async def run():
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=self.page_app()),base_url='http://local') as client:
-                for name in ('dashboard','reports','procedures','capability','knowledge','sessions','cases'):
+                for name in ('dashboard','reports','procedures','autosystem','capability','knowledge','sessions','cases'):
                     response = await client.get('/',params={'view':name})
                     self.assertEqual(response.status_code,200)
                     page = PageView(response.text)

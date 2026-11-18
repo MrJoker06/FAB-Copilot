@@ -27,7 +27,7 @@
     <aside class="sidebar" aria-label="主导航">
       <button class="nav-item __ACTIVE_reports__" data-view="reports" title="基础报表" __CURRENT_reports__><span aria-hidden="true">▥</span><span>基础报表</span></button>
       <button class="nav-item __ACTIVE_procedures__" data-view="procedures" title="SOP&历史case" __CURRENT_procedures__><span aria-hidden="true">▤</span><span>SOP&amp;历史case</span></button>
-      <button class="nav-item" id="autosystemLink" title="Autosystem 平台"><span aria-hidden="true">↗</span><span>Autosystem 平台</span></button>
+      <button class="nav-item __ACTIVE_autosystem__" id="autosystemLink" data-view="autosystem" title="Autosystem 平台" __CURRENT_autosystem__><span aria-hidden="true">↗</span><span>Autosystem 平台</span></button>
       <button class="nav-item" id="focusAgent" title="显示或隐藏值班智能助手" aria-expanded="true"><span aria-hidden="true">◇</span><span>值班智能助手</span></button>
       <details id="allFunctions" class="all-functions">
         <summary title="展开或收起所有功能"><span>所有功能</span><span class="nav-chevron" aria-hidden="true">›</span></summary>
@@ -61,6 +61,16 @@
         </div>
         <p id="shiftDocumentsStatus" class="shift-status" role="status"></p>
         <div class="shift-document-layout"><section class="panel shift-document-index" aria-label="资料列表"><p id="shiftDocumentCount" class="shift-document-count"></p><div id="shiftDocumentList"></div></section><article id="shiftDocumentReader" class="panel shift-document-reader" aria-label="资料详情"><p class="empty">选择一份资料查看详情</p></article></div>
+      </section>
+
+      <section id="autosystemView" class="view __ACTIVE_autosystem__">
+        <div class="page-heading"><div><p class="eyebrow">AUTOSYSTEM</p><h1>Autosystem 平台</h1><p>值班自动化与系统协同</p></div></div>
+        <div class="panel autosystem-placeholder">
+          <svg class="autosystem-placeholder-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="8" y="10" width="32" height="25" rx="4"/><path d="M8 18h32M18 41h12M24 35v6M14 14h2m3 0h2"/><path d="m19 27 3 3 7-7"/></svg>
+          <span class="shift-tag">建设中</span>
+          <h2>平台正在建设中</h2>
+          <p>相关功能将陆续开放，敬请期待。</p>
+        </div>
       </section>
 
       <section id="dashboardView" class="view __ACTIVE_dashboard__">

@@ -6,7 +6,7 @@
 
 | 范围 | 已记录的验证与限制 | 证据入口 |
 | --- | --- | --- |
-| PE / EE 值班工作区（2026-11-18） | 报表目录/共享上传验证保留原记录；追加报表返回闪屏修复，两端初始 HTTP HTML 测试各 4 项、Node 64 项、Linux 桌面浏览器 27 项通过。完整 Python 审计、首次失败及基线对照见报告 | [工作区报告](reports/pe-ee-duty-workspace.md) |
+| PE / EE 值班工作区（2026-11-18） | 报表目录/共享上传验证保留原记录；追加报表返回闪屏修复与 Autosystem 占位页，两端初始 HTTP HTML 测试各 4 项、Node 64 项、Linux 桌面浏览器 27 项通过。完整 Python 审计、首次失败及基线对照见报告 | [工作区报告](reports/pe-ee-duty-workspace.md) |
 | MOD-029（2026-11-16） | Windows 1518 项保留基线 12 失败/10 错误；WSL full 在 1441 项的 7 项同名既有失败后停止；两端隔离安装与跨进程回读/清理通过，浏览器 19/19，未生成有效完整覆盖率 | [报告](reports/mod-029-tool-result-access.md) |
 | persistence / 模拟数据分离（2026-11-12） | 定向、真实仓库外状态切片和两端服务启动通过；Windows 1472 项保留基线可复现的 12 失败/10 错误，Linux 浏览器 17/17；完整门及环境限制见报告 | [存储拆分报告](reports/persistence-demo-separation.md) |
 | AGENT-040～044 产品改善 | 全部已完成；044 的跨路径回归、局部修复预算和完整离线门于 2026-10-17 通过 | [Agent 分类验收记录](todos/archive/agent-architecture.md) |

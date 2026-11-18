@@ -2,7 +2,7 @@
 
 日期：2026-11-17。源码起点为 `experiment/parallel-platform` 的 `dcca19f`，独立分支为 `feat/pe-ee-duty-workspace`。本轮按用户确认的页面方向优先实施，旧 `main` 和 experiment 分支引用不变；最终提交及推送状态以 Git 为准。
 
-下方原有范围、数字和验证记录描述首轮 `220a333`。最新的报表目录管理、共享上传、案例入口合并和报表返回首屏修复见文末追加记录，不能将首轮的 321 文件/23 项浏览器数量当成当前值。
+下方原有范围、数字和验证记录描述首轮 `220a333`。最新的报表目录管理、共享上传、案例入口合并、报表返回首屏修复与 Autosystem 占位页见文末追加记录，不能将首轮的 321 文件/23 项浏览器数量当成当前值。
 
 ## 目标与范围
 
@@ -136,3 +136,17 @@ Windows 完整 Python 审计命令为 `python -X utf8 runtime/quality/persistenc
 原始完整记录为 `report-return-audit-windows/{summary.json,unittest.log}`。本轮 WSL 预览复用原 8888 实例启动 `bash run.sh --source-mode worktree --port 8888`，日志确认已有部门数据未重新生成；实际 GET `/?view=reports` 的初始 HTML 只激活 reportsView。预览使用现有配置，未重置模型目录。文本 UTF-8/LF、末尾单换行、文档本地链接与 `git diff --check` 均通过。
 
 本轮没有运行 WSL 完整 Python、原生 Windows 浏览器、Live、真实公司接口、完整质量门、覆盖率、性能门或远程 CI。业务算法、Tool/Skill、模型与数据协议未改，不以本轮完整 Python 和桌面浏览器结果替代上述未运行范围。
+
+## Autosystem 占位页（2026-11-18，源码基线 1ef7c6f）
+
+未配置 Autosystem 地址时，侧栏入口改为在主内容区打开「建设中」占位页，不再弹出地址未配置提示；沿用现有页面标题、面板和右侧助手布局。导航选中状态与其他视图一致，切换其他页面后正常收起。`/?view=autosystem` 支持直接访问，由服务端选中首屏，避免等待前端初始化期间闪回总览。
+
+已有有效 `autosystem_url` 时仍打开原有外部页面；该入口保留独立的链接解析事件，避免通用导航监听同时切换到占位页。目录读取失败仍明确提示读取失败，没有将实际错误冒充建设中。未接入 AutoSystem 真实功能，也未修改模型配置、持久数据或其他页面布局。没有新增应用文件、依赖或交付成员，受管源码仍为 324。
+
+验证沿用上节两端解释器与 WSL Chromium，未调用真实模型。两端 `python -m unittest tests.test_display_materials` 各 4/4，包含新增视图的初始 HTTP HTML；WSL `node --test tests/*.test.js` 为 64/64。最终 `PLAYWRIGHT_PORT=27841 npm run test:e2e` 为 **27/27（1.8 分钟）**：未配置入口显示占位页、导航高亮、退出占位页、已有有效地址时仍打开实际报告页面且不误切换当前视图，以及占位页的 Axe 可访问性/横向溢出检查均通过。没有更新视觉或业务基线。
+
+首次专项浏览器启动因 8899 端口占用停止；改用 8894 后，邻接的模型协议夹具端口仍被占用，浏览器尚未开始执行。保留两次启动失败日志，确认 27841/27842 可绑定后完成最终全套，不修改端口规则或测试阈值。记录为 `autosystem-browser-targeted.log`、`autosystem-browser-port8894.log`、`autosystem-browser-full.log`。
+
+仓库、模块边界与模块化边界检查通过（`files=324 errors=0`）；Ruff 506 条问题，与上节基线按文件/规则/描述计数无新增。文本 UTF-8/LF、末尾单换行、本地文档链接和 `git diff --check` 通过。原始记录为 `autosystem-python-{linux,windows}.log`、`autosystem-node.log`、`autosystem-checks.log` 与 `autosystem-ruff.json`。8888 预览复用原实例重启后实际加载 `/?view=autosystem` 成功，截图 `autosystem-preview.png` 已检查；这些材料均在忽略的 `runtime/quality/`。
+
+Windows 完整 Python 审计 `python -X utf8 runtime/quality/persistence_audit.py . runtime/quality/autosystem-audit-windows` 为 **1530 项，13 失败、10 错误、3 跳过**，测试运行 410.690 秒（含发现与装配的审计耗时 412.988 秒）。失败、错误、跳过 ID 均与上节 `report-return-audit-windows` 一致，无新增 ID；完整套件仍不是全绿，既有冻结契约也未更新。原始日志与摘要见 `autosystem-audit-windows/`。本轮未重新运行 WSL 完整 Python、原生 Windows 浏览器、完整质量门、覆盖率、性能门、Live、真实公司接口或远程 CI。

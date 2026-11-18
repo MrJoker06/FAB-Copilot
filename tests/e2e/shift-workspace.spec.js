@@ -29,7 +29,22 @@ test('duty navigation preserves the original dashboard, folds legacy views and t
   await page.locator('#focusAgent').click();
   await expect(page.locator('.agent-panel')).toBeVisible();
   await page.locator('#autosystemLink').click();
-  await expect(page.locator('#toastRegion')).toContainText('Autosystem 地址尚未配置');
+  await expect(page.locator('#autosystemView')).toBeVisible();
+  await expect(page.locator('#autosystemView')).toContainText('建设中');
+  await expect(page.locator('#autosystemLink')).toHaveAttribute('aria-current','page');
+  await expect(page.locator('#capabilityView')).toBeHidden();
+  await expect(page.locator('#toastRegion')).not.toContainText('地址尚未配置');
+  await accessible(page);
+  await page.locator('[data-view="reports"]').click();
+  await expect(page.locator('#reportsView')).toBeVisible();
+  await expect(page.locator('#autosystemView')).toBeHidden();
+  await page.route('**/display_mock_data/catalog.json', route => route.fulfill({json:{autosystem_url:'/display_mock_data/reports/spc.html'}}));
+  const opened = page.waitForEvent('popup');
+  await page.locator('#autosystemLink').click();
+  const external = await opened;
+  await expect(external.locator('h1')).toHaveText('SPC 趋势报表');
+  await expect(page.locator('#reportsView')).toBeVisible();
+  await external.close();
 });
 
 test('report catalog filters and opens real report pages, with actual recent history', async ({page}) => {
