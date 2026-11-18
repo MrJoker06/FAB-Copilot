@@ -172,15 +172,15 @@ class DataReportsSystemTests(unittest.TestCase):
 
     def test_department_databases_are_physically_separated(self):
         paths = department_paths()
-        self.assertEqual(set(paths), {"main", "equipment", "quality", "knowledge", "agent"})
-        self.assertEqual(len(set(paths.values())), 5)
+        self.assertEqual(set(paths), {"main", "equipment", "quality", "knowledge", "agent", "personal"})
+        self.assertEqual(len(set(paths.values())), 6)
         self.assertTrue(all(path.exists() for path in paths.values()))
         with db_session() as connection:
             attached = {row[1] for row in connection.execute("PRAGMA database_list")}
             plan_columns = {row[1] for row in connection.execute("PRAGMA agent.table_info(agent_execution_plans)")}
             step_columns = {row[1] for row in connection.execute("PRAGMA agent.table_info(agent_plan_steps)")}
             tool_columns = {row[1] for row in connection.execute("PRAGMA agent.table_info(agent_tool_events)")}
-        self.assertTrue({"main", "equipment", "quality", "knowledge", "agent"}.issubset(attached))
+        self.assertTrue({"main", "equipment", "quality", "knowledge", "agent", "personal"}.issubset(attached))
         self.assertTrue({"plan_id", "definition_status", "execution_status"}.issubset(plan_columns))
         self.assertTrue({"step_id", "status", "attempt_count"}.issubset(step_columns))
         self.assertTrue({"plan_step_id", "started_at", "completed_at"}.issubset(tool_columns))

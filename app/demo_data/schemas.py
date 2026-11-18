@@ -7,6 +7,7 @@ from ..persistence.department_schemas import (
     SCHEMA_VERSION as SCHEMA_VERSION,
     KNOWLEDGE_SCHEMA,
     AGENT_SCHEMA,
+    PERSONAL_SCHEMA,
     TABLE_DEPARTMENTS as APPLICATION_TABLES,
 )
 
@@ -588,6 +589,7 @@ DEPARTMENT_SCHEMAS = {
     "quality": QUALITY_SCHEMA,
     "knowledge": KNOWLEDGE_SCHEMA,
     "agent": AGENT_SCHEMA,
+    "personal": PERSONAL_SCHEMA,
 }
 
 

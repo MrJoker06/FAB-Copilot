@@ -1,12 +1,14 @@
 # 当前项目精细结构快照
 
+2026-11-18 存储补充：历史 SOP/case、运行状态及个人上传索引已分库；运行状态默认在 `runtime/local/state/`，启动器使用实例 `state/`。旧布局通过显式维护迁移保留原数据，不在普通启动中悄悄迁移。见[验收报告](reports/issue-2-runtime-storage-separation.md)。
+
 2026-11-18 补充：值班助手为持续最高优先级。错误码单一描述源在 `app/agent_runtime/tools/contracts.py`，由 Dispatcher、Ready/Loop、结果回读及前端错误轨迹使用；无新增应用目录。对应表与验证见[错误码参考](error-code-reference.md)和[报告](reports/issue-1-error-standardization.md)。下方源码数量不变。
 
 当前快照：2026-11-17，`feat/pe-ee-duty-workspace`，起点为 `experiment/parallel-platform` 的 `dcca19f`。本轮优先实现 PE / EE 值班工作区，见[报告](reports/pe-ee-duty-workspace.md)；MOD-029 以 `c5312d1` 为起点完成 a～e，保留完整门既有失败，见[实施报告](reports/mod-029-tool-result-access.md)。提交及远程状态以 Git 为准。MOD-031 和此前存储拆分分别见 [031 报告](reports/mod-031-validator.md)、[存储报告](reports/persistence-demo-separation.md)，保留其历史验收限制。MOD-020～023、MOD-025～028 仍待做/暂缓，默认 HTTP 未启用 Skill，兼容 facade 与配置锚点归 MOD-027。
 
 当前实扫 `app/` 为 **324 文件：295 个 Python、29 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。
 
-2026-11-16 MOD-029 增补：独立结果库、实际聊天/后台和 Session 删除联动已接入，029e 已按基线失败子集完成验收，见[实施报告](reports/mod-029-tool-result-access.md)。默认结果库为 FAB_DATABASE_DIR/tool_results.db，后台开关跨重启保留，新 Run 生效。
+2026-11-16 MOD-029 增补：独立结果库、实际聊天/后台和 Session 删除联动已接入，029e 已按基线失败子集完成验收，见[实施报告](reports/mod-029-tool-result-access.md)。默认结果库现为 runtime/local/state/tool_results.db（Issue #2 第 4 项迁移后），可由 FAB_TOOL_RESULT_DATABASE_PATH 指定，后台开关跨重启保留，新 Run 生效。
 
 MOD-029c 增补：`app/agent_runtime/tools/result_access.py` 提供每 Run 辅助 ToolDefinition/绑定、阶段/主体检查与共享调用认领；见[报告](reports/mod-029c-result-read-tool.md)，实际接入见 MOD-029 实施报告，阶段验收完成，保留既有完整门失败。
 
@@ -315,7 +317,7 @@ HTTP 生命周期或会话存储迁入新装配。MOD-018 通过显式 Skill 配
 | `app/api/report_service.py` | 应用组合 | 看板组合调用已注册的固定报表 Tool 操作，无 SQL 或模型调用。 |
 | `app/core/report_dates.py` | 纯 | 既有报表日期默认值、范围和时间戳边界。 |
 | `app/demo_data/seed.py` | 存储 | 显式合成 FAB、参考资料与模拟种子数据。 |
-| `app/demo_data/database.py` | 演示/存储 | 五库演示组合、样例缺陷目录、旧模拟库迁移及预测窗口校验；默认应用显式选择。 |
+| `app/demo_data/database.py` | 演示/存储 | 历史/运行/个人与三业务库的演示组合、样例缺陷目录、旧模拟库迁移及预测窗口校验；默认应用显式选择。 |
 | `app/demo_data/schemas.py` | 纯/演示 | 制造、设备、质量及模拟元数据 Schema，保留旧演示单库布局。 |
 | `app/tools/enterprise_data/provider_contracts.py` | 纯 | EnterpriseDataProvider 和主体 Protocol。 |
 | `app/bootstrap/enterprise_data_assembly.py` | 装配 | 显式 Provider 注册、选择及旧 Tool 的可信上下文绑定，无合成实现。 |

@@ -56,7 +56,8 @@ def result_store():
     settings = get_settings()
     path = settings.tool_result_database_path or settings.agent_database_path.with_name("tool_results.db")
     known = (settings.database_path, settings.agent_database_path, settings.knowledge_database_path,
-             settings.manufacturing_database_path, settings.equipment_database_path, settings.quality_database_path)
+             settings.manufacturing_database_path, settings.equipment_database_path, settings.quality_database_path,
+             settings.personal_database_path or settings.agent_database_path.with_name("personal_knowledge.db"))
     if any(path.resolve() == item.resolve() or (path.exists() and item.exists() and path.samefile(item)) for item in known):
         raise ResultStoreError("RESULT_STORE_PATH_INVALID")
     store = ToolResultStore(path)

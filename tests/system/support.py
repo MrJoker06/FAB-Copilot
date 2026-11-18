@@ -2,13 +2,12 @@
 from __future__ import annotations
 
 import atexit
-from contextlib import closing
 import os
 import shutil
 import sqlite3
 import tempfile
+from contextlib import closing
 from pathlib import Path
-
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 REFERENCE_DEPARTMENTS = PROJECT_DIR / "data" / "departments"
@@ -45,8 +44,13 @@ def isolated_system_environment() -> Path:
         "FAB_AGENT_DATABASE_PATH": departments / "ai_operations.db",
     }
     try:
+        from scripts.run_browser_test_server import (
+            reference_database_path,
+            separate_snapshot_storage,
+        )
         for destination in department_paths.values():
-            _backup_database(REFERENCE_DEPARTMENTS / destination.name, destination)
+            _backup_database(reference_database_path(REFERENCE_DEPARTMENTS, destination.name), destination)
+        separate_snapshot_storage(temporary_directory, department_paths, REFERENCE_DEPARTMENTS)
         os.environ.update({
             "FAB_DATABASE_DIR": str(departments),
             "FAB_DATABASE_PATH": str(temporary_directory / "fab_history.db"),

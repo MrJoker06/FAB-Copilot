@@ -14,6 +14,7 @@ from app.demo_data.database import (
     validate_department_databases,
 )
 from app.demo_data.schemas import SCHEMA_VERSION, TABLE_DEPARTMENTS
+from app.persistence.database import separate_runtime_storage
 
 
 DEPARTMENT_NAMES = {"main": "manufacturing"}
@@ -97,13 +98,21 @@ def build_parser() -> argparse.ArgumentParser:
     backup_parser = subparsers.add_parser("backup", help="Create an online backup of all department databases")
     backup_parser.add_argument("--destination", type=Path, default=Path("backups/databases"))
     subparsers.add_parser("checkpoint", help="Checkpoint and truncate WAL files")
+    separate = subparsers.add_parser("separate-runtime", help="Offline storage separation (dry run unless --apply)")
+    separate.add_argument("--knowledge", type=Path, required=True)
+    separate.add_argument("--agent", type=Path, required=True)
+    separate.add_argument("--results", type=Path)
+    separate.add_argument("--destination", type=Path, required=True)
+    separate.add_argument("--apply", action="store_true")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
-    if args.command == "migrate":
+    if args.command == "separate-runtime":
+        output = separate_runtime_storage(args.knowledge, args.agent, args.destination, results=args.results, apply=args.apply)
+    elif args.command == "migrate":
         output = {"migrated_rows": migrate_legacy_database(force=args.force), "manifest": manifest()}
     elif args.command == "backup":
         output = backup(args.destination)

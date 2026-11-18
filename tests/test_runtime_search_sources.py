@@ -19,7 +19,7 @@ from app.tools.knowledge_search.contracts import (
     KnowledgeSearchTimeoutError,
 )
 from app.knowledge.sqlite_backend import SqliteFactorySearchBackend
-from app.persistence.department_schemas import KNOWLEDGE_SCHEMA
+from app.persistence.department_schemas import KNOWLEDGE_SCHEMA, PERSONAL_SCHEMA
 from app.demo_data.schemas import QUALITY_SCHEMA
 
 
@@ -28,6 +28,7 @@ class RuntimeSearchSourcesTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         root = Path(self.directory.name)
         self.knowledge, self.quality = root / "knowledge.db", root / "quality.db"
+        self.personal = root / "personal.db"
         self._knowledge_fixture()
         connection = sqlite3.connect(self.quality)
         connection.executescript(QUALITY_SCHEMA)
@@ -43,6 +44,7 @@ class RuntimeSearchSourcesTests(unittest.TestCase):
             factory_search_backend="sqlite",
             enterprise_default_tenant_id="demo",
             knowledge_database_path=self.knowledge,
+            personal_database_path=self.personal,
             quality_database_path=self.quality,
         )
         self.principal = SimpleNamespace(
@@ -64,6 +66,10 @@ class RuntimeSearchSourcesTests(unittest.TestCase):
         connection.execute(
             "INSERT INTO knowledge_trigram_fts(rowid,title,section,content) VALUES(1,'Particle SOP','guide','LITHO particle control')"
         )
+        connection.commit()
+        connection.close()
+        connection = sqlite3.connect(self.personal)
+        connection.executescript(PERSONAL_SCHEMA)
         connection.execute(
             """INSERT INTO personal_knowledge_documents VALUES('doc','alice','a.txt','Private SOP','text/plain',1,'x','[\"LITHO\"]','[]',NULL,'[\"particles\"]','user','ready','x','v',NULL,NULL,'i','2026','2026')"""
         )
@@ -122,7 +128,7 @@ class RuntimeSearchSourcesTests(unittest.TestCase):
 
     def test_non_default_tenant_personal_owner_is_isolated(self) -> None:
         foreign_owner = "other:alice"
-        connection = sqlite3.connect(self.knowledge)
+        connection = sqlite3.connect(self.personal)
         connection.execute(
             "INSERT INTO personal_knowledge_documents VALUES(?, ?, 'b.txt', 'Other SOP', "
             "'text/plain', 1, 'x', '[]', '[]', NULL, '[\"particles\"]', 'user', "
@@ -181,6 +187,7 @@ class RuntimeSearchSourcesTests(unittest.TestCase):
             factory_search_backend="company",
             enterprise_default_tenant_id="demo",
             knowledge_database_path=self.knowledge,
+            personal_database_path=self.personal,
             quality_database_path=self.quality,
         )
         with patch(
@@ -217,6 +224,7 @@ class RuntimeSearchSourcesTests(unittest.TestCase):
             factory_search_backend="company",
             enterprise_default_tenant_id="demo",
             knowledge_database_path=self.knowledge,
+            personal_database_path=self.personal,
             quality_database_path=self.quality,
         )
         with (

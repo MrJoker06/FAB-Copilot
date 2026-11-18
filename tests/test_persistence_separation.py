@@ -37,6 +37,7 @@ def storage_environment(root: Path) -> dict[str, str]:
         "FAB_QUALITY_DATABASE_PATH": str(root / "quality.db"),
         "FAB_KNOWLEDGE_DATABASE_PATH": str(root / "knowledge.db"),
         "FAB_AGENT_DATABASE_PATH": str(root / "agent.db"),
+        "FAB_PERSONAL_DATABASE_PATH": str(root / "personal_knowledge.db"),
     }
 
 
@@ -83,7 +84,7 @@ class PersistenceSeparationTests(unittest.TestCase):
             root = Path(raw)
             database.initialize()
             self.assertEqual(
-                {p.name for p in root.glob("*.db")}, {"agent.db", "knowledge.db"}
+                {p.name for p in root.glob("*.db")}, {"agent.db", "knowledge.db", "personal_knowledge.db"}
             )
             with database.db_session() as connection:
                 names = {
@@ -276,7 +277,7 @@ print(json.dumps({'module': str(Path(database.__file__).resolve()), 'status': 'P
             self.assertTrue(Path(payload["module"]).is_relative_to(purelib))
             self.assertEqual(
                 {p.name for p in (root / "state").glob("*.db")},
-                {"knowledge.db", "agent.db"},
+                {"knowledge.db", "agent.db", "personal_knowledge.db"},
             )
 
     def test_installed_runtime_and_storage_survive_a_real_process_restart(self):

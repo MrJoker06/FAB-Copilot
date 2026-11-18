@@ -18,6 +18,7 @@ class PrepareCiDataTests(unittest.TestCase):
                 "equipment": {"quick_check": "ok", "tables": {"sensor_readings": 1_000_000}},
                 "quality": {"quick_check": "ok", "tables": {}},
                 "knowledge": {"quick_check": "ok", "tables": {}},
+                "personal": {"quick_check": "ok", "tables": {}},
                 "agent": {"quick_check": "ok", "tables": {}},
             },
             "governance": {

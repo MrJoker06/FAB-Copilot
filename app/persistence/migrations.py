@@ -217,7 +217,6 @@ def _migrate_personal_knowledge_tags_source(connection: sqlite3.Connection) -> N
 
 
 def migrate_knowledge(connection: sqlite3.Connection) -> None:
-    _migrate_personal_knowledge_tags_source(connection)
     columns = {
         row[1] for row in connection.execute("PRAGMA table_info(historical_cases)")
     }

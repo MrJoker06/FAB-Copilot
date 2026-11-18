@@ -24,14 +24,15 @@ EXPECTED_DEPARTMENT_PATHS = {
     "equipment": PROJECT_DIR / "data" / "departments" / "equipment_engineering.db",
     "quality": PROJECT_DIR / "data" / "departments" / "yield_quality.db",
     "knowledge": PROJECT_DIR / "data" / "departments" / "process_knowledge.db",
-    "agent": PROJECT_DIR / "data" / "departments" / "ai_operations.db",
+    "agent": PROJECT_DIR / "runtime" / "local" / "state" / "ai_operations.db",
+    "personal": PROJECT_DIR / "runtime" / "local" / "state" / "personal_knowledge.db",
 }
 DATABASE_PATH_ENVIRONMENT = (
     "FAB_DATABASE_PATH", "FAB_DATABASE_DIR", "FAB_MANUFACTURING_DATABASE_PATH",
     "FAB_EQUIPMENT_DATABASE_PATH", "FAB_QUALITY_DATABASE_PATH", "FAB_KNOWLEDGE_DATABASE_PATH",
-    "FAB_AGENT_DATABASE_PATH",
+    "FAB_AGENT_DATABASE_PATH", "FAB_PERSONAL_DATABASE_PATH", "FAB_RUNTIME_DATABASE_DIR", "FAB_TOOL_RESULT_DATABASE_PATH",
 )
-REQUIRED_MANIFEST_DEPARTMENTS = ("manufacturing", "equipment", "quality", "knowledge", "agent")
+REQUIRED_MANIFEST_DEPARTMENTS = ("manufacturing", "equipment", "quality", "knowledge", "agent", "personal")
 REQUIRED_BEYOND_HORIZON_KEYS = (
     "beyond_horizon_lots", "beyond_horizon_process_runs", "beyond_horizon_sensor_readings",
     "beyond_horizon_equipment_state_intervals", "beyond_horizon_equipment_events",
@@ -56,7 +57,7 @@ def reject_database_path_overrides(environ: dict[str, str] | None = None) -> Non
     if configured:
         raise RuntimeError("CI bootstrap rejects FAB database path overrides: " + ", ".join(configured))
     if department_paths() != EXPECTED_DEPARTMENT_PATHS:
-        raise RuntimeError("CI bootstrap database paths must be the five default data/departments files")
+        raise RuntimeError("CI bootstrap database paths must be the default history/demo and runtime/state files")
 
 
 def reject_existing_reference_databases(paths: tuple[Path, ...] | None = None) -> None:

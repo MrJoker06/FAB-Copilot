@@ -92,6 +92,7 @@ def department_paths() -> dict[str, Path]:
         "quality": settings.quality_database_path,
         "knowledge": settings.knowledge_database_path,
         "agent": settings.agent_database_path,
+        "personal": settings.personal_database_path or settings.agent_database_path.with_name("personal_knowledge.db"),
     }
 
 
@@ -107,7 +108,7 @@ def _initialize_legacy(path: Path) -> None:
     connection = _connect_single(path)
     try:
         connection.execute(f"PRAGMA journal_mode={sqlite_journal_mode(path)}")
-        connection.executescript(SCHEMA)
+        connection.executescript(SCHEMA + DEPARTMENT_SCHEMAS["personal"])
         _migrate_personal_knowledge_tags_source(connection)
         existing_columns = {
             row[1] for row in connection.execute("PRAGMA table_info(historical_cases)")
@@ -170,7 +171,7 @@ def _initialize_departments() -> None:
     application_storage.initialize()
     paths = department_paths()
     for department, path in paths.items():
-        if department in {"knowledge", "agent"}:
+        if department in {"knowledge", "agent", "personal"}:
             continue
         connection = _connect_single(path)
         try:
@@ -192,10 +193,11 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     if path is not None:
         return _connect_single(path)
     paths = department_paths()
+    application_storage.validate_layout(paths)
     if any(not item.exists() for item in paths.values()):
         _initialize_departments()
     connection = _connect_single(paths["main"])
-    for department in ("equipment", "quality", "knowledge", "agent"):
+    for department in ("equipment", "quality", "knowledge", "agent", "personal"):
         connection.execute(
             f"ATTACH DATABASE ? AS {department}", (str(paths[department]),)
         )
@@ -229,6 +231,7 @@ def migrate_legacy_database(
         "quality": "quality",
         "knowledge": "knowledge",
         "agent": "agent",
+        "personal": "personal",
     }
     connection = _connect_single(source_path)
     try:
@@ -309,6 +312,13 @@ def migrate_legacy_database(
         connection.execute(
             "INSERT INTO knowledge.case_trigram_fts(case_trigram_fts) VALUES ('rebuild')"
         )
+        connection.execute("DELETE FROM personal.personal_knowledge_fts")
+        connection.execute(
+            """INSERT INTO personal.personal_knowledge_fts(title, section_path, content, owner_user_id, document_id, chunk_id)
+               SELECT d.title, c.section_path, c.content, c.owner_user_id, c.document_id, c.chunk_id
+               FROM personal.personal_knowledge_chunks c
+               JOIN personal.personal_knowledge_documents d ON d.document_id = c.document_id"""
+        )
         connection.commit()
         return counts
     finally:
@@ -382,7 +392,7 @@ def validate_department_databases() -> dict[str, int | str]:
             ).fetchone()[0],
             "personal_knowledge_fts_delta": connection.execute(
                 "SELECT ABS((SELECT COUNT(*) FROM personal_knowledge_chunks) - "
-                "(SELECT COUNT(*) FROM knowledge.personal_knowledge_fts))"
+                "(SELECT COUNT(*) FROM personal.personal_knowledge_fts))"
             ).fetchone()[0],
         }
         for table, timestamp_column in (

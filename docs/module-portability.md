@@ -125,7 +125,7 @@ python scripts/build_portable_unit.py --verify
 
 `application_storage` 交付独立结果库；与 `tool_sources` 组合时，支持宿主显式装配的运行结果保存及辅助回读。跨进程保存、游标续读、撤销及导入来源的仓库外证据见 [MOD-029 报告](reports/mod-029-tool-result-access.md)。这些制品不包含业务数据或已有会话数据库。
 
-结果库默认是 `FAB_DATABASE_DIR/tool_results.db`，可用 `FAB_TOOL_RESULT_DATABASE_PATH` 指定。迁移已有会话结果时，应在停止相关运行的维护窗口配套处理会话主库与结果库，保留原主体/Session 归属；不能只搬主库后宣称旧引用仍可读取。当前 `scripts/manage_databases.py` 的五部门库备份流程未自动纳入该独立结果库。空间复用、可选压缩及失败恢复限制见实施报告。
+结果库默认是 `runtime/local/state/tool_results.db`（显式指定 agent 路径时，默认与其同目录），可用 `FAB_TOOL_RESULT_DATABASE_PATH` 指定。迁移已有会话结果时，应在停止相关运行的维护窗口配套处理会话主库与结果库，保留原主体/Session 归属；不能只搬主库后宣称旧引用仍可读取。当前通用部门备份覆盖历史、运行、个人及三个业务库，仍未自动纳入独立结果库；`separate-runtime --results` 可在停服时将结果与会话配套迁移。详见[存储分离报告](reports/issue-2-runtime-storage-separation.md)。空间复用、可选压缩及失败恢复限制见实施报告。
 
 ## decision_core 1.0.1 增量（历史记录）
 

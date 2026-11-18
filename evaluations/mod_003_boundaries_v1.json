@@ -2555,11 +2555,12 @@
         "knowledge.case_trigram_fts",
         "knowledge.historical_cases",
         "knowledge.knowledge_trigram_fts",
-        "knowledge.personal_knowledge_fts",
         "knowledge_chunks",
         "lots",
         "manufacturing.lots",
         "manufacturing.process_runs",
+        "personal.personal_knowledge_chunks",
+        "personal.personal_knowledge_fts",
         "personal_knowledge_chunks",
         "quality.defect_records",
         "quality.defect_types",
@@ -2670,10 +2671,16 @@
         "connect",
         "connection.execute",
         "connection.executescript",
-        "initialize"
+        "initialize",
+        "original.execute",
+        "personal.execute",
+        "personal.executemany",
+        "sqlite3.connect"
       ],
       "table_hints": [
-        "schema_migrations"
+        "personal_knowledge_documents",
+        "schema_migrations",
+        "sqlite_master"
       ],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
@@ -2741,7 +2748,7 @@
         "deps.db_session"
       ],
       "table_hints": [
-        "knowledge.personal_knowledge_fts",
+        "personal.personal_knowledge_fts",
         "personal_knowledge_chunks",
         "personal_knowledge_documents"
       ],
@@ -2755,10 +2762,10 @@
         "db_session"
       ],
       "table_hints": [
-        "knowledge.personal_knowledge_chunks",
-        "knowledge.personal_knowledge_documents",
-        "knowledge.personal_knowledge_fts",
-        "knowledge.personal_knowledge_jobs",
+        "personal.personal_knowledge_chunks",
+        "personal.personal_knowledge_documents",
+        "personal.personal_knowledge_fts",
+        "personal.personal_knowledge_jobs",
         "personal_knowledge_documents"
       ],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
@@ -2771,9 +2778,9 @@
         "db_session"
       ],
       "table_hints": [
-        "knowledge.personal_knowledge_documents",
-        "knowledge.personal_knowledge_fts",
-        "knowledge.personal_knowledge_jobs",
+        "personal.personal_knowledge_documents",
+        "personal.personal_knowledge_fts",
+        "personal.personal_knowledge_jobs",
         "personal_knowledge_documents",
         "personal_knowledge_jobs"
       ],

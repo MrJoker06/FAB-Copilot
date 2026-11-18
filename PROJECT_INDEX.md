@@ -3,6 +3,7 @@
 - 分类：agents
 - 简述：面向 PE / EE 值班工程师的助手；提供基础报表、SOP&历史case、Autosystem 入口，保留多制程分析、历史会话、RAG 与流式工具调用。
 - 持续优先级（2026-11-18）：后续优化首先服务 PE / EE 值班助手。GitHub #1 错误码收尾见[错误码参考](docs/error-code-reference.md)和[验收报告](docs/reports/issue-1-error-standardization.md)；Guardrail 仍由 #3 跟踪。
+- 存储治理（2026-11-18）：Issue #2 第 4 项实现历史 SOP/case、个人上传状态/索引与运行状态分库；运行默认 `runtime/local/state/`，隔离实例用 `state/`，旧数据通过显式停服迁移保留，见[报告](docs/reports/issue-2-runtime-storage-separation.md)。未自动迁移其他实例或公司环境。
 - 主要入口：`app/main.py`, `app/agent_runtime/service.py`, `app/agent_runtime/tools/`, `app/core/settings.py`, `app/core/identity.py`, `app/personal_knowledge_runtime/service.py`, `app/model_gateway/streaming.py`, `app/intent_runtime/`, `app/planning_runtime/`, `app/planning_runtime/playbooks.py`, `app/persistence/database.py`, `app/telemetry/audit.py`, `app/conversation/sessions.py`, `app/agent_runtime/execution/loop_guard.py`, `app/knowledge/rag.py`, `app/evidence/validator.py`, `run.py`（跨平台隔离启动器）, `run.sh`, `run.bat`；`app/` 根目录仅保留包锚点与 HTTP 入口，内部代码只使用领域 canonical 路径
 - 关键目录：`app/`, `app/tools/`, `app/demo_data/`, `app/persistence/`, `app/telemetry/`, `app/model_gateway/`, `app/conversation/`, `app/agent_runtime/`, `app/knowledge/`（RAG、OCR、检索决策）, `app/evidence/`（语义、验证、答案综合）, `app/static/`, `knowledge/`, `cases/`, `evaluations/`, `scripts/`, `data/`, `tests/`
 - 环境变量：`DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL`, `FAB_DATABASE_PATH`, `FAB_DATABASE_DIR`, `API_TIMEOUT_MS`, `AGENT_LOG_PATH`, `AGENT_RUN_LOG_DIR`, `AGENT_LOG_MAX_BYTES`, `AGENT_LOG_BACKUP_COUNT`
@@ -26,4 +27,4 @@
 
 - TODO 维护：当前待办见 [TODO](TODO.md)；完成任务的定义和验收统一由[完成索引](docs/todos/completed.md)链接至归档，历史施工顺序见[执行历史](docs/todos/execution-history.md)。核心清单不再展开已完成任务，产品统计仍为 228/183/45。
 
-- 存储拆分：`app/persistence` 只管理通用连接、应用状态 Schema/迁移和执行记录；五库演示组合、样例目录及模拟 Schema 归 `app/demo_data`，默认装配显式选择。当前 12 文件 `application_storage` 仓库外安装切片；边界与验证限制见[报告](docs/reports/persistence-demo-separation.md)。
+- 存储拆分：`app/persistence` 只管理通用连接、应用状态 Schema/迁移和执行记录；历史/运行/个人与三个业务库的演示组合、样例目录及模拟 Schema 归 `app/demo_data`，默认装配显式选择。当前 12 文件 `application_storage` 仓库外安装切片；边界与验证限制见[报告](docs/reports/persistence-demo-separation.md)。

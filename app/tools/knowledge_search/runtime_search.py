@@ -21,7 +21,7 @@ from app.personal_knowledge_runtime.search import fts_query, search_knowledge
 from app.tools.knowledge_search.backend_search import BackendKnowledgeSearchAdapter
 
 
-def _readonly_session(knowledge_path: object, *, query_timeout_ms: int = 2_000):
+def _readonly_session(knowledge_path: object, *, query_timeout_ms: int = 2_000, alias: str = "knowledge"):
     knowledge = Path(knowledge_path) if knowledge_path else None
 
     @contextmanager
@@ -37,7 +37,7 @@ def _readonly_session(knowledge_path: object, *, query_timeout_ms: int = 2_000):
             connection.execute("PRAGMA busy_timeout = 500")
             try:
                 connection.execute(
-                    "ATTACH DATABASE ? AS knowledge",
+                    f"ATTACH DATABASE ? AS {alias}",
                     (knowledge.resolve().as_uri() + "?mode=ro",),
                 )
             except sqlite3.OperationalError:
@@ -45,7 +45,7 @@ def _readonly_session(knowledge_path: object, *, query_timeout_ms: int = 2_000):
                 # ATTACH DATABASE and reject the file:// URI.  Fall back to a
                 # plain attach; PRAGMA query_only below keeps the source read-only.
                 connection.execute(
-                    "ATTACH DATABASE ? AS knowledge",
+                    f"ATTACH DATABASE ? AS {alias}",
                     (str(knowledge.resolve()),),
                 )
             connection.execute("PRAGMA query_only = ON")
@@ -191,7 +191,7 @@ def create_runtime_knowledge_port(*, settings: object, principal: object):
             if principal.tenant_id == default_tenant
             else f"{principal.tenant_id}:{principal.user_id}"
         )
-        personal = _PersonalPort(session, owner)
+        personal = _PersonalPort(_readonly_session(getattr(settings, "personal_database_path", None), alias="personal"), owner)
         factory_source_kind = ToolSourceKind.SQLITE
     else:
         factory = get_factory_search_backend(name)
@@ -201,7 +201,7 @@ def create_runtime_knowledge_port(*, settings: object, principal: object):
             if principal.tenant_id == default_tenant
             else f"{principal.tenant_id}:{principal.user_id}"
         )
-        personal = _PersonalPort(session, owner)
+        personal = _PersonalPort(_readonly_session(getattr(settings, "personal_database_path", None), alias="personal"), owner)
         factory_source_kind = getattr(factory, "tool_source_kind", None)
         if not isinstance(factory_source_kind, ToolSourceKind):
             raise ValueError(

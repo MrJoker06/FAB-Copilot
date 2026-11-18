@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 
 SESSION_RESULT_DELETION_SCHEMA = """
 CREATE TABLE IF NOT EXISTS session_result_deletions (
@@ -85,6 +85,13 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_source ON knowledge_chunks(sourc
 CREATE INDEX IF NOT EXISTS idx_cases_step_date ON historical_cases(process_step, occurred_date);
 CREATE INDEX IF NOT EXISTS idx_cases_governance ON historical_cases(case_status, process_step, defect_type);
 
+"""
+)
+
+
+PERSONAL_SCHEMA = (
+    SCHEMA_METADATA
+    + """
 CREATE TABLE IF NOT EXISTS personal_knowledge_documents (
     document_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL,
@@ -324,15 +331,15 @@ CREATE INDEX IF NOT EXISTS idx_message_sources_message ON message_sources(messag
 
 AGENT_SCHEMA += SESSION_RESULT_DELETION_SCHEMA
 
-DEPARTMENT_SCHEMAS = {"knowledge": KNOWLEDGE_SCHEMA, "agent": AGENT_SCHEMA}
+DEPARTMENT_SCHEMAS = {"knowledge": KNOWLEDGE_SCHEMA, "agent": AGENT_SCHEMA, "personal": PERSONAL_SCHEMA}
 
 TABLE_DEPARTMENTS = {
     "knowledge_documents": "knowledge",
     "knowledge_chunks": "knowledge",
     "historical_cases": "knowledge",
-    "personal_knowledge_documents": "knowledge",
-    "personal_knowledge_chunks": "knowledge",
-    "personal_knowledge_jobs": "knowledge",
+    "personal_knowledge_documents": "personal",
+    "personal_knowledge_chunks": "personal",
+    "personal_knowledge_jobs": "personal",
     "model_catalog": "agent",
     "model_health": "agent",
     "user_model_preferences": "agent",

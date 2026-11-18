@@ -175,7 +175,7 @@ class KnowledgeUploadsSystemTests(unittest.TestCase):
             # must survive a fresh extraction and index rebuild.
             with db_session() as connection:
                 connection.execute(
-                    """UPDATE knowledge.personal_knowledge_documents
+                    """UPDATE personal.personal_knowledge_documents
                        SET status = 'failed', error_code = 'INGESTION_FAILED'
                        WHERE document_id = ?""",
                     (document_id,),

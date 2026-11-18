@@ -130,7 +130,7 @@ def create_upload(
     try:
         with db_session() as connection:
             connection.execute(
-                """INSERT INTO knowledge.personal_knowledge_documents(
+                """INSERT INTO personal.personal_knowledge_documents(
                        document_id, owner_user_id, filename, title, mime_type, size_bytes,
                        checksum_sha256, process_steps_json, equipment_ids_json, effective_date,
                        tags_json, tags_source, status, storage_key, parser_version, idempotency_key,
@@ -145,7 +145,7 @@ def create_upload(
                 ),
             )
             connection.execute(
-                """INSERT INTO knowledge.personal_knowledge_jobs(
+                """INSERT INTO personal.personal_knowledge_jobs(
                        job_id, document_id, owner_user_id, status, stage, progress, attempt,
                        created_at, updated_at
                    ) VALUES (?, ?, ?, 'uploaded', 'queued', 0, 1, ?, ?)""",
@@ -241,15 +241,15 @@ def process_document(
         timestamp = _now()
         with db_session() as connection:
             connection.execute(
-                "DELETE FROM knowledge.personal_knowledge_fts WHERE document_id = ?", (document_id,)
+                "DELETE FROM personal.personal_knowledge_fts WHERE document_id = ?", (document_id,)
             )
             connection.execute(
-                "DELETE FROM knowledge.personal_knowledge_chunks WHERE document_id = ?", (document_id,)
+                "DELETE FROM personal.personal_knowledge_chunks WHERE document_id = ?", (document_id,)
             )
             for index, (page_number, section_path, content) in enumerate(chunks):
                 chunk_id = str(uuid.uuid4())
                 cursor = connection.execute(
-                    """INSERT INTO knowledge.personal_knowledge_chunks(
+                    """INSERT INTO personal.personal_knowledge_chunks(
                            chunk_id, document_id, owner_user_id, page_number, section_path,
                            chunk_index, content, token_count, created_at
                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -259,13 +259,13 @@ def process_document(
                     ),
                 )
                 connection.execute(
-                    """INSERT INTO knowledge.personal_knowledge_fts(
+                    """INSERT INTO personal.personal_knowledge_fts(
                            rowid, title, section_path, content, owner_user_id, document_id, chunk_id
                        ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
                     (cursor.lastrowid, document["title"], section_path, content, owner_user_id, document_id, chunk_id),
                 )
             connection.execute(
-                """UPDATE knowledge.personal_knowledge_documents
+                """UPDATE personal.personal_knowledge_documents
                    SET status = 'ready', error_code = NULL, error_message = NULL,
                        tags_json = CASE WHEN tags_source = 'auto' THEN ? ELSE tags_json END,
                        updated_at = ?
@@ -273,7 +273,7 @@ def process_document(
                 (json.dumps(automatic_tags, ensure_ascii=False), timestamp, document_id, owner_user_id),
             )
             connection.execute(
-                """UPDATE knowledge.personal_knowledge_jobs
+                """UPDATE personal.personal_knowledge_jobs
                    SET status = 'ready', stage = 'ready', progress = 100, error_code = NULL,
                        error_message = NULL, retryable = 0, updated_at = ?
                    WHERE job_id = ? AND owner_user_id = ?""",

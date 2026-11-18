@@ -56,7 +56,7 @@ class PersonalKnowledgeTagTests(unittest.TestCase):
     def test_search_uses_exact_tag_elements_before_fts(self):
         connection = sqlite3.connect(":memory:")
         connection.row_factory = sqlite3.Row
-        connection.execute("ATTACH DATABASE ':memory:' AS knowledge")
+        connection.execute("ATTACH DATABASE ':memory:' AS personal")
         connection.executescript("""
             CREATE TABLE personal_knowledge_documents (
                 document_id TEXT PRIMARY KEY, owner_user_id TEXT, title TEXT, filename TEXT,
@@ -68,7 +68,7 @@ class PersonalKnowledgeTagTests(unittest.TestCase):
                 page_number INTEGER, chunk_index INTEGER, content TEXT
             );
         """)
-        connection.execute("""CREATE VIRTUAL TABLE knowledge.personal_knowledge_fts USING fts5(
+        connection.execute("""CREATE VIRTUAL TABLE personal.personal_knowledge_fts USING fts5(
             title, section_path, content, owner_user_id UNINDEXED, document_id UNINDEXED,
             chunk_id UNINDEXED, tokenize='trigram')""")
         documents = [
@@ -84,7 +84,7 @@ class PersonalKnowledgeTagTests(unittest.TestCase):
                 (f"chunk-{document_id}", document_id, owner, "body", None, 0, "needle" if document_id == "d2" else "plain"),
             )
             connection.execute(
-                "INSERT INTO knowledge.personal_knowledge_fts "
+                "INSERT INTO personal.personal_knowledge_fts "
                 "(title, section_path, content, owner_user_id, document_id, chunk_id) VALUES (?, ?, ?, ?, ?, ?)",
                 ("plain", "body", "needle" if document_id == "d2" else "plain", owner, document_id, f"chunk-{document_id}"),
             )

@@ -105,6 +105,7 @@ class Settings:
     # defaulted so explicitly constructed settings snapshots stay valid.
     chat_template_compat: str | None = None
     tool_result_database_path: Path | None = None
+    personal_database_path: Path | None = None
 
 
 def get_settings() -> Settings:
@@ -121,6 +122,17 @@ def get_settings() -> Settings:
         value = os.getenv(variable)
         path = Path(value) if value else database_dir / filename
         return path if path.is_absolute() else PROJECT_DIR / path
+
+    runtime_dir = Path(os.getenv("FAB_RUNTIME_DATABASE_DIR", "runtime/local/state"))
+    if not runtime_dir.is_absolute():
+        runtime_dir = PROJECT_DIR / runtime_dir
+
+    def runtime_path(variable: str, filename: str) -> Path:
+        value = os.getenv(variable)
+        path = Path(value) if value else runtime_dir / filename
+        return path if path.is_absolute() else PROJECT_DIR / path
+
+    agent_path = runtime_path("FAB_AGENT_DATABASE_PATH", "ai_operations.db")
     generic_model = os.getenv("FAB_MODEL_NAME")
     legacy_model = os.getenv("DEEPSEEK_MODEL", "")
     if generic_model is not None:
@@ -153,7 +165,7 @@ def get_settings() -> Settings:
         equipment_database_path=department_path("FAB_EQUIPMENT_DATABASE_PATH", "equipment_engineering.db"),
         quality_database_path=department_path("FAB_QUALITY_DATABASE_PATH", "yield_quality.db"),
         knowledge_database_path=department_path("FAB_KNOWLEDGE_DATABASE_PATH", "process_knowledge.db"),
-        agent_database_path=department_path("FAB_AGENT_DATABASE_PATH", "ai_operations.db"),
+        agent_database_path=agent_path,
         model_connection=connection,
         api_timeout_seconds=float(os.getenv("API_TIMEOUT_MS", "60000")) / 1000,
         model_context_timeout_seconds=max(1.0, min(float(os.getenv("MODEL_CONTEXT_TIMEOUT_MS", "15000")) / 1000, 60.0)),
@@ -184,5 +196,6 @@ def get_settings() -> Settings:
         or "fab-insight-local-demo-secret",
         admin_api_token=os.getenv("FAB_ADMIN_API_TOKEN", "").strip(),
         chat_template_compat=os.getenv("FAB_CHAT_TEMPLATE_COMPAT", "").strip() or None,
-        tool_result_database_path=department_path("FAB_TOOL_RESULT_DATABASE_PATH", "tool_results.db"),
+        tool_result_database_path=runtime_path("FAB_TOOL_RESULT_DATABASE_PATH", "tool_results.db") if os.getenv("FAB_TOOL_RESULT_DATABASE_PATH") else agent_path.with_name("tool_results.db"),
+        personal_database_path=runtime_path("FAB_PERSONAL_DATABASE_PATH", "personal_knowledge.db") if os.getenv("FAB_PERSONAL_DATABASE_PATH") else agent_path.with_name("personal_knowledge.db"),
     )

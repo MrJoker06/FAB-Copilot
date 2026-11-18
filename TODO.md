@@ -6,6 +6,8 @@
 
 ## 当前安排
 
+2026-11-18 单项更新：GitHub #2 第 4 项按“完整分离”实现，运行状态默认进入 `runtime`，个人上传状态/索引与历史 SOP/case 分库；旧数据使用带备份的显式维护入口，见[报告](docs/reports/issue-2-runtime-storage-separation.md)。不因此完成 MOD-025 或关闭整个 #2，既有产品统计不变。
+
 2026-11-18 用户确认：值班助手是后续持续优化的最高优先级，不仅是页面调整。本轮完成 GitHub #1 剩余的错误码对应、分类处理和 Tool 失败展示，见[错误码参考](docs/error-code-reference.md)及[验收报告](docs/reports/issue-1-error-standardization.md)。#1 的 Guardrail 已转移至 #3，仍未实现；#2、#3 与其他暂缓项不随本轮完成。
 
 2026-11-17 用户最高优先级：PE / EE 值班工作区与根目录 `display_mock_data/` 展示资料已在 `feat/pe-ee-duty-workspace`（起点 `dcca19f`）完成，并追加报表目录管理、共享上传与原案例入口合并；验收与限制见[报告](docs/reports/pe-ee-duty-workspace.md)。不自动启动其他 MOD 或企业级任务，产品任务统计口径不变。

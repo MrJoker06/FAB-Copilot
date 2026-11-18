@@ -16,6 +16,26 @@ PROJECT_DIR = Path(__file__).resolve().parents[1]
 
 
 class StartupScriptTests(unittest.TestCase):
+    def test_storage_maintenance_uses_instance_state_without_starting_server(self):
+        instance = self.root / "runtime" / "maintenance"
+        legacy = instance / "data" / "departments"
+        legacy.mkdir(parents=True)
+        (legacy / "tool_results.db").touch()
+        with (
+            mock.patch.object(run, "PROJECT", self.repo),
+            mock.patch.dict(os.environ, {"FAB_INSTANCE_ROOT": str(instance)}, clear=True),
+            mock.patch.object(run, "_run_child", return_value=0) as child,
+        ):
+            self.assertEqual(run.main(["--source-mode", "worktree", "--migrate-storage"]), 0)
+        child.assert_called_once()
+        command, _, environment = child.call_args.args
+        self.assertIn("separate-runtime", command)
+        self.assertIn(str(legacy / "tool_results.db"), command)
+        self.assertIn(str(instance / "state"), command)
+        self.assertEqual(environment["FAB_AGENT_DATABASE_PATH"], str(instance / "state" / "ai_operations.db"))
+        self.assertEqual(environment["FAB_PERSONAL_DATABASE_PATH"], str(instance / "state" / "personal_knowledge.db"))
+        self.assertEqual(environment["FAB_TOOL_RESULT_DATABASE_PATH"], str(instance / "state" / "tool_results.db"))
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)

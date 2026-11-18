@@ -11,10 +11,10 @@ from pathlib import Path
 
 try:
     from live_e2e import load_live_catalog_model, require_live_authorization, scan_isolated_artifacts
-    from run_browser_test_server import DEPARTMENT_DATABASES, PROJECT_DIR, REFERENCE_DEPARTMENTS, backup_database, parse_port, run_server
+    from run_browser_test_server import reference_database_path, separate_snapshot_storage, DEPARTMENT_DATABASES, PROJECT_DIR, REFERENCE_DEPARTMENTS, backup_database, parse_port, run_server
 except ModuleNotFoundError:
     from scripts.live_e2e import load_live_catalog_model, require_live_authorization, scan_isolated_artifacts
-    from scripts.run_browser_test_server import DEPARTMENT_DATABASES, PROJECT_DIR, REFERENCE_DEPARTMENTS, backup_database, parse_port, run_server
+    from scripts.run_browser_test_server import reference_database_path, separate_snapshot_storage, DEPARTMENT_DATABASES, PROJECT_DIR, REFERENCE_DEPARTMENTS, backup_database, parse_port, run_server
 
 
 _EXACT_SECRET_ENVIRONMENT_NAMES = frozenset({
@@ -43,7 +43,8 @@ def live_browser_environment(root: Path, environ: dict[str, str] | None = None) 
     departments = root / "departments"
     snapshots = {key: departments / name for key, name in DEPARTMENT_DATABASES.items()}
     for destination in snapshots.values():
-        backup_database(REFERENCE_DEPARTMENTS / destination.name, destination)
+        backup_database(reference_database_path(REFERENCE_DEPARTMENTS, destination.name), destination)
+    separate_snapshot_storage(root, snapshots, REFERENCE_DEPARTMENTS)
     model = load_live_catalog_model(snapshots["FAB_AGENT_DATABASE_PATH"], model_id, ("streaming", "thinking"))
     key = environment.get("FAB_MODEL_API_KEY") or environment.get("DEEPSEEK_API_KEY") or ""
     safe = {name: value for name, value in environment.items() if not is_secret_environment_name(name)}

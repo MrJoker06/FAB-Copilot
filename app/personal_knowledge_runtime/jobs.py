@@ -57,13 +57,13 @@ def update_progress(
     timestamp = now()
     with db_session() as connection:
         connection.execute(
-            """UPDATE knowledge.personal_knowledge_documents
+            """UPDATE personal.personal_knowledge_documents
                SET status = ?, error_code = NULL, error_message = NULL, updated_at = ?
                WHERE document_id = ? AND owner_user_id = ?""",
             (status, timestamp, document_id, owner_user_id),
         )
         connection.execute(
-            """UPDATE knowledge.personal_knowledge_jobs
+            """UPDATE personal.personal_knowledge_jobs
                SET status = ?, stage = ?, progress = ?, error_code = NULL,
                    error_message = NULL, retryable = 0, updated_at = ?
                WHERE job_id = ? AND owner_user_id = ?""",
@@ -86,13 +86,13 @@ def mark_failed(
     timestamp = now()
     with db_session() as connection:
         connection.execute(
-            """UPDATE knowledge.personal_knowledge_documents
+            """UPDATE personal.personal_knowledge_documents
                SET status = 'failed', error_code = ?, error_message = ?, updated_at = ?
                WHERE document_id = ? AND owner_user_id = ?""",
             (error_code, detail, timestamp, document_id, owner_user_id),
         )
         connection.execute(
-            """UPDATE knowledge.personal_knowledge_jobs
+            """UPDATE personal.personal_knowledge_jobs
                SET status = 'failed', stage = 'failed', error_code = ?, error_message = ?,
                    retryable = ?, updated_at = ?
                WHERE job_id = ? AND owner_user_id = ?""",
@@ -158,13 +158,13 @@ def retry_document(
         ).fetchone()[0]
         job_id = str(uuid.uuid4())
         connection.execute(
-            """UPDATE knowledge.personal_knowledge_documents
+            """UPDATE personal.personal_knowledge_documents
                SET status = 'uploaded', error_code = NULL, error_message = NULL, updated_at = ?
                WHERE document_id = ? AND owner_user_id = ?""",
             (timestamp, document_id, owner_user_id),
         )
         connection.execute(
-            """INSERT INTO knowledge.personal_knowledge_jobs(
+            """INSERT INTO personal.personal_knowledge_jobs(
                    job_id, document_id, owner_user_id, status, stage, progress, attempt,
                    created_at, updated_at
                ) VALUES (?, ?, ?, 'uploaded', 'queued', 0, ?, ?, ?)""",
@@ -188,12 +188,12 @@ def begin_delete(db_session: Callable, document_id: str, owner_user_id: str, *, 
         if document["status"] == "deleting":
             raise PersonalKnowledgeError(409, "INVALID_DOCUMENT_STATE", "文档已经在删除中")
         connection.execute(
-            """UPDATE knowledge.personal_knowledge_documents SET status = 'deleting', updated_at = ?
+            """UPDATE personal.personal_knowledge_documents SET status = 'deleting', updated_at = ?
                WHERE document_id = ? AND owner_user_id = ?""",
             (timestamp, document_id, owner_user_id),
         )
         connection.execute(
-            """INSERT INTO knowledge.personal_knowledge_jobs(
+            """INSERT INTO personal.personal_knowledge_jobs(
                    job_id, document_id, owner_user_id, status, stage, progress, attempt,
                    created_at, updated_at
                ) VALUES (?, ?, ?, 'deleting', 'deleting', 0, 1, ?, ?)""",
@@ -232,17 +232,17 @@ def process_deletion(
         timestamp = now()
         with db_session() as connection:
             connection.execute(
-                """DELETE FROM knowledge.personal_knowledge_fts
+                """DELETE FROM personal.personal_knowledge_fts
                    WHERE document_id = ? AND owner_user_id = ?""",
                 (document_id, owner_user_id),
             )
             connection.execute(
-                """DELETE FROM knowledge.personal_knowledge_documents
+                """DELETE FROM personal.personal_knowledge_documents
                    WHERE document_id = ? AND owner_user_id = ?""",
                 (document_id, owner_user_id),
             )
             connection.execute(
-                """UPDATE knowledge.personal_knowledge_jobs
+                """UPDATE personal.personal_knowledge_jobs
                    SET status = 'deleted', stage = 'deleted', progress = 100, updated_at = ?
                    WHERE job_id = ? AND owner_user_id = ?""",
                 (timestamp, job_id, owner_user_id),
@@ -253,14 +253,14 @@ def process_deletion(
         timestamp = now()
         with db_session() as connection:
             connection.execute(
-                """UPDATE knowledge.personal_knowledge_documents
+                """UPDATE personal.personal_knowledge_documents
                    SET status = 'failed', error_code = 'DELETE_FAILED',
                        error_message = '个人知识文档删除失败', updated_at = ?
                    WHERE document_id = ? AND owner_user_id = ?""",
                 (timestamp, document_id, owner_user_id),
             )
             connection.execute(
-                """UPDATE knowledge.personal_knowledge_jobs
+                """UPDATE personal.personal_knowledge_jobs
                    SET status = 'failed', stage = 'failed', error_code = 'DELETE_FAILED',
                        error_message = '个人知识文档删除失败', retryable = 1, updated_at = ?
                    WHERE job_id = ? AND owner_user_id = ?""",

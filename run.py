@@ -219,7 +219,10 @@ def _environment(
             ),
             "FAB_QUALITY_DATABASE_PATH": str(departments / "yield_quality.db"),
             "FAB_KNOWLEDGE_DATABASE_PATH": str(departments / "process_knowledge.db"),
-            "FAB_AGENT_DATABASE_PATH": str(departments / "ai_operations.db"),
+            "FAB_RUNTIME_DATABASE_DIR": str(instance / "state"),
+            "FAB_AGENT_DATABASE_PATH": str(instance / "state" / "ai_operations.db"),
+            "FAB_PERSONAL_DATABASE_PATH": str(instance / "state" / "personal_knowledge.db"),
+            "FAB_TOOL_RESULT_DATABASE_PATH": str(instance / "state" / "tool_results.db"),
             "FAB_PERSONAL_KNOWLEDGE_STORAGE_PATH": str(
                 instance / "data" / "personal_knowledge"
             ),
@@ -274,6 +277,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=os.getenv("PORT", "8888"))
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--migrate-storage", action="store_true", help="Migrate this stopped instance's legacy stores and exit")
     parser.add_argument(
         "--source-mode", choices=("snapshot", "worktree"), default="snapshot"
     )
@@ -387,6 +391,15 @@ def main(argv: list[str] | None = None) -> int:
         env = _environment(
             root, instance, instance_id, source, identity, args.source_mode
         )
+        if args.migrate_storage:
+            legacy = instance / "data" / "departments"
+            command = [sys.executable, "-m", "scripts.manage_databases", "separate-runtime",
+                       "--knowledge", str(legacy / "process_knowledge.db"),
+                       "--agent", str(legacy / "ai_operations.db"),
+                       "--destination", str(instance / "state"), "--apply"]
+            if (legacy / "tool_results.db").exists():
+                command.extend(["--results", str(legacy / "tool_results.db")])
+            return _run_child(command, source, env)
         manifest.write_text(
             json.dumps(
                 {

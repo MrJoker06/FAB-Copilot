@@ -214,7 +214,7 @@ class LiveE2ETests(unittest.TestCase):
         self.assertEqual(report["fallback_count"], 1)
 
     def test_server_child_environment_keeps_only_normalized_model_key(self):
-        with tempfile.TemporaryDirectory() as temporary, patch("scripts.run_live_browser_test_server.backup_database"), patch("scripts.run_live_browser_test_server.load_live_catalog_model", return_value={"provider": "openai-compatible", "provider_model": "provider", "base_url": "https://model.test", "model_id": "live"}):
+        with tempfile.TemporaryDirectory() as temporary, patch("scripts.run_live_browser_test_server.backup_database"), patch("scripts.run_live_browser_test_server.separate_snapshot_storage"), patch("scripts.run_live_browser_test_server.load_live_catalog_model", return_value={"provider": "openai-compatible", "provider_model": "provider", "base_url": "https://model.test", "model_id": "live"}):
             environment = live_browser_environment(Path(temporary), {"FAB_LIVE_E2E_AUTHORIZED": "true", "FAB_LIVE_MODEL_ID": "live", "DEEPSEEK_API_KEY": "secret", "other_api_key": "lower-secret", "custom_Token": "mixed-secret", "API_KEY": "bare-key", "token": "bare-token", "FAB_ADMIN_API_TOKEN": "admin", "FAB_PERSONAL_KNOWLEDGE_API_TOKEN": "personal"})
         self.assertEqual(environment["FAB_MODEL_API_KEY"], "secret")
         self.assertEqual((environment["MODEL_MAX_RETRIES"], environment["MODEL_RETRY_BASE_MS"]), ("4", "1000"))

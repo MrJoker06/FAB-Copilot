@@ -289,7 +289,7 @@ Agent 不直接访问数据库连接，而是通过 `app/agent_runtime/tools/` �
 
 ## 部门数据库治理
 
-运行时使用五个物理隔离的 SQLite 数据库，默认位于 `data/departments/`：
+历史 SOP/case 与个人上传、运行状态分库。默认目录如下；使用启动器时，应用状态位于所选实例的 `runtime/<instance>/state/`，历史/模拟业务库位于该实例的 `data/departments/`：
 
 | 部门所有者 | 数据库 | 负责数据 |
 |---|---|---|
@@ -297,9 +297,21 @@ Agent 不直接访问数据库连接，而是通过 `app/agent_runtime/tools/` �
 | 设备工程 | `equipment_engineering.db` | FDC传感器、SEMI E10状态、设备事件 |
 | 良率质量 | `yield_quality.db` | 缺陷、晶圆图、缺陷标准目录与别名 |
 | 工艺知识管理 | `process_knowledge.db` | 知识文档、章节、历史案例、FTS5索引 |
-| AI运营 | `ai_operations.db` | 会话、消息、Agent运行、执行计划、步骤状态、工具事件、回答来源、模型目录、用户模型偏好 |
+| 运行状态 | `runtime/local/state/ai_operations.db` | 会话、消息、Agent运行、执行计划、步骤状态、工具事件、回答来源、模型目录、用户模型偏好 |
 
-应用连接会挂载五库并提供只读兼容视图，因此报表与受限SQL仍可使用原有表名。跨部门关系通过启动治理检查验证；各部门库内部继续使用外键和唯一约束。旧单库 `data/fab_history.db` 仅作为迁移源保留，不再承担运行写入。
+| 个人上传 | `runtime/local/state/personal_knowledge.db` | 个人上传元数据、分块、全文索引、处理任务；原始文件路径保持不变 |
+| 大结果 | `runtime/local/state/tool_results.db` | 与 Session 绑定的工具结果及回读引用，独立连接 |
+
+前四个文件仍位于 `data/departments/`。应用演示组合挂载历史、运行、个人及三个业务库并提供兼容读取视图，结果库使用独立连接。跨部门关系通过启动治理检查验证；各部门库内部继续使用外键和唯一约束。旧单库 `data/fab_history.db` 仅作为迁移源保留，不再承担运行写入。
+
+旧布局必须在停服维护窗口显式迁移，默认仅预览、不改数据：
+
+```bash
+python -m scripts.manage_databases separate-runtime --knowledge data/departments/process_knowledge.db --agent data/departments/ai_operations.db --results data/departments/tool_results.db --destination runtime/local/state
+# 核对来源后，在相同命令末尾追加 --apply；若原来没有结果库，省略 --results。
+```
+
+已有启动实例用 `FAB_INSTANCE_ROOT` 指定原实例，再运行 `run.py --migrate-storage`（开发工作树可加 `--source-mode worktree`）；迁移后用同一实例正常启动。迁移前自动备份，目标存在则拒绝覆盖；保留原模型目录和会话配置，不生成替代配置。详细路径、恢复和限制见[存储分离报告](docs/reports/issue-2-runtime-storage-separation.md)。
 
 `FAB_SQLITE_JOURNAL_MODE=auto` 会在 WSL 的 `/mnt/*` Windows 挂载盘上使用 `DELETE` journal，避免 DrvFs 不支持 WAL 共享内存锁而产生 `disk I/O error`；Linux 本地文件系统继续使用 `WAL`。也可以显式设置为 `DELETE` 或 `WAL`。
 

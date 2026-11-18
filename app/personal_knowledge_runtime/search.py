@@ -90,7 +90,7 @@ def search_knowledge(
                            d.effective_date, c.page_number,
                            snippet(personal_knowledge_fts, 2, '[', ']', '…', 32) AS excerpt,
                            round(bm25(personal_knowledge_fts), 4) AS score
-                    FROM knowledge.personal_knowledge_fts f
+                    FROM personal.personal_knowledge_fts f
                     JOIN personal_knowledge_chunks c ON c.chunk_id = f.chunk_id
                     JOIN personal_knowledge_documents d ON d.document_id = f.document_id
                     WHERE personal_knowledge_fts MATCH ? AND {' AND '.join(clauses)}

@@ -68,7 +68,7 @@ class SimulationProfileTests(unittest.TestCase):
                     )
                 }
                 migrations = dict(connection.execute(
-                    "SELECT version, description FROM schema_migrations WHERE version IN (10, 12, 14, 16)"
+                    "SELECT version, description FROM schema_migrations WHERE version IN (10, 12, 14, 17)"
                 ).fetchall())
             finally:
                 connection.close()
@@ -76,7 +76,7 @@ class SimulationProfileTests(unittest.TestCase):
             connection = sqlite3.connect(path)
             try:
                 second_migrations = dict(connection.execute(
-                    "SELECT version, description FROM schema_migrations WHERE version IN (10, 12, 14, 16)"
+                    "SELECT version, description FROM schema_migrations WHERE version IN (10, 12, 14, 17)"
                 ).fetchall())
             finally:
                 connection.close()
@@ -94,7 +94,7 @@ class SimulationProfileTests(unittest.TestCase):
         self.assertLessEqual(utilization[1], 0.86)
         self.assertEqual(coverage, (1440.0, 1440.0))
         self.assertTrue(all(value <= "2026-12-25" for value in maxima.values()))
-        self.assertEqual(migrations, {10: "model catalog capabilities", 12: "model publication compatibility", 14: "model circuit health", 16: "legacy schema"})
+        self.assertEqual(migrations, {10: "model catalog capabilities", 12: "model publication compatibility", 14: "model circuit health", 17: "legacy schema"})
         self.assertEqual(second_migrations, migrations)
 
     def test_validator_reports_declared_forecasts_and_horizon_violations(self):
@@ -105,6 +105,7 @@ class SimulationProfileTests(unittest.TestCase):
             "FAB_QUALITY_DATABASE_PATH": str(Path(temporary) / "departments" / "quality.db"),
             "FAB_KNOWLEDGE_DATABASE_PATH": str(Path(temporary) / "departments" / "knowledge.db"),
             "FAB_AGENT_DATABASE_PATH": str(Path(temporary) / "departments" / "agent.db"),
+            "FAB_PERSONAL_DATABASE_PATH": str(Path(temporary) / "departments" / "personal_knowledge.db"),
         }, clear=False):
             agent_path = Path(temporary) / "departments" / "agent.db"
             agent_path.parent.mkdir(parents=True)
@@ -123,7 +124,7 @@ class SimulationProfileTests(unittest.TestCase):
             agent_connection = sqlite3.connect(agent_path)
             try:
                 migrations = dict(agent_connection.execute(
-                    "SELECT version, description FROM schema_migrations WHERE version IN (10, 12, 14, 16)"
+                    "SELECT version, description FROM schema_migrations WHERE version IN (10, 12, 14, 17)"
                 ).fetchall())
             finally:
                 agent_connection.close()
@@ -131,7 +132,7 @@ class SimulationProfileTests(unittest.TestCase):
             agent_connection = sqlite3.connect(agent_path)
             try:
                 second_migrations = dict(agent_connection.execute(
-                    "SELECT version, description FROM schema_migrations WHERE version IN (10, 12, 14, 16)"
+                    "SELECT version, description FROM schema_migrations WHERE version IN (10, 12, 14, 17)"
                 ).fetchall())
             finally:
                 agent_connection.close()
@@ -162,8 +163,8 @@ class SimulationProfileTests(unittest.TestCase):
                 )
                 connection.commit()
             checks = validate_department_databases()
-        self.assertEqual(SCHEMA_VERSION, 16)
-        self.assertEqual(migrations, {10: "model catalog capabilities", 12: "model publication compatibility", 14: "model circuit health", 16: "department schema: agent"})
+        self.assertEqual(SCHEMA_VERSION, 17)
+        self.assertEqual(migrations, {10: "model catalog capabilities", 12: "model publication compatibility", 14: "model circuit health", 17: "department schema: agent"})
         self.assertEqual(second_migrations, migrations)
         self.assertEqual(missing_checks["simulation_metadata_status"], "missing")
         self.assertEqual(missing_checks["forecast_process_runs"], 0)

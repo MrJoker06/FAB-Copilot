@@ -141,13 +141,13 @@ def update_document(
         updates["updated_at"] = deps.now()
         assignments = ", ".join(f"{column} = ?" for column in updates)
         connection.execute(
-            f"""UPDATE knowledge.personal_knowledge_documents SET {assignments}
+            f"""UPDATE personal.personal_knowledge_documents SET {assignments}
                  WHERE document_id = ? AND owner_user_id = ?""",
             [*updates.values(), document_id, owner_user_id],
         )
         if "title" in updates:
             connection.execute(
-                """UPDATE knowledge.personal_knowledge_fts SET title = ?
+                """UPDATE personal.personal_knowledge_fts SET title = ?
                    WHERE document_id = ? AND owner_user_id = ?""",
                 (updates["title"], document_id, owner_user_id),
             )
