@@ -8,7 +8,7 @@
   <title>Fab Insight</title>
   <link rel="stylesheet" href="/static/styles.css?v=__APP_VERSION__">
 </head>
-<body>
+<body data-initial-view="__INITIAL_VIEW__">
   <header class="topbar">
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">FI</span>
@@ -25,33 +25,33 @@
 
   <div class="app-shell">
     <aside class="sidebar" aria-label="主导航">
-      <button class="nav-item" data-view="reports" title="基础报表"><span aria-hidden="true">▥</span><span>基础报表</span></button>
-      <button class="nav-item" data-view="procedures" title="SOP&历史case"><span aria-hidden="true">▤</span><span>SOP&amp;历史case</span></button>
+      <button class="nav-item __ACTIVE_reports__" data-view="reports" title="基础报表" __CURRENT_reports__><span aria-hidden="true">▥</span><span>基础报表</span></button>
+      <button class="nav-item __ACTIVE_procedures__" data-view="procedures" title="SOP&历史case" __CURRENT_procedures__><span aria-hidden="true">▤</span><span>SOP&amp;历史case</span></button>
       <button class="nav-item" id="autosystemLink" title="Autosystem 平台"><span aria-hidden="true">↗</span><span>Autosystem 平台</span></button>
       <button class="nav-item" id="focusAgent" title="显示或隐藏值班智能助手" aria-expanded="true"><span aria-hidden="true">◇</span><span>值班智能助手</span></button>
       <details id="allFunctions" class="all-functions">
         <summary title="展开或收起所有功能"><span>所有功能</span><span class="nav-chevron" aria-hidden="true">›</span></summary>
         <div class="all-functions-items">
-          <button class="nav-item active" data-view="dashboard" title="制造总览" aria-current="page"><span aria-hidden="true">▦</span><span>制造总览</span></button>
-          <button class="nav-item" data-view="capability" title="制程能力"><span aria-hidden="true">◎</span><span>制程能力</span></button>
-          <button class="nav-item" data-view="knowledge" title="知识库"><span aria-hidden="true">▤</span><span>知识库</span></button>
+          <button class="nav-item __ACTIVE_dashboard__" data-view="dashboard" title="制造总览" __CURRENT_dashboard__><span aria-hidden="true">▦</span><span>制造总览</span></button>
+          <button class="nav-item __ACTIVE_capability__" data-view="capability" title="制程能力" __CURRENT_capability__><span aria-hidden="true">◎</span><span>制程能力</span></button>
+          <button class="nav-item __ACTIVE_knowledge__" data-view="knowledge" title="知识库" __CURRENT_knowledge__><span aria-hidden="true">▤</span><span>知识库</span></button>
         </div>
       </details>
       <div class="sidebar-meta"><span>PE / EE</span><small>值班工程师助手</small></div>
     </aside>
 
     <main class="main-content">
-      <section id="reportsView" class="view">
+      <section id="reportsView" class="view __ACTIVE_reports__">
         <div class="page-heading"><div><p class="eyebrow">BASIC REPORTS</p><h1>基础报表</h1><p>当班常用报表与系统入口</p></div></div>
         <div class="shift-toolbar">
           <input id="shiftReportSearch" type="search" placeholder="搜索报表、设备或批次" aria-label="搜索基础报表">
         </div>
-        <p id="shiftReportsStatus" class="shift-status" role="status"></p>
+        <p id="shiftReportsStatus" class="shift-status" role="status">正在读取目录…</p>
         <div id="shiftReportCards" class="shift-report-grid"></div>
         <section class="panel shift-recent"><div class="panel-heading"><div><h2>最近查看</h2></div></div><div class="table-wrap"><table><thead><tr><th>报表</th><th>关联对象</th><th>更新时间</th><th>操作</th></tr></thead><tbody id="shiftRecentReports"><tr><td colspan="4" class="empty">尚未查看报表</td></tr></tbody></table></div></section>
       </section>
 
-      <section id="proceduresView" class="view">
+      <section id="proceduresView" class="view __ACTIVE_procedures__">
         <div class="page-heading"><div><p class="eyebrow">SHIFT KNOWLEDGE</p><h1>SOP&amp;历史case</h1><p>查流程、找案例，辅助当班异常处置</p></div><div class="shift-page-actions"><button id="refreshShiftDocuments" class="secondary-btn" type="button">刷新</button><button id="openSharedUpload" class="primary-btn" type="button">＋ 上传资料</button></div></div>
         <div class="shift-toolbar"><input id="shiftDocumentSearch" type="search" placeholder="搜索 SOP、现象、设备或 case" aria-label="搜索 SOP 和历史case"></div>
         <div class="shift-document-filters">
@@ -63,7 +63,7 @@
         <div class="shift-document-layout"><section class="panel shift-document-index" aria-label="资料列表"><p id="shiftDocumentCount" class="shift-document-count"></p><div id="shiftDocumentList"></div></section><article id="shiftDocumentReader" class="panel shift-document-reader" aria-label="资料详情"><p class="empty">选择一份资料查看详情</p></article></div>
       </section>
 
-      <section id="dashboardView" class="view active">
+      <section id="dashboardView" class="view __ACTIVE_dashboard__">
         <div class="page-heading">
           <div><p class="eyebrow">FAB OPERATIONS</p><h1>制造绩效总览</h1><p id="rangeSummary">加载数据中</p></div>
           <form id="dateForm" class="date-filter">
@@ -100,7 +100,7 @@
         </div>
       </section>
 
-      <section id="capabilityView" class="view">
+      <section id="capabilityView" class="view __ACTIVE_capability__">
         <div class="page-heading">
           <div><p class="eyebrow">PROCESS CONTROL</p><h1>制程能力分析</h1><p>按设备比较均值、变异与 Cpk</p></div>
           <div class="segmented" id="stepSelector" aria-label="选择制程站点">
@@ -113,7 +113,7 @@
         </section>
       </section>
 
-      <section id="knowledgeView" class="view">
+      <section id="knowledgeView" class="view __ACTIVE_knowledge__">
         <div class="page-heading">
           <div><p class="eyebrow">PROCESS KNOWLEDGE</p><h1>制造知识库</h1><p>厂内 SOP、控制计划与分析手册</p></div>
           <div class="knowledge-toolbar">
@@ -144,7 +144,7 @@
         </div>
       </section>
 
-      <section id="sessionsView" class="view">
+      <section id="sessionsView" class="view __ACTIVE_sessions__">
         <div class="page-heading">
           <div class="session-page-title"><button id="closeSessionLibrary" class="icon-btn" type="button" title="返回上一工作区" aria-label="返回上一工作区">‹</button><div><p class="eyebrow">CONVERSATION ARCHIVE</p><h1>历史会话</h1><p>集中检索、回看和继续值班智能助手分析</p></div></div>
           <div class="session-library-controls">

@@ -2,7 +2,7 @@
 
 日期：2026-11-17。源码起点为 `experiment/parallel-platform` 的 `dcca19f`，独立分支为 `feat/pe-ee-duty-workspace`。本轮按用户确认的页面方向优先实施，旧 `main` 和 experiment 分支引用不变；最终提交及推送状态以 Git 为准。
 
-下方原有范围、数字和验证记录描述首轮 `220a333`。最新的报表目录管理、共享上传和案例入口合并见文末追加记录，不能将首轮的 321 文件/23 项浏览器数量当成当前值。
+下方原有范围、数字和验证记录描述首轮 `220a333`。最新的报表目录管理、共享上传、案例入口合并和报表返回首屏修复见文末追加记录，不能将首轮的 321 文件/23 项浏览器数量当成当前值。
 
 ## 目标与范围
 
@@ -104,3 +104,35 @@ Windows 完整审计先后两轮均为 1528 项、14 失败/10 错误/3 跳过�
 相关记录为 `duty-management-audit-{final-windows,windows}/{summary.json,unittest.log}`、`duty-management-startup-fixture-fixed-{windows,linux}.log`、`duty-management-proxy-{baseline,baseline-seed1,current-seed1}/`。未重新导出旧树跑全套；12 项既有失败集合仍来自首轮保留日志，API/DOM 冻结契约存在本次明确获准的新接口/页面差异，不能将同名失败理解为契约已通过。最终应用代码的桌面浏览器、两端新增后端链路及边界检查通过；完整门仍保留失败，定向修正后的完整套件未再次运行。
 
 未新增有效覆盖率、性能门、Live、远程 CI 或公司模型接入证据。产品统计 228/183/45 及其他 MOD 排期不变。
+
+## 报表返回首屏修复（2026-11-18，源码基线 db5ca9e）
+
+### 原因与实现
+
+报表子页面的「返回基础报表」进入 `/?view=reports`，会重新加载完整页面。此前 HTML 固定激活制造总览，前端等健康检查、模型配置、总览数据和会话恢复完成后才切换到 URL 指定视图，因此中间会实际绘制制造总览；仅在异步初始化中提前切换仍不能消除脚本下载前的首屏闪烁。
+
+本轮由 `api/routers/system.py` 按受支持的 `view` 参数直接渲染唯一激活的视图、导航状态及 `data-initial-view`。旧 `cases` 参数映射到合并的 `procedures` 页面；缺失、空值与未知值回退到原有 dashboard，任意输入不会直接插入 HTML。管理端模板不受影响。`bootstrap.js` 在首次异步等待前同步服务器选定的视图状态，保留原有初始化顺序和各视图后续加载逻辑。报表数据尚未就绪时显示「正在读取目录…」。
+
+改动仅涉及初始页面选择、加载提示及相关回归，没有调整页面布局、报表跳转方式、模型配置或接入逻辑；没有更新冻结契约与视觉基线。默认根路径仍进入原制造总览，原「所有功能」默认折叠。
+
+### 回归证据
+
+环境沿用原生 Windows Python 3.13.5、WSL Python 3.11.15 与 WSL Node 22.22.2 / Chromium。所有测试离线且使用隔离数据；未调用真实模型或公司接口。
+
+| 命令 / 范围 | 实测结果 |
+| --- | --- |
+| 两端 `python -m unittest tests.test_display_materials`（Windows 加 `-X utf8`） | 各 4/4；实际 HTTP HTML 在 JavaScript 执行前即选中正确视图，覆盖所有受支持视图、旧 cases 别名、非法参数与管理端隔离 |
+| WSL `node --test tests/app_layout_bootstrap.test.js` | 3/3；异步健康检查开始时，应用状态已是服务器选中的 reports |
+| WSL `npm run test:e2e -- tests/e2e/shift-workspace.spec.js` | 6/6；阻塞应用脚本仍正确显示报表首屏；实际打开报表并返回，在阻塞健康检查与浏览器前进/后退时逐帧采样，均未绘制 dashboard |
+| WSL `node --test tests/*.test.js` | 64/64 |
+| WSL `npm run test:e2e` | 27/27，约 1.4 分钟；未更新视觉基线 |
+| WSL `python scripts/check_repository.py`、`check_module_boundaries.py`、`check_modularization_boundaries.py` | 均通过，`files=324 errors=0`；无新增应用文件和交付成员 |
+| WSL `python -m ruff check app scripts tests run.py --output-format json` | 506 条既有问题；对照上一轮 506 条按文件/规则/描述计数无新增，不宣称全仓 Ruff 全绿 |
+
+原始记录为 `report-return-python-{linux,windows}.log`、`report-return-node-targeted.log`、`report-return-node-full.log`、`report-return-browser-{targeted,full}.log`、`report-return-checks.log` 与 `report-return-ruff.json`，保存在忽略的 `runtime/quality/`。修复前实际返回的逐帧诊断及截图保存在 `report-return-diagnosis/`：制造总览先于报表绘制；修复后的浏览器用例对同一返回路径做相反断言。
+
+Windows 完整 Python 审计命令为 `python -X utf8 runtime/quality/persistence_audit.py . runtime/quality/report-return-audit-windows`，实测 **1530 项，13 失败、10 错误、3 跳过**；测试运行 403.343 秒，含发现与装配的审计耗时 409.643 秒，不是全绿。相对上一轮 `duty-management-audit-final-windows` 的 14 失败/10 错误，没有新增失败或错误 ID，已修正的启动路径夹具项本次通过。相对首轮 `duty-audit-windows` 的 12 失败/10 错误，仅多出上文已经在旧树和当前树固定哈希种子复现的 Windows 大小写代理变量测试失败；其余失败/错误 ID 一致。此轮未重新导出旧树跑完整套件，对照使用留存日志；冻结契约同名失败仍不等于契约通过。
+
+原始完整记录为 `report-return-audit-windows/{summary.json,unittest.log}`。本轮 WSL 预览复用原 8888 实例启动 `bash run.sh --source-mode worktree --port 8888`，日志确认已有部门数据未重新生成；实际 GET `/?view=reports` 的初始 HTML 只激活 reportsView。预览使用现有配置，未重置模型目录。文本 UTF-8/LF、末尾单换行、文档本地链接与 `git diff --check` 均通过。
+
+本轮没有运行 WSL 完整 Python、原生 Windows 浏览器、Live、真实公司接口、完整质量门、覆盖率、性能门或远程 CI。业务算法、Tool/Skill、模型与数据协议未改，不以本轮完整 Python 和桌面浏览器结果替代上述未运行范围。

@@ -327,6 +327,9 @@
     }
 
     async function init() {
+      const initialView = document.body?.dataset?.initialView || 'dashboard';
+      state.activeView = initialView;
+      if (initialView !== 'sessions') state.previousView = initialView;
       setInitialDates();
       initializeAgentResize();
       restoreAgentPanelWidth();
@@ -343,8 +346,8 @@
       await restoreConversation();
       setAgentOpen(true, false);
       const requestedView = new URLSearchParams(window.location.search).get('view');
-      if (['dashboard', 'capability', 'knowledge', 'cases', 'sessions', 'reports', 'procedures'].includes(requestedView)) {
-        showView(requestedView);
+      if (initialView !== 'dashboard' || requestedView === 'dashboard') {
+        showView(initialView);
       }
       bindEvents();
       document.documentElement.dataset.appReady = 'true';

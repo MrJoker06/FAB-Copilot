@@ -50,6 +50,67 @@ test('report catalog filters and opens real report pages, with actual recent his
   await accessible(page);
 });
 
+test('reports is the first visible view even before the application script loads', async ({page}) => {
+  let release;
+  const blocked = new Promise(resolve => { release = resolve; });
+  await page.route('**/static/app.js?*', async route => { await blocked; await route.continue(); });
+  try {
+    await page.goto('/?view=reports', {waitUntil:'commit'});
+    await expect(page.locator('#reportsView')).toBeVisible();
+    await expect(page.locator('#dashboardView')).toBeHidden();
+    await expect(page.locator('[data-view="reports"]')).toHaveAttribute('aria-current','page');
+    await expect(page.locator('html')).not.toHaveAttribute('data-app-ready','true');
+    await expect(page.locator('#shiftReportsStatus')).toContainText('正在读取目录');
+  } finally { release(); }
+  await expect(page.locator('html')).toHaveAttribute('data-app-ready','true');
+  await expect(page.locator('.shift-report-card')).toHaveCount(6);
+});
+
+test('returning from a report never paints dashboard while health is pending or during browser history navigation', async ({page,context}) => {
+  await ready(page,'reports');
+  await expect(page.locator('.shift-report-card')).toHaveCount(6);
+  await context.addInitScript(() => {
+    window.paintedViews = [];
+    function sample() {
+      if (document.styleSheets.length) {
+        const active = [...document.querySelectorAll('.view.active')].filter(node => getComputedStyle(node).display !== 'none').map(node => node.id);
+        for (const name of active) if (!window.paintedViews.includes(name)) window.paintedViews.push(name);
+      }
+      requestAnimationFrame(sample);
+    }
+    requestAnimationFrame(sample);
+  });
+  const popup = page.waitForEvent('popup');
+  await page.locator('[data-open-report="spc"]').first().click();
+  const report = await popup;
+  await expect(report.locator('h1')).toHaveText('SPC 趋势报表');
+  let release;
+  const blocked = new Promise(resolve => { release = resolve; });
+  await context.route('**/api/health', async route => { await blocked; await route.continue(); });
+  try {
+    await Promise.all([
+      report.waitForURL('**/?view=reports',{waitUntil:'domcontentloaded'}),
+      report.getByRole('link',{name:'返回基础报表',exact:false}).click(),
+    ]);
+    await expect(report.locator('#reportsView')).toBeVisible();
+    await expect(report.locator('#dashboardView')).toBeHidden();
+    await expect(report.locator('html')).not.toHaveAttribute('data-app-ready','true');
+    await report.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    expect(await report.evaluate(() => window.paintedViews)).toEqual(['reportsView']);
+  } finally { release(); }
+  await expect(report.locator('html')).toHaveAttribute('data-app-ready','true');
+  await expect(report.locator('.shift-report-card')).toHaveCount(6);
+  expect(await report.evaluate(() => window.paintedViews)).toEqual(['reportsView']);
+  await report.goBack();
+  await expect(report.locator('h1')).toHaveText('SPC 趋势报表');
+  await report.goForward();
+  await expect(report.locator('#reportsView')).toBeVisible();
+  await expect(report.locator('#dashboardView')).toBeHidden();
+  await expect(report.locator('html')).toHaveAttribute('data-app-ready','true');
+  expect(await report.evaluate(() => window.paintedViews)).toEqual(['reportsView']);
+  await report.close();
+});
+
 test('case search opens a linked SOP and hands content to an editable assistant draft without sending', async ({page}) => {
   await ready(page, 'procedures');
   await expect(page.locator('[data-shift-document^="case:"]').first()).toBeVisible();

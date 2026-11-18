@@ -71,7 +71,7 @@ test('layout controller updates view ARIA and clamps persisted panel widths', ()
   assert.equal(attributes['aria-valuenow'], '620');
 });
 
-test('bootstrap initializes in order and marks the document ready', async () => {
+test('bootstrap preserves the server-selected view while initializing and marks the document ready', async () => {
   const calls = [];
   const fakeNode = {
     addEventListener() {},
@@ -80,15 +80,17 @@ test('bootstrap initializes in order and marks the document ready', async () => 
   };
   const fakeDocument = {
     documentElement: { dataset: {} },
+    body: { dataset: { initialView: 'reports' } },
     querySelectorAll: () => [],
     addEventListener() {},
   };
+  const state = { capabilityCache: new Map() };
   const app = bootstrapModule.createBootstrap({
-    state: { capabilityCache: new Map() },
+    state,
     $: () => fakeNode,
     documentImpl: fakeDocument,
     windowImpl: {
-      location: { search: '' },
+      location: { search: '?view=reports' },
       addEventListener() {},
       clearTimeout() {},
       setTimeout() {},
@@ -97,18 +99,23 @@ test('bootstrap initializes in order and marks the document ready', async () => 
     setInitialDates: () => calls.push('dates'),
     initializeAgentResize: () => calls.push('resize'),
     restoreAgentPanelWidth: () => calls.push('restore'),
-    api: async () => ({}),
+    api: async () => {
+      assert.equal(state.activeView, 'reports');
+      assert.equal(state.previousView, 'reports');
+      return {};
+    },
     loadModelConfig: async () => ({ api_key_configured: false }),
     updateSystemStatus: () => calls.push('status'),
     handleBuildVersion() {},
     loadDashboard: async () => calls.push('dashboard'),
     restoreConversation: async () => calls.push('conversation'),
     setAgentOpen: () => calls.push('open'),
+    showView: name => calls.push(`view:${name}`),
   });
 
   await app.init();
 
-  assert.deepEqual(calls, ['dates', 'resize', 'restore', 'status', 'dashboard', 'conversation', 'open']);
+  assert.deepEqual(calls, ['dates', 'resize', 'restore', 'status', 'dashboard', 'conversation', 'open', 'view:reports']);
   assert.equal(fakeDocument.documentElement.dataset.appReady, 'true');
 });
 

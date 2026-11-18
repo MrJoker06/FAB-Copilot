@@ -7,21 +7,30 @@ from fastapi.responses import HTMLResponse
 
 from .runtime import NamespaceProvider, RouterBundle
 
+_PAGE_VIEWS = ("dashboard", "reports", "procedures", "capability", "knowledge", "sessions")
+
 
 def create_router(deps: NamespaceProvider) -> RouterBundle:
-    def render_versioned_page(page: Literal["index", "admin"]) -> HTMLResponse:
+    def render_versioned_page(page: Literal["index", "admin"], view: str | None = None) -> HTMLResponse:
         runtime = deps()
         html = (
             runtime["_VERSIONED_PAGE_TEMPLATES"][page]
             .read_text(encoding="utf-8")
             .replace("__APP_VERSION__", runtime["APP_VERSION"])
         )
+        if page == "index":
+            selected = "procedures" if view == "cases" else view
+            selected = selected if selected in _PAGE_VIEWS else "dashboard"
+            html = html.replace("__INITIAL_VIEW__", selected)
+            for name in _PAGE_VIEWS:
+                html = html.replace(f"__ACTIVE_{name}__", "active" if name == selected else "")
+                html = html.replace(f"__CURRENT_{name}__", 'aria-current="page"' if name == selected else "")
         return HTMLResponse(
             html, headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
         )
 
-    async def index():
-        return render_versioned_page("index")
+    async def index(view: str | None = None):
+        return render_versioned_page("index", view)
 
     async def admin_index():
         return render_versioned_page("admin")
