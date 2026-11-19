@@ -1,0 +1,559 @@
+{
+  "schema_version": "1.0",
+  "description": "显式标注的离线请求类型/主题/执行决策回归集；预期按场景定义，未调用被测路由生成。本轮用于开发与修正，不是独立保留集或生产准确率估计，不用于运行时匹配、模型训练或概率校准。",
+  "current_date": "2026-11-19",
+  "cases": [
+    {
+      "id": "E01",
+      "question": "什么是 Cpk？",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "capability"
+      ]
+    },
+    {
+      "id": "E02",
+      "question": "请说明制程能力指数的含义",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "capability"
+      ]
+    },
+    {
+      "id": "E03",
+      "question": "OEE 的定义是什么",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "equipment"
+      ]
+    },
+    {
+      "id": "E04",
+      "question": "解释为什么设备会报警",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "equipment"
+      ]
+    },
+    {
+      "id": "E05",
+      "question": "缺陷 Pareto 图的作用是什么",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "defect"
+      ]
+    },
+    {
+      "id": "E06",
+      "question": "良率和 Cpk 有什么区别",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "yield",
+        "capability"
+      ]
+    },
+    {
+      "id": "E07",
+      "question": "比较光刻与刻蚀的优缺点",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "process"
+      ]
+    },
+    {
+      "id": "E08",
+      "question": "what is process capability?",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "capability"
+      ]
+    },
+    {
+      "id": "E09",
+      "question": "explain OEE",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "equipment"
+      ]
+    },
+    {
+      "id": "E10",
+      "question": "Cpk 计算公式",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "capability"
+      ]
+    },
+    {
+      "id": "E11",
+      "question": "给我讲讲颗粒缺陷",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "defect"
+      ]
+    },
+    {
+      "id": "E12",
+      "question": "用个人知识库解释 Cpk",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "capability"
+      ]
+    },
+    {
+      "id": "E13",
+      "question": "不需要生产数据，只解释制程能力概念",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "capability"
+      ]
+    },
+    {
+      "id": "E14",
+      "question": "不要查询昨天 CMP 的 Cpk，介绍 Cpk 含义",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "capability"
+      ]
+    },
+    {
+      "id": "E15",
+      "question": "为什么 Cpk 重要",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "capability"
+      ]
+    },
+    {
+      "id": "E16",
+      "question": "工序能力指数怎么理解",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "capability"
+      ]
+    },
+    {
+      "id": "E17",
+      "question": "优先使用我的个人知识库继续介绍光刻",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "process"
+      ]
+    },
+    {
+      "id": "E18",
+      "question": "查阅知识库了解 OEE 的定义",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "equipment"
+      ]
+    },
+    {
+      "id": "Q01",
+      "question": "查询昨天 CMP 的 Cpk",
+      "request_type": "data_query",
+      "decision": "business",
+      "topics_contains": [
+        "capability"
+      ]
+    },
+    {
+      "id": "Q02",
+      "question": "昨天良率是多少",
+      "request_type": "data_query",
+      "decision": "business",
+      "topics_contains": [
+        "yield"
+      ]
+    },
+    {
+      "id": "Q03",
+      "question": "列出 ETCH-04 从 2026-11-01 到 2026-11-05 的报警",
+      "request_type": "data_query",
+      "decision": "business",
+      "topics_contains": [
+        "equipment"
+      ]
+    },
+    {
+      "id": "Q04",
+      "question": "查看 CVD 最近7天缺陷 Pareto",
+      "request_type": "data_query",
+      "decision": "business",
+      "topics_contains": [
+        "defect"
+      ]
+    },
+    {
+      "id": "Q05",
+      "question": "追踪批次 L260708-02460 的完整履历",
+      "request_type": "data_query",
+      "decision": "business",
+      "topics_contains": [
+        "lot"
+      ]
+    },
+    {
+      "id": "Q06",
+      "question": "查看工厂总览",
+      "request_type": "data_query",
+      "decision": "business",
+      "topics_contains": [
+        "production"
+      ]
+    },
+    {
+      "id": "Q07",
+      "question": "查一下昨天的数据",
+      "request_type": "data_query",
+      "decision": "clarify",
+      "topics_contains": []
+    },
+    {
+      "id": "Q08",
+      "question": "查询 YMS 站点良率",
+      "request_type": "data_query",
+      "decision": "clarify",
+      "topics_contains": [
+        "yield"
+      ]
+    },
+    {
+      "id": "Q09",
+      "question": "查询制程能力",
+      "request_type": "data_query",
+      "decision": "clarify",
+      "topics_contains": [
+        "capability"
+      ]
+    },
+    {
+      "id": "Q10",
+      "question": "不要看 ETCH-04，查看 CMP-02 最近7天健康",
+      "request_type": "data_query",
+      "decision": "business",
+      "topics_contains": [
+        "equipment"
+      ]
+    },
+    {
+      "id": "Q11",
+      "question": "查询昨天良率，并参考 SOP",
+      "request_type": "data_query",
+      "decision": "business",
+      "topics_contains": [
+        "yield"
+      ]
+    },
+    {
+      "id": "Q12",
+      "question": "不要解释 Cpk，查询昨天 CMP 的 Cpk",
+      "request_type": "data_query",
+      "decision": "business",
+      "topics_contains": [
+        "capability"
+      ]
+    },
+    {
+      "id": "D01",
+      "question": "什么是导致昨天良率下降的主要原因",
+      "request_type": "diagnosis",
+      "decision": "business",
+      "topics_contains": [
+        "yield"
+      ]
+    },
+    {
+      "id": "D02",
+      "question": "为什么 ETCH-04 这次报警",
+      "request_type": "diagnosis",
+      "decision": "business",
+      "topics_contains": [
+        "equipment"
+      ]
+    },
+    {
+      "id": "D03",
+      "question": "分析 CMP 几台全不合格的潜在原因",
+      "request_type": "diagnosis",
+      "decision": "business",
+      "topics_contains": [
+        "capability"
+      ]
+    },
+    {
+      "id": "D04",
+      "question": "排查 CVD 颗粒缺陷根因",
+      "request_type": "diagnosis",
+      "decision": "business",
+      "topics_contains": [
+        "defect"
+      ]
+    },
+    {
+      "id": "D05",
+      "question": "对当前工厂运行做一次健康检查",
+      "request_type": "diagnosis",
+      "decision": "business",
+      "topics_contains": [
+        "equipment"
+      ]
+    },
+    {
+      "id": "D06",
+      "question": "分析最近一周 ETCH 机台情况",
+      "request_type": "diagnosis",
+      "decision": "business",
+      "topics_contains": [
+        "equipment"
+      ]
+    },
+    {
+      "id": "D07",
+      "question": "最近 Cpk 漂移",
+      "request_type": "diagnosis",
+      "decision": "clarify",
+      "topics_contains": [
+        "capability"
+      ]
+    },
+    {
+      "id": "D08",
+      "question": "分析 XYZ 设备昨天故障",
+      "request_type": "diagnosis",
+      "decision": "clarify",
+      "topics_contains": [
+        "equipment"
+      ]
+    },
+    {
+      "id": "D09",
+      "question": "分析昨天良率，但优先参考知识库",
+      "request_type": "diagnosis",
+      "decision": "business",
+      "topics_contains": [
+        "yield"
+      ]
+    },
+    {
+      "id": "R01",
+      "question": "如何提高良率",
+      "request_type": "recommendation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "yield"
+      ]
+    },
+    {
+      "id": "R02",
+      "question": "请给 Cpk 改善建议",
+      "request_type": "recommendation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "capability"
+      ]
+    },
+    {
+      "id": "R03",
+      "question": "基于近期良率数据给改善建议",
+      "request_type": "recommendation",
+      "decision": "business",
+      "topics_contains": [
+        "yield"
+      ]
+    },
+    {
+      "id": "R04",
+      "question": "给 ETCH-04 本次故障处置建议",
+      "request_type": "recommendation",
+      "decision": "business",
+      "topics_contains": [
+        "equipment"
+      ]
+    },
+    {
+      "id": "R05",
+      "question": "全厂有哪些薄弱环节值得优先改善",
+      "request_type": "recommendation",
+      "decision": "business",
+      "topics_contains": [
+        "production"
+      ]
+    },
+    {
+      "id": "R06",
+      "question": "如何改进 CMP 良率下降问题",
+      "request_type": "recommendation",
+      "decision": "business",
+      "topics_contains": [
+        "yield"
+      ]
+    },
+    {
+      "id": "R07",
+      "question": "分析 CVD 颗粒缺陷并给改善建议",
+      "request_type": "recommendation",
+      "decision": "business",
+      "topics_contains": [
+        "defect"
+      ]
+    },
+    {
+      "id": "P01",
+      "question": "查找光刻设备恢复量产 SOP",
+      "request_type": "procedure_lookup",
+      "decision": "knowledge",
+      "topics_contains": [
+        "procedure"
+      ]
+    },
+    {
+      "id": "P02",
+      "question": "查询光刻设备恢复量产规范",
+      "request_type": "procedure_lookup",
+      "decision": "knowledge",
+      "topics_contains": [
+        "procedure"
+      ]
+    },
+    {
+      "id": "P03",
+      "question": "什么是 SOP",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "procedure"
+      ]
+    },
+    {
+      "id": "P04",
+      "question": "查询个人知识库中的报警文档",
+      "request_type": "procedure_lookup",
+      "decision": "knowledge",
+      "topics_contains": [
+        "procedure"
+      ]
+    },
+    {
+      "id": "M01",
+      "question": "先解释 Cpk，并查询昨天 CMP 的 Cpk",
+      "request_type": "mixed",
+      "decision": "clarify",
+      "topics_contains": [
+        "capability"
+      ]
+    },
+    {
+      "id": "M02",
+      "question": "介绍良率定义，然后列出昨天良率",
+      "request_type": "mixed",
+      "decision": "clarify",
+      "topics_contains": [
+        "yield"
+      ]
+    },
+    {
+      "id": "M03",
+      "question": "解释报警含义并查看 ETCH-04 昨天报警记录",
+      "request_type": "mixed",
+      "decision": "clarify",
+      "topics_contains": [
+        "equipment"
+      ]
+    },
+    {
+      "id": "U01",
+      "question": "帮我看看这个情况",
+      "request_type": "unknown",
+      "decision": "clarify",
+      "topics_contains": []
+    },
+    {
+      "id": "U02",
+      "question": "ABC",
+      "request_type": "unknown",
+      "decision": "clarify",
+      "topics_contains": []
+    },
+    {
+      "id": "U03",
+      "question": "你好",
+      "request_type": "conversation",
+      "decision": "conversation",
+      "topics_contains": []
+    },
+    {
+      "id": "U04",
+      "question": "你能查良率吗",
+      "request_type": "conversation",
+      "decision": "conversation",
+      "topics_contains": []
+    },
+    {
+      "id": "U05",
+      "question": "最近一周呢",
+      "request_type": "unknown",
+      "decision": "clarify",
+      "topics_contains": []
+    },
+    {
+      "id": "U06",
+      "question": "直接回答",
+      "request_type": "unknown",
+      "decision": "clarify",
+      "topics_contains": []
+    },
+    {
+      "id": "U07",
+      "question": "不查询 Cpk",
+      "request_type": "unknown",
+      "decision": "clarify",
+      "topics_contains": []
+    },
+    {
+      "id": "E19",
+      "question": "解释 ETCH-04 报警代码的含义",
+      "request_type": "explanation",
+      "decision": "knowledge",
+      "topics_contains": [
+        "equipment"
+      ]
+    },
+    {
+      "id": "D10",
+      "question": "解释 ETCH-04 昨天的报警",
+      "request_type": "diagnosis",
+      "decision": "business",
+      "topics_contains": [
+        "equipment"
+      ]
+    },
+    {
+      "id": "M04",
+      "question": "解释 Cpk 定义，再分析昨天 CMP 的 Cpk",
+      "request_type": "mixed",
+      "decision": "clarify",
+      "topics_contains": [
+        "capability"
+      ]
+    }
+  ]
+}

@@ -363,7 +363,7 @@ def build_default_run_tools(
     )
     declared = (
         _KNOWLEDGE_CAPABILITIES
-        if plan.route_intent == "general_knowledge"
+        if plan.route_intent in {"general_knowledge", "sop_lookup"}
         else _ALL_CAPABILITIES
     )
     if declared == _KNOWLEDGE_CAPABILITIES:

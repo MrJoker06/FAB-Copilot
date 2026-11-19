@@ -50,6 +50,7 @@ async def prepare_routing_stage(
         if resolution.turn_actions
         else None,
         previous_active_flow=deps.recover_active_flow(history),
+        history=history,
     )
     intent_route = arbitration.route
     analysis_question = arbitration.effective_question
@@ -123,6 +124,8 @@ async def prepare_routing_stage(
         "intent_routed",
         run_id,
         intent=intent_route.intent,
+        request_type=route_payload.get("request_type", "unknown"),
+        business_topics=route_payload.get("business_topics", ()),
         confidence=intent_route.confidence,
         process_steps=list(intent_route.process_steps),
         equipment_ids=list(intent_route.equipment_ids),

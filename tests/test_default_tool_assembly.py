@@ -356,6 +356,17 @@ class DefaultToolAssemblyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             run.dispatcher.registry.resolve("query_manufacturing_data")
 
+    def test_sop_lookup_rejects_business_calls_before_opening_any_source(self) -> None:
+        plan = replace(_plan("search_knowledge"), route_intent="sop_lookup")
+        guard = ToolLoopGuard(plan)
+        with patch("sqlite3.connect", side_effect=AssertionError("business source opened")):
+            run = build_default_run_tools(settings=self.settings, principal=self.principal,
+                plan=plan, guard=guard, run_id="sop-only", usable_knowledge_result=lambda _q, _r: True)
+            result = asyncio.run(run.dispatcher.dispatch("get_fab_overview", "{}", run.context.for_tool_call("forged")))
+        self.assertEqual(result.status, ToolStatus.DENIED)
+        self.assertEqual(guard.total_calls, 0)
+        self.assertEqual(run.dispatcher.allowed_tools, frozenset({"search_knowledge"}))
+
     def test_policy_denies_other_tenant_manufacturing_scope(self) -> None:
         run = self._build()
         decision = run.dispatcher.policy.authorize(

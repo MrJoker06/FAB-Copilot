@@ -8,6 +8,7 @@ from typing import Any
 from app.planning_runtime.playbook_contracts import DomainPlaybook
 from app.planning_runtime.playbook_contracts import EvidenceRequirement
 from ..intent_runtime.contracts import IntentRoute
+from ..intent_runtime.rules import _active_request_text
 
 _LOT_ID_PATTERN = re.compile(
     r"\b(?:LOT[-_ ]?[A-Z0-9]+(?:-[A-Z0-9]+)*|L\d{4,}-\d{3,})\b",
@@ -38,7 +39,7 @@ _NAMED_LOT_TOOLS = {
 
 
 def _lot_ids(question: str) -> tuple[str, ...]:
-    return tuple(dict.fromkeys(match.group(0).upper().replace(" ", "-") for match in _LOT_ID_PATTERN.finditer(question)))
+    return tuple(dict.fromkeys(match.group(0).upper().replace(" ", "-") for match in _LOT_ID_PATTERN.finditer(_active_request_text(question))))
 
 
 def _resolved_inputs(question: str, route: IntentRoute, playbook: DomainPlaybook) -> tuple[dict[str, Any], tuple[str, ...]]:

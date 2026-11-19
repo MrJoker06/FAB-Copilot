@@ -21,6 +21,10 @@ IntentName = Literal[
 ]
 RiskLevel = Literal["low", "medium", "high"]
 ScopeType = Literal["fab", "process", "equipment", "product", "unknown", "not_applicable"]
+RequestType = Literal[
+    "explanation", "data_query", "diagnosis", "recommendation",
+    "procedure_lookup", "conversation", "mixed", "unknown",
+]
 @dataclass(frozen=True)
 class RoutedTimeRange:
     start: str
@@ -54,6 +58,8 @@ class IntentRoute:
     risk_reasons: tuple[str, ...]
     clarification_needed: bool
     clarification_questions: tuple[str, ...]
+    request_type: RequestType = "unknown"
+    business_topics: tuple[str, ...] = ()
 
     def to_dict(self) -> dict:
         return asdict(self)

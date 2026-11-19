@@ -10,6 +10,7 @@ from dataclasses import dataclass, replace
 from typing import Iterable, Protocol
 
 from ..intent_runtime import INTENT_LABELS, IntentRoute, apply_semantic_intent_hint, route_question
+from ..intent_runtime.rules import _LOT_PATTERN, _active_request_text
 from .turn_decision import TurnAction, TurnDecisionValidationError, validate_turn_actions
 
 
@@ -111,6 +112,40 @@ def _valid_meta_actions(raw_actions: object) -> tuple[TurnAction, ...]:
     return tuple(item for item in actions if item.type in {"answer_meta", "acknowledge"})
 
 
+def _grounded_followup_scope(original: IntentRoute, resolved: IntentRoute, history: Iterable[dict] | None, original_question: str, resolved_question: str) -> bool:
+    """Model expansion cannot supply new operational entities, topics or dates."""
+    user_routes = [original]
+    user_texts = [original_question]
+    for message in list(history or ())[-8:]:
+        content = message.get("content")
+        if message.get("role") == "user" and isinstance(content, str):
+            user_routes.append(route_question(content[:4000]))
+            user_texts.append(content[:4000])
+    known_lots = {match.group(0).upper() for text in user_texts for match in _LOT_PATTERN.finditer(_active_request_text(text))}
+    expanded_lots = {match.group(0).upper() for match in _LOT_PATTERN.finditer(_active_request_text(resolved_question))}
+    if not expanded_lots <= known_lots:
+        return False
+    topics = {topic for route in user_routes for topic in route.business_topics}
+    steps = {step for route in user_routes for step in route.process_steps}
+    equipment = {item for route in user_routes for item in route.equipment_ids}
+    if not resolved.business_topics or not set(resolved.business_topics) <= topics:
+        return False
+    if not set(resolved.process_steps) <= steps or not set(resolved.equipment_ids) <= equipment:
+        return False
+    if resolved.scope_resolution.scope_type == "product":
+        products = {item for route in user_routes if route.scope_resolution.scope_type == "product" for item in route.scope_resolution.resolved_ids}
+        if not set(resolved.scope_resolution.resolved_ids) <= products:
+            return False
+    current_range = (original.time_range.start, original.time_range.end)
+    expanded_range = (resolved.time_range.start, resolved.time_range.end)
+    if not original.time_range.assumed:
+        return expanded_range == current_range
+    return resolved.time_range.assumed or any(
+        not route.time_range.assumed and (route.time_range.start, route.time_range.end) == expanded_range
+        for route in user_routes
+    )
+
+
 def _flow_for(route: IntentRoute, actions: tuple[TurnAction, ...], previous: str | None) -> str | None:
     meta = next((item for item in actions if item.type == "answer_meta" and item.subject), None)
     if meta:
@@ -129,9 +164,14 @@ def arbitrate_decision(
     context: DecisionContext,
     raw_model_actions: object = None,
     previous_active_flow: str | None = None,
+    history: Iterable[dict] | None = None,
 ) -> ArbitrationResult:
     """Choose one final route with a small, auditable policy surface."""
-    original = apply_semantic_intent_hint(original_route, context.intent_hint, context.confidence)
+    original = (
+        original_route
+        if context.applied and original_route.intent == "unknown" and original_route.request_type != "unknown"
+        else apply_semantic_intent_hint(original_route, context.intent_hint, context.confidence)
+    )
     resolved = apply_semantic_intent_hint(
         resolved_route, context.intent_hint, context.confidence, context_applied=context.applied,
     )
@@ -147,7 +187,10 @@ def arbitrate_decision(
     # Recall and the deterministic UI option resolver already have constrained
     # provenance; keep their historical behavior without asking expansion to
     # prove a new task again.
-    if context.strategy == "semantic_recall":
+    if original.request_type == "mixed":
+        selected = original
+        origin, reason, accepted = "original_text", "explicit_mixed_request_clarification", ()
+    elif context.strategy == "semantic_recall":
         selected = _conversation_route(context.confidence)
         origin, reason, accepted = "semantic_context", "trusted_semantic_recall", ()
     # Keep the pre-existing source-preference correction. It must be evaluated
@@ -159,20 +202,44 @@ def arbitrate_decision(
         and context.confidence >= 0.65
         and resolved.intent == "general_knowledge"
         and original.intent in {"unknown", "sop_lookup"}
+        and original.request_type not in {"data_query", "diagnosis", "mixed"}
     ):
         selected = resolved
         origin, reason, accepted = "model_expansion", "general_knowledge_context_preference", ()
     # A complete task in the user's literal input always starts/switches task
     # flow.  It is the protection against stale meta Flow hijacking a request.
+    elif (
+        original.intent == "general_knowledge" and original.request_type == "explanation"
+        and original.business_topics == ("general",)
+        and context.applied and context.relation in {"followup", "correction"}
+        and context.confidence >= 0.65
+        and previous_active_flow is not None and previous_active_flow.startswith("task:")
+        and resolved.intent == "general_knowledge" and resolved.request_type == "explanation"
+    ):
+        selected = resolved
+        origin, reason, accepted = "model_expansion", "explanation_subject_followup", ()
     elif original.intent in _EXPLICIT_TASK_INTENTS:
         selected = original
         origin, reason, accepted = "original_text", "explicit_original_task", ()
+    elif (
+        original.intent == "unknown"
+        and original.request_type in {"data_query", "diagnosis", "recommendation"}
+        and context.applied and context.relation in {"followup", "correction"}
+        and context.confidence >= 0.65
+        and previous_active_flow is not None and previous_active_flow.startswith("task:")
+        and resolved.request_type == original.request_type and resolved.intent in _TASK_INTENTS
+        and _grounded_followup_scope(original, resolved, history, original_question, resolved_question)
+    ):
+        selected = resolved
+        origin, reason, accepted = "model_expansion", "explicit_request_type_followup", ()
     elif (
         context.applied
         and context.relation in {"followup", "correction"}
         and context.confidence >= 0.65
         and resolved.intent in _TASK_INTENTS
         and previous_active_flow == f"task:{resolved.intent}"
+        and original.request_type in {"unknown", resolved.request_type}
+        and (original.request_type == "unknown" or _grounded_followup_scope(original, resolved, history, original_question, resolved_question))
     ):
         selected = resolved
         origin, reason, accepted = "model_expansion", "active_task_flow_continuation", ()
@@ -188,6 +255,7 @@ def arbitrate_decision(
         and meta_action is not None
         and previous_active_flow is not None
         and previous_active_flow.startswith("meta:")
+        and original.request_type in {"unknown", "conversation"}
     ):
         selected = _conversation_route(context.confidence)
         origin, reason, accepted = "semantic_context", "active_meta_flow_continuation", actions
@@ -199,10 +267,14 @@ def arbitrate_decision(
         and context.applied
         and context.confidence >= 0.65
         and resolved.intent == "general_knowledge"
+        and original.request_type not in {"data_query", "diagnosis", "mixed"}
     ):
         selected = resolved
         origin, reason, accepted = "model_expansion", "resolved_general_followup", ()
-    elif context.relation == "standalone" and resolved.intent in _EXPLICIT_TASK_INTENTS:
+    elif (
+        context.relation == "standalone" and resolved.intent in _EXPLICIT_TASK_INTENTS
+        and original.request_type in {"unknown", resolved.request_type}
+    ):
         # Defensive fallback: an independently complete contextualizer result
         # is still a task only when it is explicitly marked standalone.
         selected = resolved
@@ -235,6 +307,8 @@ def arbitrate_decision(
         "active_meta_flow_continuation",
         "resolved_general_followup",
         "standalone_resolved_task",
+        "explicit_request_type_followup",
+        "explanation_subject_followup",
     }
     return ArbitrationResult(
         route=selected,

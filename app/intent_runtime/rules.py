@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from app.core.manufacturing_terms import MANUFACTURING_STEPS
-from .contracts import RiskLevel
+from .contracts import RequestType, RiskLevel
 
 INTENT_LABELS: dict[str, str] = {
     "capability_excursion": "制程能力异常",
@@ -23,7 +23,8 @@ INTENT_LABELS: dict[str, str] = {
 
 _INTENT_RULES: dict[str, tuple[tuple[str, int], ...]] = {
     "capability_excursion": (
-        ("cpk", 5), ("制程能力", 5), ("过程能力", 5), ("能力不足", 4),
+        ("cpk", 5), ("制程能力", 5), ("过程能力", 5), ("工序能力", 5),
+        ("process capability", 5), ("能力不足", 4),
         ("不合格", 3), ("超规", 3), ("超出规格", 3), ("漂移", 2),
     ),
     "yield_decline": (
@@ -190,6 +191,7 @@ def _contains(text: str, keyword: str) -> bool:
 
 
 def _intent_scores(normalized: str) -> dict[str, int]:
+    normalized = _active_request_text(normalized)
     scores = {
         intent: sum(weight for keyword, weight in rules if _contains(normalized, keyword))
         for intent, rules in _INTENT_RULES.items()
@@ -209,6 +211,91 @@ def _looks_like_general_question(normalized: str) -> bool:
 def _looks_like_conversation(normalized: str) -> bool:
     ability = _ASSISTANT_ABILITY_QUESTION_PATTERN.fullmatch(normalized) and not re.search(r"(?:帮我|为我|替我)", normalized)
     return bool(_CONVERSATION_PATTERN.fullmatch(normalized) or ability or _META_RUNTIME_PATTERN.fullmatch(normalized) or _META_REVIEW_PATTERN.fullmatch(normalized))
+
+
+# Task language is evaluated independently of business vocabulary. These rules
+# are an offline fallback, not a calibrated semantic classifier or entity catalog.
+_TOPICS = {
+    "capability_excursion": "capability", "yield_decline": "yield",
+    "equipment_fault": "equipment", "lot_trace": "lot",
+    "sop_lookup": "procedure", "defect_analysis": "defect",
+    "fab_diagnostic": "production", "fab_overview": "production",
+    "enterprise_data": "enterprise_data",
+}
+_EXPLANATION_REQUEST = re.compile(
+    r"(?:什么是|是什么|原理|概念|定义|含义|介绍|解释|科普|区别|差别|异同|优缺点|"
+    r"如何理解|作用|用途|特点|适用场景|应用场景|讲讲|讲解|怎么理解|计算公式|如何计算|怎么计算|分析方法|"
+    r"\b(?:what (?:is|are)|explain|define|definition|difference|meaning|principle)\b)", re.IGNORECASE,
+)
+_CONCEPT_TARGET = re.compile(r"(?:定义|含义|原理|概念|术语|区别|优缺点|\b(?:meaning|definition|principle)\b)", re.IGNORECASE)
+_DATA_REQUEST = re.compile(
+    r"(?:查询|查一下|查一查|查查|查看|列出|统计|取数|调取|读取|报表|是多少|数值|"
+    r"\b(?:show|list|fetch|retrieve|how many|how much)\b)", re.IGNORECASE,
+)
+_DIAGNOSIS_REQUEST = re.compile(r"(?:分析|诊断|排查|定位|根因|潜在原因|健康检查|\bdiagnos\w*\b)", re.IGNORECASE)
+_CAUSAL_REQUEST = re.compile(r"(?:为什么|为何|原因|导致|造成|\bwhy\b|\bcaus\w*\b)", re.IGNORECASE)
+_ADVICE_REQUEST = re.compile(r"(?:建议|改进|改善|优化|提升|提高|怎么处理|如何处置|如何处理|\brecommend\w*\b|\bimprove\w*\b)", re.IGNORECASE)
+_OPERATION_TARGET = re.compile(
+    r"(?:今天|今日|昨天|昨日|本周|上周|近期|最近|过去|当前|目前|这次|此次|这台|这批|"
+    r"实际|本厂|我们|工厂|全厂|产线|生产数据|制造数据|设备数据|最差|最低|最高|几台|各站点|"
+    r"\b(?:today|yesterday|recent|current|our)\b)", re.IGNORECASE,
+)
+_OBSERVED_STATE = re.compile(r"(?:下降|上升|暴跌|异常|故障|报警|漂移|不合格|超规|失控|\b(?:drop|decline|alarm|failure)\b)", re.IGNORECASE)
+_NEGATED_REQUEST = re.compile(r"^(?:请)?(?:不要|不用|无需|不必|别|不需要|不(?=查|解释|分析|读取|统计)|do not |don't )", re.IGNORECASE)
+_SOURCE_PREFERENCE = re.compile(r"(?:优先)?(?:参考|结合|依据|根据|使用).{0,12}?(?:个人知识库|工厂知识库|知识库|sop|规范|文档|历史案例)", re.IGNORECASE)
+
+
+def _active_request_text(normalized: str) -> str:
+    """Ignore negated requests, while keeping an explicit replacement task."""
+    clauses = re.split(r"[，,；;。]|(?:而是|改为|只需|只要)", normalized)
+    active = "，".join(clause.strip() for clause in clauses if not _NEGATED_REQUEST.match(clause.strip()))
+    focused = _SOURCE_PREFERENCE.sub("", active).strip(" ，")
+    return focused or active
+
+
+def _has_operation_target(normalized: str) -> bool:
+    return bool(
+        _OPERATION_TARGET.search(normalized) or _EQUIPMENT_PATTERN.search(normalized)
+        or _LOT_PATTERN.search(normalized) or _EXPLICIT_DATE_PATTERN.search(normalized)
+        or _RELATIVE_RANGE_PATTERN.search(normalized)
+    )
+
+
+def _business_topics(scores: dict[str, int], process_steps: tuple[str, ...]) -> tuple[str, ...]:
+    topics = tuple(dict.fromkeys(_TOPICS[name] for name in scores if scores[name] > 0))
+    return topics or (("process",) if process_steps else ())
+
+
+def _request_type(normalized: str, scores: dict[str, int]) -> RequestType:
+    text = _active_request_text(normalized)
+    if _looks_like_conversation(text):
+        return "conversation"
+    explanation = bool(_EXPLANATION_REQUEST.search(text))
+    data = bool(_DATA_REQUEST.search(text))
+    live = _has_operation_target(text)
+    causal = bool(_CAUSAL_REQUEST.search(text))
+    diagnosis = bool(_DIAGNOSIS_REQUEST.search(text))
+    advice = bool(_ADVICE_REQUEST.search(text))
+    procedure = scores.get("sop_lookup", 0) > 0
+    # "Explain X, then query Y" is two requests; a causal question beginning
+    # with "what" is still one diagnosis. Do not execute either half silently.
+    if explanation and not procedure and (data or (live and (diagnosis or advice) and _CONCEPT_TARGET.search(text))) and re.search(r"[，,；;]|并|然后|再(?:查|分析|诊断)|同时|\band\b", text):
+        return "mixed"
+    if explanation and not (live and (causal or (_OBSERVED_STATE.search(text) and not _CONCEPT_TARGET.search(text)))) and not (data and not procedure):
+        return "explanation"
+    if procedure and not (live and (causal or diagnosis) and not re.search(r"(?:查|找|检索).{0,30}(?:sop|规范|文档|流程)", text, re.IGNORECASE)):
+        return "procedure_lookup"
+    if advice:
+        return "recommendation"
+    if diagnosis or (live and causal):
+        return "diagnosis"
+    if causal:
+        return "explanation"
+    if data:
+        return "data_query"
+    if live and any(scores.values()):
+        return "diagnosis" if _OBSERVED_STATE.search(text) else "data_query"
+    return "unknown"
 
 
 def _looks_like_fab_diagnostic(

@@ -306,7 +306,7 @@ class IntentRouterTests(unittest.TestCase):
                 self.assertNotIn("未检索到", result["answer"])
 
     def test_semantic_followup_hint_can_correct_source_driven_sop_route(self):
-        route = route_question("优先使用我的个人知识库继续介绍光刻")
+        route = route_question("查找我的个人知识库文档")
         self.assertEqual(route.intent, "sop_lookup")
 
         standalone = apply_semantic_intent_hint(

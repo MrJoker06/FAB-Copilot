@@ -31,6 +31,43 @@ from scripts.evaluate_trace_replay import replay_case
 
 
 class SessionsStreamingSystemTests(unittest.TestCase):
+    def test_concept_route_axes_survive_real_stream_and_session_reload_without_business_queries(self):
+        from unittest.mock import AsyncMock
+
+        from tests import test_tool_dispatcher as tool_fixture
+        from tests.test_context_resolver import _settings
+        from tests.test_default_native_runtime import DefaultNativeRuntimeTests
+
+        model = AsyncMock(return_value=({"role": "assistant", "content": "Cpk 是比较过程波动与规格范围的统计指标。概念说明不代表某台设备当前的实际状态。"}, {}, "offline"))
+        principal = tool_fixture.DispatcherTests().context().principal
+        with (
+            patch("app.main._validate_chat_model_capabilities", return_value=(principal, "offline")),
+            patch("app.agent_runtime.service.get_settings", return_value=_settings()),
+            patch("app.agent_runtime.service._stream_completion", model),
+            patch("app.tools.knowledge_search.runtime_search.create_runtime_knowledge_port", new=DefaultNativeRuntimeTests._knowledge_port),
+            TestClient(app) as client,
+        ):
+            session = client.post("/api/sessions").json()["session_id"]
+            try:
+                response = client.post("/api/chat/stream", json={"message": "什么是 Cpk？", "session_id": session})
+                events = [json.loads(line) for line in response.text.splitlines() if line]
+                result = next(item["result"] for item in events if item.get("type") == "result")
+                route = result["intent_route"]
+                self.assertEqual((route["intent"], route["request_type"]), ("general_knowledge", "explanation"))
+                self.assertIn("capability", route["business_topics"])
+                self.assertFalse(route["clarification_needed"])
+                self.assertIn("Cpk", result["answer"])
+                self.assertTrue(all(item["tool"] == "search_knowledge" for item in result["tool_trace"]))
+                self.assertTrue(model.await_count)
+                for call in model.await_args_list:
+                    payload = call.args[3]
+                    names = {item["function"]["name"] for item in payload.get("tools", [])}
+                    self.assertTrue(names <= {"search_knowledge", "submit_analysis"}, names)
+                saved = client.get(f"/api/sessions/{session}").json()["messages"][-1]["metadata"]
+                self.assertEqual(saved["intent_route"], route)
+            finally:
+                client.delete(f"/api/sessions/{session}/permanent")
+
     @classmethod
     def setUpClass(cls):
         seed_reference_data()

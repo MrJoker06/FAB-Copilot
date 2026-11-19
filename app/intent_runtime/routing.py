@@ -4,21 +4,64 @@ from dataclasses import replace
 from datetime import date
 
 from .contracts import IntentRoute
-from .rules import _CONJUNCTION_PATTERN, _DATA_REQUIREMENTS, _EQUIPMENT_PATTERN, _INTENT_PRIORITY, _contains, _intent_scores, _looks_like_conversation, _looks_like_fab_diagnostic, _looks_like_general_question, _risk, INTENT_LABELS
+from .rules import (
+    _CONJUNCTION_PATTERN,
+    _CONTEXT_DEPENDENT_PATTERN,
+    _DATA_REQUIREMENTS,
+    _DIAGNOSIS_REQUEST,
+    _EQUIPMENT_PATTERN,
+    _INTENT_PRIORITY,
+    _OBSERVED_STATE,
+    INTENT_LABELS,
+    _active_request_text,
+    _business_topics,
+    _contains,
+    _has_operation_target,
+    _intent_scores,
+    _looks_like_conversation,
+    _looks_like_fab_diagnostic,
+    _looks_like_general_question,
+    _request_type,
+    _risk,
+)
 from .scope import _manufacturing_scope_resolution, _process_steps
 from .time import _time_range
 
+
 def route_question(question: str, current_date: date | None = None) -> IntentRoute:
     normalized = " ".join(question.lower().split())
-    equipment_ids = tuple(dict.fromkeys(match.group(0).upper() for match in _EQUIPMENT_PATTERN.finditer(question)))
+    normalized = _active_request_text(normalized)
+    equipment_ids = tuple(dict.fromkeys(match.group(0).upper() for match in _EQUIPMENT_PATTERN.finditer(normalized)))
     process_steps = _process_steps(normalized, equipment_ids)
     scores = _intent_scores(normalized)
+    request_type = _request_type(normalized, scores)
+    business_topics = _business_topics(scores, process_steps)
     ranked = sorted(scores, key=lambda name: (-scores[name], _INTENT_PRIORITY.index(name)))
     positive = [name for name in ranked if scores[name] > 0]
     fab_diagnostic = _looks_like_fab_diagnostic(normalized, process_steps, scores)
 
     clarification_questions: list[str] = []
-    if _looks_like_conversation(normalized):
+    if request_type == "mixed":
+        intent = "ambiguous"
+        candidate_intents = tuple(dict.fromkeys(("general_knowledge", *positive[:2])))
+        confidence = 0.45
+        clarification_questions.append("问题同时要求解释概念和查询数据，请确认先完成哪一项。")
+    elif request_type == "explanation" and (positive or process_steps or not _CONTEXT_DEPENDENT_PATTERN.search(normalized)):
+        intent = "general_knowledge"
+        candidate_intents = ("general_knowledge",)
+        confidence = 0.8
+    elif request_type == "recommendation" and not (
+        _has_operation_target(_active_request_text(normalized))
+        or (process_steps and (_OBSERVED_STATE.search(normalized) or _DIAGNOSIS_REQUEST.search(normalized)))
+    ):
+        intent = "general_knowledge"
+        candidate_intents = ("general_knowledge",)
+        confidence = 0.75
+    elif request_type == "procedure_lookup":
+        intent = "sop_lookup"
+        candidate_intents = ("sop_lookup",)
+        confidence = 0.8
+    elif _looks_like_conversation(normalized):
         intent = "conversation"
         candidate_intents = ("conversation",)
         confidence = 0.95
@@ -68,7 +111,7 @@ def route_question(question: str, current_date: date | None = None) -> IntentRou
         clarification_questions.append("请指定需要计算制程能力的站点，例如 CMP、光刻或刻蚀。")
 
     scope_resolution = _manufacturing_scope_resolution(
-        question,
+        normalized,
         normalized,
         intent,
         process_steps,
@@ -99,12 +142,14 @@ def route_question(question: str, current_date: date | None = None) -> IntentRou
         process_steps=process_steps,
         equipment_ids=equipment_ids,
         scope_resolution=scope_resolution,
-        time_range=_time_range(question, current_date or date.today()),
+        time_range=_time_range(normalized, current_date or date.today()),
         data_requirements=tuple(requirements),
         risk_level=risk_level,
         risk_reasons=risk_reasons,
         clarification_needed=bool(clarification_questions),
         clarification_questions=tuple(clarification_questions),
+        request_type=request_type,
+        business_topics=business_topics or (("general",) if intent == "general_knowledge" else ()),
     )
 
 
@@ -128,11 +173,13 @@ def apply_semantic_intent_hint(
             risk_reasons=(),
             clarification_needed=False,
             clarification_questions=(),
+            request_type="conversation",
+            business_topics=(),
         )
     eligible_intents = {"unknown"}
     if context_applied:
         eligible_intents.add("sop_lookup")
-    if route.intent not in eligible_intents or intent_hint != "general_knowledge" or confidence < 0.65:
+    if route.intent not in eligible_intents or intent_hint != "general_knowledge" or confidence < 0.65 or route.request_type in {"data_query", "diagnosis", "mixed"}:
         return route
     return replace(
         route,
@@ -145,12 +192,16 @@ def apply_semantic_intent_hint(
         risk_reasons=(),
         clarification_needed=False,
         clarification_questions=(),
+        request_type="explanation",
+        business_topics=route.business_topics or ("general",),
     )
 
 
 def routing_system_message(route: IntentRoute) -> str:
     return (
         "以下是确定性 Intent Router 生成的结构化分析上下文，不是制造事实或证据。"
+        "request_type 表示本轮解释、查询、诊断、建议等信息目标，business_topics 仅表示讨论主题，不能因出现 Cpk 或设备名就查询生产数据。"
+        "confidence 是未校准的规则/模型提示分数，不是回答正确概率，也不提供执行权限。"
         "intent=general_knowledge 时必须先检索当前用户个人知识和工厂知识，再由检索决策决定是否允许模型补充；"
         "intent=conversation 时由服务端直接回答助手身份与能力，不检索知识库或制造数据；"
         "仅 intent=general_knowledge 或 conversation 时不得调用制造数据工具。"

@@ -56,3 +56,7 @@ WSL 的 `python scripts/check_repository.py` 通过，模块化边界为 `files=
 ## GitHub #2 运行存储治理
 
 第 4 项按用户确认的完整范围实现：运行状态与个人上传状态/索引默认进入运行目录，历史 SOP/case 独立；显式停服迁移保留模型配置、会话及结果引用。验收、既有失败与实际部署迁移范围见[报告](../reports/issue-2-runtime-storage-separation.md)。仅为单项交付记录，不增加产品主清单或 MOD 的完成计数，不关闭 #2 的其他条目。
+
+## GitHub #2 请求类型与业务主题
+
+第 5 项实现请求类型/业务主题分离、上下文仲裁及实际 Tool 限制；固定预期样例、真实 HTTP/会话与交付验证见[报告](../reports/issue-2-intent-routing.md)。本条不增加产品/MOD 完成计数；Issue #2 第 6 项及其他未实施需求保持待办。
