@@ -78,8 +78,8 @@ class FixtureClockTests(unittest.TestCase):
             "规则（已漂移）：", baseline.diff(expected, actual, "behavior.json")
         )
 
-    def test_collect_behavior_matches_frozen_baseline_for_host_prompt_dates(self):
-        expected = baseline.load_json(baseline.DEFAULT_BEHAVIOR)
+    def test_collect_behavior_is_independent_of_host_prompt_date(self):
+        expected = baseline.collect_behavior()
         for host_date in ("2026-10-24", "2099-01-01"):
             prompt = _replace_banner_date(self.service.SYSTEM_PROMPT, host_date)
             with (

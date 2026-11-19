@@ -3,8 +3,8 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "install:chromium": "playwright install chromium",
-    "test:e2e": "playwright test",
+    "install:chromium": "node node_modules/@playwright/test/cli.js install chromium",
+    "test:e2e": "node node_modules/@playwright/test/cli.js test",
     "test:e2e:live": "python scripts/run_live_e2e.py"
   },
   "devDependencies": {

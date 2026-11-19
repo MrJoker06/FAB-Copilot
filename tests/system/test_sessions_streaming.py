@@ -183,6 +183,8 @@ class SessionsStreamingSystemTests(unittest.TestCase):
             _progress=None,
             *,
             thinking=False,
+            thinking_effort="off",
+            thinking_dialect="",
             session_id=None,
             user_message_id=None,
         ):
@@ -347,8 +349,8 @@ class SessionsStreamingSystemTests(unittest.TestCase):
             }],
         }
 
-        async def fake_agent(question, history, progress=None, *, thinking=False, session_id=None, user_message_id=None):
-            observed_thinking.append(thinking)
+        async def fake_agent(question, history, progress=None, *, thinking=False, thinking_effort="off", thinking_dialect="", session_id=None, user_message_id=None):
+            observed_thinking.append((thinking, thinking_effort, thinking_dialect))
             observed_correlation.append((session_id, user_message_id))
             await progress({"event": "run_started", "run_id": "run-test", "message": "分析任务已创建"})
             await progress({"event": "stage", "stage": "plan", "message": "执行计划已生成", "plan": plan})
@@ -372,7 +374,7 @@ class SessionsStreamingSystemTests(unittest.TestCase):
             created = client.post("/api/sessions").json()
             response = client.post("/api/chat/stream", json={"message": "分析 CMP", "session_id": created["session_id"]})
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(observed_thinking, [False])
+            self.assertEqual(observed_thinking, [(False, "off", "deepseek")])
             self.assertEqual(observed_correlation[0][0], created["session_id"])
             events = [json.loads(line) for line in response.text.splitlines() if line]
             event_types = [event["type"] for event in events]
@@ -424,7 +426,7 @@ class SessionsStreamingSystemTests(unittest.TestCase):
             if case.get("system_replay")
         }
 
-        async def replay_agent(question, history, progress=None, *, thinking=False, session_id=None, user_message_id=None):
+        async def replay_agent(question, history, progress=None, *, thinking=False, thinking_effort="off", thinking_dialect="", session_id=None, user_message_id=None):
             result = replay_case(cases[question], current_date=current_date)
             for event in result["replay"]["progress_events"]:
                 await progress(event)
@@ -505,7 +507,7 @@ class SessionsStreamingSystemTests(unittest.TestCase):
             client.delete(f"/api/sessions/{session['session_id']}/permanent")
 
     def test_admin_overview_tracks_user_agent_runtime(self):
-        async def fake_agent(question, history, progress=None, *, thinking=False, session_id=None, user_message_id=None):
+        async def fake_agent(question, history, progress=None, *, thinking=False, thinking_effort="off", thinking_dialect="", session_id=None, user_message_id=None):
             await progress({"event": "run_started", "run_id": "run-admin-runtime", "message": "分析任务已创建"})
             await progress({"event": "answer_delta", "delta": "完成"})
             return {
@@ -568,7 +570,7 @@ class SessionsStreamingSystemTests(unittest.TestCase):
     def test_stream_retry_with_same_client_message_id_is_idempotent(self):
         calls = 0
 
-        async def fake_agent(question, history, progress=None, *, thinking=False, session_id=None, user_message_id=None):
+        async def fake_agent(question, history, progress=None, *, thinking=False, thinking_effort="off", thinking_dialect="", session_id=None, user_message_id=None):
             nonlocal calls
             calls += 1
             await progress({"event": "run_started", "run_id": "run-idempotent", "message": "分析任务已创建"})

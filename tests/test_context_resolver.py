@@ -951,15 +951,21 @@ class ContextResolverTests(unittest.TestCase):
         self.assertEqual(failure["failure_reason"], "protocol_error")
 
     def test_thinking_policy_marks_answer_effective_only_after_main_model_success(self):
-        async def successful_stream(*args):
-            return ({"role": "assistant", "content": "模型回答"}, {"total_tokens": 1}, "answer")
+        for reasoning_length in (0, 4):
+            async def successful_stream(_client, _endpoint, _headers, _payload, _progress, stream_state, *, length=reasoning_length):
+                stream_state["reasoning_length"] = length
+                return ({"role": "assistant", "content": "模型回答"}, {"total_tokens": 1}, "answer")
 
-        with patch("app.agent_runtime.service.get_settings", return_value=_settings()), patch("app.agent_runtime.service._stream_completion", new=successful_stream):
-            result = asyncio.run(agent_module._run_agent_impl(
-                "介绍半导体制程", [], "run-thinking-answer-success", thinking=True,
-            ))
-        self.assertTrue(result["thinking_policy"]["requested"])
-        self.assertTrue(result["thinking_policy"]["answer_effective"])
+            with (
+                self.subTest(reasoning_length=reasoning_length),
+                patch("app.agent_runtime.service.get_settings", return_value=_settings()),
+                patch("app.agent_runtime.service._stream_completion", new=successful_stream),
+            ):
+                result = asyncio.run(agent_module._run_agent_impl(
+                    "介绍半导体制程", [], "run-thinking-answer-success", thinking=True,
+                ))
+                self.assertTrue(result["thinking_policy"]["requested"])
+                self.assertEqual(result["thinking_policy"]["answer_effective"], reasoning_length > 0)
 
         async def context_only_stream(*args):
             return _context_response("standalone", "帮我看看这个情况", confidence=0.9, intent_hint="unclear")

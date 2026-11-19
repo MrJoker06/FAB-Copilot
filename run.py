@@ -52,10 +52,9 @@ def _git_commit(root: Path) -> str | None:
         top_level = subprocess.check_output(
             ["git", "rev-parse", "--show-toplevel"],
             cwd=root,
-            text=True,
             stderr=subprocess.DEVNULL,
-        ).strip()
-        if Path(top_level).resolve() != root.resolve():
+        ).rstrip(b"\r\n")
+        if Path(os.fsdecode(top_level)).resolve() != root.resolve():
             return None
         return subprocess.check_output(
             ["git", "rev-parse", "--short=12", "HEAD"],

@@ -186,8 +186,16 @@ def quality_commands(mode: str) -> list[list[str]]:
 
 def run_commands(commands: Iterable[list[str]], environment: dict[str, str] | None = None) -> None:
     for command in commands:
+        command_environment = environment
+        if command[0] == "npm":
+            if os.name == "nt":
+                command = ["npm.cmd", *command[1:]]
+            command_environment = (os.environ if environment is None else environment).copy()
+            command_environment["PATH"] = os.pathsep.join(
+                (os.path.dirname(sys.executable), command_environment.get("PATH", os.defpath))
+            )
         print("+", " ".join(command), flush=True)
-        subprocess.run(command, cwd=PROJECT_DIR, env=environment, check=True)
+        subprocess.run(command, cwd=PROJECT_DIR, env=command_environment, check=True)
 
 
 def main(argv: list[str] | None = None) -> int:

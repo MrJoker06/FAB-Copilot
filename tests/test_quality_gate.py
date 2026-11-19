@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
-import json
-import subprocess
-from unittest.mock import patch
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts import run_quality_gate
 
@@ -54,6 +55,19 @@ class QualityGateTests(unittest.TestCase):
         checks = [command[2] for command in commands if command[:2] == ["node", "--check"]]
         self.assertTrue(checks)
         self.assertTrue(all(Path(path).is_file() for path in checks))
+
+    def test_npm_uses_the_quality_gate_python_for_browser_server(self):
+        environment = {"PATH": os.defpath, "PLAYWRIGHT_PORT": "28000"}
+        with patch.object(run_quality_gate.subprocess, "run") as execute:
+            run_quality_gate.run_commands([["npm", "run", "test:e2e"]], environment)
+        command = "npm.cmd" if os.name == "nt" else "npm"
+        self.assertEqual(execute.call_args.args[0], [command, "run", "test:e2e"])
+        child_environment = execute.call_args.kwargs["env"]
+        self.assertEqual(
+            child_environment["PATH"].split(os.pathsep)[0], os.path.dirname(sys.executable)
+        )
+        self.assertEqual(child_environment["PLAYWRIGHT_PORT"], "28000")
+        self.assertEqual(environment["PATH"], os.defpath)
 
     def test_invalid_mode_is_rejected(self):
         with self.assertRaises(ValueError):

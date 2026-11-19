@@ -4,7 +4,8 @@ import asyncio
 import sqlite3
 import tempfile
 import unittest
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
+from pathlib import Path
 from unittest.mock import patch
 
 from fastapi import HTTPException
@@ -44,8 +45,10 @@ class PersonalJobSseTests(unittest.TestCase):
         self.assertEqual(raised.exception.status_code, 401)
 
     def test_snapshots_are_owner_scoped_latest_and_active_first(self):
-        with tempfile.NamedTemporaryFile() as database:
-            connection = sqlite3.connect(database.name)
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            closing(sqlite3.connect(Path(directory) / "personal.db")) as connection,
+        ):
             connection.row_factory = sqlite3.Row
             connection.execute(
                 """CREATE TABLE personal_knowledge_jobs (
@@ -70,7 +73,6 @@ class PersonalJobSseTests(unittest.TestCase):
 
             with patch('app.personal_knowledge_runtime.service.db_session', session):
                 snapshots = list_personal_job_snapshots('owner-a')
-            connection.close()
 
         self.assertEqual([item['job_id'] for item in snapshots], ['new', 'ready'])
         self.assertNotIn('owner_user_id', snapshots[0])

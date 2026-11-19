@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import sqlite3
 import unittest
+from contextlib import closing
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -13,10 +14,10 @@ from app.bootstrap import operational_reports_demo
 from app.demo_data.tool_sources.operational_reports import (
     FakeOperationalReportsAdapter,
 )
+from app.tools.operational_reports.contracts import OperationalReportDataError
 from app.tools.operational_reports.data_source import (
     SQLiteOperationalReportsAdapter,
 )
-from app.tools.operational_reports.contracts import OperationalReportDataError
 
 
 def _run(*values: str) -> dict[str, object]:
@@ -31,7 +32,7 @@ class OperationalRuntimeTests(unittest.TestCase):
     def test_empty_sqlite_result_is_successful_empty_list(self) -> None:
         with TemporaryDirectory() as raw:
             database = Path(raw) / "equipment.db"
-            with sqlite3.connect(database) as conn:
+            with closing(sqlite3.connect(database)) as conn, conn:
                 conn.execute(
                     "CREATE TABLE equipment_state_intervals (equipment_id TEXT,start_time TEXT,duration_minutes REAL,semi_e10_state TEXT)"
                 )
@@ -67,7 +68,7 @@ class OperationalRuntimeTests(unittest.TestCase):
                 root / "q.db",
                 root / "m.db",
             )
-            with sqlite3.connect(equipment) as conn:
+            with closing(sqlite3.connect(equipment)) as conn, conn:
                 conn.execute(
                     "CREATE TABLE equipment_state_intervals (equipment_id TEXT,start_time TEXT,duration_minutes REAL,semi_e10_state TEXT)"
                 )
@@ -78,7 +79,7 @@ class OperationalRuntimeTests(unittest.TestCase):
                         ("CMP-01", "2026-10-20", 2, "Scheduled Downtime"),
                     ],
                 )
-            with sqlite3.connect(quality) as conn:
+            with closing(sqlite3.connect(quality)) as conn, conn:
                 conn.execute(
                     "CREATE TABLE defect_records (defect_type TEXT,process_step TEXT,count INTEGER,lot_id TEXT,detected_time TEXT)"
                 )
@@ -89,7 +90,7 @@ class OperationalRuntimeTests(unittest.TestCase):
                         ("Scratch", "CMP", 1, "L2", "2026-10-20"),
                     ],
                 )
-            with sqlite3.connect(manufacturing) as conn:
+            with closing(sqlite3.connect(manufacturing)) as conn, conn:
                 conn.execute(
                     "CREATE TABLE process_runs (run_time TEXT,lot_id TEXT,process_step TEXT,equipment_id TEXT,excursion_code TEXT,thickness_nm REAL,uniformity_pct REAL,defect_density REAL,measurement_name TEXT,measurement_value REAL,measurement_unit TEXT,spec_lsl REAL,spec_usl REAL)"
                 )
@@ -450,7 +451,7 @@ class OperationalRuntimeTests(unittest.TestCase):
                 "manufacturing": Path(raw) / "manufacturing.db",
             }
             for database in databases.values():
-                with sqlite3.connect(database):
+                with closing(sqlite3.connect(database)):
                     pass
             with (
                 patch.object(FakeOperationalReportsAdapter, "fetch", fake_fetch),

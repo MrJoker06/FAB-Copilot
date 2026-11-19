@@ -1,0 +1,904 @@
+{
+  "agent": {
+    "cases": {
+      "chain-cmp-capability": {
+        "event_sequence": [
+          "run_started",
+          "stage:routing",
+          "stage:plan",
+          "tool_started",
+          "tool_finished",
+          "tool_started",
+          "tool_finished",
+          "tool_started",
+          "tool_finished",
+          "tool_started",
+          "tool_finished",
+          "stage:synthesis",
+          "answer_delta",
+          "answer_delta",
+          "answer_delta"
+        ],
+        "result_keys": [
+          "answer",
+          "answer_contract",
+          "answer_synthesis",
+          "context_resolution",
+          "domain_playbook",
+          "evidence_validation",
+          "execution_plan",
+          "intent_route",
+          "mode",
+          "model",
+          "run_id",
+          "sources",
+          "tool_trace",
+          "trace_semantics",
+          "turn_decision"
+        ],
+        "trace_item_keys": [
+          "arguments",
+          "execution_mode",
+          "plan_step_id",
+          "rows",
+          "status",
+          "tool"
+        ]
+      },
+      "chain-fab-diagnostic": {
+        "event_sequence": [
+          "run_started",
+          "stage:routing",
+          "stage:plan",
+          "tool_started",
+          "tool_finished",
+          "tool_started",
+          "tool_finished",
+          "tool_started",
+          "tool_finished",
+          "tool_started",
+          "tool_finished",
+          "tool_started",
+          "tool_finished",
+          "tool_started",
+          "tool_finished",
+          "tool_started",
+          "tool_finished",
+          "stage:synthesis",
+          "answer_delta",
+          "answer_delta"
+        ],
+        "result_keys": [
+          "answer",
+          "answer_contract",
+          "answer_synthesis",
+          "context_resolution",
+          "domain_playbook",
+          "evidence_validation",
+          "execution_plan",
+          "intent_route",
+          "mode",
+          "model",
+          "run_id",
+          "sources",
+          "tool_trace",
+          "trace_semantics",
+          "turn_decision"
+        ],
+        "trace_item_keys": [
+          "arguments",
+          "execution_mode",
+          "plan_step_id",
+          "rows",
+          "status",
+          "tool"
+        ]
+      },
+      "chain-general-knowledge": {
+        "event_sequence": [
+          "run_started",
+          "stage:routing",
+          "stage:plan",
+          "stage:synthesis",
+          "answer_delta"
+        ],
+        "result_keys": [
+          "answer",
+          "answer_contract",
+          "answer_synthesis",
+          "context_resolution",
+          "domain_playbook",
+          "evidence_validation",
+          "execution_plan",
+          "intent_route",
+          "mode",
+          "model",
+          "run_id",
+          "sources",
+          "tool_trace",
+          "trace_semantics",
+          "turn_decision"
+        ],
+        "trace_item_keys": []
+      }
+    }
+  },
+  "api": {
+    "openapi_sha256": "cbaedcd93e3c07b140813ea620b524952e81ba8ed3e9d2ceb4e1f521395a7d5c",
+    "routes": [
+      {
+        "method": "GET",
+        "name": "index",
+        "path": "/",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "admin_index",
+        "path": "/admin",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "admin_models",
+        "path": "/api/admin/models",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "admin_publish_model",
+        "path": "/api/admin/models",
+        "success_status": 201
+      },
+      {
+        "method": "DELETE",
+        "name": "admin_delete_model",
+        "path": "/api/admin/models/{model_id}",
+        "success_status": 200
+      },
+      {
+        "method": "PATCH",
+        "name": "admin_update_model_status",
+        "path": "/api/admin/models/{model_id}",
+        "success_status": 200
+      },
+      {
+        "method": "PATCH",
+        "name": "admin_update_model_capabilities",
+        "path": "/api/admin/models/{model_id}/capabilities",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "admin_check_model_compatibility",
+        "path": "/api/admin/models/{model_id}/compatibility-check",
+        "success_status": 200
+      },
+      {
+        "method": "DELETE",
+        "name": "admin_clear_model_credential",
+        "path": "/api/admin/models/{model_id}/credential",
+        "success_status": 200
+      },
+      {
+        "method": "PUT",
+        "name": "admin_set_model_credential",
+        "path": "/api/admin/models/{model_id}/credential",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "admin_overview",
+        "path": "/api/admin/overview",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "admin_directory",
+        "path": "/api/admin/report-directory",
+        "success_status": 200
+      },
+      {
+        "method": "PUT",
+        "name": "update_directory",
+        "path": "/api/admin/report-directory",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "admin_documents",
+        "path": "/api/admin/shared-documents",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "admin_document",
+        "path": "/api/admin/shared-documents/{document_id}",
+        "success_status": 200
+      },
+      {
+        "method": "PATCH",
+        "name": "edit",
+        "path": "/api/admin/shared-documents/{document_id}",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "admin_download",
+        "path": "/api/admin/shared-documents/{document_id}/file",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "retry",
+        "path": "/api/admin/shared-documents/{document_id}/retry",
+        "success_status": 202
+      },
+      {
+        "method": "GET",
+        "name": "admin_result_storage",
+        "path": "/api/admin/tool-result-storage",
+        "success_status": 200
+      },
+      {
+        "method": "PUT",
+        "name": "admin_set_result_storage",
+        "path": "/api/admin/tool-result-storage",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "read_agent_run_audit",
+        "path": "/api/agent-runs/{run_id}/audit",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "historical_cases",
+        "path": "/api/cases",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "historical_case",
+        "path": "/api/cases/{case_id}",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "chat",
+        "path": "/api/chat",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "chat_stream",
+        "path": "/api/chat/stream",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "enterprise_context",
+        "path": "/api/enterprise/context",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "enterprise_lots",
+        "path": "/api/enterprise/data/lots",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "enterprise_manifest",
+        "path": "/api/enterprise/data/manifest",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "enterprise_process_runs",
+        "path": "/api/enterprise/data/process-runs",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "enterprise_sensor_events",
+        "path": "/api/enterprise/data/sensor-events",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "enterprise_summary",
+        "path": "/api/enterprise/data/summary",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "health",
+        "path": "/api/health",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "knowledge_document",
+        "path": "/api/knowledge/chunks/{chunk_id}",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "knowledge_documents",
+        "path": "/api/knowledge/documents",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "personal_knowledge_job",
+        "path": "/api/knowledge/jobs/{job_id}",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "personal_knowledge_chunk",
+        "path": "/api/knowledge/personal/chunks/{chunk_id}",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "personal_knowledge_documents",
+        "path": "/api/knowledge/personal/documents",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "upload_personal_knowledge_document",
+        "path": "/api/knowledge/personal/documents",
+        "success_status": 202
+      },
+      {
+        "method": "DELETE",
+        "name": "delete_personal_knowledge_document",
+        "path": "/api/knowledge/personal/documents/{document_id}",
+        "success_status": 202
+      },
+      {
+        "method": "GET",
+        "name": "personal_knowledge_document",
+        "path": "/api/knowledge/personal/documents/{document_id}",
+        "success_status": 200
+      },
+      {
+        "method": "PATCH",
+        "name": "patch_personal_knowledge_document",
+        "path": "/api/knowledge/personal/documents/{document_id}",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "personal_knowledge_document_content",
+        "path": "/api/knowledge/personal/documents/{document_id}/content",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "download_personal_knowledge_document",
+        "path": "/api/knowledge/personal/documents/{document_id}/file",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "retry_personal_knowledge_document",
+        "path": "/api/knowledge/personal/documents/{document_id}/retry",
+        "success_status": 202
+      },
+      {
+        "method": "GET",
+        "name": "personal_knowledge_job_events",
+        "path": "/api/knowledge/personal/jobs/events",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "personal_knowledge_search_preview",
+        "path": "/api/knowledge/personal/search-preview",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "documents",
+        "path": "/api/knowledge/shared/documents",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "upload",
+        "path": "/api/knowledge/shared/documents",
+        "success_status": 202
+      },
+      {
+        "method": "GET",
+        "name": "document",
+        "path": "/api/knowledge/shared/documents/{document_id}",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "download",
+        "path": "/api/knowledge/shared/documents/{document_id}/file",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "monitor_events",
+        "path": "/api/monitor/events",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "monitor_summary",
+        "path": "/api/monitor/summary",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "rag_search",
+        "path": "/api/rag/search",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "capability",
+        "path": "/api/reports/capability",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "dashboard",
+        "path": "/api/reports/dashboard",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "public_directory",
+        "path": "/api/reports/directory",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "session_list",
+        "path": "/api/sessions",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "start_session",
+        "path": "/api/sessions",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "bulk_delete_sessions",
+        "path": "/api/sessions/bulk-delete",
+        "success_status": 200
+      },
+      {
+        "method": "DELETE",
+        "name": "delete_session",
+        "path": "/api/sessions/{session_id}",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "read_session",
+        "path": "/api/sessions/{session_id}",
+        "success_status": 200
+      },
+      {
+        "method": "PATCH",
+        "name": "update_session",
+        "path": "/api/sessions/{session_id}",
+        "success_status": 200
+      },
+      {
+        "method": "DELETE",
+        "name": "permanently_delete_session",
+        "path": "/api/sessions/{session_id}/permanent",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "restore_archived_session",
+        "path": "/api/sessions/{session_id}/restore",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "get_model_config",
+        "path": "/api/settings/model",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "set_model_config",
+        "path": "/api/settings/model",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "record_stream_telemetry",
+        "path": "/api/telemetry/stream",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "version",
+        "path": "/api/version",
+        "success_status": 200
+      }
+    ]
+  },
+  "contract_version": "2.0",
+  "data_classification": "synthetic_redacted",
+  "execution_policy": {
+    "network_calls": 0,
+    "real_model_calls": 0
+  },
+  "frontend": {
+    "admin": {
+      "element_ids": [
+        "addReportFolder",
+        "adminAuthDialog",
+        "adminAuthDialogTitle",
+        "adminAuthForm",
+        "adminAuthMessage",
+        "adminBuild",
+        "adminConnection",
+        "adminLogout",
+        "adminNotice",
+        "adminReportFolders",
+        "adminToast",
+        "adminToken",
+        "adminWorkspace",
+        "allReportFolders",
+        "cancelCapabilities",
+        "cancelModelCredential",
+        "cancelPublishModel",
+        "cancelReportEdit",
+        "clearModelCredential",
+        "closeCapabilities",
+        "closeModelCredential",
+        "closePublishModel",
+        "closeReportFolder",
+        "closeSharedDocument",
+        "confirmCapabilities",
+        "confirmModelCredential",
+        "confirmPublishModel",
+        "documentsView",
+        "editCapabilitiesDialog",
+        "editCapabilitiesForm",
+        "editCapabilitiesMessage",
+        "editCapabilitiesModelId",
+        "editCapabilitiesTitle",
+        "editNativeMultimodal",
+        "editReasoningDialect",
+        "editReportFolder",
+        "editStreaming",
+        "editThinking",
+        "editThinkingEffort",
+        "editThinkingHigh",
+        "editThinkingLow",
+        "editThinkingMedium",
+        "editThinkingXhigh",
+        "editToolCalls",
+        "logPolicyDetail",
+        "logPolicyMode",
+        "logPolicyPanel",
+        "modelCatalogBody",
+        "modelCatalogCount",
+        "modelCredentialApiKey",
+        "modelCredentialDialog",
+        "modelCredentialForm",
+        "modelCredentialMessage",
+        "modelCredentialModelId",
+        "modelCredentialSource",
+        "modelCredentialTitle",
+        "modelNotice",
+        "modelsView",
+        "openPublishModel",
+        "publishBaseUrl",
+        "publishDisplayName",
+        "publishModelDialog",
+        "publishModelDialogTitle",
+        "publishModelForm",
+        "publishModelId",
+        "publishModelMessage",
+        "publishNativeMultimodal",
+        "publishProvider",
+        "publishProviderModel",
+        "publishReasoningDialect",
+        "publishStreaming",
+        "publishThinking",
+        "publishThinkingEffort",
+        "publishThinkingHigh",
+        "publishThinkingLow",
+        "publishThinkingMedium",
+        "publishThinkingXhigh",
+        "publishToolCalls",
+        "recentAdminRuns",
+        "refreshModels",
+        "refreshReportDirectory",
+        "refreshRuntime",
+        "refreshSharedDocuments",
+        "removeReportFolder",
+        "reportDescription",
+        "reportDirectoryBody",
+        "reportDirectoryCount",
+        "reportDirectoryNotice",
+        "reportEditorForm",
+        "reportEditorTitle",
+        "reportEnabled",
+        "reportFolder",
+        "reportFolderDialog",
+        "reportFolderDialogTitle",
+        "reportFolderForm",
+        "reportFolderMessage",
+        "reportFolderName",
+        "reportFolderParent",
+        "reportFolderTree",
+        "reportObject",
+        "reportSortOrder",
+        "reportTitle",
+        "reportUrl",
+        "reportsView",
+        "resultStorageDetail",
+        "resultStorageNotice",
+        "resultStorageTitle",
+        "runtimeHours",
+        "runtimeKpis",
+        "runtimeUpdated",
+        "runtimeView",
+        "runtimeWindow",
+        "saveReportDirectory",
+        "sharedDocumentDialog",
+        "sharedDocumentDialogTitle",
+        "sharedDocumentEnabled",
+        "sharedDocumentForm",
+        "sharedDocumentKind",
+        "sharedDocumentMessage",
+        "sharedDocumentPreview",
+        "sharedDocumentProcess",
+        "sharedDocumentTitle",
+        "sharedDocumentsBody",
+        "sharedDocumentsCount",
+        "sharedDocumentsNotice",
+        "stageReportEdit",
+        "toggleResultStorage",
+        "userStatusBody"
+      ],
+      "script_sources": [
+        "/static/model_capabilities.js?v=__APP_VERSION__",
+        "/static/admin.js?v=__APP_VERSION__"
+      ]
+    },
+    "index": {
+      "element_ids": [
+        "activeModelLabel",
+        "agentMode",
+        "agentResizeHandle",
+        "allFunctions",
+        "archiveLibrarySession",
+        "autosystemLink",
+        "autosystemView",
+        "cancelKnowledgeUpload",
+        "cancelModelSettings",
+        "cancelPersonalKnowledgeDelete",
+        "cancelPersonalKnowledgeMetadata",
+        "cancelSessionBatch",
+        "cancelSessionDelete",
+        "cancelSessionRename",
+        "capabilityBody",
+        "capabilityMetric",
+        "capabilityTitle",
+        "capabilityView",
+        "chartTooltip",
+        "chatForm",
+        "chatHint",
+        "chatInput",
+        "chatMessages",
+        "clearChat",
+        "closeKnowledgeUploadDialog",
+        "closeModelDialog",
+        "closePersonalKnowledgeDeleteDialog",
+        "closePersonalKnowledgeMetadataDialog",
+        "closeSessionDeleteDialog",
+        "closeSessionLibrary",
+        "closeSessionRenameDialog",
+        "closeSharedUpload",
+        "collapseAgent",
+        "confirmKnowledgeUpload",
+        "confirmPersonalKnowledgeDelete",
+        "confirmPersonalKnowledgeMetadata",
+        "confirmSessionDelete",
+        "confirmSessionRename",
+        "confirmSharedUpload",
+        "continueLibrarySession",
+        "dashboardView",
+        "dateForm",
+        "defectBars",
+        "deleteLibrarySession",
+        "deletePersonalKnowledge",
+        "deleteSelectedSessions",
+        "dismissVersionBanner",
+        "downloadPersonalKnowledge",
+        "editPersonalKnowledge",
+        "endDate",
+        "equipmentBody",
+        "equipmentCount",
+        "errorBanner",
+        "excursionBody",
+        "focusAgent",
+        "knowledgeContent",
+        "knowledgeCount",
+        "knowledgeDocuments",
+        "knowledgeFilter",
+        "knowledgeIndexHint",
+        "knowledgeIndexTitle",
+        "knowledgeMeta",
+        "knowledgeSource",
+        "knowledgeSourceTabs",
+        "knowledgeTitle",
+        "knowledgeUploadDialog",
+        "knowledgeUploadDialogTitle",
+        "knowledgeUploadDrop",
+        "knowledgeUploadEffectiveDate",
+        "knowledgeUploadEquipment",
+        "knowledgeUploadFile",
+        "knowledgeUploadFileState",
+        "knowledgeUploadForm",
+        "knowledgeUploadMessage",
+        "knowledgeUploadQueue",
+        "knowledgeUploadStep",
+        "knowledgeUploadTags",
+        "knowledgeView",
+        "kpiGrid",
+        "mobileAgentToggle",
+        "modelDialog",
+        "modelDialogTitle",
+        "modelSelect",
+        "modelSettingsButton",
+        "modelSettingsForm",
+        "modelSettingsMessage",
+        "newSessionFromLibrary",
+        "openSharedUpload",
+        "personalKnowledgeActions",
+        "personalKnowledgeDeleteDialog",
+        "personalKnowledgeDeleteDialogTitle",
+        "personalKnowledgeDeleteForm",
+        "personalKnowledgeDeleteMessage",
+        "personalKnowledgeMetadataDialog",
+        "personalKnowledgeMetadataDialogTitle",
+        "personalKnowledgeMetadataEffectiveDate",
+        "personalKnowledgeMetadataEquipment",
+        "personalKnowledgeMetadataForm",
+        "personalKnowledgeMetadataMessage",
+        "personalKnowledgeMetadataStep",
+        "personalKnowledgeMetadataTagSource",
+        "personalKnowledgeMetadataTags",
+        "personalKnowledgeMetadataTitle",
+        "proceduresView",
+        "rangeSummary",
+        "refreshShiftDocuments",
+        "reloadApp",
+        "renameLibrarySession",
+        "reportsView",
+        "retryPersonalKnowledge",
+        "saveModelSettings",
+        "sendButton",
+        "sessionBatchCount",
+        "sessionBatchManage",
+        "sessionBatchSelectAll",
+        "sessionBatchToolbar",
+        "sessionDeleteDialog",
+        "sessionDeleteDialogTitle",
+        "sessionDeleteForm",
+        "sessionDeleteMessage",
+        "sessionHistoryButton",
+        "sessionLibraryActions",
+        "sessionLibraryCount",
+        "sessionLibraryFilter",
+        "sessionLibraryList",
+        "sessionLibraryMessages",
+        "sessionLibraryMeta",
+        "sessionLibraryNotice",
+        "sessionLibraryReference",
+        "sessionLibrarySearch",
+        "sessionLibraryTitle",
+        "sessionRenameCount",
+        "sessionRenameDialog",
+        "sessionRenameDialogTitle",
+        "sessionRenameForm",
+        "sessionRenameInput",
+        "sessionRenameMessage",
+        "sessionsView",
+        "sharedUploadDialog",
+        "sharedUploadFile",
+        "sharedUploadForm",
+        "sharedUploadKind",
+        "sharedUploadMessage",
+        "sharedUploadProcess",
+        "sharedUploadTitle",
+        "sharedUploadTitleLabel",
+        "shiftDocumentCount",
+        "shiftDocumentList",
+        "shiftDocumentProcess",
+        "shiftDocumentReader",
+        "shiftDocumentRole",
+        "shiftDocumentSearch",
+        "shiftDocumentTabs",
+        "shiftDocumentsStatus",
+        "shiftRecentReports",
+        "shiftReportCards",
+        "shiftReportSearch",
+        "shiftReportsStatus",
+        "startDate",
+        "stepSelector",
+        "systemStatus",
+        "thinkingEffort",
+        "toastRegion",
+        "versionBanner",
+        "yieldChart"
+      ],
+      "script_sources": [
+        "/static/app/core/state.js?v=__APP_VERSION__",
+        "/static/app/core/dom.js?v=__APP_VERSION__",
+        "/static/app/core/api.js?v=__APP_VERSION__",
+        "/static/app/core/toast.js?v=__APP_VERSION__",
+        "/static/app/core/version.js?v=__APP_VERSION__",
+        "/static/stream_diagnostics.js?v=__APP_VERSION__",
+        "/static/stream_buffer.js?v=__APP_VERSION__",
+        "/static/stream_markdown.js?v=__APP_VERSION__",
+        "/static/source_presenter.js?v=__APP_VERSION__",
+        "/static/personal_upload_queue.js?v=__APP_VERSION__",
+        "/static/personal_knowledge_metadata.js?v=__APP_VERSION__",
+        "/static/personal_job_events.js?v=__APP_VERSION__",
+        "/static/thinking_control.js?v=__APP_VERSION__",
+        "/static/app/knowledge/controller.js?v=__APP_VERSION__",
+        "/static/app/model/controller.js?v=__APP_VERSION__",
+        "/static/app/dashboard/controller.js?v=__APP_VERSION__",
+        "/static/app/shift/controller.js?v=__APP_VERSION__",
+        "/static/app/chat/presenter.js?v=__APP_VERSION__",
+        "/static/app/sessions/controller.js?v=__APP_VERSION__",
+        "/static/app/chat/controller.js?v=__APP_VERSION__",
+        "/static/app/layout/controller.js?v=__APP_VERSION__",
+        "/static/app/bootstrap.js?v=__APP_VERSION__",
+        "/static/app.js?v=__APP_VERSION__"
+      ]
+    }
+  },
+  "tools": {
+    "names": [
+      "get_equipment_health",
+      "get_process_capability",
+      "get_sensor_summary",
+      "get_fab_overview",
+      "get_yield_trend",
+      "get_process_pass_rate",
+      "get_equipment_productivity",
+      "get_defect_pareto",
+      "get_recent_excursions",
+      "get_enterprise_data_manifest",
+      "get_enterprise_fab_summary",
+      "query_enterprise_data",
+      "search_knowledge",
+      "get_product_yield_breakdown",
+      "get_equipment_event_timeline",
+      "get_equipment_excursion_history",
+      "get_lot_identity",
+      "get_lot_process_history",
+      "get_lot_excursion_history",
+      "get_lot_defect_history",
+      "get_lot_wafer_map_patterns",
+      "submit_analysis"
+    ],
+    "schema_sha256": "bb54c5b532be84fa021bdcb9d3baad308e33fced2cc97b64855bf9c4d4e810f7"
+  }
+}

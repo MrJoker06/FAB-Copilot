@@ -5,7 +5,6 @@ import os
 import sqlite3
 import tempfile
 import unittest
-from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,21 +12,54 @@ from tests.system.support import isolated_system_environment
 
 isolated_system_environment()
 
-from app.demo_data.database import db_session, department_paths, initialize, sqlite_journal_mode
+from app.api.report_service import (
+    report_bundle,  # noqa: E402 - isolated fixture must precede application imports
+)
+from app.bootstrap.storage_identity_assembly import install_default_storage_identity
 from app.core.manufacturing_terms import MANUFACTURING_STEPS
-from app.tools.operational_reports.reports import defect_pareto  # noqa: E402 - isolated fixture must precede application imports
-from app.tools.equipment_health.reports import equipment_health  # noqa: E402 - isolated fixture must precede application imports
-from app.tools.operational_reports.reports import equipment_productivity  # noqa: E402 - isolated fixture must precede application imports
-from app.tools.process_diagnostics.reports import process_capability  # noqa: E402 - isolated fixture must precede application imports
-from app.tools.production_reports.reports import process_pass_rate  # noqa: E402 - isolated fixture must precede application imports
-from app.tools.operational_reports.reports import recent_excursions  # noqa: E402 - isolated fixture must precede application imports
-from app.api.report_service import report_bundle  # noqa: E402 - isolated fixture must precede application imports
-from app.core.report_dates import timestamp_bounds  # noqa: E402 - isolated fixture must precede application imports
+from app.core.report_dates import (
+    timestamp_bounds,  # noqa: E402 - isolated fixture must precede application imports
+)
+from app.core.storage_identity_ports import (
+    configured_storage_identity,
+    install_storage_identity,
+    reset_storage_identity,
+)
+from app.demo_data.database import (
+    db_session,
+    department_paths,
+    initialize,
+    sqlite_journal_mode,
+)
 from app.demo_data.seed import MARKET_PROFILE, MARKET_PROFILE_ID, seed_reference_data
+from app.tools.equipment_health.reports import (
+    equipment_health,  # noqa: E402 - isolated fixture must precede application imports
+)
+from app.tools.operational_reports.reports import (
+    defect_pareto,  # noqa: E402 - isolated fixture must precede application imports
+    equipment_productivity,  # noqa: E402 - isolated fixture must precede application imports
+    recent_excursions,  # noqa: E402 - isolated fixture must precede application imports
+)
+from app.tools.process_diagnostics.reports import (
+    process_capability,  # noqa: E402 - isolated fixture must precede application imports
+)
+from app.tools.production_reports.reports import (
+    process_pass_rate,  # noqa: E402 - isolated fixture must precede application imports
+)
+
+REFERENCE_START = "2026-06-01"
+REFERENCE_END = "2026-08-10"
+
 
 class DataReportsSystemTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        previous = configured_storage_identity()
+        install_default_storage_identity()
+        if previous is None:
+            cls.addClassCleanup(reset_storage_identity)
+        else:
+            cls.addClassCleanup(install_storage_identity, previous)
         seed_reference_data()
         # Reference snapshots predate DATA-016; make their disposable copy declare the
         # same bounded synthetic profile without touching repository data files.
@@ -50,7 +82,7 @@ class DataReportsSystemTests(unittest.TestCase):
             connection.commit()
 
     def test_dashboard_has_manufacturing_data(self):
-        dashboard = report_bundle()
+        dashboard = report_bundle(REFERENCE_START, REFERENCE_END)
         self.assertGreater(dashboard["overview"]["lots"], 300)
         self.assertGreater(dashboard["overview"]["yield_pct"], 80)
         self.assertTrue(dashboard["equipment"])
@@ -59,8 +91,7 @@ class DataReportsSystemTests(unittest.TestCase):
         self.assertTrue(all("process_steps" in row for row in dashboard["defects"]))
 
     def test_operational_reports_keep_every_process_scope_isolated(self):
-        start = (date.today() - timedelta(days=90)).isoformat()
-        end = (date.today() + timedelta(days=1)).isoformat()
+        start, end = REFERENCE_START, REFERENCE_END
 
         for process_step in MANUFACTURING_STEPS:
             with self.subTest(process_step=process_step):
@@ -75,8 +106,7 @@ class DataReportsSystemTests(unittest.TestCase):
                 self.assertTrue(all(row["process_steps"] == process_step for row in defects))
 
     def test_process_pass_rate_is_process_scoped_for_every_registered_step(self):
-        start = (date.today() - timedelta(days=90)).isoformat()
-        end = (date.today() + timedelta(days=1)).isoformat()
+        start, end = REFERENCE_START, REFERENCE_END
         for process_step in MANUFACTURING_STEPS:
             with self.subTest(process_step=process_step):
                 rows = process_pass_rate(start, end, process_step)
@@ -88,8 +118,7 @@ class DataReportsSystemTests(unittest.TestCase):
                 self.assertEqual(equipment_rows[0]["equipment_id"], f"{process_step}-01")
 
     def test_equipment_operational_reports_keep_exact_equipment_scope(self):
-        start = (date.today() - timedelta(days=90)).isoformat()
-        end = (date.today() + timedelta(days=1)).isoformat()
+        start, end = REFERENCE_START, REFERENCE_END
         equipment_id = "ETCH-04"
 
         health = equipment_health(start, end, "ETCH", equipment_id)
@@ -104,7 +133,7 @@ class DataReportsSystemTests(unittest.TestCase):
         self.assertTrue(all(row["equipment_id"] == equipment_id for row in excursions))
 
     def test_seeded_cvd_drift_is_detectable(self):
-        capability = process_capability(process_step="CVD")
+        capability = process_capability(REFERENCE_START, REFERENCE_END, process_step="CVD")
         cvd_02 = next(row for row in capability if row["equipment_id"] == "CVD-02")
         peers = [row for row in capability if row["equipment_id"] != "CVD-02"]
         self.assertLess(cvd_02["cpk"], min(row["cpk"] for row in peers))
@@ -187,8 +216,10 @@ class DataReportsSystemTests(unittest.TestCase):
 
     def test_sqlite_journal_mode_is_safe_for_wsl_mounted_databases(self):
         with patch.dict(os.environ, {"FAB_SQLITE_JOURNAL_MODE": "auto"}):
-            self.assertEqual(sqlite_journal_mode(Path("/mnt/d/fab.db")), "DELETE")
-            self.assertEqual(sqlite_journal_mode(Path("/tmp/fab.db")), "WAL")
+            windows = os.name == "nt"
+            native_path = Path("C:/fab.db") if windows else Path("/tmp/fab.db")
+            self.assertEqual(sqlite_journal_mode(native_path), "WAL")
+            self.assertEqual(sqlite_journal_mode(Path("/mnt/d/fab.db")), "WAL" if windows else "DELETE")
         with patch.dict(os.environ, {"FAB_SQLITE_JOURNAL_MODE": "TRUNCATE"}):
             self.assertEqual(sqlite_journal_mode(Path("/mnt/d/fab.db")), "TRUNCATE")
 
@@ -245,7 +276,7 @@ class DataReportsSystemTests(unittest.TestCase):
         self.assertTrue({"user_message_id", "question_preview"}.issubset(columns))
 
     def test_recent_excursions_supports_process_filter(self):
-        rows = recent_excursions(process_step="CMP", limit=20)
+        rows = recent_excursions(REFERENCE_START, REFERENCE_END, process_step="CMP", limit=20)
         self.assertTrue(rows)
         self.assertTrue(all(row["process_step"] == "CMP" for row in rows))
 

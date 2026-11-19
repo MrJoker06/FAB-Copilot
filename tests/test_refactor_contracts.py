@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from app.bootstrap import tool_catalog
 from scripts.refactor_contracts import (
+    HISTORICAL_CONTRACT,
     LEGACY_TOOL_CATALOG,
     collect_agent_contract,
     collect_api_contract,
@@ -56,7 +57,7 @@ class RefactorContractTests(unittest.TestCase):
         self.assertEqual(actual, expected, contract_diff({section: expected}, {section: actual}))
 
     def test_contract_is_versioned_redacted_and_offline(self):
-        self.assertEqual(self.expected["contract_version"], "1.0")
+        self.assertEqual(self.expected["contract_version"], "2.0")
         self.assertEqual(self.expected["data_classification"], "synthetic_redacted")
         self.assertEqual(
             self.expected["execution_policy"],
@@ -67,7 +68,10 @@ class RefactorContractTests(unittest.TestCase):
             self.assertNotIn(forbidden, serialized)
 
     def test_historical_tool_names_and_schemas_match_legacy_v1_baseline(self):
-        self.assert_contract_section("tools", collect_tool_contract("legacy-v1"))
+        self.assertEqual(load_contract(HISTORICAL_CONTRACT)["tools"], collect_tool_contract("legacy-v1"))
+
+    def test_default_tool_names_and_schemas_match_current_baseline(self):
+        self.assert_contract_section("tools", collect_tool_contract("current-v2"))
 
     def test_openapi_routes_statuses_and_schema_match_baseline(self):
         self.assert_contract_section("api", collect_api_contract())

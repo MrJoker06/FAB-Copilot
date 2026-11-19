@@ -124,7 +124,14 @@ class StartupScriptTests(unittest.TestCase):
         manifest = json.loads((instance / "instance.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["source_mode"], "snapshot")
         self.assertEqual(manifest["platform"], os.name)
-        self.assertTrue((instance / "source" / ".fab-git-commit").is_file())
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "--short=12", "HEAD"], cwd=self.repo, encoding="ascii"
+        ).strip()
+        self.assertEqual(manifest["git_commit"], commit)
+        self.assertEqual(
+            (instance / "source" / ".fab-git-commit").read_text(encoding="utf-8"),
+            commit + "\n",
+        )
         self.assertEqual(
             json.loads((instance / "source" / "display_mock_data" / "catalog.json").read_text(encoding="utf-8")),
             {"synthetic": True, "title": "值班报表"},

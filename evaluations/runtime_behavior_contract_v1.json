@@ -1,0 +1,186 @@
+{
+  "contract_version": "1.0",
+  "replay_profile": "LEGACY_V1_REPLAY",
+  "scenarios": {
+    "ready_success": {
+      "intent": "capability_excursion",
+      "request_type": "diagnosis",
+      "business_topics": [
+        "capability"
+      ],
+      "clarification_needed": false,
+      "plan_status": "ready",
+      "planned_tools": [
+        "get_process_capability",
+        "get_recent_excursions",
+        "get_sensor_summary",
+        "search_knowledge"
+      ],
+      "model_requests": 1,
+      "tool_outcomes": [
+        [
+          "get_process_capability",
+          "ok",
+          null
+        ],
+        [
+          "get_recent_excursions",
+          "ok",
+          null
+        ],
+        [
+          "get_sensor_summary",
+          "ok",
+          null
+        ],
+        [
+          "search_knowledge",
+          "ok",
+          null
+        ]
+      ],
+      "retrieval": "NOT_APPLICABLE",
+      "knowledge_fallback": false
+    },
+    "ready_dependency_failure": {
+      "intent": "capability_excursion",
+      "request_type": "diagnosis",
+      "business_topics": [
+        "capability"
+      ],
+      "clarification_needed": false,
+      "plan_status": "ready",
+      "planned_tools": [
+        "get_process_capability",
+        "get_recent_excursions",
+        "get_sensor_summary",
+        "search_knowledge"
+      ],
+      "model_requests": 1,
+      "tool_outcomes": [
+        [
+          "get_process_capability",
+          "error",
+          "TOOL_FAILED"
+        ],
+        [
+          "get_recent_excursions",
+          "blocked",
+          "DEPENDENCY_FAILED"
+        ],
+        [
+          "get_sensor_summary",
+          "blocked",
+          "DEPENDENCY_FAILED"
+        ],
+        [
+          "search_knowledge",
+          "blocked",
+          "DEPENDENCY_FAILED"
+        ]
+      ],
+      "retrieval": "NOT_APPLICABLE",
+      "knowledge_fallback": false
+    },
+    "loop_success": {
+      "intent": "defect_analysis",
+      "request_type": "diagnosis",
+      "business_topics": [
+        "defect"
+      ],
+      "clarification_needed": false,
+      "plan_status": "unsupported",
+      "planned_tools": [],
+      "model_requests": 2,
+      "tool_outcomes": [
+        [
+          "get_process_capability",
+          "ok",
+          null
+        ]
+      ],
+      "retrieval": "NOT_APPLICABLE",
+      "knowledge_fallback": false
+    },
+    "loop_duplicate_blocked": {
+      "intent": "defect_analysis",
+      "request_type": "diagnosis",
+      "business_topics": [
+        "defect"
+      ],
+      "clarification_needed": false,
+      "plan_status": "unsupported",
+      "planned_tools": [],
+      "model_requests": 4,
+      "tool_outcomes": [
+        [
+          "get_process_capability",
+          "ok",
+          null
+        ],
+        [
+          "get_process_capability",
+          "blocked",
+          "DUPLICATE_ARGUMENTS"
+        ],
+        [
+          "get_process_capability",
+          "blocked",
+          "DUPLICATE_ARGUMENTS"
+        ]
+      ],
+      "retrieval": "NOT_APPLICABLE",
+      "knowledge_fallback": false
+    },
+    "knowledge_retrieval_success": {
+      "intent": "general_knowledge",
+      "request_type": "explanation",
+      "business_topics": [
+        "process"
+      ],
+      "clarification_needed": false,
+      "plan_status": "unsupported",
+      "planned_tools": [],
+      "model_requests": 1,
+      "tool_outcomes": [
+        [
+          "search_knowledge",
+          "ok",
+          null
+        ],
+        [
+          "search_knowledge",
+          "ok",
+          null
+        ]
+      ],
+      "retrieval": "GROUND_FACTORY",
+      "knowledge_fallback": false
+    },
+    "knowledge_retrieval_empty_degraded": {
+      "intent": "general_knowledge",
+      "request_type": "explanation",
+      "business_topics": [
+        "process"
+      ],
+      "clarification_needed": false,
+      "plan_status": "unsupported",
+      "planned_tools": [],
+      "model_requests": 1,
+      "tool_outcomes": [
+        [
+          "search_knowledge",
+          "ok",
+          null
+        ],
+        [
+          "search_knowledge",
+          "ok",
+          null
+        ]
+      ],
+      "retrieval": "MODEL_ONLY_FALLBACK",
+      "knowledge_fallback": true
+    }
+  }
+}

@@ -72,12 +72,32 @@ class ModularizationBaselineTests(unittest.TestCase):
         self.assertEqual(empty["retrieval_decision"]["state"], "MODEL_ONLY_FALLBACK")
         self.assertTrue(empty["knowledge_fallback"]["disclosure"])
 
-    def test_default_behavior_baseline_detects_runtime_drift(self):
-        expected = baseline.load_json(baseline.DEFAULT_BEHAVIOR)
-        actual = baseline.collect_behavior()
-        self.assertEqual(
-            "", baseline.diff(expected, actual, baseline.DEFAULT_BEHAVIOR.name)
-        )
+    def test_versioned_runtime_behavior_contract(self):
+        path = MODULE_PATH.parents[1] / "evaluations" / "runtime_behavior_contract_v1.json"
+        contract = baseline.load_json(path)
+        self.assertEqual(contract["contract_version"], "1.0")
+        self.assertEqual(contract["replay_profile"], baseline.REPLAY_PROFILE)
+        replay = baseline.collect_behavior()
+        actual = {}
+        for name, scenario in replay["scenarios"].items():
+            route = scenario["intent_route"]
+            plan = scenario["execution_plan"]
+            actual[name] = {
+                "intent": route["intent"],
+                "request_type": route["request_type"],
+                "business_topics": route["business_topics"],
+                "clarification_needed": route["clarification_needed"],
+                "plan_status": plan["status"],
+                "planned_tools": [step["tool"] for step in plan["steps"]],
+                "model_requests": scenario["model_request_count"],
+                "tool_outcomes": [
+                    [item["tool"], item["status"], item.get("error_code")]
+                    for item in scenario["tool_trace"]
+                ],
+                "retrieval": scenario["retrieval_decision"]["state"],
+                "knowledge_fallback": scenario["knowledge_fallback"]["used"],
+            }
+        self.assertEqual("", baseline.diff(contract["scenarios"], actual, path.name))
 
     def test_normalization_only_removes_declared_volatile_fields(self):
         value = {
@@ -385,7 +405,8 @@ class ModularizationBaselineTests(unittest.TestCase):
     def test_fixture_proxy_environment_is_hidden_and_restored(self):
         observed_by_handler = []
         observed_by_model = []
-        sentinels = {key: f"sentinel-{key}" for key in baseline.PROXY_ENV_KEYS}
+        proxy_keys = sorted({key.upper() for key in baseline.PROXY_ENV_KEYS}) if os.name == "nt" else sorted(baseline.PROXY_ENV_KEYS)
+        sentinels = {key: f"sentinel-{key}" for key in proxy_keys}
         sentinels["MOD002_NON_PROXY_SENTINEL"] = "preserve-me"
 
         def snapshot():
@@ -429,12 +450,14 @@ class ModularizationBaselineTests(unittest.TestCase):
             self.assertEqual(os.environ["MOD002_NON_PROXY_SENTINEL"], "preserve-me")
 
     def test_behavior_baseline_is_independent_of_host_proxy_settings(self):
-        expected = baseline.load_json(baseline.DEFAULT_BEHAVIOR)
-        sentinels = {key: f"sentinel-{key}" for key in baseline.PROXY_ENV_KEYS}
+        with baseline.fixture_proxy_environment():
+            expected = baseline.collect_behavior()
+        proxy_keys = sorted({key.upper() for key in baseline.PROXY_ENV_KEYS}) if os.name == "nt" else sorted(baseline.PROXY_ENV_KEYS)
+        sentinels = {key: f"sentinel-{key}" for key in proxy_keys}
         with patch.dict(os.environ, sentinels):
             actual = baseline.collect_behavior()
         self.assertEqual(
-            "", baseline.diff(expected, actual, baseline.DEFAULT_BEHAVIOR.name)
+            "", baseline.diff(expected, actual, "proxy_behavior.json")
         )
 
     def test_capture_rejects_existing_targets_before_collecting(self):

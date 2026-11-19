@@ -14,7 +14,8 @@ from typing import Any
 from unittest.mock import patch
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_CONTRACT = PROJECT_DIR / "evaluations" / "refactor_contract_v1.json"
+HISTORICAL_CONTRACT = PROJECT_DIR / "evaluations" / "refactor_contract_v1.json"
+DEFAULT_CONTRACT = PROJECT_DIR / "evaluations" / "refactor_contract_v2.json"
 LEGACY_TOOL_CATALOG = PROJECT_DIR / "evaluations" / "legacy_tool_catalog_v1.json"
 sys.path.insert(0, str(PROJECT_DIR))
 
@@ -158,7 +159,7 @@ def collect_contract(tool_profile: str = "current-v2") -> dict[str, Any]:
     return {
         "api": collect_api_contract(),
         "agent": collect_agent_contract(),
-        "contract_version": "1.0",
+        "contract_version": "1.0" if tool_profile == "legacy-v1" else "2.0",
         "data_classification": "synthetic_redacted",
         "execution_policy": {
             "network_calls": 0,
@@ -171,8 +172,8 @@ def collect_contract(tool_profile: str = "current-v2") -> dict[str, Any]:
 
 def load_contract(path: Path = DEFAULT_CONTRACT) -> dict[str, Any]:
     contract = json.loads(path.read_text(encoding="utf-8"))
-    if contract.get("contract_version") != "1.0":
-        raise ValueError("refactor contract_version must be 1.0")
+    if contract.get("contract_version") not in {"1.0", "2.0"}:
+        raise ValueError("unsupported refactor contract_version")
     if contract.get("data_classification") != "synthetic_redacted":
         raise ValueError("refactor contract must be synthetic_redacted")
     if contract.get("execution_policy") != {"network_calls": 0, "real_model_calls": 0}:
@@ -184,7 +185,7 @@ def contract_diff(expected: dict[str, Any], actual: dict[str, Any]) -> str:
     return "".join(unified_diff(
         _canonical_json(expected, indent=2).splitlines(keepends=True),
         _canonical_json(actual, indent=2).splitlines(keepends=True),
-        fromfile="expected/refactor_contract_v1.json",
+        fromfile="expected/refactor_contract.json",
         tofile="actual/current_implementation.json",
     ))
 
@@ -197,28 +198,33 @@ def main() -> int:
         help="Print the current normalized contract without writing the baseline.",
     )
     parser.add_argument(
+        "--contract", type=Path,
+        help="Expected contract file. Pass the historical v1 file to compare an old checkout.",
+    )
+    parser.add_argument(
         "--tool-profile",
         choices=sorted(TOOL_PROFILES),
-        default="legacy-v1",
-        help=(
-            "Tool projection for the historical frozen contract. legacy-v1 is "
-            "a replay projection, not validation of the current default v2 tools."
-        ),
+        help="Override the tool profile inferred from the selected contract version.",
     )
     arguments = parser.parse_args()
-    actual = collect_contract(arguments.tool_profile)
+    expected = load_contract(arguments.contract) if arguments.contract else None
+    profile = arguments.tool_profile or (
+        "legacy-v1" if expected and expected["contract_version"] == "1.0" else "current-v2"
+    )
+    actual = collect_contract(profile)
     if arguments.print_current:
-        print(f"Refactor tool profile: {arguments.tool_profile}")
+        print(f"Refactor tool profile: {profile}")
         print(_canonical_json(actual, indent=2))
         return 0
-    expected = load_contract()
+    if expected is None:
+        expected = load_contract(HISTORICAL_CONTRACT if profile == "legacy-v1" else DEFAULT_CONTRACT)
     difference = contract_diff(expected, actual)
     if difference:
         print(difference)
         return 1
     print(
         "Refactor compatibility contract passed "
-        f"(historical tool profile: {arguments.tool_profile})."
+        f"(version {expected['contract_version']}, tool profile: {profile})."
     )
     return 0
 

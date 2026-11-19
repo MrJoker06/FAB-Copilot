@@ -6,6 +6,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from dataclasses import FrozenInstanceError, dataclass, fields, is_dataclass, replace
 from datetime import date
 from pathlib import Path
@@ -27,12 +28,12 @@ from app.agent_runtime.tools.contracts import (
 from app.agent_runtime.tools.dispatch_policy import DemoToolPolicy
 from app.bootstrap.agent_assembly import AssemblyError, assemble_agent
 from app.demo_data.tool_sources.equipment_health import demo_fake_adapter
-from app.tools.equipment_health.binding import create_equipment_health_binding
 from app.planning_runtime.contracts import (
     AnalysisScopeContract,
     ExecutionPlan,
     PlanBudget,
 )
+from app.tools.equipment_health.binding import create_equipment_health_binding
 
 
 @dataclass(frozen=True)
@@ -487,14 +488,14 @@ class AgentDemoTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             manufacturing, equipment = root / "manufacturing.db", root / "equipment.db"
-            with sqlite3.connect(manufacturing) as connection:
+            with closing(sqlite3.connect(manufacturing)) as connection, connection:
                 connection.execute(
                     "CREATE TABLE process_runs (equipment_id,process_step,run_time,excursion_code,defect_density,pass_flag)"
                 )
                 connection.execute(
                     "INSERT INTO process_runs VALUES ('DEMO-01','CMP','2026-10-02',NULL,0.1,1)"
                 )
-            with sqlite3.connect(equipment) as connection:
+            with closing(sqlite3.connect(equipment)) as connection, connection:
                 connection.execute(
                     "CREATE TABLE equipment_events (equipment_id,event_time,duration_minutes)"
                 )

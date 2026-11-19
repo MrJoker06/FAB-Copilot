@@ -1,11 +1,12 @@
 # 测试策略与质量门
 
-## 当前验证记录索引（2026-11-18）
+## 当前验证记录索引（2026-11-19）
 
-本节新增 MOD-029 验收，同时保留 MOD-031 的历史基线：实施分支为 `feat/local-qwen3-runbook`，起点 `638f772`，完成提交 `7859df9`；当前工作区及远程同步状态以 Git 为准。本节区分完整门、定向测试及基线对照，历史记录保留原值。
+本节汇总完整门、定向测试及基线对照，历史记录保留原值。MOD-031 的历史基线为 `feat/local-qwen3-runbook` 分支，起点 `638f772`，完成提交 `7859df9`。当前工作区及远程同步状态以 Git 为准。
 
 | 范围 | 已记录的验证与限制 | 证据入口 |
 | --- | --- | --- |
+| 完整离线回归修复（2026-11-19） | Windows 与 WSL 完整门均通过，各发现 Python 1565 项，零失败、零错误，覆盖率 89%，Node 65/65、Playwright 27/27；平台跳过与 WSL 耗时告警见报告 | [报告](reports/test-baseline-repair.md) |
 | Issue #2 请求类型/主题路由（2026-11-19） | 63 条固定预期路由对照、类型/范围仲裁反例、实际 Dispatcher 拒绝及 HTTP/Session 新字段回读；完整门和既有失败见报告 | [报告](reports/issue-2-intent-routing.md) |
 | Issue #1 错误码规范（2026-11-18） | 两端错误传播、真实 HTTP/会话回读及独立 Dispatcher 安装验证，Node 65/65、Linux 浏览器 27/27；完整 Python 与起点失败对照见报告，不宣称 full 全绿 | [报告](reports/issue-1-error-standardization.md) |
 | PE / EE 值班工作区（2026-11-18） | 报表目录/共享上传验证保留原记录；追加报表返回闪屏修复与 Autosystem 占位页，两端初始 HTTP HTML 测试各 4 项、Node 64 项、Linux 桌面浏览器 27 项通过。完整 Python 审计、首次失败及基线对照见报告 | [工作区报告](reports/pe-ee-duty-workspace.md) |

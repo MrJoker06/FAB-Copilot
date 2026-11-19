@@ -38,7 +38,7 @@ class VersionContractTests(unittest.TestCase):
         self.assertIn('/static/app/chat/controller.js?v=__APP_VERSION__', html)
         self.assertIn('/static/app/layout/controller.js?v=__APP_VERSION__', html)
         self.assertIn('/static/app/bootstrap.js?v=__APP_VERSION__', html)
-        self.assertIn('id="thinkingToggle"', html)
+        self.assertRegex(html, r'<select id="thinkingEffort"[^>]*>\s*<option value="off">')
         self.assertIn('id="editPersonalKnowledge"', html)
         self.assertIn('id="personalKnowledgeMetadataDialog"', html)
         self.assertNotIn('id="renamePersonalKnowledge"', html)

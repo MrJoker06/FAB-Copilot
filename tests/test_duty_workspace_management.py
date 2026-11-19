@@ -75,7 +75,7 @@ class DutyWorkspaceManagementTests(unittest.TestCase):
             response=await client.put('/api/admin/report-directory',json=payload,headers=self.admin_headers)
             self.assertEqual(response.status_code,200,response.text)
             saved=response.json(); self.assertEqual(saved['revision'],1)
-            self.assertEqual(json.loads(self.directory.read_text()),saved)
+            self.assertEqual(json.loads(self.directory.read_text(encoding="utf-8")), saved)
             public=(await client.get('/api/reports/directory')).json()
             self.assertEqual([item['id'] for item in public['reports']],['first','second'])
             self.assertNotIn('folders',public)
