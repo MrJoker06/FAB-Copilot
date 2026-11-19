@@ -50,7 +50,6 @@ def emit_answer_synthesis(
         run_id,
         plan_id=report.plan_id,
         status=report.status,
-        allowed_conclusion_strength=report.allowed_conclusion_strength,
         source_count=len(report.source_refs),
         invalid_source_count=len(report.invalid_source_refs),
         moved_claims=report.moved_claims,

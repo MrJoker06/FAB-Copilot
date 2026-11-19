@@ -323,7 +323,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
         self.assertEqual(inference["support"], "supported")
         self.assertEqual(inference["evidence_refs"], ("TOOL:S01", "TOOL:S02"))
         self.assertEqual(result.report.analysis_protocol_version, "2.0")
-        self.assertEqual(result.report.schema_version, "1.2")
+        self.assertEqual(result.report.schema_version, "1.3")
         self.assertIn("不确定性：这仅支持排查优先级", result.answer)
         self.assertNotIn("claim_kind", result.answer)
 
@@ -428,7 +428,6 @@ class AnswerSynthesizerTests(unittest.TestCase):
         return replace(
             contract, permitted_source_refs=("TOOL:S05",), source_semantics=semantics,
             source_scope_roles={"TOOL:S05": "primary"}, reference_evidence=evidence,
-            allowed_conclusion_strength="hypothesis_only",
         )
 
     def test_v2_absence_fact_from_empty_result_is_limited_not_rejected(self):
@@ -566,7 +565,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
             self.assertEqual(fact["support"], "unsupported", statement)
             self.assertIn("直接事实不能使用", "".join(fact["reasons"]))
 
-        definitive_contract = replace(contract, causal_claims_allowed=True, allowed_conclusion_strength="hypothesis_only")
+        definitive_contract = replace(contract, causal_claims_allowed=True)
         definitive_payload = {
             "conclusion": "可以确定主要原因是设备漂移。", "conclusion_evidence_refs": [reference],
             "conclusion_claim": _structured_claim(definitive_contract, reference, "可以确定主要原因是设备漂移。"),
@@ -1160,7 +1159,7 @@ class AnswerSynthesizerTests(unittest.TestCase):
 
         result = synthesize_submission(payload, contract)
 
-        self.assertIn("不能形成诊断性结论", result.answer)
+        self.assertIn("当前证据未能验证模型提交的结论", result.answer)
         self.assertNotIn("可以确定主要原因是 CMP-03 抛光头老化", result.answer)
         self.assertNotIn("CMP-03 已经导致全部批次异常", result.answer)
         self.assertNotIn("## 已确认事实\n- CMP-03", result.answer)

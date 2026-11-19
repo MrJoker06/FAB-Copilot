@@ -38,7 +38,7 @@ from app.conversation.turn_decision import build_turn_decision  # noqa: E402
 
 _REQUIRED_EXPECTED_FIELDS = {
     "route", "action", "plan_status", "primary_scope_type",
-    "primary_scope_ids", "tool_path", "evidence_strength",
+    "primary_scope_ids", "tool_path", "evidence_sufficient",
     "structured_submit", "model_calls", "business_tool_calls",
 }
 _FORBIDDEN_DATASET_KEYS = {
@@ -414,7 +414,7 @@ def _case_errors(case: dict[str, Any], result: dict[str, Any]) -> list[str]:
         "primary_scope_type": plan["scope_contract"]["primary_scope_type"],
         "primary_scope_ids": plan["scope_contract"]["primary_scope_ids"],
         "tool_path": result["replay"]["tool_path"],
-        "evidence_strength": result["evidence_validation"]["allowed_conclusion_strength"],
+        "evidence_sufficient": result["evidence_validation"].get("evidence_sufficient"),
         "structured_submit": result["replay"]["structured_submit"],
         "model_calls": result["trace_semantics"]["simulated_model_calls"],
         "business_tool_calls": result["trace_semantics"]["business_tool_calls"],
@@ -465,7 +465,7 @@ def evaluate_dataset(dataset: dict[str, Any]) -> dict[str, Any]:
             "primary_scope_type": result["execution_plan"]["scope_contract"]["primary_scope_type"],
             "primary_scope_ids": result["execution_plan"]["scope_contract"]["primary_scope_ids"],
             "tool_path": result["replay"]["tool_path"],
-            "evidence_strength": result["evidence_validation"]["allowed_conclusion_strength"],
+            "evidence_sufficient": result["evidence_validation"].get("evidence_sufficient"),
             "structured_submit": result["replay"]["structured_submit"],
             "model_calls": result["trace_semantics"]["simulated_model_calls"],
             "business_tool_calls": result["trace_semantics"]["business_tool_calls"],

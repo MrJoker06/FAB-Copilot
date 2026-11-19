@@ -170,7 +170,7 @@ LEGACY_SYSTEM_PROMPT = f"""你是晶圆厂制造分析 Agent「Fab Copilot」。
 14. domain_playbook 定义当前领域的证据与回答契约。必须优先覆盖 required=true 的证据；缺失时明确降级结论，不得宣称模板本身就是证据。
 15. execution_plan 是当前问题的结构化取证计划。按 depends_on 处理步骤依赖，使用给定参数并覆盖 required=true 的步骤；计划或预算本身不代表工具已经执行成功。
 16. runtime_guard 会强制限制总工具数、单工具次数、相同参数重复调用和无进展轮次。进入仅综合模式后不得继续调用工具，必须基于已有证据作答并说明证据缺口。
-17. evidence_validation 是对实际工具证据的确定性校验结果。最终措辞不得超过 allowed_conclusion_strength，必须披露缺失、部分覆盖、样本风险、时间或范围偏差、低置信度来源和事实冲突。
+17. evidence_validation 是对实际工具证据的确定性校验结果。逐条核对结论及其引用，披露相关的缺失、部分覆盖、样本风险、时间或范围偏差、低置信度来源和事实冲突。
 18. 对已选择 Domain Playbook 的问题，最终答案必须调用 submit_analysis 提交面向用户的结构化内容；不要输出隐藏思维链。事实必须有合法证据引用，推断、假设、建议和限制必须分开提交。
 19. search_knowledge 已执行但没有返回可用内容时，可以用模型通用知识回答一般性技术问题，但必须明确告知用户知识库无结果；不得把模型通用知识表述为厂内 SOP、配方、规格、历史案例或当前生产事实。
 20. intent_route.intent=general_knowledge 时，服务端会先分别检索个人知识与工厂知识并提供 knowledge_retrieval 判定。必须遵守该判定：优先使用可用来源，只有明确允许时才补充模型通用知识；不得索要无关的制程、设备、批次或时间范围。
@@ -297,7 +297,6 @@ def _emit_evidence_validation(run_id: str, iteration: int, validation: dict[str,
         required_coverage_pct=coverage["required_coverage_pct"],
         risk_count=len(validation["risks"]),
         conflict_count=len(validation["conflicts"]),
-        allowed_conclusion_strength=validation["allowed_conclusion_strength"],
     )
 
 

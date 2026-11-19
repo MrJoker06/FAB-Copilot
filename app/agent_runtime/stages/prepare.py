@@ -113,7 +113,6 @@ def _immediate_answer(state: CoordinatorRunState, deps: CoordinatorDependencies)
         state.run_id,
         plan_id=result["answer_synthesis"]["plan_id"],
         status=result["answer_synthesis"]["status"],
-        allowed_conclusion_strength=result["answer_synthesis"]["allowed_conclusion_strength"],
         source_count=0, invalid_source_count=0, moved_claims=0, wording_adjustment_count=0,
     )
     return result

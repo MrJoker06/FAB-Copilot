@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
 from ...core.tool_result_projection import truncation_prompt_note
+from ...evidence.answer_synthesizer import AnswerSynthesisReport, SynthesizedAnswer
 from ..result_access_run import current_result_access, result_prompt_payload, stream_result_model, ResultRequestLimit
 
 
@@ -247,7 +248,6 @@ def ready_synthesis_messages(
             "coverage": validation.coverage,
             "risks": [item.message for item in validation.risks],
             "conflicts": [item.message for item in validation.conflicts],
-            "allowed_conclusion_strength": validation.allowed_conclusion_strength,
         },
         "analysis_protocol": {
             "version": "2.0",
@@ -281,6 +281,9 @@ def ready_synthesis_fallback(
     *,
     deps: ReadySynthesisDependencies,
 ) -> Any:
+    lookup = synthesize_duty_lookup(validation, contract, observations)
+    if lookup is not None:
+        return lookup
     succeeded = [item.source_ref for item in observations if item.status == "success"]
     failed = [item.source_ref for item in observations if item.status != "success"]
     coverage = validation.coverage
@@ -290,7 +293,7 @@ def ready_synthesis_fallback(
             if getattr(validation, "assessment_status", None) == "check_failed"
             else "确定性取证已经完成，但模型综合阶段未能生成可验证的结构化结论。"
         ),
-        f"必需证据覆盖 {coverage['required_covered']}/{coverage['required_total']}；允许的结论强度为 {validation.allowed_conclusion_strength}。",
+        f"必需证据覆盖 {coverage['required_covered']}/{coverage['required_total']}。",
         f"已完成来源：{', '.join(item for item in succeeded if item) or '无'}。",
     ]
     if failed:
@@ -306,6 +309,75 @@ def ready_synthesis_fallback(
             "outcome": "local_evidence_safe_fallback",
         },),
     )
+
+
+def synthesize_duty_lookup(validation, contract, observations) -> SynthesizedAnswer | None:
+    """Render fixed reports from the completed call, without a model rewrite."""
+    component = (getattr(contract, "evidence_policy_ref", None) or {}).get("component_id")
+    if component not in {"PB-DUTY-CPK", "PB-DUTY-ALARMS"} or validation.assessment_status != "checked":
+        return None
+    capability = component == "PB-DUTY-CPK"
+    title = "制程能力报表" if capability else "设备事件时间线"
+    tool = "get_process_capability" if capability else "get_equipment_event_timeline"
+    calls = [item for item in observations if item.tool == tool]
+    if len(calls) != 1:
+        return None
+    call = calls[0]
+    ref = call.source_ref
+    args = call.arguments
+    descriptor = contract.source_semantics.get(ref, {})
+    equipment = validation.primary_scope_ids[0] if len(validation.primary_scope_ids) == 1 else None
+    start = args.get("start") or descriptor.get("start")
+    end = args.get("end") or descriptor.get("end")
+    if not (equipment and start and end and ref):
+        return None
+    scope = f"{equipment}，{start} 至 {end}（日期口径）"
+    lines = [f"{scope}。来源：{title} [数据 {ref.removeprefix('TOOL:')}]。"]
+    rows = call.result
+    if call.status == "blocked":
+        lines = [f"{scope}。当前调用受限，未能读取{title}。"]
+    elif call.status != "success":
+        timeout = "超时" in (call.error or "") or "timeout" in (call.error or "").lower()
+        failure = "读取超时" if timeout else "读取失败"
+        lines = [f"{scope}。{title}{failure}，请查阅来源状态后重试。"]
+    elif not isinstance(rows, list) or any(
+        not isinstance(row, dict) or (not capability and row.get("equipment_id") != equipment) for row in rows
+    ) or validation.conflicts:
+        lines.append("来源范围或记录存在冲突，需核对原始报表。")
+    elif capability:
+        verified = (getattr(validation, "capability_values", None) or {}).get(ref, ())
+        selected = [row for row in rows if row.get("equipment_id") == equipment]
+        for row in selected[:8]:
+            value = row.get("cpk")
+            if (equipment, value) in verified and type(value) in {int, float}:
+                metric = row.get("metric_name", "量测指标")
+                samples = row.get("samples")
+                detail = f"（样本 {samples}）" if type(samples) is int else ""
+                lines.append(f"- {metric} 的 Cpk 为 {value}{detail}。")
+        if len(lines) == 1:
+            lines.append("该范围内未取得可核对的 Cpk 数值。")
+        elif len(selected) > 8:
+            lines.append("正文展示前 8 个指标，请打开来源查看其余记录。")
+        lines.extend(issue.message for issue in validation.risks if issue.code == "small_sample")
+    elif any(not row.get("event_type") for row in rows):
+        lines.append("部分事件缺少类型，无法确认报警总数。")
+    else:
+        alarms = sum(str(row["event_type"]).casefold() in {"alarm", "报警"} for row in rows)
+        if len(rows) >= 100:
+            lines.append(f"返回的前 100 条事件中有 {alarms} 条报警。已达到来源上限，无法确认该范围内的报警总数。")
+        else:
+            lines.append(f"该来源在上述范围内记录了 {alarms} 条报警。")
+    return SynthesizedAnswer("\n\n".join(lines), AnswerSynthesisReport(
+        schema_version=contract.schema_version,
+        synthesizer_version=contract.synthesizer_version,
+        plan_id=contract.plan_id,
+        status="structured",
+        sections=("查询结果",),
+        source_refs=(ref,) if call.status == "success" else (),
+        invalid_source_refs=(),
+        moved_claims=0,
+        wording_adjustments=(),
+    ))
 
 
 def synthesize_ready_assistant(

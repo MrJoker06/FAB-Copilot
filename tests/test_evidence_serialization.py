@@ -113,15 +113,12 @@ class EvidenceSerializationTests(unittest.TestCase):
             source_scope_roles={"TOOL:tool": "primary"},
             source_semantics={"TOOL:tool": {"nested": ["值"]}},
             observed_source_refs=("TOOL:tool",),
-            allowed_conclusion_strength="supported",
-            conclusion_guidance="guidance",
         )
         contract = AnswerContract(
             "1.2",
             "1.2.0",
             "plan-1",
             "required",
-            "supported",
             False,
             ("结论",),
             ("TOOL:tool",),
@@ -138,7 +135,6 @@ class EvidenceSerializationTests(unittest.TestCase):
             "1.2.0",
             "plan-1",
             "structured",
-            "supported",
             ("结论",),
             ("TOOL:tool",),
             (),
@@ -150,7 +146,9 @@ class EvidenceSerializationTests(unittest.TestCase):
         )
         for value in (validation, contract, report):
             with self.subTest(value=type(value).__name__):
-                self.assertEqual(value.to_dict(), _oracle(value))
+                expected = _oracle(value)
+                expected.pop("capability_values", None)
+                self.assertEqual(value.to_dict(), expected)
 
     def test_result_is_independent_of_source_and_other_calls(self):
         value = MutablePayload({"nested": [{"value": 1}]})

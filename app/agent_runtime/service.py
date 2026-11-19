@@ -158,7 +158,6 @@ async def run_agent(
             evidence_required_coverage_pct=result.get("evidence_validation", {}).get("coverage", {}).get("required_coverage_pct", 0),
             evidence_risk_count=len(result.get("evidence_validation", {}).get("risks", [])),
             evidence_conflict_count=len(result.get("evidence_validation", {}).get("conflicts", [])),
-            allowed_conclusion_strength=result.get("evidence_validation", {}).get("allowed_conclusion_strength"),
             answer_synthesis_status=result.get("answer_synthesis", {}).get("status"),
             answer_synthesis_moved_claims=result.get("answer_synthesis", {}).get("moved_claims", 0),
             answer_synthesis_invalid_sources=len(result.get("answer_synthesis", {}).get("invalid_source_refs", [])),

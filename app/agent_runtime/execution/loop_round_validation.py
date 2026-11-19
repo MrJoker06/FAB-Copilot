@@ -85,8 +85,7 @@ async def validate_round(
             "message": (
                 "证据校验完成 · "
                 f"必需证据 {evidence_validation.coverage['required_covered']}/"
-                f"{evidence_validation.coverage['required_total']} · "
-                f"结论强度 {evidence_validation.allowed_conclusion_strength}"
+                f"{evidence_validation.coverage['required_total']}"
             ),
             "validation": evidence_validation.to_dict(),
         },

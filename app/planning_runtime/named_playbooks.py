@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import replace
 from typing import Protocol
 
+from ..intent_runtime.contracts import IntentRoute
 from app.planning_runtime.builtin_playbooks import DOMAIN_PLAYBOOKS
 from app.planning_runtime.playbook_contracts import DomainPlaybook
 from app.skills.policies.manufacturing import named_requirements as _requirements
@@ -80,6 +82,43 @@ def select_named_playbook(route: _Route) -> PlaybookSelection:
         candidate_playbooks=(),
         reason="当前六类具名查询 Domain Playbook 不覆盖该意图，继续使用通用 Agent 规则。",
     )
+
+
+def focus_duty_lookup(question: str, route: IntentRoute, selection: PlaybookSelection) -> PlaybookSelection:
+    selected = selection.selected_playbook
+    if (
+        selected is None or selected.playbook_version != NAMED_PLAYBOOK_VERSION
+        or route.request_type != "data_query" or len(route.equipment_ids) != 1
+        or re.search(
+            r"温度|温漂|传感器|规格|对比|比较|阈值|达标|合格|超标|高于|低于|"
+            r"均值|方差|标准差|样本|恢复|根因|原因|[、；;]",
+            question,
+        )
+    ):
+        return selection
+    if route.intent == "capability_excursion" and re.search(r"\bcpk\b", question, re.I):
+        plan_id, evidence_id, tool, fields, title = (
+            "PB-DUTY-CPK", "CAP-01", "get_process_capability",
+            ("equipment_id", "metric_name", "cpk"), "制程能力 Cpk",
+        )
+    elif route.intent == "equipment_fault" and re.search(r"报警|\balarm\b", question, re.I):
+        plan_id, evidence_id, tool, fields, title = (
+            "PB-DUTY-ALARMS", "EQP-03", "get_equipment_event_timeline",
+            ("equipment_id", "event_time", "event_type"), "设备报警",
+        )
+    else:
+        return selection
+    requirement = next(item for item in selected.evidence_requirements if item.evidence_id == evidence_id)
+    focused = replace(
+        selected, playbook_id=plan_id, title=title,
+        objective=f"查询目标机台和日期范围内的{title}。",
+        evidence_requirements=(replace(
+            requirement, name=title, source_tools=(tool,), required_fields=fields,
+            acceptance_criteria=("核对机台、日期和实际结果。",),
+        ),),
+        analysis_questions=(),
+    )
+    return replace(selection, selected_playbook=focused, candidate_playbooks=(_reference(focused),))
 
 
 __all__ = [

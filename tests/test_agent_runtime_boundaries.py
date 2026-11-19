@@ -293,7 +293,6 @@ class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
         report = SimpleNamespace(
             plan_id="plan-1",
             status="valid",
-            allowed_conclusion_strength="bounded",
             source_refs=("KB-1",),
             invalid_source_refs=(),
             moved_claims=1,
@@ -310,7 +309,6 @@ class AgentRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(emitted, [("answer_synthesis_completed", "run-1", {
             "plan_id": "plan-1",
             "status": "valid",
-            "allowed_conclusion_strength": "bounded",
             "source_count": 1,
             "invalid_source_count": 0,
             "moved_claims": 1,

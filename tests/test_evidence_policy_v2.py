@@ -127,11 +127,11 @@ class EvidencePolicyV2Tests(unittest.TestCase):
         self.assertTrue(result.enforced)
         self.assertEqual(create_answer_contract(result).status, "required")
 
-    def test_unknown_strength_wrong_version_and_unobserved_refs_fail_closed(self):
+    def test_wrong_schema_wrong_version_and_unobserved_refs_fail_closed(self):
         plan, policy = fixture()
         raw = validate_evidence(plan, policy, [])
         invalid = (
-            replace(raw, allowed_conclusion_strength="strong"),
+            replace(raw, schema_version="1.2"),
             replace(raw, validator_version="9.0.0"),
             replace(raw, observed_source_refs=("TOOL:unexecuted",)),
             replace(raw, reference_evidence={"TOOL:unexecuted": {}}),
@@ -142,7 +142,7 @@ class EvidencePolicyV2Tests(unittest.TestCase):
             replace(raw, causal_claims_allowed=True),
             replace(raw, evidence_sufficient=True),
             SimpleNamespace(
-                status="validated", allowed_conclusion_strength="supported"
+                status="validated"
             ),
         )
         for item in invalid:
@@ -232,7 +232,6 @@ class EvidencePolicyV2Tests(unittest.TestCase):
             ],
         )
         self.assertIs(report.evidence_sufficient, True)
-        self.assertEqual(report.allowed_conclusion_strength, "supported_with_limits")
         self.assertIn(
             "document_status_unverified", {issue.code for issue in report.risks}
         )

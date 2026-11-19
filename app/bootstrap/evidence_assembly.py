@@ -21,8 +21,6 @@ def validate_evidence(
             assessment_status="check_failed",
             assessment_reason="required_policy_missing",
             policy_ref={"component_id": plan.playbook_id, "version": policy_version},
-            allowed_conclusion_strength="insufficient",
-            conclusion_guidance="必需证据策略不可用，不能形成诊断结论。",
         )
     return assess_validation(
         plan,

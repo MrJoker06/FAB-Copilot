@@ -12,13 +12,6 @@ from .serialization import json_dataclass_payload
 
 ObservationStatus = Literal["success", "error", "blocked"]
 EvidenceStatus = Literal["covered", "partial", "missing", "optional_missing"]
-ConclusionStrength = Literal[
-    "not_applicable",
-    "insufficient",
-    "hypothesis_only",
-    "supported_with_limits",
-    "supported",
-]
 
 # Evidence-owned read-only views of the plan and playbook facts the validator
 # consumes.  ``planning_runtime.contracts.ExecutionPlan``/``PlanStep`` and
@@ -162,8 +155,6 @@ class EvidenceValidation:
     source_scope_roles: dict[str, str]
     source_semantics: dict[str, dict[str, Any]]
     observed_source_refs: tuple[str, ...]
-    allowed_conclusion_strength: ConclusionStrength
-    conclusion_guidance: str
     causal_claims_allowed: bool = False
     # Per-reference evidence state is additive so previously persisted validation
     # payloads remain readable.  It lets synthesis assess a claim independently
@@ -173,6 +164,7 @@ class EvidenceValidation:
     assessment_reason: str | None = None
     policy_ref: dict[str, str] | None = None
     evidence_sufficient: bool | None = None
+    capability_values: dict[str, tuple[tuple[str, float], ...]] = field(default_factory=dict, repr=False)
 
     @property
     def enforced(self) -> bool:
@@ -182,7 +174,9 @@ class EvidenceValidation:
         ) or self.status == "validated"
 
     def to_dict(self) -> dict[str, Any]:
-        return json_dataclass_payload(self)
+        payload = json_dataclass_payload(self)
+        payload.pop("capability_values")
+        return payload
 
     def to_prompt(self) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, separators=(",", ":"))
@@ -303,11 +297,15 @@ def _execution_risks(
                 if observation.tool in requirement.source_tools
             }
         if evidence_ids:
+            failed_message = {
+                "blocked": "调用受限",
+                "error": "读取超时" if "超时" in (observation.error or "") or "timeout" in (observation.error or "").lower() else "读取失败",
+            }[observation.status]
             risks.append(ValidationIssue(
                 code="tool_not_completed",
                 severity="warning",
                 evidence_ids=tuple(sorted(evidence_ids)),
-                message=f"{observation.tool} 调用状态为 {observation.status}，未产生可验证证据。",
+                message=f"{observation.tool} {failed_message}。",
                 source_ref=f"TOOL:{observation.tool}",
             ))
     return risks
@@ -365,33 +363,6 @@ def _reference_evidence(
     return result
 
 
-def _strength(
-    required_total: int,
-    required_covered: int,
-    risks: tuple[ValidationIssue, ...],
-    conflicts: tuple[ValidationIssue, ...],
-) -> ConclusionStrength:
-    if required_total == 0:
-        return "not_applicable"
-    if required_covered == 0:
-        return "insufficient"
-    critical = any(item.severity == "critical" for item in (*risks, *conflicts))
-    if required_covered < required_total or critical:
-        return "hypothesis_only"
-    if risks or conflicts:
-        return "supported_with_limits"
-    return "supported"
-
-
-_GUIDANCE: dict[ConclusionStrength, str] = {
-    "not_applicable": "当前没有适用的领域证据契约；按通用规则回答并明确数据来源。",
-    "insufficient": "必需证据不足，不得给出诊断性或因果性结论；只能说明已知事实、证据缺口和补充查询要求。",
-    "hypothesis_only": "任务级诊断或根因只能作为待验证假设并说明依据与反证方法；经逐声明验证的直接观测可以保留，但不得使用‘主要原因’、‘已经导致’等确定性或因果措辞。",
-    "supported_with_limits": "可以给出受证据支持的方向性结论，但必须同时披露样本、截断、来源或口径限制。",
-    "supported": "可以给出当前证据直接支持的结论；相关性仍不得表述为已证明的因果关系。",
-}
-
-
 def validate_evidence(
     plan: ExecutionPlanView,
     playbook: EvidencePolicy | None,
@@ -401,9 +372,8 @@ def validate_evidence(
 ) -> EvidenceValidation:
     step_matcher = step_matcher or (playbook.step_matcher if playbook is not None else None)
     if plan.status != "ready" or playbook is None:
-        strength: ConclusionStrength = "not_applicable"
         return EvidenceValidation(
-            schema_version="1.2",
+            schema_version="1.3",
             validator_version=playbook.version if playbook is not None else "1.2.0",
             plan_id=plan.plan_id,
             status="not_applicable",
@@ -422,8 +392,6 @@ def validate_evidence(
             source_scope_roles=_source_scope_roles(plan),
             source_semantics=_source_semantics(plan, playbook.describe_source) if playbook is not None else _source_semantics(plan),
             observed_source_refs=(),
-            allowed_conclusion_strength=strength,
-            conclusion_guidance=_GUIDANCE[strength],
         )
 
     matched = [
@@ -479,7 +447,6 @@ def validate_evidence(
         + playbook.risk_checker(matched)
     )
     conflicts = _deduplicate_issues(playbook.conflict_checker(matched))
-    strength = _strength(len(required_checks), required_covered, risks, conflicts)
     observed_refs = {
         f"TOOL:{observation.tool}"
         for observation, _ in matched
@@ -489,8 +456,17 @@ def validate_evidence(
         observed_refs.update(f"TOOL:{step.step_id}" for step in plan.steps if step_matcher(step, observation))
     observed_refs.discard("")
     reference_evidence = _reference_evidence(plan, matched, checks, risks, conflicts, step_matcher)
+    capability_values = {
+        observation.source_ref: tuple(
+            (str(row.get("equipment_id") or ""), row["cpk"])
+            for row in _rows(observation.result)
+            if type(row.get("cpk")) in {int, float} and math.isfinite(row["cpk"])
+        )
+        for observation, _ in matched
+        if observation.tool == "get_process_capability" and observation.source_ref
+    }
     return EvidenceValidation(
-        schema_version="1.2",
+        schema_version="1.3",
         validator_version=playbook.version,
         plan_id=plan.plan_id,
         status="validated",
@@ -509,9 +485,8 @@ def validate_evidence(
         source_scope_roles=_source_scope_roles(plan),
         source_semantics=_source_semantics(plan, playbook.describe_source) if playbook is not None else _source_semantics(plan),
         observed_source_refs=tuple(sorted(observed_refs)),
-        allowed_conclusion_strength=strength,
-        conclusion_guidance=_GUIDANCE[strength],
         reference_evidence=reference_evidence,
+        capability_values=capability_values,
     )
 
 
@@ -519,10 +494,9 @@ def validator_system_message(validation: EvidenceValidation) -> str:
     return (
         "以下 evidence_validation 是基于实际工具结果生成的确定性约束，不是制造事实本身。"
         "若上下文中存在多份报告，以最后一份为准。"
-        "allowed_conclusion_strength 限制任务级诊断和根因；经逐声明验证的直接观测可保留。"
         "必须披露 missing/partial 证据、critical 风险和冲突。"
         "source_scope_roles=context_only 的工具只能提供背景，不能支持 primary_scope 的专属指标或结论。"
-        "causal_claims_allowed=false 时不得把相关性表述为已证明因果。\n"
+        "逐条核对来源、对象、时间和限制。causal_claims_allowed=false 时不得把相关性表述为已证明因果。\n"
         f"evidence_validation={validation.to_prompt()}"
     )
 
@@ -559,11 +533,10 @@ def assess_validation(
                 closer()
             raise ValueError
         if (
-            report.schema_version != "1.2"
+            report.schema_version != "1.3"
             or report.validator_version != policy.version
             or report.plan_id != plan.plan_id
             or report.status not in {"validated", "not_applicable"}
-            or report.allowed_conclusion_strength not in _GUIDANCE
             or report.causal_claims_allowed is not False
         ):
             raise ValueError
@@ -607,7 +580,6 @@ def assess_validation(
             raise ValueError
         sufficient = (
             covered == total
-            and report.allowed_conclusion_strength in {"supported", "supported_with_limits"}
             and not any(issue.severity == "critical" for issue in (*report.risks, *report.conflicts))
         ) if total else None
         if report.evidence_sufficient is True and sufficient is not True:
@@ -625,6 +597,4 @@ def assess_validation(
             assessment_status="check_failed",
             assessment_reason=reason,
             policy_ref=reference,
-            allowed_conclusion_strength="insufficient",
-            conclusion_guidance="证据检查不可用，不能形成已验证诊断；仅报告故障、可确认观测和下一步。",
         )

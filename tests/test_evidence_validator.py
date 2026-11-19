@@ -56,7 +56,6 @@ class EvidenceValidatorTests(unittest.TestCase):
         self.assertEqual(validation.coverage["required_total"], 4)
         self.assertEqual(validation.coverage["required_covered"], 4)
         self.assertEqual(validation.coverage["required_coverage_pct"], 100.0)
-        self.assertNotIn(validation.allowed_conclusion_strength, {"insufficient", "hypothesis_only"})
         self.assertEqual({item["process_step"] for item in capability_rows}, set(MANUFACTURING_STEPS))
         self.assertEqual(validation.primary_scope_type, "fab")
         self.assertEqual(validation.source_scope_roles["TOOL:get_fab_overview"], "primary")
@@ -78,7 +77,6 @@ class EvidenceValidatorTests(unittest.TestCase):
         validation = validate_evidence(plan, selection.selected_playbook, [])
         statuses = {check.evidence_id: check.status for check in validation.evidence_checks}
         self.assertEqual(statuses["YLD-05"], "missing")
-        self.assertIn(validation.allowed_conclusion_strength, {"insufficient", "hypothesis_only"})
 
     def test_complete_required_yield_evidence_allows_supported_conclusion(self):
         selection, plan = _context("最近四周良率下降")
@@ -105,7 +103,6 @@ class EvidenceValidatorTests(unittest.TestCase):
         self.assertEqual(validation.coverage["required_covered"], 3)
         self.assertEqual(validation.coverage["required_coverage_pct"], 100.0)
         self.assertEqual(validation.coverage["field_coverage_pct"], 100.0)
-        self.assertEqual(validation.allowed_conclusion_strength, "supported")
         self.assertFalse(validation.causal_claims_allowed)
         self.assertEqual(validation.conflicts, ())
         self.assertEqual(
@@ -141,7 +138,6 @@ class EvidenceValidatorTests(unittest.TestCase):
         self.assertEqual(checks["CAP-01"], "missing")
         self.assertEqual(checks["CAP-02"], "covered")
         self.assertEqual(checks["CAP-04"], "covered")
-        self.assertEqual(validation.allowed_conclusion_strength, "hypothesis_only")
         self.assertIn("scope_mismatch", {item.code for item in validation.risks})
         self.assertIn("low_source_confidence", {item.code for item in validation.risks})
 
@@ -172,7 +168,6 @@ class EvidenceValidatorTests(unittest.TestCase):
         self.assertIn("small_sample", risk_codes)
         self.assertIn("result_truncated", risk_codes)
         self.assertEqual({item.code for item in validation.conflicts}, {"fact_conflict"})
-        self.assertEqual(validation.allowed_conclusion_strength, "hypothesis_only")
         self.assertIn("fact_conflict", validation.reference_evidence["TOOL:S01"]["conflict_codes"])
         self.assertIn("fact_conflict", validation.reference_evidence["TOOL:get_process_capability"]["conflict_codes"])
         self.assertNotIn("fact_conflict", validation.reference_evidence["TOOL:S02"]["conflict_codes"])
@@ -255,7 +250,6 @@ class EvidenceValidatorTests(unittest.TestCase):
         validation = validate_evidence(plan, selection.selected_playbook, [])
 
         self.assertEqual(validation.status, "not_applicable")
-        self.assertEqual(validation.allowed_conclusion_strength, "not_applicable")
         payload = json.loads(validator_system_message(validation).split("evidence_validation=", 1)[1])
         self.assertEqual(payload, validation.to_dict())
 
@@ -298,7 +292,7 @@ class EvidenceValidatorTests(unittest.TestCase):
             ))
 
         self.assertEqual(result["evidence_validation"]["coverage"]["required_covered"], 1)
-        self.assertEqual(result["evidence_validation"]["allowed_conclusion_strength"], "hypothesis_only")
+        self.assertNotIn("allowed_conclusion_strength", result["evidence_validation"])
         self.assertEqual(len(requests), 1)
         self.assertEqual(
             [tool["function"]["name"] for tool in requests[0]["tools"]],

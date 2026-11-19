@@ -69,8 +69,7 @@ async def execute_ready_synthesis(
         "message": (
             "证据校验完成 · "
             f"必需证据 {state.evidence_validation.coverage['required_covered']}/"
-            f"{state.evidence_validation.coverage['required_total']} · "
-            f"结论强度 {state.evidence_validation.allowed_conclusion_strength}"
+            f"{state.evidence_validation.coverage['required_total']}"
         ),
         "validation": state.evidence_validation.to_dict(), "execution_mode": "deterministic",
     })
@@ -94,6 +93,13 @@ async def execute_ready_synthesis(
         synthesis = deps.ready_synthesis_fallback(
             state.evidence_validation, state.answer_contract, state.evidence_observations,
             "必需证据检查不可用，未请求模型综合",
+        )
+        return await _finish_synthesis(state, deps, synthesis)
+    policy = getattr(state.answer_contract, "evidence_policy_ref", None) or {}
+    if policy.get("component_id") in {"PB-DUTY-CPK", "PB-DUTY-ALARMS"}:
+        synthesis = deps.ready_synthesis_fallback(
+            state.evidence_validation, state.answer_contract, state.evidence_observations,
+            "按日期范围直接呈现已核对的报表结果",
         )
         return await _finish_synthesis(state, deps, synthesis)
     messages = deps.ready_synthesis_messages(

@@ -68,7 +68,6 @@ async def handle_model_availability(
     deps.emit(
         "answer_synthesis_completed", state.run_id,
         plan_id=result["answer_synthesis"]["plan_id"], status=result["answer_synthesis"]["status"],
-        allowed_conclusion_strength=result["answer_synthesis"]["allowed_conclusion_strength"],
         source_count=len(result["answer_synthesis"]["source_refs"]),
         invalid_source_count=len(result["answer_synthesis"]["invalid_source_refs"]),
         moved_claims=result["answer_synthesis"]["moved_claims"],
@@ -82,10 +81,9 @@ async def handle_model_availability(
             await deps.notify(state.progress, {"event": "tool_finished", **item})
     await deps.notify(state.progress, {
         "event": "stage", "stage": "validation",
-        "message": "证据校验完成 · 必需证据 %s/%s · 结论强度 %s" % (
+        "message": "证据校验完成 · 必需证据 %s/%s" % (
             result["evidence_validation"]["coverage"]["required_covered"],
             result["evidence_validation"]["coverage"]["required_total"],
-            result["evidence_validation"]["allowed_conclusion_strength"],
         ),
         "validation": result["evidence_validation"],
     })
@@ -132,9 +130,8 @@ async def _ready_fallback(state: CoordinatorRunState, deps: "CoordinatorDependen
     deps.emit_answer_synthesis(state.run_id, synthesis.report)
     await deps.notify(state.progress, {
         "event": "stage", "stage": "validation",
-        "message": "证据校验完成 · 必需证据 %s/%s · 结论强度 %s" % (
+        "message": "证据校验完成 · 必需证据 %s/%s" % (
             validation.coverage["required_covered"], validation.coverage["required_total"],
-            validation.allowed_conclusion_strength,
         ),
         "validation": validation.to_dict(), "execution_mode": "deterministic",
     })

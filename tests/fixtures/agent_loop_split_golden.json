@@ -385,7 +385,7 @@
     "kind": "notify",
     "payload": {
      "event": "stage",
-     "message": "证据校验完成 · 必需证据 1/1 · 结论强度 strong",
+     "message": "证据校验完成 · 必需证据 1/1",
      "stage": "validation",
      "validation": {
       "coverage": {
@@ -939,7 +939,7 @@
     "kind": "notify",
     "payload": {
      "event": "stage",
-     "message": "证据校验完成 · 必需证据 0/0 · 结论强度 strong",
+     "message": "证据校验完成 · 必需证据 0/0",
      "stage": "validation",
      "validation": {
       "coverage": {
@@ -1924,7 +1924,7 @@
     "kind": "notify",
     "payload": {
      "event": "stage",
-     "message": "证据校验完成 · 必需证据 1/1 · 结论强度 strong",
+     "message": "证据校验完成 · 必需证据 1/1",
      "stage": "validation",
      "validation": {
       "coverage": {
@@ -3413,7 +3413,7 @@
     "kind": "notify",
     "payload": {
      "event": "stage",
-     "message": "证据校验完成 · 必需证据 1/1 · 结论强度 strong",
+     "message": "证据校验完成 · 必需证据 1/1",
      "stage": "validation",
      "validation": {
       "coverage": {
@@ -4835,7 +4835,7 @@
     "kind": "notify",
     "payload": {
      "event": "stage",
-     "message": "证据校验完成 · 必需证据 0/0 · 结论强度 strong",
+     "message": "证据校验完成 · 必需证据 0/0",
      "stage": "validation",
      "validation": {
       "coverage": {
@@ -5740,7 +5740,7 @@
     "kind": "notify",
     "payload": {
      "event": "stage",
-     "message": "证据校验完成 · 必需证据 0/0 · 结论强度 strong",
+     "message": "证据校验完成 · 必需证据 0/0",
      "stage": "validation",
      "validation": {
       "coverage": {
@@ -6091,7 +6091,7 @@
     "kind": "notify",
     "payload": {
      "event": "stage",
-     "message": "证据校验完成 · 必需证据 0/0 · 结论强度 strong",
+     "message": "证据校验完成 · 必需证据 0/0",
      "stage": "validation",
      "validation": {
       "coverage": {
@@ -9054,7 +9054,7 @@
     "kind": "notify",
     "payload": {
      "event": "stage",
-     "message": "证据校验完成 · 必需证据 1/1 · 结论强度 strong",
+     "message": "证据校验完成 · 必需证据 1/1",
      "stage": "validation",
      "validation": {
       "coverage": {
@@ -12933,7 +12933,7 @@
     "kind": "notify",
     "payload": {
      "event": "stage",
-     "message": "证据校验完成 · 必需证据 0/0 · 结论强度 weak",
+     "message": "证据校验完成 · 必需证据 0/0",
      "stage": "validation",
      "validation": {
       "coverage": {
@@ -13263,7 +13263,7 @@
     "kind": "notify",
     "payload": {
      "event": "stage",
-     "message": "证据校验完成 · 必需证据 0/0 · 结论强度 weak",
+     "message": "证据校验完成 · 必需证据 0/0",
      "stage": "validation",
      "validation": {
       "coverage": {
@@ -14580,7 +14580,7 @@
     "kind": "notify",
     "payload": {
      "event": "stage",
-     "message": "证据校验完成 · 必需证据 1/1 · 结论强度 strong",
+     "message": "证据校验完成 · 必需证据 1/1",
      "stage": "validation",
      "validation": {
       "coverage": {

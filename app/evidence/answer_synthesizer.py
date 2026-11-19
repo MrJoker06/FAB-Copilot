@@ -215,6 +215,13 @@ _PRODUCTION_SCOPE_PATTERN = re.compile(
 )
 _DIAGNOSTIC_TARGET_PATTERN = re.compile(r"原因|根因|问题|失效|故障")
 _HIGH_RISK_PATTERN = re.compile(r"停机|报废|放行|返工|配方(?:修改|变更)|恢复量产")
+_FORMAL_DECISION_PATTERN = re.compile(r"(?:已(?:经)?|批准|同意|可以|应当|建议|立即)\s*(?:放行|判退|报废|恢复量产)")
+_CPK_READING_PATTERN = re.compile(
+    r"\bcpk\s*(?:值\s*)?(?:约为|为|是|[:：=])?\s*([+-]?\d+(?:\.\d+)?)(\s*[%％]|\s*(?:nm|mm|μm)\b)?",
+    re.IGNORECASE,
+)
+_EQUIPMENT_LABEL_PATTERN = re.compile(r"\b[A-Z][A-Z0-9]{1,9}-\d{2,}\b")
+_ISO_DAY_PATTERN = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 # A claim may legitimately report that a scoped query returned no records.  The
 # wording must stay an absence assertion; anything else cannot use empty results.
 _ABSENCE_PATTERN = re.compile(
@@ -230,7 +237,6 @@ class AnswerContract:
     synthesizer_version: str
     plan_id: str
     status: Literal["required", "not_applicable"]
-    allowed_conclusion_strength: str
     causal_claims_allowed: bool
     required_sections: tuple[str, ...]
     permitted_source_refs: tuple[str, ...]
@@ -245,9 +251,12 @@ class AnswerContract:
     submission_tool: str = "submit_analysis"
     reference_evidence: dict[str, dict[str, Any]] | None = None
     evidence_policy_ref: dict[str, str] | None = None
+    capability_values: dict[str, tuple[tuple[str, float], ...]] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return json_dataclass_payload(self)
+        payload = json_dataclass_payload(self)
+        payload.pop("capability_values")
+        return payload
 
     def to_prompt(self) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, separators=(",", ":"))
@@ -259,7 +268,6 @@ class AnswerSynthesisReport:
     synthesizer_version: str
     plan_id: str
     status: SynthesisStatus
-    allowed_conclusion_strength: str
     sections: tuple[str, ...]
     source_refs: tuple[str, ...]
     invalid_source_refs: tuple[str, ...]
@@ -341,13 +349,12 @@ def _legacy_blocks(answer: str) -> list[str]:
 def _validation_limitations(validation: EvidenceValidation) -> tuple[str, ...]:
     limitations: list[str] = []
     for check in validation.evidence_checks:
-        if check.status in {"missing", "partial"}:
-            missing = f"，缺少字段：{', '.join(check.missing_fields)}" if check.missing_fields else ""
-            limitations.append(f"{check.evidence_id} {check.name} 为{check.status}{missing}。")
+        if check.status == "missing":
+            limitations.append(f"未取得{check.name}。")
+        elif check.status == "partial":
+            limitations.append(f"{check.name}的来源结果不完整。")
     limitations.extend(item.message for item in validation.risks)
     limitations.extend(item.message for item in validation.conflicts)
-    if validation.allowed_conclusion_strength in {"insufficient", "hypothesis_only"}:
-        limitations.append(validation.conclusion_guidance)
     return tuple(dict.fromkeys(limitations))
 
 
@@ -392,11 +399,10 @@ def create_answer_contract(
     limitations.extend(item for item in extra_limitations if item)
     required = validation.enforced
     return AnswerContract(
-        schema_version="1.2",
-        synthesizer_version="1.2.0",
+        schema_version="1.3",
+        synthesizer_version="1.3.0",
         plan_id=validation.plan_id,
         status="required" if required else "not_applicable",
-        allowed_conclusion_strength=validation.allowed_conclusion_strength,
         causal_claims_allowed=validation.causal_claims_allowed,
         required_sections=(
             MODEL_KNOWLEDGE_SECTIONS
@@ -416,6 +422,7 @@ def create_answer_contract(
         presentation=_select_presentation(question, resolved_question),
         reference_evidence=validation.reference_evidence,
         evidence_policy_ref=dict(validation.policy_ref) if validation.policy_ref else None,
+        capability_values=validation.capability_values,
     )
 
 
@@ -494,7 +501,6 @@ def synthesizer_system_message(contract: AnswerContract) -> str:
         + legacy_guidance
         + "不得提交隐藏思维链、逐 token 推理或未在 permitted_source_refs 中的来源。"
         "conclusion_evidence_refs 必须列出结论依据；仅由 context_only 来源支持的整厂背景不得表述为主范围自身指标。"
-        "allowed_conclusion_strength 约束任务级诊断和根因；逐声明验证的直接观测可保留。"
         "causal_claims_allowed=false 时不得声称已证明因果。\n"
         # Fixed guidance sits before the per-request contract so the shared prompt
         # prefix (role, protocol, guidance) stays stable for slot-level caching.
@@ -626,12 +632,18 @@ def _speech_act(statement: str) -> tuple[bool, bool, bool, bool]:
 
 
 def _overclaim(
-    statement: str, strength: str, causal_allowed: bool, *, model_knowledge: bool = False,
+    statement: str, causal_allowed: bool, *, model_knowledge: bool = False,
 ) -> bool:
     asserted_causal, asserted_definitive, _, generic_mechanism = _speech_act(statement)
     if not causal_allowed and (asserted_causal or (generic_mechanism and not model_knowledge)):
         return True
-    return strength in {"insufficient", "hypothesis_only"} and asserted_definitive
+    return asserted_definitive or any(
+        _FORMAL_DECISION_PATTERN.search(clause)
+        and not _QUESTION_PATTERN.search(clause)
+        and not _QUALIFIER_PATTERN.search(clause)
+        and not re.search(r"(?:未|没有|不得|不能|不可|不应)\s*(?:批准|同意|可以|建议|立即|已)*\s*(?:放行|判退|报废|恢复量产)", clause)
+        for clause in _CLAUSE_BOUNDARY_PATTERN.split(statement)
+    )
 
 
 def _fact_wording_mismatch(statement: str) -> bool:
@@ -968,7 +980,7 @@ def _v2_composite_status(claim: _Claim, contract: AnswerContract) -> tuple[str, 
     if _scope_mismatch(claim.statement, claim.evidence_refs, contract):
         return "unsupported", (*reasons, "引用未支持主范围声明。")
     if _overclaim(
-        claim.statement, contract.allowed_conclusion_strength, contract.causal_claims_allowed,
+        claim.statement, contract.causal_claims_allowed,
         model_knowledge=contract.model_knowledge_fallback,
     ):
         return "unsupported", (*reasons, "声明包含不允许的因果或确定性措辞。")
@@ -1042,12 +1054,30 @@ def _final_claim_status(
 ) -> tuple[str, tuple[str, ...]]:
     """Combine evidence support with semantic, scope, and wording guards."""
     support, reasons = _claim_support(claim, contract, allow_absence=allow_absence)
+    scoped_capability_reading = False
+    if claim.semantic_id == "process_capability_cpk" and contract.evidence_policy_ref:
+        values = _CPK_READING_PATTERN.findall(claim.statement)
+        observations = contract.capability_values or {}
+        equipment_ids = set(_EQUIPMENT_LABEL_PATTERN.findall(claim.statement.upper()))
+        dates = set(_ISO_DAY_PATTERN.findall(claim.statement))
+        window = claim.time_range or {}
+        if values and not all(
+            not unit and dates <= {window.get("start"), window.get("end")} and any(
+                value == float(reported) and (not equipment_ids or equipment_ids == {equipment})
+                for ref in claim.evidence_refs for equipment, value in observations.get(ref, ())
+            )
+            for reported, unit in values
+        ):
+            return "unsupported", (*reasons, "声明中的 Cpk 数值与所引用的结果不一致。")
+        scoped_capability_reading = bool(values) and bool(equipment_ids) and (
+            equipment_ids == set(contract.primary_scope_ids)
+        )
     if _structured_claim_mismatch(claim, contract):
         return "unsupported", (*reasons, "结构化语义、范围、时间或粒度与引用不一致。")
-    if _scope_mismatch(claim.statement, claim.evidence_refs, contract):
+    if not scoped_capability_reading and _scope_mismatch(claim.statement, claim.evidence_refs, contract):
         return "unsupported", (*reasons, "引用未支持主范围声明。")
     if _overclaim(
-        claim.statement, contract.allowed_conclusion_strength, contract.causal_claims_allowed,
+        claim.statement, contract.causal_claims_allowed,
         model_knowledge=contract.model_knowledge_fallback,
     ):
         return "unsupported", (*reasons, "声明包含不允许的因果或确定性措辞。")
@@ -1205,11 +1235,10 @@ def synthesize_submission(
     if contract.status == "not_applicable":
         answer = _clean_text(payload.get("conclusion"), preserve_layout=True) or "分析完成。"
         return SynthesizedAnswer(answer, AnswerSynthesisReport(
-            schema_version="1.0",
+            schema_version="1.3",
             synthesizer_version=contract.synthesizer_version,
             plan_id=contract.plan_id,
             status="not_applicable",
-            allowed_conclusion_strength=contract.allowed_conclusion_strength,
             sections=(),
             source_refs=(),
             invalid_source_refs=(),
@@ -1251,7 +1280,7 @@ def synthesize_submission(
             not claim.evidence_refs or set(claim.evidence_refs) == {MODEL_KNOWLEDGE_REF}
         )
         if uses_model_knowledge and not _overclaim(
-            claim.statement, contract.allowed_conclusion_strength, contract.causal_claims_allowed,
+            claim.statement, contract.causal_claims_allowed,
             model_knowledge=True,
         ):
             record_support("fact", claim, "unsupported", (
@@ -1304,7 +1333,6 @@ def synthesize_submission(
             )
             if uses_model_knowledge and not _overclaim(
                 claim.statement,
-                contract.allowed_conclusion_strength,
                 contract.causal_claims_allowed,
                 model_knowledge=True,
             ):
@@ -1322,7 +1350,6 @@ def synthesize_submission(
         )
         if uses_model_knowledge and not _overclaim(
             claim.statement,
-            contract.allowed_conclusion_strength,
             contract.causal_claims_allowed,
             model_knowledge=True,
         ) and not _inference_wording_mismatch(claim.statement, model_knowledge=True):
@@ -1446,7 +1473,7 @@ def synthesize_submission(
         if contract.model_knowledge_fallback:
             conclusion_support, conclusion_reasons = _claim_support(conclusion_claim, contract)
             if _overclaim(
-                submitted_conclusion, contract.allowed_conclusion_strength, contract.causal_claims_allowed,
+                submitted_conclusion, contract.causal_claims_allowed,
                 model_knowledge=True,
             ):
                 conclusion_support = "unsupported"
@@ -1469,16 +1496,6 @@ def synthesize_submission(
             ))
             moved += 1
             adjustments.append("将模型通用知识中的确定性结论降级为待验证假设。")
-    elif contract.allowed_conclusion_strength == "insufficient" and conclusion_support == "unsupported":
-        conclusion = "当前必需证据不足，不能形成诊断性结论。"
-        if submitted_conclusion:
-            hypotheses.append(_Claim(
-                submitted_conclusion, tuple(dict.fromkeys(conclusion_refs)),
-                "；".join(conclusion_reasons) or "补齐必需证据后重新评估。",
-                invalid_refs=tuple(sorted(invalid_conclusion_refs)),
-            ))
-            moved += 1
-            adjustments.append("将范围证据不匹配或未获声明级证据支持的结论降级为待验证假设。")
     elif conclusion_scope_mismatch or conclusion_support == "unsupported":
         conclusion = "当前证据未能验证模型提交的结论。"
         if conclusion_reasons:
@@ -1494,7 +1511,6 @@ def synthesize_submission(
             adjustments.append("将范围证据不匹配或未获声明级证据支持的结论降级为待验证假设。")
     elif submitted_conclusion and not _overclaim(
         submitted_conclusion,
-        contract.allowed_conclusion_strength,
         contract.causal_claims_allowed,
         model_knowledge=contract.model_knowledge_fallback,
     ):
@@ -1527,7 +1543,7 @@ def synthesize_submission(
         }
         rejected.update(
             claim.statement for claim in hypotheses
-            if _overclaim(claim.statement, contract.allowed_conclusion_strength, contract.causal_claims_allowed)
+            if _overclaim(claim.statement, contract.causal_claims_allowed)
         )
         if rejected:
             facts = [claim for claim in facts if claim.statement not in rejected]
@@ -1548,7 +1564,7 @@ def synthesize_submission(
     if governed:
         def denied_text(value: str) -> bool:
             return any(statement in value for statement in rejected) or _overclaim(
-                value, contract.allowed_conclusion_strength, contract.causal_claims_allowed,
+                value, contract.causal_claims_allowed,
             )
 
         # A rejected assertion must not reappear through ancillary display fields.
@@ -1677,11 +1693,10 @@ def synthesize_submission(
             recommendation_lines, limitations,
         )
     report = AnswerSynthesisReport(
-        schema_version="1.2",
+        schema_version="1.3",
         synthesizer_version=contract.synthesizer_version,
         plan_id=contract.plan_id,
         status=status,
-        allowed_conclusion_strength=contract.allowed_conclusion_strength,
         sections=sections,
         source_refs=ordered_refs,
         invalid_source_refs=tuple(sorted(invalid)),
@@ -1709,11 +1724,10 @@ def synthesize_legacy_answer(
             item for item in _embedded_refs(answer) if item.upper() in permitted
         ))
         return SynthesizedAnswer(answer, AnswerSynthesisReport(
-            schema_version="1.0",
+            schema_version="1.3",
             synthesizer_version=contract.synthesizer_version,
             plan_id=contract.plan_id,
             status="not_applicable",
-            allowed_conclusion_strength=contract.allowed_conclusion_strength,
             sections=(),
             source_refs=refs,
             invalid_source_refs=(),

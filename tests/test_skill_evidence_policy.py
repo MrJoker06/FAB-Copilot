@@ -106,7 +106,7 @@ class SkillEvidencePolicyTests(unittest.TestCase):
         )
         result = validate_skill_evidence(self.plan, self.playbook, list(changed))
         self.assertTrue(any(item.code == "fact_conflict" for item in result.conflicts))
-        self.assertEqual(result.allowed_conclusion_strength, "hypothesis_only")
+        self.assertFalse(result.evidence_sufficient)
 
 
 if __name__ == "__main__":

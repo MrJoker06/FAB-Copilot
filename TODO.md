@@ -6,7 +6,7 @@
 
 ## 当前安排
 
-2026-11-19 单项更新：GitHub #2 第 5 项实现请求类型与业务主题分离，改善概念解释/实际查询/诊断/建议的路由及追问仲裁，见[报告](docs/reports/issue-2-intent-routing.md)。第 6 项证据等级重审、MOD-025 及其他暂缓项仍未实施；产品与 MOD 统计口径不变。
+2026-11-19 单项更新：GitHub #2 第 5 项实现请求类型与业务主题分离，见[路由报告](docs/reports/issue-2-intent-routing.md)。第 6 项移除新任务的整轮五档，加入按日期核对 Cpk 与报警的值班查数路径。班次和真实来源验收范围见[回答依据报告](docs/reports/issue-2-duty-answer-evidence.md)。产品与 MOD 统计口径沿用现有台账。
 
 2026-11-18 单项更新：GitHub #2 第 4 项按“完整分离”实现，运行状态默认进入 `runtime`，个人上传状态/索引与历史 SOP/case 分库；旧数据使用带备份的显式维护入口，见[报告](docs/reports/issue-2-runtime-storage-separation.md)。不因此完成 MOD-025 或关闭整个 #2，既有产品统计不变。
 

@@ -158,6 +158,28 @@ class DefaultNativeRuntimeTests(unittest.TestCase):
         self.assertEqual(result["tool_trace"], [])
         self.assertEqual(result["mode"], "offline")
 
+    def test_duty_alarm_lookup_streams_verified_count_from_native_report(self) -> None:
+        events = []
+
+        async def progress(event):
+            events.append(event)
+
+        token = set_principal(Principal("demo", "analyst"))
+        try:
+            with patch("app.agent_runtime.service.get_settings", return_value=self._settings()):
+                result = asyncio.run(service._run_agent_impl(
+                    "查询 2026-01-02 CMP-01 有没有报警", [], "duty-alarm-fixture", progress,
+                ))
+        finally:
+            reset_principal(token)
+        self.assertEqual([item["tool"] for item in result["tool_trace"]], ["get_equipment_event_timeline"])
+        self.assertIn("范围内记录了 1 条报警", result["answer"])
+        self.assertNotIn("allowed_conclusion_strength", result["evidence_validation"])
+        self.assertEqual(
+            "".join(event["delta"] for event in events if event["event"] == "answer_delta"),
+            result["answer"],
+        )
+
     def test_model_loop_denies_sql_even_when_global_handler_is_patched(self) -> None:
         settings = self._settings(api_key="fixture-key")
         calls: list[object] = []

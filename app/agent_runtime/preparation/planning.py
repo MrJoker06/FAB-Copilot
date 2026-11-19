@@ -16,12 +16,15 @@ class PlanningDependencies:
     emit: Callable[..., None]
     playbook_message: Callable[[Any], str]
     plan_message: Callable[[Any], str]
+    focus_lookup: Callable[[str, Any, Any], Any] | None = None
 
 
 async def prepare_planning_stage(
     question: str, route: Any, run_id: str, progress: Any, *, deps: PlanningDependencies
 ) -> PlanningStageResult:
     selection = deps.select_playbook(route)
+    if deps.focus_lookup is not None:
+        selection = deps.focus_lookup(question, route, selection)
     playbook_payload = selection.to_dict()
     selected = selection.selected_playbook
     deps.emit(

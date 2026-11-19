@@ -16,7 +16,6 @@
           "tool_finished",
           "stage:synthesis",
           "answer_delta",
-          "answer_delta",
           "answer_delta"
         ],
         "result_keys": [

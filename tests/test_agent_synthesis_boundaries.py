@@ -200,7 +200,7 @@ class AgentSynthesisBoundaryTests(unittest.TestCase):
         deps.ready_synthesis_fallback = lambda *_args, **_kwargs: fallback
         result = synthesize_ready_assistant(
             {"tool_calls": [{"function": {"name": "submit_analysis", "arguments": "{"}}]},
-            object(), [], SimpleNamespace(coverage={"required_covered": 0, "required_total": 0}, allowed_conclusion_strength="none"), [], "run", deps=deps,
+            object(), [], SimpleNamespace(coverage={"required_covered": 0, "required_total": 0}), [], "run", deps=deps,
         )
         self.assertIs(result, fallback)
         self.assertEqual(events[0][0][0], "answer_submission_rejected")
@@ -212,7 +212,7 @@ class AgentSynthesisBoundaryTests(unittest.TestCase):
         deps.ready_synthesis_fallback = lambda *_args, **_kwargs: fallback
         result = synthesize_ready_assistant(
             {"tool_calls": [], "content": ""}, object(), [],
-            SimpleNamespace(coverage={"required_covered": 0, "required_total": 0}, allowed_conclusion_strength="none"), [], "run", deps=deps,
+            SimpleNamespace(coverage={"required_covered": 0, "required_total": 0}), [], "run", deps=deps,
         )
         self.assertIs(result, fallback)
 

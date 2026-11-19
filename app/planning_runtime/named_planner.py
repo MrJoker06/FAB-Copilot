@@ -10,6 +10,7 @@ from app.planning_runtime.named_playbooks import (
     NAMED_PLAYBOOK_VERSION,
     NAMED_QUERY_CAPABILITY_ID,
     NAMED_QUERY_CAPABILITY_VERSION,
+    focus_duty_lookup,
     select_named_playbook,
 )
 from app.planning_runtime.playbook_contracts import PlaybookSelection
@@ -38,7 +39,8 @@ def create_named_execution_plan(
 ) -> ExecutionPlan:
     canonical = select_named_playbook(route)
     selection = canonical if selection is None else selection
-    if selection != canonical or not _valid_selection(selection):
+    focused = focus_duty_lookup(question, route, canonical)
+    if not ((selection == canonical and _valid_selection(selection)) or (focused != canonical and selection == focused)):
         raise NamedPlannerError("named planner requires a declared v2 playbook")
     plan = create_execution_plan(question, route, selection)
     if any(

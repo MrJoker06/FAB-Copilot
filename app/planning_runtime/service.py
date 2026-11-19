@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections import Counter
 
 from app.planning_runtime.playbook_contracts import PlaybookSelection
@@ -53,8 +54,16 @@ def create_execution_plan(
                 "已识别产品范围。请确认只分析该产品的良率和周期，或补充需要关联的具体制程。",
             ),
         )
-    if selection.status == "clarification_required" or route.intent == "unknown" or route.clarification_needed:
-        if route.scope_resolution.clarification_needed:
+    shift_query = playbook is not None and playbook.playbook_id in {"PB-DUTY-CPK", "PB-DUTY-ALARMS"} and re.search(
+        r"昨晚|昨班|当班|本班|上班次|夜班|白班|早班|晚班|班次", question,
+    )
+    if shift_query or selection.status == "clarification_required" or route.intent == "unknown" or route.clarification_needed:
+        questions = route.clarification_questions
+        if shift_query:
+            missing_inputs = ("supported_time_range",)
+            reason = "当前来源只按日期查询，无法直接按班次取数。"
+            questions = (*questions, "当前来源只支持日期范围。是否改查对应日期的全天记录？请提供日期。")
+        elif route.scope_resolution.clarification_needed:
             missing_inputs = ("manufacturing_scope",)
             reason = "Router 检测到无法映射的制造范围，确认范围前不得执行工具。"
         elif route.intent == "capability_excursion" and not route.process_steps:
@@ -80,7 +89,7 @@ def create_execution_plan(
             steps=(),
             budget=_empty_budget(),
             missing_inputs=missing_inputs,
-            clarification_questions=route.clarification_questions,
+            clarification_questions=questions,
         )
     if playbook is None:
         return ExecutionPlan(
