@@ -558,6 +558,11 @@
       "artifact_group": "application_bundle"
     },
     {
+      "path": "app/bootstrap/model_compatibility_assembly.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
       "path": "app/bootstrap/named_queries_demo.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"
@@ -1787,18 +1792,6 @@
       "target": "app.bootstrap.tool_bindings",
       "reason": "Legacy registry facade retains live patch consumers while application bootstrap owns concrete binding assembly. Retained at MOD-015 closeout (015e): service.TOOL_HANDLERS identity and live patch.dict consumers are kept by design; removal belongs to the MOD-027 Fake integration profile / minimal complete application.",
       "exit_task": "MOD-027"
-    },
-    {
-      "source": "app.model_gateway.compatibility",
-      "target": "app.memory_system.context.history",
-      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports. MOD-012 closed model client lifecycle only; these store/identity edges move to MOD-015 batch d (storage/identity Port injection). Deferred from MOD-015d: removing it requires changing the public compatibility-probe signature/behaviour or moving context_memory protocol logic into core.",
-      "exit_task": "MOD-025"
-    },
-    {
-      "source": "app.model_gateway.compatibility",
-      "target": "app.memory_system.context.protocol",
-      "reason": "Model protocol/catalog/health implementation consumes concrete memory, identity or SQLite store; isolate gateway and Store Ports. MOD-012 closed model client lifecycle only; these store/identity edges move to MOD-015 batch d (storage/identity Port injection). Deferred from MOD-015d: removing it requires changing the public compatibility-probe signature/behaviour or moving context_memory protocol logic into core.",
-      "exit_task": "MOD-025"
     },
     {
       "source": "app.persistence.execution_store",

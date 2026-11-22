@@ -4,6 +4,8 @@
 
 ## MOD-024：版本一致的源码制品（已验证，2026-11-10）
 
+MOD-025 的报表、知识、应用状态、模型接入入口和迁移成员在[接入说明](adapter-integration-plan.md#附录-b--内网接入与迁移清单)。双平台仓库外验证见[实施报告](reports/mod-025-adapter-integration.md)。
+
 发布清单 `evaluations/mod_024_release_v1.json` 复用 MOD-003 的五类所有者，按一个明确版本的 cohort 交付：
 
 | 制品 | 内容归属 |
@@ -22,12 +24,12 @@
 | --- | --- | --- |
 | `tool_sources` | MOD-009 的 108 个真实 Python 文件，包含 21 项原生工具的 Fake Ready/Loop 演示 | 标准库 |
 | `skill_release` | 115 个 Python 文件及 4 个原路径 Skill 文本资源，覆盖光刻 Cpk 与进程内发布机制 | 标准库 |
-| `model_transport` | 5 个 app 文件，覆盖 SSE、聊天模板整形及 `ModelGatewayPort` HTTP Adapter | httpx 与锁定的传递依赖 |
+| `model_transport` | 6 个 app 文件，覆盖 SSE、聊天模板整形、HTTP Adapter 和独立协议探针 | httpx 与锁定的传递依赖 |
 | `application_storage` | 12 个 app 文件，独立初始化/读写知识和 Agent 状态，不安装模拟包 | 标准库 |
 
 仅选 tool_sources 时不启用 Skill；如 AgentDefinition 声明非空 skill_refs，必须同时选择 skill_release。TYPE_CHECKING 中的类型声明依赖不计为运行 Profile，完整源码类型检查另行进行。
 
-当前发布组包含 324 个受管 app 文件及 4 个 Skill 文本资源，共 328 个源码/资源成员；这是值班工作区及报表目录/共享资料追加后的口径。MOD-024 原报告保留当时 286 + 4 的历史基线。安装器仅安装所选 Profile 的声明文件；其余源码标为尚未纳入运行 Profile。源码入包不代表全部 API、Checkpoint 或公司真实集成已通过。
+当前发布组包含 325 个受管 app 文件及 4 个 Skill 文本资源，共 329 个源码/资源成员。MOD-024 原报告保留当时 286 + 4 的历史基线。安装器仅安装所选 Profile 的声明文件；其余源码标为尚未纳入运行 Profile。源码入包不代表全部 API、Checkpoint 或公司真实集成已通过。
 
 值班页面的根目录 `display_mock_data/` 是完整应用附带的合成展示资料，由 `run.py` 源码快照/导出复制；不归入以上独立模块 Profile。移除它不影响工具/Skill 切片，完整应用中的新资料页面将明确提示不可用。真实公司报表和文档需要单独确定接入与权限，不能直接放进此公开目录。
 
@@ -66,7 +68,7 @@ python scripts/build_module_release.py --output runtime/module-release --build-i
 <宿主Python> -I <交付目录>/verify_module_release.py --delivery <交付目录> --work-dir <全新目录> --report <报告.json> --wheelhouse <本地Wheel目录>
 ```
 
-该命令新建目标 venv、组合安装真实源码，并输出工具/Skill 与模型传输的机器报告。未提供 wheelhouse 时模型标记 NOTRUN，不能算全部通过。验收工作目录不能位于交付目录内部，也不覆盖旧验收目录。
+该命令新建目标 venv，组合安装工具/Skill 并单独安装模型传输，然后输出机器报告。未提供 wheelhouse 时模型标记 NOTRUN，不能算全部通过。验收工作目录不能位于交付目录内部，也不覆盖旧验收目录。
 
 ### 环境锁与离线依赖
 
@@ -110,7 +112,7 @@ python scripts/build_portable_unit.py --verify
 
 以下按旧七单元的交付范围说明；其中 Runtime/Skill 的新 Profile 进展以本文 MOD-024 部分为准。当前发布组已包含完整受管源码，但并非所有文件都有已验收的运行 Profile。
 
-- `model_transport` 仅覆盖流式协议、重试策略和 `ModelGatewayPort` HTTP Adapter；完整模型网关的目录、配置、健康检查、真实端点、密钥与模型发布仍不能随该单元迁移。它要求目标环境自行安装 `httpx>=0.28,<1`，且不应在验收时调用网络。
+- `model_transport` 覆盖流式协议、重试策略、HTTP Adapter 和通用模型探针。模型目录、配置、健康检查及完整 Context 检查由应用组合提供。它要求目标环境自行安装 `httpx>=0.28,<1`，且不应在验收时调用网络。
 - `enterprise_data_contract` 仅交付 Provider 契约；`enterprise_data.py` 中现已提供显式注册接缝，内网装配代码可注册实际 Adapter 后用 `FAB_DATA_PROVIDER` 选择它。Oracle 表、DSN、驱动、网络客户端和报表仍不在该单元中，也尚未完成 `DATA-017`、`DATA-018` 或 `DEPLOY-018`。
 - `factory_search_contract` 交付候选检索、知识文档/历史案例目录查询的可替换契约与分词规则。应用现在可用 `FAB_FACTORY_SEARCH_BACKEND` 选择显式注册的非 SQLite Adapter；目录调用必须由同一 Adapter 实现，缺少方法、未知名称、构造失败和畸形候选/目录响应都会失败关闭，绝不静默退回 SQLite。目录验证只允许 Active 文档和 Validated 案例，并校验 detail 的请求 ID 与文档—章节来源一致性。默认 `sqlite` 仍是本地演示实现，未完成生产 ACL 声明或强制执行。
 - `identity_contract` 仅交付 Header Claims 的解析与校验策略；它不是可信认证、SSO/JWT、权限/ACL 强制执行，也不会迁移个人知识 owner。`PrincipalContextMiddleware` 仍是 HTTP/API 装配层，读取当前配置、保留请求关联 ID 和既有 401/400 JSON 合约；内网部署必须以受信任身份 Adapter 替换该演示 Header 路径。
@@ -133,7 +135,7 @@ python scripts/build_portable_unit.py --verify
 
 ## 当前成员口径（2026-11-17）
 
-当前清单为 324 个受管应用文件加 4 份 Skill 资源，共 328 个唯一成员；tool_sources 为 108 个源码，skill_release 为 115 个源码加 4 资源，model_transport 为 5 个源码，application_storage 为 12 个源码。原三 Profile 源码并集 157、加资源 161；四 Profile 源码并集 165、加资源 169。旧目录已退出，来源与 Tool 同组，Fake/模拟数据单独归 simulation_fixtures；共享策略和 Tool 语义描述各有唯一文件所有者。当前结果存储及接入验收见 [MOD-029 报告](reports/mod-029-tool-result-access.md)；此前规则拆分见 [MOD-031 报告](reports/mod-031-validator.md)。历史 MOD-024/MOD-030 报告保留原值，冻结 v4 参考保留旧成员身份，不能与当前 Profile 清单混用。
+当前清单为 325 个受管应用文件加 4 份 Skill 资源，共 329 个唯一成员。tool_sources 有 108 个源码，skill_release 有 115 个源码和 4 个资源，model_transport 有 6 个源码，application_storage 有 12 个源码。四 Profile 源码并集为 166，加资源共 170。旧目录已退出，来源与 Tool 同组，Fake/模拟数据单独归 simulation_fixtures；共享策略和 Tool 语义描述各有唯一文件所有者。当前结果存储及接入验收见 [MOD-029 报告](reports/mod-029-tool-result-access.md)；此前规则拆分见 [MOD-031 报告](reports/mod-031-validator.md)。历史 MOD-024/MOD-030 报告保留原值，冻结 v4 参考保留旧成员身份，不能与当前 Profile 清单混用。
 
 光刻默认交付组合为 Skill 2.0.0 / Workflow 3.0.0 / capability-evidence 2.0.0；旧发布可通过固定 Workflow 2.1.0 使用原 1.3.0 策略。发布对象仍在进程内，必须随制品提供匹配的源码、资源和可信版本配置；回退不能只修改清单版本或删除必需策略。默认诊断使用 2.0.0，旧 1.2.0 保留为有消费者的明确版本配置。
 

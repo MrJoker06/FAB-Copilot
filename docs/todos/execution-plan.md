@@ -4,7 +4,7 @@
 
 ## 当前安排
 
-2026-11-18 用户确认：后续持续以 PE / EE 值班助手为最高优先级。当前指定任务为 GitHub #1 收尾，完成错误码统一、场景处理与展示后提交同步并关闭 #1；实现和验证见[报告](../reports/issue-1-error-standardization.md)。后续队列须结合值班需求确认，不自动激活其他 MOD、企业接入、Live 或 #2/#3。
+2026-11-18 用户确认：后续持续以 PE / EE 值班助手为最高优先级。GitHub #1 收尾已完成，提交 `0dbbcf6`，实现和验证见[报告](../reports/issue-1-error-standardization.md)。MOD-025 按 a→b→c→d→e 实施，接入和回归结果见[实施报告](../reports/mod-025-adapter-integration.md)。后续队列须结合值班需求确认，不自动激活其他 MOD、企业接入、Live 或 #2/#3。
 
 2026-11-17 用户最高优先级：PE / EE 值班工作区与根目录 `display_mock_data/` 展示资料已在 `feat/pe-ee-duty-workspace`（起点 `dcca19f`）完成，并追加报表目录管理、共享上传与原案例入口合并；验收与限制见[报告](../reports/pe-ee-duty-workspace.md)。不自动启动其他 MOD 或企业级任务，产品任务统计口径不变。
 
@@ -37,7 +37,7 @@ GitHub #1～#3 记录的新需求仍由对应 Issue 维护；本次治理不重�
 
 | 顺序 | 工作包 | 当前安排 |
 | --- | --- | --- |
-| 1 | MOD-025 → MOD-026 → MOD-027 → MOD-028 | 原迁移链顺延，保持已有依赖与验收要求 |
+| 后续 | MOD-026 → MOD-027 → MOD-028 | MOD-025 已验收。按各工作包的依赖与验收要求执行。 |
 | 按需求启用 | MOD-020 → MOD-021 → MOD-022 → MOD-023 | 保持恢复链依赖；029 的 Session 级结果持久化不代表业务原子提交、Checkpoint 或恢复链完成 |
 
 ## 用户暂缓（非当前）

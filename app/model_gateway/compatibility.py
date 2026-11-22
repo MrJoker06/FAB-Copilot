@@ -1,10 +1,12 @@
 """Bounded, pre-publication checks for the runtime chat-completions contract."""
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 import os
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -12,12 +14,10 @@ from typing import Any
 import httpx
 
 from .gateway import ModelEndpoint
-from ..memory_system.context.history import build_contextualizer_messages
-from ..memory_system.context.protocol import (
-    CONTEXTUALIZER_RESPONSE_FORMAT,
-    ContextPayloadValidationError,
-    validate_contextualizer_payload,
-)
+
+
+ProbeSender = Callable[[dict], Awaitable[dict]]
+ApplicationProbe = Callable[[ProbeSender], Awaitable[str]]
 
 
 MAX_SSE_EVENTS = 256
@@ -196,15 +196,16 @@ def _validated_probe_tool_call(probe: dict, tool_name: str) -> dict:
     return calls[0]
 
 
-async def check_model_compatibility(
+async def check_model_transport(
     connection: Any,
     capabilities: dict,
     *,
     timeout_seconds: float | None = None,
     context_chars: int | None = None,
     client: httpx.AsyncClient | None = None,
+    application_probe: ApplicationProbe | None = None,
 ) -> dict:
-    """Probe only asserted capabilities; successful HTTP alone is never enough."""
+    """Check transport capabilities and optionally run a trusted host probe."""
     if not getattr(connection, "api_key", ""):
         raise ModelCompatibilityError("服务器未配置模型 API Key，不能发布模型", False, "missing_key")
     if capabilities.get("streaming") is not True or capabilities.get("tool_calls") is not True:
@@ -249,22 +250,19 @@ async def check_model_compatibility(
         if not context["content"].strip():
             raise ModelCompatibilityError("模型未通过最低上下文负载检查", False, "context")
         checks.append({"name": "context_load", "status": "passed"})
-        structured = await _stream_probe(client, endpoint, headers, {
-            "model": connection.model,
-            "messages": build_contextualizer_messages(
-                "请将当前问题作为独立问题返回。",
-                [{"message_id": 1, "role": "user", "content": "介绍光刻基本原理"}, {"message_id": 2, "role": "assistant", "content": "已完成介绍。"}],
-            ),
-            "temperature": 0,
-            "response_format": CONTEXTUALIZER_RESPONSE_FORMAT,
-            "max_tokens": 1200,
-            **standard_probe_options,
-        })
-        try:
-            validate_contextualizer_payload(json.loads(structured["content"]))
-        except (TypeError, ValueError, json.JSONDecodeError, ContextPayloadValidationError) as exc:
-            raise ModelCompatibilityError("结构化上下文契约未通过", False, "structured_context") from exc
-        checks.append({"name": "structured_context", "status": "passed"})
+        if application_probe is not None:
+            async def send_application_probe(payload: dict) -> dict:
+                return await _stream_probe(client, endpoint, headers, {
+                    **payload, "model": connection.model, **standard_probe_options,
+                })
+
+            try:
+                check_name = await asyncio.wait_for(
+                    application_probe(send_application_probe), timeout_seconds,
+                )
+            except TimeoutError as exc:
+                raise ModelCompatibilityError("模型兼容性请求超时", True, "timeout") from exc
+            checks.append({"name": check_name, "status": "passed"})
         if capabilities.get("thinking"):
             thinking = await _stream_probe(client, endpoint, headers, {"model": connection.model, "messages": [{"role": "user", "content": "Reply ok"}], "max_tokens": THINKING_PROBE_MAX_TOKENS, **provider_request_options(connection.provider, True)})
             if not thinking["content"].strip() or (connection.provider == "deepseek" and not thinking["reasoning_content"].strip()):
@@ -310,4 +308,12 @@ async def check_model_compatibility(
         if owned_client:
             await client.aclose()
     checks.append({"name": "limits", "status": "passed", "context_chars": context_chars})
-    return {"status": "passed", "checked_at": datetime.now(timezone.utc).isoformat(timespec="milliseconds"), "checks": checks, "duration_ms": round((time.perf_counter() - started) * 1000, 1)}
+    report = {
+        "status": "passed",
+        "checked_at": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+        "checks": checks,
+        "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+    }
+    if application_probe is None:
+        report["scope"] = "model_transport"
+    return report

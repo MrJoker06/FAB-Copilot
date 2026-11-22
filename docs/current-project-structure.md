@@ -6,9 +6,9 @@
 
 2026-11-18 补充：值班助手为持续最高优先级。错误码单一描述源在 `app/agent_runtime/tools/contracts.py`，由 Dispatcher、Ready/Loop、结果回读及前端错误轨迹使用；无新增应用目录。对应表与验证见[错误码参考](error-code-reference.md)和[报告](reports/issue-1-error-standardization.md)。下方源码数量不变。
 
-当前快照：2026-11-17，`feat/pe-ee-duty-workspace`，起点为 `experiment/parallel-platform` 的 `dcca19f`。本轮优先实现 PE / EE 值班工作区，见[报告](reports/pe-ee-duty-workspace.md)；MOD-029 以 `c5312d1` 为起点完成 a～e，保留完整门既有失败，见[实施报告](reports/mod-029-tool-result-access.md)。提交及远程状态以 Git 为准。MOD-031 和此前存储拆分分别见 [031 报告](reports/mod-031-validator.md)、[存储报告](reports/persistence-demo-separation.md)，保留其历史验收限制。MOD-020～023、MOD-025～028 仍待做/暂缓，默认 HTTP 未启用 Skill，兼容 facade 与配置锚点归 MOD-027。
+当前快照：2026-11-17，`feat/pe-ee-duty-workspace`，起点为 `experiment/parallel-platform` 的 `dcca19f`。本轮优先实现 PE / EE 值班工作区，见[报告](reports/pe-ee-duty-workspace.md)；MOD-029 以 `c5312d1` 为起点完成 a～e，保留完整门既有失败，见[实施报告](reports/mod-029-tool-result-access.md)。提交及远程状态以 Git 为准。MOD-031 和此前存储拆分分别见 [031 报告](reports/mod-031-validator.md)、[存储报告](reports/persistence-demo-separation.md)，保留其历史验收限制。MOD-025 接入与仓库外验收见[实施报告](reports/mod-025-adapter-integration.md)。MOD-020～023、MOD-026～028 仍待做/暂缓，默认 HTTP 未启用 Skill，兼容 facade 与配置锚点归 MOD-027。
 
-当前实扫 `app/` 为 **324 文件：295 个 Python、29 个静态文件**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`；旧 manufacturing/integrations 目录已退出。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配；测试、缓存、日志及运行产物不计入。
+MOD-025 实扫 `app/` 为 **325 文件（296 个 Python、29 个静态文件）**，与 `evaluations/mod_003_boundaries_v1.json` 一致。业务 Tool 归 `app/tools/`，Fake、模拟 Provider 和 seed 归 `app/demo_data/`。MOD-031 将共享业务证据规则归 `app/skills/policies/`，通用 evidence 消费显式策略，默认路径由 bootstrap 装配。
 
 2026-11-16 MOD-029 增补：独立结果库、实际聊天/后台和 Session 删除联动已接入，029e 已按基线失败子集完成验收，见[实施报告](reports/mod-029-tool-result-access.md)。默认结果库现为 runtime/local/state/tool_results.db（Issue #2 第 4 项迁移后），可由 FAB_TOOL_RESULT_DATABASE_PATH 指定，后台开关跨重启保留，新 Run 生效。
 
@@ -446,7 +446,8 @@ Skill 格式/加载/发布模块只依赖标准库和自身；新增 policies �
 | `app/conversation/sessions.py` | 业务/存储 | 会话 CRUD、历史、执行记录组合；数据库会话、执行存储和身份经存储/身份 Port 读取。 |
 | `app/conversation/turn_decision.py` | 纯 | 单轮决定数据结构。 |
 | `app/model_gateway/__init__.py` | 包 | 模型网关包锚点。 |
-| `app/model_gateway/compatibility.py` | 兼容/过渡 | 发布前模型兼容性探针；URL 与凭据头取自 `ModelEndpoint`，管理端探针仍自建客户端。 |
+| `app/model_gateway/compatibility.py` | 模型协议 | 独立传输探针、受控发送和客户端生命周期。URL 与凭据头由 `ModelEndpoint` 构造。 |
+| `app/bootstrap/model_compatibility_assembly.py` | 应用装配 | 管理端完整兼容性入口，通过网关发送执行 Context 契约检查。 |
 | `app/model_gateway/registry.py` | 装配/存储 | 模型 Provider 配置、选择和持久化读取；数据库会话与身份经存储/身份 Port 读取。 |
 | `app/model_gateway/health.py` | 业务/存储 | 模型熔断健康记录；数据库会话经存储/身份 Port 读取。 |
 | `app/model_gateway/gateway.py` | Port/Adapter | `ModelGatewayPort`/`ModelSessionPort`、`ModelEndpoint`，`HttpModelGateway` 持有客户端生命周期与聊天模板整形。 |
@@ -536,16 +537,16 @@ MOD-016～018 已实现独立 Manifest、依赖校验、安全资源、显式 Ca
 
 ## 5. 当前耦合与迁移事实
 
-当前边界清单记录 **10 条精确依赖债务、37 个 DB 调用候选文件、7 个兼容入口、99 个静态消费者**。MOD-031 新增 compatibility 到 evidence_assembly 的精确装配债务及一条实际测试 patch 消费，均登记；保留兼容项仍由其真实后续任务处理。
+当前边界清单记录 **8 条精确依赖债务、37 个 DB 调用候选文件、7 个兼容入口、99 个静态消费者**。MOD-025 移除了模型网关到 Context 的两条依赖，完整 Context 探针由应用装配组合。
 兼容消费者扫描只覆盖 app/scripts/tests 内的静态 import、字面动态 import 与常见 mock patch；
 外部调用方和计算出的动态引用仍需人工审查。
 
-10 条债务的实际来源可归纳为：
+8 条债务的实际来源可归纳为：
 
 - `app/agent_runtime/compatibility.py` 仍直接装配两个 Tool 报表操作及 legacy/default/evidence bootstrap（5 条，MOD-027；`run_agent` 的 live patch 命名空间保留）。
 - `app/agent_runtime/tools/catalog.py` 与 `registry.py` 仍反向看 bootstrap（2 条，MOD-027；保留 `service.TOOLS`/`TOOL_HANDLERS` 对象身份）。
 - MOD-030d 将 Provider 选择归 bootstrap、固定报表 SQL 归 Tool；相应两条旧依赖债务退出。兼容门面保留的报表依赖拆为两个实际 Tool 目标，仍归 MOD-027。
-- `app/model_gateway/compatibility.py` 仍接 `memory_system.context.history/protocol`（2 条，MOD-025；去掉需改公开探针或移动协议逻辑）。
+- MOD-025 将 Context 探针组合迁入应用 bootstrap，移除两条模型网关到 Context 的依赖。
 - `app/persistence/execution_store.py` 仍接身份（1 条，MOD-021；REF-027 例外保留公开身份锚点）。
 
 会话、rag/search_registry、模型 health/registry、个人知识 service 和 runtime_status 已改为依赖 `core/storage_identity_ports.py`，

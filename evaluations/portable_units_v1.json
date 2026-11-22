@@ -69,6 +69,7 @@
       "files": [
         "app/__init__.py",
         "app/model_gateway/__init__.py",
+        "app/model_gateway/compatibility.py",
         "app/model_gateway/gateway.py",
         "app/model_gateway/message_compat.py",
         "app/model_gateway/streaming.py",

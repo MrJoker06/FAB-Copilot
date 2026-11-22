@@ -52,6 +52,10 @@ class RecordingBackend:
 
 
 class RecordingCatalogBackend(RecordingBackend):
+    def __init__(self):
+        super().__init__()
+        self.candidates[0].update(chunk_id=9, source="guide.md")
+
     def list_knowledge_documents(self, principal):
         self.catalog_principal = principal
         return [{"title": "Guide", "source": "guide.md", "status": "Active", "first_chunk_id": 9}]
@@ -131,8 +135,13 @@ class FactorySearchBackendBoundaryTests(unittest.TestCase):
         with patch.dict(os.environ, {"FAB_FACTORY_SEARCH_BACKEND": "fake-catalog"}, clear=False), patch.object(
             rag, "current_principal", return_value=principal
         ):
-            self.assertEqual(rag.list_knowledge_documents()[0]["source"], "guide.md")
-            self.assertEqual(rag.get_knowledge_document(9)["selected_chunk_id"], 9)
+            hit = rag.search_knowledge("LITHO 颗粒", source_types=["knowledge"])[0]
+            listed = rag.list_knowledge_documents()[0]
+            detail = rag.get_knowledge_document(listed["first_chunk_id"])
+            self.assertEqual(hit["source"], "guide.md")
+            self.assertEqual(hit["source"], listed["source"])
+            self.assertEqual(hit["source"], detail["document"]["source"])
+            self.assertEqual(detail["selected_chunk_id"], 9)
             self.assertEqual(rag.list_historical_cases()[0]["case_id"], "CASE-1")
             self.assertEqual(rag.get_historical_case("CASE-1")["case_status"], "Validated")
         self.assertIs(backend.catalog_principal, principal)

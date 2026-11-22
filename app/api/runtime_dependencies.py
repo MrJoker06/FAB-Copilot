@@ -35,7 +35,8 @@ from ..persistence.execution_store import (
     recover_interrupted_executions,
 )
 from ..core.identity import PrincipalContextMiddleware, current_principal
-from ..model_gateway.compatibility import ModelCompatibilityError, check_model_compatibility
+from ..bootstrap.model_compatibility_assembly import check_model_compatibility
+from ..model_gateway.compatibility import ModelCompatibilityError
 from ..model_gateway.registry import (
     delete_model,
     ensure_model_catalog,

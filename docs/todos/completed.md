@@ -18,7 +18,7 @@
 
 产品总量 228 = 本页各归档的 183 个已完成任务 + 当前分类清单的 45 个未完成任务；4 个 OPTIONAL 候选不计入主统计。统计只读取本页列出的分类文件及对应归档，不扫描执行历史或重复汇总表。
 
-模块化另计：已完成 MOD-001～019、MOD-024、MOD-029、MOD-030、MOD-031 共 23 项，见[定义及验收归档](archive/modularization.md)；其余 8 项见[当前追踪](modularization.md)。保留 full 未通过、既有失败及未验证范围，不因移入归档宣称全绿。
+模块化另计：已完成 MOD-001～019、MOD-024～025、MOD-029～031 共 24 项，见[定义及验收归档](archive/modularization.md)；其余 7 项见[当前追踪](modularization.md)。保留 full 未通过、既有失败及未验证范围，不因移入归档宣称全绿。
 
 历史施工顺序和检查点见[执行历史](execution-history.md)，当前验证记录见[测试策略](../testing-strategy.md)。
 

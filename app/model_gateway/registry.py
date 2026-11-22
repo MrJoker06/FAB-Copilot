@@ -474,6 +474,8 @@ def save_model_compatibility_report(model_id: str, report: dict) -> dict:
     """Store only an explicit, bounded probe result; never changes model state."""
     if not isinstance(report, dict) or report.get("status") not in {"passed", "failed"}:
         raise ValueError("兼容性报告格式不正确")
+    if report.get("scope") == "model_transport":
+        raise ValueError("请执行完整应用兼容性检查后再保存报告")
     timestamp = _now()
     checked_at = report.get("checked_at") if isinstance(report.get("checked_at"), str) else timestamp
     if report["status"] == "failed":

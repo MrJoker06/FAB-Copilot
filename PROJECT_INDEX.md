@@ -5,6 +5,7 @@
 - 持续优先级（2026-11-18）：后续优化首先服务 PE / EE 值班助手。GitHub #1 错误码收尾见[错误码参考](docs/error-code-reference.md)和[验收报告](docs/reports/issue-1-error-standardization.md)；Guardrail 仍由 #3 跟踪。
 - 意图路由（2026-11-19）：Issue #2 第 5 项实现请求类型/业务主题分离，保留兼容 intent；概念问答与 SOP 不开放制造工具，新查数追问核对范围来源。实现与验收见[报告](docs/reports/issue-2-intent-routing.md)，不代表真实量化模型或公司目录已验证。
 - 存储治理（2026-11-18）：Issue #2 第 4 项实现历史 SOP/case、个人上传状态/索引与运行状态分库；运行默认 `runtime/local/state/`，隔离实例用 `state/`，旧数据通过显式停服迁移保留，见[报告](docs/reports/issue-2-runtime-storage-separation.md)。未自动迁移其他实例或公司环境。
+- MOD-025 已完成（2026-11-21）：值班来源与状态接入、模型探针拆分及双平台制品安装见[实施报告](docs/reports/mod-025-adapter-integration.md)。接入入口和迁移成员见[接入说明](docs/adapter-integration-plan.md)。
 - 主要入口：`app/main.py`, `app/agent_runtime/service.py`, `app/agent_runtime/tools/`, `app/core/settings.py`, `app/core/identity.py`, `app/personal_knowledge_runtime/service.py`, `app/model_gateway/streaming.py`, `app/intent_runtime/`, `app/planning_runtime/`, `app/planning_runtime/playbooks.py`, `app/persistence/database.py`, `app/telemetry/audit.py`, `app/conversation/sessions.py`, `app/agent_runtime/execution/loop_guard.py`, `app/knowledge/rag.py`, `app/evidence/validator.py`, `run.py`（跨平台隔离启动器）, `run.sh`, `run.bat`；`app/` 根目录仅保留包锚点与 HTTP 入口，内部代码只使用领域 canonical 路径
 - 关键目录：`app/`, `app/tools/`, `app/demo_data/`, `app/persistence/`, `app/telemetry/`, `app/model_gateway/`, `app/conversation/`, `app/agent_runtime/`, `app/knowledge/`（RAG、OCR、检索决策）, `app/evidence/`（语义、验证、答案综合）, `app/static/`, `knowledge/`, `cases/`, `evaluations/`, `scripts/`, `data/`, `tests/`
 - 环境变量：`DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL`, `FAB_DATABASE_PATH`, `FAB_DATABASE_DIR`, `API_TIMEOUT_MS`, `AGENT_LOG_PATH`, `AGENT_RUN_LOG_DIR`, `AGENT_LOG_MAX_BYTES`, `AGENT_LOG_BACKUP_COUNT`
@@ -18,11 +19,11 @@
 
 - Skill 状态：MOD-016～019 已验证。`app/skills/` 处理声明、依赖、Catalog、渐进加载与进程内不可变发布；`app/bootstrap/skill_assembly.py` 显式装配精确 skill_refs，光刻包复用原 Playbook/Planner 与 Ready/Fake Loop/Dispatcher。完整资源固定、显式激活/禁用/回退已验收，默认 HTTP 未启用，见 [发布验收报告](docs/reports/mod-019-skill-releases.md)。
 
-- 当前进度（2026-11-17）：优先实现 PE / EE 值班工作区，分支 `feat/pe-ee-duty-workspace` 从 `experiment/parallel-platform` 的 `dcca19f` 分出，根目录 `display_mock_data/` 隔离展示资料；追加报表目录管理、共享上传及原案例入口合并，见[工作区报告](docs/reports/pe-ee-duty-workspace.md)。MOD-031 已完成；MOD-029 a～e 已完成，保留既有完整门失败，见[实施报告](docs/reports/mod-029-tool-result-access.md)。受管源码 324（295 Python + 29 静态），依赖债务 10，兼容入口 7/消费 99，DB 候选 37；产品统计不变。本项源码起点 c5312d1，当前工作树/提交/远程状态以 Git 为准。历史存储拆分与既有完整门失败见[报告](docs/reports/persistence-demo-separation.md)。
+- 当前进度（2026-11-17）：优先实现 PE / EE 值班工作区，分支 `feat/pe-ee-duty-workspace` 从 `experiment/parallel-platform` 的 `dcca19f` 分出，根目录 `display_mock_data/` 隔离展示资料；追加报表目录管理、共享上传及原案例入口合并，见[工作区报告](docs/reports/pe-ee-duty-workspace.md)。MOD-031 已完成；MOD-029 a～e 已完成，保留既有完整门失败，见[实施报告](docs/reports/mod-029-tool-result-access.md)。受管源码 325（296 Python + 29 静态），依赖债务 8，兼容入口 7/消费 99，DB 候选 37；产品统计不变。本项源码起点 c5312d1，当前工作树/提交/远程状态以 Git 为准。历史存储拆分与既有完整门失败见[报告](docs/reports/persistence-demo-separation.md)。
 
 - local-Qwen Thinking 合并：按模型配置档位与方言、管理端设置、Windows 夹具适配及必要冲突修正已验证，见 [合并报告](docs/reports/local-qwen-thinking-merge.md)。
 
-- 后续计划：MOD-031 已实现，规则版本及未验证范围见 [报告](docs/reports/mod-031-validator.md)。MOD-029 的[重审稿 v3.0](docs/tool-result-offloading-plan.md)于 2026-11-15 重整为独立结果库、Session 级保留与引用回读，默认开启且分别提示关闭截断/开启卸载；已获执行指令，029a～e 已完成，完整门仍保留基线失败。模块化待做 8 项（020～023、025～028），不自动启动下一项或企业真实接入。
+- 后续计划：MOD-031 已实现，规则版本及未验证范围见 [报告](docs/reports/mod-031-validator.md)。MOD-029 的[重审稿 v3.0](docs/tool-result-offloading-plan.md)于 2026-11-15 重整为独立结果库、Session 级保留与引用回读，默认开启且分别提示关闭截断/开启卸载；已获执行指令，029a～e 已完成，完整门仍保留基线失败。模块化待做 7 项（020～023、026～028），不自动启动下一项或企业真实接入。
 
 - 当前结构：业务 Tool 与真实来源归 app/tools，Fake/模拟 Provider/seed 归 app/demo_data；规划视图与选择归 planning_runtime，证据声明及业务规则的唯一来源归 app/skills/policies，默认装配归 bootstrap。旧制造/接入目录已退出。历史 v4 参考保留旧成员标识，不代表当前运行依赖旧目录。
 

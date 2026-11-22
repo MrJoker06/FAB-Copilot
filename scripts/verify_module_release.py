@@ -224,16 +224,25 @@ print(json.dumps({{'tool_cases':cases,'cpk_modes':2,'release_disabled':True,'gua
 
 
 _MODEL_CHILD = (
-    _COMMON_GUARDS.replace("'app.model_gateway',", "")
+    _COMMON_GUARDS.replace("'app.model_gateway',", "'app.memory_system','app.demo_data',")
     + r"""
 import asyncio, json, socket
 import httpx
+from types import SimpleNamespace
+from unittest.mock import patch
+from app.model_gateway import compatibility
 from app.model_gateway.gateway import HttpModelGateway, ModelEndpoint
 from app.model_gateway.streaming import stream_completion
 def body(*events): return ''.join('data: '+event+'\n\n' for event in events).encode()
 requests=[]
 def handler(request):
  requests.append(request)
+ payload=json.loads(request.content)
+ if payload.get('tools'):
+  delta={'tool_calls':[{'index':0,'id':'probe','type':'function','function':{'name':'compatibility_probe','arguments':'{"ok":true}'}}]}
+  return httpx.Response(200,headers={'content-type':'text/event-stream'},content=body(json.dumps({'choices':[{'delta':delta}]}),'[DONE]'))
+ if payload.get('stream') and payload.get('max_tokens'):
+  return httpx.Response(200,headers={'content-type':'text/event-stream'},content=body('{"choices":[{"delta":{"content":"ok"}}]}','[DONE]'))
  return httpx.Response(200,content=body('{"choices":[{"delta":{"content":"ok"}}]}','{"usage":{"total_tokens":2}}','[DONE]'))
 async def notify(*args): return None
 async def protocol(client,url,headers,payload,progress,state=None): return await stream_completion(client,url,headers,payload,progress,state,notify=notify,disclosure_checker=lambda value: True)
@@ -245,13 +254,22 @@ async def main():
   assistant,usage,_=await session.stream({'model':'offline','messages':[{'role':'user','content':'q'}]},None,{})
  assert assistant['content']=='ok' and usage=={'total_tokens':2}
  assert requests and requests[0].url==httpx.URL('https://provider.invalid/v1/chat/completions')
+ connection=SimpleNamespace(provider='offline',api_key='offline-key',base_url='https://provider.invalid/v1',model='offline')
+ owned=factory(timeout=3,follow_redirects=False)
+ start=len(requests)
+ with patch.object(compatibility.httpx,'AsyncClient',return_value=owned) as ctor:
+  report=await compatibility.check_model_transport(connection,{'streaming':True,'tool_calls':True},timeout_seconds=3,context_chars=1024)
+ assert ctor.call_count==1 and owned.is_closed
+ assert report['scope']=='model_transport' and report['status']=='passed'
+ assert [check['name'] for check in report['checks']]==['connectivity_streaming','tool_calls','context_load','limits']
+ assert len(requests)-start==3
 asyncio.run(main())
 purelib=Path(__import__('app').__file__).resolve().parents[1]
 for name,module in tuple(sys.modules.items()):
  if name=='app' or name.startswith('app.'):
   assert Path(module.__file__).resolve().is_relative_to(purelib),name
 assert not events,events
-print(json.dumps({'mock_transport':True,'network_calls':0},sort_keys=True))
+print(json.dumps({'mock_transport':True,'network_calls':0,'transport_probe':True,'owned_client_closed':True},sort_keys=True))
 """
 )
 
@@ -315,7 +333,7 @@ def verify(delivery: Path, work_dir: Path, wheelhouse: Path | None) -> dict[str,
             _install(
                 copied,
                 model_python,
-                ["tool_sources", "skill_release", "model_transport"],
+                ["model_transport"],
                 cwd,
                 wheelhouse.resolve(),
             )

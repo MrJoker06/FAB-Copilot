@@ -19,12 +19,13 @@ from fastapi.testclient import TestClient
 
 from app.telemetry.audit import sanitize
 from app.agent_runtime import service as agent_module
+from app.bootstrap.model_compatibility_assembly import check_model_compatibility
 from app.core.local_model_config import local_models_path
 from app.core.model_credentials import get_stored_model_api_key, model_credentials_path
 from app.core.settings import ModelConnection, get_settings
 from app.demo_data.database import db_session
 from app.main import app
-from app.model_gateway.compatibility import ModelCompatibilityError
+from app.model_gateway.compatibility import check_model_transport
 from app.model_gateway.registry import MODEL_CAPABILITY_DEFAULTS
 from app.demo_data.seed import seed_reference_data
 
@@ -350,10 +351,32 @@ class ModelGovernanceSystemTests(unittest.TestCase):
             connection.execute("DELETE FROM agent.model_catalog WHERE model_id = ?", (model_id,))
             connection.commit()
         headers = {"Authorization": f"Bearer {token}"}
+        requests = []
+
+        def reply(request):
+            payload = json.loads(request.content)
+            requests.append(payload)
+            if payload.get("response_format"):
+                delta = {"content": "private-invalid-context"}
+            elif payload["messages"][-1]["role"] == "tool":
+                delta = {"content": "ok"}
+            elif payload.get("tools"):
+                delta = {"tool_calls": [{
+                    "index": 0, "id": "offline-probe", "type": "function",
+                    "function": {"name": "compatibility_probe", "arguments": '{"ok":true}'},
+                }]}
+            else:
+                delta = {"content": "ok"}
+            body = f'data: {json.dumps({"choices": [{"delta": delta}]})}\n\ndata: [DONE]\n\n'
+            return httpx.Response(200, text=body, headers={"content-type": "text/event-stream"})
+
+        async def probe(connection, capabilities):
+            async with httpx.AsyncClient(transport=httpx.MockTransport(reply)) as model_client:
+                return await check_model_compatibility(connection, capabilities, client=model_client, context_chars=1024)
+
         try:
-            error = ModelCompatibilityError("safe failure", True, "network")
-            with patch.dict(os.environ, {"FAB_ADMIN_API_TOKEN": token}), patch(
-                "app.main.check_model_compatibility", new=AsyncMock(side_effect=error)
+            with patch.dict(os.environ, {"FAB_ADMIN_API_TOKEN": token, "FAB_MODEL_API_KEY": "offline-key"}), patch(
+                "app.main.check_model_compatibility", new=probe
             ), TestClient(app) as client:
                 payload = {"model_id": model_id, "display_name": "Model 016 Failure", "provider": "openai-compatible", "provider_model": "model-016", "base_url": "https://models.example.test/v1", "capabilities": {"streaming": True, "tool_calls": True, "thinking": True, "native_multimodal": False}}
                 self.assertEqual(client.post("/api/admin/models", headers=headers, json=payload).status_code, 201)
@@ -365,8 +388,23 @@ class ModelGovernanceSystemTests(unittest.TestCase):
                 self.assertEqual(model["status"], "published")
                 self.assertTrue(model["capabilities"]["thinking"])
                 self.assertEqual(model["compatibility"]["status"], "failed")
+                self.assertEqual(model["compatibility"]["category"], "structured_context")
                 self.assertEqual(model["health"], before)
-                self.assertNotIn("test-key", str(model["compatibility"]))
+                self.assertNotIn("private-invalid-context", str(model["compatibility"]))
+                self.assertEqual(len(requests), 4)
+                self.assertIn("response_format", requests[-1])
+
+                async def transport_only(connection, capabilities):
+                    async with httpx.AsyncClient(transport=httpx.MockTransport(reply)) as model_client:
+                        return await check_model_transport(
+                            connection, capabilities, client=model_client, context_chars=1024,
+                        )
+
+                with patch("app.main.check_model_compatibility", new=transport_only):
+                    rejected = client.post(f"/api/admin/models/{model_id}/compatibility-check", headers=headers)
+                self.assertEqual(rejected.status_code, 400)
+                model = next(item for item in client.get("/api/admin/models", headers=headers).json() if item["model_id"] == model_id)
+                self.assertEqual(model["compatibility"]["category"], "structured_context")
         finally:
             with db_session() as connection:
                 connection.execute("DELETE FROM agent.user_model_preferences WHERE model_id = ?", (model_id,))

@@ -9,7 +9,8 @@ import httpx
 
 from app.model_gateway import compatibility as compatibility_module
 from app.model_gateway.gateway import ModelEndpoint
-from app.model_gateway.compatibility import ModelCompatibilityError, check_model_compatibility, compatibility_limits, provider_request_options
+from app.bootstrap.model_compatibility_assembly import check_model_compatibility
+from app.model_gateway.compatibility import ModelCompatibilityError, check_model_transport, compatibility_limits, provider_request_options
 from app.agent_runtime.service import _audit_assistant, _stream_completion
 
 
@@ -101,8 +102,16 @@ class ModelCompatibilityTests(unittest.TestCase):
             return httpx.Response(200, text=f"data: {{\"choices\":[{{\"delta\":{json.dumps(delta)}}}]}}\n\ndata: [DONE]\n\n", headers={"content-type": "text/event-stream"})
         async def run():
             async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                transport = await check_model_transport(
+                    self.connection(), {"streaming": True, "tool_calls": True},
+                    client=client, context_chars=1024,
+                )
                 with self.assertRaises(ModelCompatibilityError) as raised:
                     await check_model_compatibility(self.connection(), {"streaming": True, "tool_calls": True}, client=client, context_chars=1024)
+            self.assertEqual(transport["scope"], "model_transport")
+            self.assertEqual([item["name"] for item in transport["checks"]], [
+                "connectivity_streaming", "tool_calls", "context_load", "limits",
+            ])
             self.assertEqual(raised.exception.category, "structured_context")
             self.assertNotIn(secret, raised.exception.summary)
         asyncio.run(run())
@@ -336,6 +345,6 @@ class ModelCompatibilityTests(unittest.TestCase):
             {(endpoint.chat_completions_url, endpoint.headers()["Authorization"], endpoint.headers()["Content-Type"])},
         )
         self.assertEqual(endpoint.chat_completions_url, "https://model.test/v1/chat/completions")
-        source = inspect.getsource(compatibility_module.check_model_compatibility)
+        source = inspect.getsource(compatibility_module.check_model_transport)
         self.assertNotIn("/chat/completions", source)
         self.assertNotIn("Bearer", source)

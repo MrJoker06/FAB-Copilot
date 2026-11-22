@@ -178,6 +178,11 @@ def create_runtime_knowledge_port(*, settings: object, principal: object):
     default_tenant = getattr(
         settings, "enterprise_default_tenant_id", principal.tenant_id
     )
+    owner = (
+        principal.user_id
+        if principal.tenant_id == default_tenant
+        else f"{principal.tenant_id}:{principal.user_id}"
+    )
     if name == "sqlite":
         session = _readonly_session(getattr(settings, "knowledge_database_path", None))
         factory = SqliteFactorySearchBackend(
@@ -186,27 +191,18 @@ def create_runtime_knowledge_port(*, settings: object, principal: object):
                 getattr(settings, "quality_database_path", None)
             ),
         )
-        owner = (
-            principal.user_id
-            if principal.tenant_id == default_tenant
-            else f"{principal.tenant_id}:{principal.user_id}"
-        )
-        personal = _PersonalPort(_readonly_session(getattr(settings, "personal_database_path", None), alias="personal"), owner)
         factory_source_kind = ToolSourceKind.SQLITE
     else:
         factory = get_factory_search_backend(name)
-        session = _readonly_session(getattr(settings, "knowledge_database_path", None))
-        owner = (
-            principal.user_id
-            if principal.tenant_id == default_tenant
-            else f"{principal.tenant_id}:{principal.user_id}"
-        )
-        personal = _PersonalPort(_readonly_session(getattr(settings, "personal_database_path", None), alias="personal"), owner)
         factory_source_kind = getattr(factory, "tool_source_kind", None)
         if not isinstance(factory_source_kind, ToolSourceKind):
             raise ValueError(
                 "custom factory search backend must declare tool_source_kind"
             )
+    personal = _PersonalPort(
+        _readonly_session(getattr(settings, "personal_database_path", None), alias="personal"),
+        owner,
+    )
     return BackendKnowledgeSearchAdapter(
         factory,
         personal,

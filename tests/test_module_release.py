@@ -141,7 +141,7 @@ class ModuleReleaseTests(unittest.TestCase):
 
     def _build(self, root: Path) -> Path:
         module_release.build(root, build_id="test-build")
-        self.assertEqual(module_release.verify(root)["members"], 328)
+        self.assertEqual(module_release.verify(root)["members"], 329)
         return root
 
     @staticmethod
@@ -194,7 +194,7 @@ class ModuleReleaseTests(unittest.TestCase):
             )
             self.assertTrue((first / "install_module_release.py").is_file())
             self.assertTrue((first / "verify_module_release.py").is_file())
-            self.assertEqual(len(release["ownership"]), 328)
+            self.assertEqual(len(release["ownership"]), 329)
             self.assertEqual(
                 len(release["profiles"]["tool_sources"]["source_files"]), 108
             )
@@ -202,14 +202,14 @@ class ModuleReleaseTests(unittest.TestCase):
                 len(release["profiles"]["skill_release"]["source_files"]), 115
             )
             self.assertEqual(
-                len(release["profiles"]["model_transport"]["source_files"]), 5
+                len(release["profiles"]["model_transport"]["source_files"]), 6
             )
             union = set().union(
                 *(set(item["source_files"]) for item in release["profiles"].values())
             )
             resources = set(release["profiles"]["skill_release"]["resource_files"])
-            self.assertEqual(len(union), 165)
-            self.assertEqual(len(union | resources), 169)
+            self.assertEqual(len(union), 166)
+            self.assertEqual(len(union | resources), 170)
             self.assertTrue(
                 all(name.startswith("app/") for name in release["ownership"])
             )
