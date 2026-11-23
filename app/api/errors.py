@@ -30,15 +30,18 @@ def personal_problem(exc) -> HTTPException:
 
 def handlers(deps: ErrorDependencies):
     async def handle_http_error(_: Request, exc: HTTPException) -> JSONResponse:
+        extra = {}
         if isinstance(exc.detail, dict):
             detail = str(exc.detail.get("message") or "请求失败")
             error_code = str(exc.detail.get("error_code") or "HTTP_ERROR")
             retryable = bool(exc.detail.get("retryable", exc.status_code >= 500))
+            if isinstance(exc.detail.get("context"), dict):
+                extra["context"] = exc.detail["context"]
         else:
             detail = str(exc.detail)
             error_code = "NOT_FOUND" if exc.status_code == 404 else "HTTP_ERROR"
             retryable = exc.status_code >= 500
-        return JSONResponse(status_code=exc.status_code, content=error_payload(error_code, detail, retryable, deps=deps), headers=exc.headers)
+        return JSONResponse(status_code=exc.status_code, content=error_payload(error_code, detail, retryable, deps=deps, **extra), headers=exc.headers)
 
     async def handle_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
         fields = [".".join(str(part) for part in item.get("loc", [])[1:]) for item in exc.errors()]

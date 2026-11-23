@@ -36,6 +36,7 @@ from ..persistence.execution_store import (
 )
 from ..core.identity import PrincipalContextMiddleware, current_principal
 from ..bootstrap.model_compatibility_assembly import check_model_compatibility
+from ..bootstrap.lot_commonality_assembly import lot_commonality_service
 from ..model_gateway.compatibility import ModelCompatibilityError
 from ..model_gateway.registry import (
     delete_model,
@@ -100,6 +101,7 @@ from .routers import (
     chat as chat_router,
     enterprise as enterprise_router,
     knowledge as knowledge_router,
+    lot_commonality as lot_commonality_router,
     models as models_router,
     monitor as monitor_router,
     reports as reports_router,
@@ -213,6 +215,8 @@ __all__ = (
     "list_personal_documents",
     "list_personal_job_snapshots",
     "list_sessions",
+    "lot_commonality_router",
+    "lot_commonality_service",
     "models_router",
     "monitor_router",
     "monitoring_summary",

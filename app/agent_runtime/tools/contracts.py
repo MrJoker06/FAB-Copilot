@@ -212,6 +212,8 @@ def _error_specs():
         ("INVALID_ARGUMENTS", "Tool arguments are invalid.", "工具参数无效，请检查参数类型、必填项和查询范围。"),
         ("RESULT_CURSOR_INVALID", "结果分页参数无效。", "结果分页游标无效，请从第一页重新读取。"),
         ("RESULT_INVALID", "结果分页参数无效。", "结果读取参数无效。"),
+        ("ANALYSIS_LIMIT_EXCEEDED", "The analysis input exceeds its limits.", "输入超过分析限额，请缩小 lot 范围。"),
+        ("CUTOFF_AMBIGUOUS", "The cutoff operation is ambiguous.", "截止工序在部分 lot 中出现多次，请指定出现次数或截止时间。"),
     ))
     add(ToolErrorKind.BUDGET, "use_existing_results", (
         ("BUDGET_EXHAUSTED", "The tool budget is exhausted.", "工具调用额度已用尽，请使用已有结果完成回答。"),
@@ -224,6 +226,7 @@ def _error_specs():
         ("SYNTHESIS_ONLY", "The run only permits synthesis from existing results.", "当前任务已进入综合阶段，请使用已有结果。"),
         ("RESULT_READ_BUDGET", "结果读取预算已用尽。", "结果读取预算已用尽。"),
         ("RESULT_RESPONSE_LIMIT", "结果读取响应额度不足。", "结果读取响应额度不足，请缩小读取范围。"),
+        ("RESULT_STORAGE_LIMIT", "The result storage quota is exhausted.", "分析结果保存容量不足，请使用已有分析或稍后重试。"),
     ))
     add(ToolErrorKind.DEPENDENCY, "skip_dependent_step", (
         ("DEPENDENCY_FAILED", "A required prior step did not succeed.", "前置步骤未成功，当前步骤已跳过。"),

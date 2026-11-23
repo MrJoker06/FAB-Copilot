@@ -1,0 +1,1094 @@
+{
+  "fixture": "lot-commonality-v1",
+  "classification": "synthetic_non_production",
+  "note": "人工规定的合成来源事实，对应 docs/lot-commonality-backend-plan.md 第 4 节样例；不得由被测实现生成或改写。",
+  "source": {
+    "source_id": "fixture:lot-commonality-v1",
+    "kind": "synthetic",
+    "timezone": "Asia/Shanghai",
+    "chamber_granularities": [
+      "unknown",
+      "reported",
+      "wafer_count",
+      "wafer_ids"
+    ],
+    "pass_identity": "source_pass_id",
+    "rework_model": "separate_pass"
+  },
+  "lots": [
+    {
+      "lot_id": "A",
+      "product": "GAN-HEMT-650V",
+      "wafer_count": 25,
+      "coverage": {
+        "records": "complete",
+        "order": "complete",
+        "truncated": false,
+        "gaps": [],
+        "failures": []
+      }
+    },
+    {
+      "lot_id": "B",
+      "product": "GAN-HEMT-650V",
+      "wafer_count": 25,
+      "coverage": {
+        "records": "complete",
+        "order": "complete",
+        "truncated": false,
+        "gaps": [],
+        "failures": []
+      }
+    },
+    {
+      "lot_id": "C",
+      "product": "GAN-HEMT-650V",
+      "wafer_count": 25,
+      "coverage": {
+        "records": "complete",
+        "order": "complete",
+        "truncated": false,
+        "gaps": [],
+        "failures": []
+      }
+    },
+    {
+      "lot_id": "D",
+      "product": "GAN-HEMT-650V",
+      "wafer_count": 25,
+      "coverage": {
+        "records": "complete",
+        "order": "complete",
+        "truncated": false,
+        "gaps": [],
+        "failures": []
+      }
+    },
+    {
+      "lot_id": "E",
+      "product": "GAN-HEMT-650V",
+      "wafer_count": 25,
+      "coverage": {
+        "records": "complete",
+        "order": "complete",
+        "truncated": false,
+        "gaps": [],
+        "failures": []
+      }
+    },
+    {
+      "lot_id": "F",
+      "product": "GAN-HEMT-650V",
+      "wafer_count": 25,
+      "coverage": {
+        "records": "complete",
+        "order": "complete",
+        "truncated": false,
+        "gaps": [],
+        "failures": []
+      }
+    },
+    {
+      "lot_id": "G",
+      "product": "GAN-HEMT-650V",
+      "wafer_count": 25,
+      "coverage": {
+        "records": "complete",
+        "order": "complete",
+        "truncated": false,
+        "gaps": [],
+        "failures": []
+      }
+    },
+    {
+      "lot_id": "H",
+      "product": "GAN-HEMT-650V",
+      "wafer_count": 25,
+      "coverage": {
+        "records": "complete",
+        "order": "partial",
+        "truncated": false,
+        "gaps": [
+          {
+            "after_record_ref": "pass:H-01",
+            "before_record_ref": null,
+            "reason": "SEQUENCE_UNKNOWN",
+            "record_refs": [
+              "pass:H-02",
+              "pass:H-03"
+            ]
+          }
+        ],
+        "failures": []
+      }
+    },
+    {
+      "lot_id": "J",
+      "product": "GAN-HEMT-650V",
+      "wafer_count": 25,
+      "coverage": {
+        "records": "complete",
+        "order": "complete",
+        "truncated": false,
+        "gaps": [],
+        "failures": []
+      }
+    },
+    {
+      "lot_id": "K",
+      "product": "GAN-HEMT-650V",
+      "wafer_count": 25,
+      "coverage": {
+        "records": "complete",
+        "order": "complete",
+        "truncated": false,
+        "gaps": [],
+        "failures": []
+      }
+    }
+  ],
+  "passes": [
+    {
+      "record_ref": "pass:A-01",
+      "source_record_refs": [
+        "fx:A-01"
+      ],
+      "source_pass_id": "TI-A-01",
+      "lot_id": "A",
+      "pass_seq": 1,
+      "operation_key": "GATE/CLEAN",
+      "layer": "GATE",
+      "step": "CLEAN",
+      "equipment_id": "CLEAN-03",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CLEAN-R1",
+      "track_in_at": "2026-11-10T08:00:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:A-02",
+      "source_record_refs": [
+        "fx:A-02"
+      ],
+      "source_pass_id": "TI-A-02",
+      "lot_id": "A",
+      "pass_seq": 2,
+      "operation_key": "GATE/ETCH",
+      "layer": "GATE",
+      "step": "ETCH",
+      "equipment_id": "ETCH-07",
+      "chamber_granularity": "wafer_count",
+      "chamber_set_complete": true,
+      "chambers": [
+        {
+          "chamber": "CH-B",
+          "chamber_key": "ETCH-07/CH-B",
+          "wafer_count": 25,
+          "wafer_ids": null
+        }
+      ],
+      "allocated_wafer_total": 25,
+      "recipe": "GAN-GATE-ETCH-R3",
+      "track_in_at": "2026-11-10T08:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:A-03",
+      "source_record_refs": [
+        "fx:A-03"
+      ],
+      "source_pass_id": "TI-A-03",
+      "lot_id": "A",
+      "pass_seq": 3,
+      "operation_key": "GATE/METROLOGY",
+      "layer": "GATE",
+      "step": "METROLOGY",
+      "equipment_id": "METRO-02",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CD-R1",
+      "track_in_at": "2026-11-10T09:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:B-01",
+      "source_record_refs": [
+        "fx:B-01"
+      ],
+      "source_pass_id": "TI-B-01",
+      "lot_id": "B",
+      "pass_seq": 1,
+      "operation_key": "GATE/CLEAN",
+      "layer": "GATE",
+      "step": "CLEAN",
+      "equipment_id": "CLEAN-03",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CLEAN-R1",
+      "track_in_at": "2026-11-10T09:00:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:B-02",
+      "source_record_refs": [
+        "fx:B-02-CH-A",
+        "fx:B-02-CH-B"
+      ],
+      "source_pass_id": "TI-B-02",
+      "lot_id": "B",
+      "pass_seq": 2,
+      "operation_key": "GATE/ETCH",
+      "layer": "GATE",
+      "step": "ETCH",
+      "equipment_id": "ETCH-07",
+      "chamber_granularity": "wafer_ids",
+      "chamber_set_complete": true,
+      "chambers": [
+        {
+          "chamber": "CH-A",
+          "chamber_key": "ETCH-07/CH-A",
+          "wafer_count": 12,
+          "wafer_ids": [
+            "W01",
+            "W02",
+            "W03",
+            "W04",
+            "W05",
+            "W06",
+            "W07",
+            "W08",
+            "W09",
+            "W10",
+            "W11",
+            "W12"
+          ]
+        },
+        {
+          "chamber": "CH-B",
+          "chamber_key": "ETCH-07/CH-B",
+          "wafer_count": 13,
+          "wafer_ids": [
+            "W13",
+            "W14",
+            "W15",
+            "W16",
+            "W17",
+            "W18",
+            "W19",
+            "W20",
+            "W21",
+            "W22",
+            "W23",
+            "W24",
+            "W25"
+          ]
+        }
+      ],
+      "allocated_wafer_total": 25,
+      "recipe": "GAN-GATE-ETCH-R3",
+      "track_in_at": "2026-11-10T09:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:B-03",
+      "source_record_refs": [
+        "fx:B-03"
+      ],
+      "source_pass_id": "TI-B-03",
+      "lot_id": "B",
+      "pass_seq": 3,
+      "operation_key": "GATE/METROLOGY",
+      "layer": "GATE",
+      "step": "METROLOGY",
+      "equipment_id": "METRO-02",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CD-R1",
+      "track_in_at": "2026-11-10T10:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:C-01",
+      "source_record_refs": [
+        "fx:C-01"
+      ],
+      "source_pass_id": "TI-C-01",
+      "lot_id": "C",
+      "pass_seq": 1,
+      "operation_key": "GATE/CLEAN",
+      "layer": "GATE",
+      "step": "CLEAN",
+      "equipment_id": "CLEAN-03",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CLEAN-R1",
+      "track_in_at": "2026-11-10T10:00:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:C-02",
+      "source_record_refs": [
+        "fx:C-02"
+      ],
+      "source_pass_id": "TI-C-02",
+      "lot_id": "C",
+      "pass_seq": 2,
+      "operation_key": "GATE/ETCH",
+      "layer": "GATE",
+      "step": "ETCH",
+      "equipment_id": "ETCH-07",
+      "chamber_granularity": "reported",
+      "chamber_set_complete": true,
+      "chambers": [
+        {
+          "chamber": "CH-A",
+          "chamber_key": "ETCH-07/CH-A",
+          "wafer_count": null,
+          "wafer_ids": null
+        },
+        {
+          "chamber": "CH-B",
+          "chamber_key": "ETCH-07/CH-B",
+          "wafer_count": null,
+          "wafer_ids": null
+        }
+      ],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-ETCH-R3",
+      "track_in_at": "2026-11-10T10:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:C-03",
+      "source_record_refs": [
+        "fx:C-03"
+      ],
+      "source_pass_id": "TI-C-03",
+      "lot_id": "C",
+      "pass_seq": 3,
+      "operation_key": "GATE/METROLOGY",
+      "layer": "GATE",
+      "step": "METROLOGY",
+      "equipment_id": "METRO-02",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CD-R1",
+      "track_in_at": "2026-11-10T11:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:D-01",
+      "source_record_refs": [
+        "fx:D-01"
+      ],
+      "source_pass_id": "TI-D-01",
+      "lot_id": "D",
+      "pass_seq": 1,
+      "operation_key": "GATE/CLEAN",
+      "layer": "GATE",
+      "step": "CLEAN",
+      "equipment_id": "CLEAN-03",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CLEAN-R1",
+      "track_in_at": "2026-11-10T11:00:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:D-02",
+      "source_record_refs": [
+        "fx:D-02"
+      ],
+      "source_pass_id": "TI-D-02",
+      "lot_id": "D",
+      "pass_seq": 2,
+      "operation_key": "GATE/ETCH",
+      "layer": "GATE",
+      "step": "ETCH",
+      "equipment_id": "ETCH-07",
+      "chamber_granularity": "wafer_count",
+      "chamber_set_complete": true,
+      "chambers": [
+        {
+          "chamber": "CH-B",
+          "chamber_key": "ETCH-07/CH-B",
+          "wafer_count": 25,
+          "wafer_ids": null
+        }
+      ],
+      "allocated_wafer_total": 25,
+      "recipe": "GAN-GATE-ETCH-R3",
+      "track_in_at": "2026-11-10T11:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:D-03",
+      "source_record_refs": [
+        "fx:D-03"
+      ],
+      "source_pass_id": "TI-D-03",
+      "lot_id": "D",
+      "pass_seq": 3,
+      "operation_key": "GATE/METROLOGY",
+      "layer": "GATE",
+      "step": "METROLOGY",
+      "equipment_id": "METRO-02",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CD-R1",
+      "track_in_at": "2026-11-10T12:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:E-01",
+      "source_record_refs": [
+        "fx:E-01"
+      ],
+      "source_pass_id": "TI-E-01",
+      "lot_id": "E",
+      "pass_seq": 1,
+      "operation_key": "GATE/CLEAN",
+      "layer": "GATE",
+      "step": "CLEAN",
+      "equipment_id": "CLEAN-03",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CLEAN-R1",
+      "track_in_at": "2026-11-10T12:00:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:E-02",
+      "source_record_refs": [
+        "fx:E-02"
+      ],
+      "source_pass_id": "TI-E-02",
+      "lot_id": "E",
+      "pass_seq": 2,
+      "operation_key": "GATE/ETCH",
+      "layer": "GATE",
+      "step": "ETCH",
+      "equipment_id": "ETCH-07",
+      "chamber_granularity": "wafer_count",
+      "chamber_set_complete": true,
+      "chambers": [
+        {
+          "chamber": "CH-B",
+          "chamber_key": "ETCH-07/CH-B",
+          "wafer_count": 25,
+          "wafer_ids": null
+        }
+      ],
+      "allocated_wafer_total": 25,
+      "recipe": "GAN-GATE-ETCH-R3",
+      "track_in_at": "2026-11-10T12:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:E-03",
+      "source_record_refs": [
+        "fx:E-03"
+      ],
+      "source_pass_id": "TI-E-03",
+      "lot_id": "E",
+      "pass_seq": 3,
+      "operation_key": "GATE/ETCH",
+      "layer": "GATE",
+      "step": "ETCH",
+      "equipment_id": "ETCH-07",
+      "chamber_granularity": "wafer_count",
+      "chamber_set_complete": true,
+      "chambers": [
+        {
+          "chamber": "CH-B",
+          "chamber_key": "ETCH-07/CH-B",
+          "wafer_count": 25,
+          "wafer_ids": null
+        }
+      ],
+      "allocated_wafer_total": 25,
+      "recipe": "GAN-GATE-ETCH-R3",
+      "track_in_at": "2026-11-10T12:55:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": true,
+        "rework_of_record_ref": "pass:E-02"
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:E-04",
+      "source_record_refs": [
+        "fx:E-04"
+      ],
+      "source_pass_id": "TI-E-04",
+      "lot_id": "E",
+      "pass_seq": 4,
+      "operation_key": "GATE/METROLOGY",
+      "layer": "GATE",
+      "step": "METROLOGY",
+      "equipment_id": "METRO-02",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CD-R1",
+      "track_in_at": "2026-11-10T13:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:F-01",
+      "source_record_refs": [
+        "fx:F-01"
+      ],
+      "source_pass_id": "TI-F-01",
+      "lot_id": "F",
+      "pass_seq": 1,
+      "operation_key": "GATE/CLEAN",
+      "layer": "GATE",
+      "step": "CLEAN",
+      "equipment_id": "CLEAN-03",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CLEAN-R1",
+      "track_in_at": "2026-11-10T13:00:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:F-02",
+      "source_record_refs": [
+        "fx:F-02"
+      ],
+      "source_pass_id": "TI-F-02",
+      "lot_id": "F",
+      "pass_seq": 2,
+      "operation_key": "GATE/ETCH",
+      "layer": "GATE",
+      "step": "ETCH",
+      "equipment_id": "ETCH-07",
+      "chamber_granularity": "wafer_count",
+      "chamber_set_complete": true,
+      "chambers": [
+        {
+          "chamber": "CH-B",
+          "chamber_key": "ETCH-07/CH-B",
+          "wafer_count": 25,
+          "wafer_ids": null
+        }
+      ],
+      "allocated_wafer_total": 25,
+      "recipe": "GAN-GATE-ETCH-R3",
+      "track_in_at": "2026-11-10T13:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:F-03",
+      "source_record_refs": [
+        "fx:F-03"
+      ],
+      "source_pass_id": "TI-F-03",
+      "lot_id": "F",
+      "pass_seq": 3,
+      "operation_key": "GATE/WET-STRIP",
+      "layer": "GATE",
+      "step": "WET-STRIP",
+      "equipment_id": "WET-02",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-STRIP-R2",
+      "track_in_at": "2026-11-10T14:00:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:F-04",
+      "source_record_refs": [
+        "fx:F-04"
+      ],
+      "source_pass_id": "TI-F-04",
+      "lot_id": "F",
+      "pass_seq": 4,
+      "operation_key": "GATE/METROLOGY",
+      "layer": "GATE",
+      "step": "METROLOGY",
+      "equipment_id": "METRO-02",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CD-R1",
+      "track_in_at": "2026-11-10T14:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:G-01",
+      "source_record_refs": [
+        "fx:G-01"
+      ],
+      "source_pass_id": "TI-G-01",
+      "lot_id": "G",
+      "pass_seq": 1,
+      "operation_key": "GATE/CLEAN",
+      "layer": "GATE",
+      "step": "CLEAN",
+      "equipment_id": "CLEAN-03",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CLEAN-R1",
+      "track_in_at": "2026-11-10T14:00:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:G-02",
+      "source_record_refs": [
+        "fx:G-02"
+      ],
+      "source_pass_id": "TI-G-02",
+      "lot_id": "G",
+      "pass_seq": 2,
+      "operation_key": "GATE/ETCH",
+      "layer": "GATE",
+      "step": "ETCH",
+      "equipment_id": "ETCH-07",
+      "chamber_granularity": "wafer_count",
+      "chamber_set_complete": true,
+      "chambers": [
+        {
+          "chamber": "CH-A",
+          "chamber_key": "ETCH-07/CH-A",
+          "wafer_count": 25,
+          "wafer_ids": null
+        }
+      ],
+      "allocated_wafer_total": 25,
+      "recipe": "GAN-GATE-ETCH-R3",
+      "track_in_at": "2026-11-10T14:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:G-03",
+      "source_record_refs": [
+        "fx:G-03"
+      ],
+      "source_pass_id": "TI-G-03",
+      "lot_id": "G",
+      "pass_seq": 3,
+      "operation_key": "GATE/WET-STRIP",
+      "layer": "GATE",
+      "step": "WET-STRIP",
+      "equipment_id": "WET-02",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-STRIP-R2",
+      "track_in_at": "2026-11-10T15:00:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:G-04",
+      "source_record_refs": [
+        "fx:G-04"
+      ],
+      "source_pass_id": "TI-G-04",
+      "lot_id": "G",
+      "pass_seq": 4,
+      "operation_key": "GATE/METROLOGY",
+      "layer": "GATE",
+      "step": "METROLOGY",
+      "equipment_id": "METRO-02",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CD-R1",
+      "track_in_at": "2026-11-10T15:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:H-01",
+      "source_record_refs": [
+        "fx:H-01"
+      ],
+      "source_pass_id": "TI-H-01",
+      "lot_id": "H",
+      "pass_seq": 1,
+      "operation_key": "GATE/CLEAN",
+      "layer": "GATE",
+      "step": "CLEAN",
+      "equipment_id": "CLEAN-03",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CLEAN-R1",
+      "track_in_at": "2026-11-10T15:00:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:H-02",
+      "source_record_refs": [
+        "fx:H-02"
+      ],
+      "source_pass_id": "TI-H-02",
+      "lot_id": "H",
+      "pass_seq": null,
+      "operation_key": "GATE/ETCH",
+      "layer": "GATE",
+      "step": "ETCH",
+      "equipment_id": "ETCH-07",
+      "chamber_granularity": "unknown",
+      "chamber_set_complete": false,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-ETCH-R3",
+      "track_in_at": null,
+      "queue_hours": null,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": [
+        "pass_seq",
+        "track_in_at",
+        "chamber"
+      ]
+    },
+    {
+      "record_ref": "pass:H-03",
+      "source_record_refs": [
+        "fx:H-03"
+      ],
+      "source_pass_id": "TI-H-03",
+      "lot_id": "H",
+      "pass_seq": null,
+      "operation_key": "GATE/METROLOGY",
+      "layer": "GATE",
+      "step": "METROLOGY",
+      "equipment_id": "METRO-02",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CD-R1",
+      "track_in_at": null,
+      "queue_hours": null,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": [
+        "pass_seq",
+        "track_in_at"
+      ]
+    },
+    {
+      "record_ref": "pass:J-01",
+      "source_record_refs": [
+        "fx:J-01"
+      ],
+      "source_pass_id": "TI-J-01",
+      "lot_id": "J",
+      "pass_seq": 1,
+      "operation_key": "GATE/CLEAN",
+      "layer": "GATE",
+      "step": "CLEAN",
+      "equipment_id": "CLEAN-03",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CLEAN-R1",
+      "track_in_at": "2026-11-10T16:00:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:J-02",
+      "source_record_refs": [
+        "fx:J-02"
+      ],
+      "source_pass_id": "TI-J-02",
+      "lot_id": "J",
+      "pass_seq": 2,
+      "operation_key": "GATE/ETCH",
+      "layer": "GATE",
+      "step": "ETCH",
+      "equipment_id": "ETCH-07",
+      "chamber_granularity": "wafer_count",
+      "chamber_set_complete": true,
+      "chambers": [
+        {
+          "chamber": "CH-A",
+          "chamber_key": "ETCH-07/CH-A",
+          "wafer_count": 25,
+          "wafer_ids": null
+        }
+      ],
+      "allocated_wafer_total": 25,
+      "recipe": "GAN-GATE-ETCH-R3",
+      "track_in_at": "2026-11-10T16:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:J-03",
+      "source_record_refs": [
+        "fx:J-03"
+      ],
+      "source_pass_id": "TI-J-03",
+      "lot_id": "J",
+      "pass_seq": 3,
+      "operation_key": "GATE/METROLOGY",
+      "layer": "GATE",
+      "step": "METROLOGY",
+      "equipment_id": "METRO-02",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CD-R1",
+      "track_in_at": "2026-11-10T17:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:K-01",
+      "source_record_refs": [
+        "fx:K-01"
+      ],
+      "source_pass_id": "TI-K-01",
+      "lot_id": "K",
+      "pass_seq": 1,
+      "operation_key": "GATE/CLEAN",
+      "layer": "GATE",
+      "step": "CLEAN",
+      "equipment_id": "CLEAN-03",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CLEAN-R1",
+      "track_in_at": "2026-11-10T17:00:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:K-02",
+      "source_record_refs": [
+        "fx:K-02"
+      ],
+      "source_pass_id": "TI-K-02",
+      "lot_id": "K",
+      "pass_seq": 2,
+      "operation_key": "GATE/ETCH",
+      "layer": "GATE",
+      "step": "ETCH",
+      "equipment_id": "ETCH-07",
+      "chamber_granularity": "wafer_count",
+      "chamber_set_complete": true,
+      "chambers": [
+        {
+          "chamber": "CH-A",
+          "chamber_key": "ETCH-07/CH-A",
+          "wafer_count": 25,
+          "wafer_ids": null
+        }
+      ],
+      "allocated_wafer_total": 25,
+      "recipe": "GAN-GATE-ETCH-R3",
+      "track_in_at": "2026-11-10T17:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    },
+    {
+      "record_ref": "pass:K-03",
+      "source_record_refs": [
+        "fx:K-03"
+      ],
+      "source_pass_id": "TI-K-03",
+      "lot_id": "K",
+      "pass_seq": 3,
+      "operation_key": "GATE/METROLOGY",
+      "layer": "GATE",
+      "step": "METROLOGY",
+      "equipment_id": "METRO-02",
+      "chamber_granularity": "not_applicable",
+      "chamber_set_complete": true,
+      "chambers": [],
+      "allocated_wafer_total": null,
+      "recipe": "GAN-GATE-CD-R1",
+      "track_in_at": "2026-11-10T18:30:00+08:00",
+      "queue_hours": 0.5,
+      "rework": {
+        "is_rework": false,
+        "rework_of_record_ref": null
+      },
+      "missing_fields": []
+    }
+  ]
+}

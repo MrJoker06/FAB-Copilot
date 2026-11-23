@@ -5,6 +5,7 @@
 - `catalog.json`：六个基础报表入口、三份 SOP、三个历史案例及可选 Autosystem 地址。
 - `reports/`：可以直接打开的六份静态报表，独立于业务查询和数据库。
 - `report.css`：静态报表的公共样式。
+- `lot_commonality/contract_examples.json`：相关性分析页面「载入契约样例（合成数据）」读取的样例，与 `tests/fixtures/lot_commonality/contract_examples.json` 字节一致（Node 测试校验）；以测试夹具为准，不单独修改，页面载入后始终显示「合成样例」标识。
 
 基础报表卡片的 `url` 可替换为获准访问的公司报表地址；`autosystem_url` 当前为 `null`，点击入口明确提示尚未配置。只接受相对根路径或 HTTP(S) 地址，不使用凭据 URL、脚本 URL 或未经授权的公司系统地址。跨域目标系统自行认证，本项目不代理凭据或冒充已连接。
 

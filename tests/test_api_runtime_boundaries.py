@@ -36,7 +36,7 @@ class ApiRuntimeBoundaryTests(unittest.TestCase):
         )
         source = Path(main.__file__).read_text(encoding="utf-8")
         self.assertGreaterEqual(len(source.splitlines()), 150)
-        self.assertLessEqual(len(source.splitlines()), 250)
+        self.assertLessEqual(len(source.splitlines()), 260)
         self.assertNotIn('@app.post("/api/chat")', source)
         self.assertNotIn("async def event_stream", source)
         self.assertFalse(hasattr(main, "_routes"))

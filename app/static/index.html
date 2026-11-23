@@ -26,6 +26,7 @@
   <div class="app-shell">
     <aside class="sidebar" aria-label="主导航">
       <button class="nav-item __ACTIVE_reports__" data-view="reports" title="基础报表" __CURRENT_reports__><span aria-hidden="true">▥</span><span>基础报表</span></button>
+      <button class="nav-item __ACTIVE_commonality__" data-view="commonality" title="相关性分析" __CURRENT_commonality__><span aria-hidden="true">◫</span><span>相关性分析</span></button>
       <button class="nav-item __ACTIVE_procedures__" data-view="procedures" title="SOP&历史case" __CURRENT_procedures__><span aria-hidden="true">▤</span><span>SOP&amp;历史case</span></button>
       <button class="nav-item __ACTIVE_autosystem__" id="autosystemLink" data-view="autosystem" title="Autosystem 平台" __CURRENT_autosystem__><span aria-hidden="true">↗</span><span>Autosystem 平台</span></button>
       <button class="nav-item" id="focusAgent" title="显示或隐藏值班智能助手" aria-expanded="true"><span aria-hidden="true">◇</span><span>值班智能助手</span></button>
@@ -51,6 +52,44 @@
         <section class="panel shift-recent"><div class="panel-heading"><div><h2>最近查看</h2></div></div><div class="table-wrap"><table><thead><tr><th>报表</th><th>关联对象</th><th>更新时间</th><th>操作</th></tr></thead><tbody id="shiftRecentReports"><tr><td colspan="4" class="empty">尚未查看报表</td></tr></tbody></table></div></section>
       </section>
 
+      <section id="commonalityView" class="view __ACTIVE_commonality__">
+        <div class="page-heading"><div><p class="eyebrow">LOT COMMONALITY</p><h1>相关性分析</h1><p>粘贴异常 lot，查询共同加工经历；需要比较时再添加对比组</p></div><div class="shift-page-actions"><span id="commonalitySampleBadge" class="lc-sample-badge" hidden>合成样例</span><button id="loadCommonalitySample" class="secondary-btn" type="button">载入契约样例（合成数据）</button></div></div>
+        <form id="commonalityForm" class="lc-form" novalidate>
+          <section class="panel lc-panel" aria-labelledby="commonalityGroupsTitle">
+            <div class="panel-heading"><div><h2 id="commonalityGroupsTitle">输入组</h2><p>逐行输入或从 Excel 粘贴单列；换行、制表符、逗号分隔均可，首尾空白和空行会被去除</p></div><div class="lc-add-group"><label class="lc-field"><span>新组用途</span><select id="commonalityNewGroupRole"><option value="concurrent_abnormal">同期异常</option><option value="historical_abnormal">历史异常</option><option value="normal_reference">正常参考</option></select></label><button id="addCommonalityGroup" type="button" class="secondary-btn lc-small-btn">＋ 添加对比组</button></div></div>
+            <div id="commonalityGroups" class="lc-groups"><p class="empty">正在准备输入区…</p></div>
+          </section>
+          <section id="commonalityScope" class="panel lc-panel" aria-labelledby="commonalityScopeTitle">
+            <div class="panel-heading"><div><h2 id="commonalityScopeTitle">范围与维度</h2><p>范围均为可选；不填写时分析全部过站</p></div></div>
+            <div class="lc-scope-grid">
+              <fieldset class="lc-fieldset"><legend>分析维度</legend>
+                <label class="lc-check"><input type="checkbox" data-commonality-dimension value="equipment" checked><span>机台</span></label>
+                <label class="lc-check"><input type="checkbox" data-commonality-dimension value="chamber" checked><span>腔室</span></label>
+                <label class="lc-check"><input type="checkbox" data-commonality-dimension value="recipe" checked><span>recipe</span></label>
+                <label class="lc-check"><input type="checkbox" data-commonality-dimension value="path_adjacent" checked><span>相邻路径</span></label>
+              </fieldset>
+              <fieldset class="lc-fieldset"><legend>加工时间范围（含开始、不含结束）</legend>
+                <label class="lc-field"><span>开始</span><input id="commonalityTimeStart" type="datetime-local"></label>
+                <label class="lc-field"><span>结束</span><input id="commonalityTimeEnd" type="datetime-local"></label>
+              </fieldset>
+              <fieldset class="lc-fieldset"><legend>异常截止</legend>
+                <label class="lc-check"><input type="radio" name="commonalityCutoffMode" value="none" checked><span>不设截止</span></label>
+                <label class="lc-check"><input type="radio" name="commonalityCutoffMode" value="time"><span>按时间</span></label>
+                <label class="lc-check"><input type="radio" name="commonalityCutoffMode" value="operation"><span>按工序</span></label>
+                <label class="lc-field"><span>截止时间</span><input id="commonalityCutoffAt" type="datetime-local" disabled></label>
+                <label class="lc-field"><span>截止工序</span><input id="commonalityCutoffOperation" type="text" maxlength="80" placeholder="例如 GATE/ETCH" disabled></label>
+                <label class="lc-field"><span>出现次数（选填）</span><input id="commonalityCutoffOccurrence" type="number" min="1" step="1" disabled></label>
+              </fieldset>
+              <label class="lc-field lc-description"><span>异常描述（选填）</span><textarea id="commonalityDescription" rows="3" maxlength="500" placeholder="例如 GATE 层刻蚀后 CD 偏大"></textarea></label>
+            </div>
+            <p id="commonalityScopeSummary" class="lc-scope-summary"></p>
+          </section>
+          <div class="lc-actions"><button id="runCommonality" type="submit" class="primary-btn">查询</button><p id="commonalityStatus" class="lc-status" role="status" aria-live="polite"></p></div>
+        </form>
+        <div id="commonalityResults" class="lc-results" hidden></div>
+        <section id="commonalityMembers" class="panel lc-panel lc-drill" aria-labelledby="commonalityMembersTitle" hidden></section>
+        <section id="commonalityRecords" class="panel lc-panel lc-drill" aria-labelledby="commonalityRecordsTitle" hidden></section>
+      </section>
       <section id="proceduresView" class="view __ACTIVE_procedures__">
         <div class="page-heading"><div><p class="eyebrow">SHIFT KNOWLEDGE</p><h1>SOP&amp;历史case</h1><p>查流程、找案例，辅助当班异常处置</p></div><div class="shift-page-actions"><button id="refreshShiftDocuments" class="secondary-btn" type="button">刷新</button><button id="openSharedUpload" class="primary-btn" type="button">＋ 上传资料</button></div></div>
         <div class="shift-toolbar"><input id="shiftDocumentSearch" type="search" placeholder="搜索 SOP、现象、设备或 case" aria-label="搜索 SOP 和历史case"></div>
@@ -312,6 +351,8 @@
   <script src="/static/app/model/controller.js?v=__APP_VERSION__" defer></script>
   <script src="/static/app/dashboard/controller.js?v=__APP_VERSION__" defer></script>
   <script src="/static/app/shift/controller.js?v=__APP_VERSION__" defer></script>
+  <script src="/static/app/commonality/model.js?v=__APP_VERSION__" defer></script>
+  <script src="/static/app/commonality/controller.js?v=__APP_VERSION__" defer></script>
   <script src="/static/app/chat/presenter.js?v=__APP_VERSION__" defer></script>
   <script src="/static/app/sessions/controller.js?v=__APP_VERSION__" defer></script>
   <script src="/static/app/chat/controller.js?v=__APP_VERSION__" defer></script>

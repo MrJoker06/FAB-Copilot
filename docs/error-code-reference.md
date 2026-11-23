@@ -57,6 +57,8 @@
 | INVALID_ARGUMENTS | validation | Tool arguments are invalid. | 工具参数无效，请检查参数类型、必填项和查询范围。 | correct_arguments |
 | RESULT_CURSOR_INVALID | validation | 结果分页参数无效。 | 结果分页游标无效，请从第一页重新读取。 | correct_arguments |
 | RESULT_INVALID | validation | 结果分页参数无效。 | 结果读取参数无效。 | correct_arguments |
+| ANALYSIS_LIMIT_EXCEEDED | validation | The analysis input exceeds its limits. | 输入超过分析限额，请缩小 lot 范围。 | correct_arguments |
+| CUTOFF_AMBIGUOUS | validation | The cutoff operation is ambiguous. | 截止工序在部分 lot 中出现多次，请指定出现次数或截止时间。 | correct_arguments |
 | BUDGET_EXHAUSTED | budget | The tool budget is exhausted. | 工具调用额度已用尽，请使用已有结果完成回答。 | use_existing_results |
 | BUDGET_BLOCKED | budget | The tool budget blocked this call. | 工具调用被预算策略阻止。 | use_existing_results |
 | TOOL_BUDGET_DISABLED | budget | The execution plan does not allow tool calls. | 当前计划不允许调用工具。 | use_existing_results |
@@ -67,6 +69,7 @@
 | SYNTHESIS_ONLY | budget | The run only permits synthesis from existing results. | 当前任务已进入综合阶段，请使用已有结果。 | use_existing_results |
 | RESULT_READ_BUDGET | budget | 结果读取预算已用尽。 | 结果读取预算已用尽。 | use_existing_results |
 | RESULT_RESPONSE_LIMIT | budget | 结果读取响应额度不足。 | 结果读取响应额度不足，请缩小读取范围。 | use_existing_results |
+| RESULT_STORAGE_LIMIT | budget | The result storage quota is exhausted. | 分析结果保存容量不足，请使用已有分析或稍后重试。 | use_existing_results |
 | DEPENDENCY_FAILED | dependency | A required prior step did not succeed. | 前置步骤未成功，当前步骤已跳过。 | skip_dependent_step |
 | DEADLINE_EXCEEDED | timeout | The tool deadline was exceeded. | 当前任务时限已到。 | start_new_run |
 | SOURCE_TIMEOUT | timeout | The tool timed out. | 数据来源响应超时。 | start_new_run |
@@ -85,6 +88,7 @@
 | 执行与结果 | DATA_SOURCE_FAILED：来源明确失败；TOOL_FAILED：未分类执行异常；INVALID_RESULT：结果对象、Schema、调用身份或来源范围不符合契约；RESULT_POLICY_FAILED：结果收敛异常；ACCOUNTING_FAILED：结果记账失败，不能发布为成功 |
 | 依赖、期限与取消 | DEPENDENCY_FAILED：所依赖步骤未成功；DEADLINE_EXCEEDED：开始前或结束时超过期限；SOURCE_TIMEOUT：来源超时；CANCELLED：收到取消信号。后两者及晚到结果按实际执行状态处理，unknown 不可自动重放 |
 | 结果回读 | RESULT_UNAVAILABLE：会话、身份、所有权或可见性校验不通过，统一不泄露资源是否存在；RESULT_CURSOR_INVALID/RESULT_INVALID：游标/读取输入无效；RESULT_READ_BUDGET：读取额度用尽；RESULT_RESPONSE_LIMIT：可返回字节不足；RESULT_READ_FAILED：存储读取发生其他故障 |
+| Lot 相关性工具（可选装配） | ANALYSIS_LIMIT_EXCEEDED：组数或 lot 数超过分析限额；CUTOFF_AMBIGUOUS：截止工序在部分 lot 中出现多次且未指定；RESULT_STORAGE_LIMIT：分析版本超过主体或会话的保存容量，未写入；其余输入错误为 INVALID_ARGUMENTS，无权 lot 或缺少 analyst 角色为 SCOPE_DENIED，存储故障为 RESULT_READ_FAILED。见 `app/tools/lot_commonality/binding.py` |
 
 ## 模型、轨迹与前端
 
@@ -114,6 +118,7 @@ Ready/Loop 的失败传播携带错误码、分类、执行状态和建议。Leg
 | STORAGE_FILE_MISSING、STORAGE_PATH_ERROR | 文件缺失或存储路径不可用；管理员检查实际文件与配置，见个人知识库存储实现 |
 | OCR_UNAVAILABLE、OCR_FAILED、OCR_QUALITY_LOW | OCR 能力不可用、识别失败或质量不足；按详情检查依赖/替换文件，不能伪装提取成功，见 `app/knowledge/ocr.py` 与个人知识库处理器 |
 | RESULT_CALL_CONFLICT、RESULT_STORAGE_LIMIT | 结果调用标识冲突/独立结果库容量不足；先排查调用身份或清理策略，不静默删除有效 Session 结果，见 `app/persistence/tool_result_store.py` |
+| ANALYSIS_LIMIT_EXCEEDED、CUTOFF_AMBIGUOUS | Lot 相关性分析输入超过限额（422，`context` 说明哪项限额）/截止工序在部分 lot 中出现多次（422，`context` 列出这些 lot）；修正输入后重新创建。同一入口另用 SCOPE_DENIED（403）、RESULT_UNAVAILABLE（404）、RESULT_CURSOR_INVALID（400）、RESULT_STORAGE_LIMIT（507）、RESULT_STORE_UNAVAILABLE（503）、DATA_SOURCE_FAILED（502），见 `app/api/routers/lot_commonality.py` 与[契约](lot-commonality-contract.md) |
 | RESULT_STORE_CONFIG_INVALID、RESULT_STORE_PATH_INVALID、RESULT_STORE_SCHEMA_INVALID、RESULT_STORE_UNAVAILABLE | 结果库配置、路径、Schema 或存储不可用；管理员检查，见 `app/persistence/tool_result_store.py` |
 | REQUEST_ERROR、NETWORK_ERROR、STREAM_INCOMPLETE | 浏览器请求失败、网络错误或流未完整结束；保留失败状态，检查网络和会话后人工重试，见 `app/static/app/core/api.js` 与聊天控制器 |
 

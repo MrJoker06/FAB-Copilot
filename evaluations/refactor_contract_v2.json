@@ -123,7 +123,7 @@
     }
   },
   "api": {
-    "openapi_sha256": "cbaedcd93e3c07b140813ea620b524952e81ba8ed3e9d2ceb4e1f521395a7d5c",
+    "openapi_sha256": "642c7ff9818ee921dc78dc0e2bd76ecdd87da5c82601ee7e1066408355dbe738",
     "routes": [
       {
         "method": "GET",
@@ -426,6 +426,30 @@
         "success_status": 200
       },
       {
+        "method": "POST",
+        "name": "create_lot_commonality_analysis",
+        "path": "/api/lot-commonality/analyses",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "read_lot_commonality_analysis",
+        "path": "/api/lot-commonality/analyses/{analysis_ref}",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "read_lot_commonality_members",
+        "path": "/api/lot-commonality/analyses/{analysis_ref}/members",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "read_lot_commonality_records",
+        "path": "/api/lot-commonality/analyses/{analysis_ref}/records",
+        "success_status": 200
+      },
+      {
         "method": "GET",
         "name": "monitor_events",
         "path": "/api/monitor/events",
@@ -681,6 +705,7 @@
     "index": {
       "element_ids": [
         "activeModelLabel",
+        "addCommonalityGroup",
         "agentMode",
         "agentResizeHandle",
         "allFunctions",
@@ -713,6 +738,25 @@
         "closeSessionRenameDialog",
         "closeSharedUpload",
         "collapseAgent",
+        "commonalityCutoffAt",
+        "commonalityCutoffOccurrence",
+        "commonalityCutoffOperation",
+        "commonalityDescription",
+        "commonalityForm",
+        "commonalityGroups",
+        "commonalityGroupsTitle",
+        "commonalityMembers",
+        "commonalityNewGroupRole",
+        "commonalityRecords",
+        "commonalityResults",
+        "commonalitySampleBadge",
+        "commonalityScope",
+        "commonalityScopeSummary",
+        "commonalityScopeTitle",
+        "commonalityStatus",
+        "commonalityTimeEnd",
+        "commonalityTimeStart",
+        "commonalityView",
         "confirmKnowledgeUpload",
         "confirmPersonalKnowledgeDelete",
         "confirmPersonalKnowledgeMetadata",
@@ -759,6 +803,7 @@
         "knowledgeUploadTags",
         "knowledgeView",
         "kpiGrid",
+        "loadCommonalitySample",
         "mobileAgentToggle",
         "modelDialog",
         "modelDialogTitle",
@@ -790,6 +835,7 @@
         "renameLibrarySession",
         "reportsView",
         "retryPersonalKnowledge",
+        "runCommonality",
         "saveModelSettings",
         "sendButton",
         "sessionBatchCount",
@@ -864,6 +910,8 @@
         "/static/app/model/controller.js?v=__APP_VERSION__",
         "/static/app/dashboard/controller.js?v=__APP_VERSION__",
         "/static/app/shift/controller.js?v=__APP_VERSION__",
+        "/static/app/commonality/model.js?v=__APP_VERSION__",
+        "/static/app/commonality/controller.js?v=__APP_VERSION__",
         "/static/app/chat/presenter.js?v=__APP_VERSION__",
         "/static/app/sessions/controller.js?v=__APP_VERSION__",
         "/static/app/chat/controller.js?v=__APP_VERSION__",

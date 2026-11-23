@@ -8,7 +8,7 @@
   function createBootstrap(deps = {}) {
     const {
       state, $, api, setInitialDates, initializeAgentResize, restoreAgentPanelWidth,
-      bindShiftEvents = () => {},
+      bindShiftEvents = () => {}, bindCommonalityEvents = () => {},
       loadModelConfig, updateSystemStatus, handleBuildVersion, loadDashboard,
       restoreConversation, setAgentOpen, showView, loadCapability,
       renderKnowledgeDocuments, loadPersonalKnowledgeDocuments, setKnowledgeMode,
@@ -56,6 +56,7 @@
 
     function bindEvents() {
       bindShiftEvents();
+      bindCommonalityEvents();
       $('#dateForm').addEventListener('submit', event => {
         event.preventDefault();
         state.capabilityCache.clear();
@@ -64,7 +65,12 @@
       });
       // Autosystem resolves its configured external link before choosing the local placeholder.
       document.querySelectorAll('[data-view]:not(#autosystemLink)').forEach(button => {
-        button.addEventListener('click', () => showView(button.dataset.view));
+        button.addEventListener('click', () => showView(button.dataset.view, { history: 'push' }));
+      });
+      window.addEventListener('popstate', () => {
+        const requested = new URLSearchParams(window.location.search).get('view') || 'dashboard';
+        const name = requested === 'cases' ? 'procedures' : requested;
+        showView(document.getElementById(`${name}View`) ? name : 'dashboard');
       });
       $('#focusAgent').addEventListener('click', toggleAgentPanel);
       $('#mobileAgentToggle').addEventListener('click', toggleAgentPanel);

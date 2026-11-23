@@ -59,6 +59,7 @@ from .api.runtime_dependencies import (
     get_settings,
     initialize_result_storage,
     knowledge_router,
+    lot_commonality_router,
     models_router,
     monitor_router,
     pending_personal_jobs,
@@ -215,6 +216,7 @@ _shared_document_routes = create_shared_documents_router(_router_namespace, curr
 _knowledge_routes = knowledge_router.create_router(
     _router_namespace, current_personal_user
 )
+_lot_commonality_routes = lot_commonality_router.create_router(_router_namespace)
 
 _register_bundles(
     _system_routes,
@@ -225,6 +227,7 @@ _register_bundles(
     _report_directory_routes,
     _shared_document_routes,
     _knowledge_routes,
+    _lot_commonality_routes,
 )
 
 

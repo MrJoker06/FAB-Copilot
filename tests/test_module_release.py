@@ -141,7 +141,7 @@ class ModuleReleaseTests(unittest.TestCase):
 
     def _build(self, root: Path) -> Path:
         module_release.build(root, build_id="test-build")
-        self.assertEqual(module_release.verify(root)["members"], 329)
+        self.assertEqual(module_release.verify(root)["members"], 339)
         return root
 
     @staticmethod
@@ -194,7 +194,7 @@ class ModuleReleaseTests(unittest.TestCase):
             )
             self.assertTrue((first / "install_module_release.py").is_file())
             self.assertTrue((first / "verify_module_release.py").is_file())
-            self.assertEqual(len(release["ownership"]), 329)
+            self.assertEqual(len(release["ownership"]), 339)
             self.assertEqual(
                 len(release["profiles"]["tool_sources"]["source_files"]), 108
             )

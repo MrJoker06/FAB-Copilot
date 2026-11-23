@@ -68,6 +68,9 @@ const shift = globalThis.FabShiftController.createShiftController({
   $, escapeHtml, showToast, api, identityHeaders, processLabels,
   setAgentOpen: (...args) => layout.setAgentOpen(...args), showView: (...args) => layout.showView(...args),
 });
+const commonality = globalThis.FabCommonalityController.createCommonalityController({
+  $, escapeHtml, identityHeaders,
+});
 const sessions = globalThis.FabSessionController.createSessionController({
   state, $, escapeHtml, api, showToast, sourcePresenter, presenter,
   getShowView: () => layout.showView,
@@ -88,7 +91,7 @@ const chat = globalThis.FabChatController.createChatController({
 const bootstrap = globalThis.FabAppBootstrap.createBootstrap({
   state, $, api, setInitialDates, updateSystemStatus, handleBuildVersion,
   checkAppVersion, showToast, personalUploadQueue: globalThis.FabPersonalUploadQueue,
-  ...knowledge, ...model, ...dashboard, ...sessions, ...chat, ...layout, ...shift,
+  ...knowledge, ...model, ...dashboard, ...sessions, ...chat, ...layout, ...shift, ...commonality,
 });
 
 document.addEventListener('DOMContentLoaded', bootstrap.init);

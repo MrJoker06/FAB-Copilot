@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse
 
 from .runtime import NamespaceProvider, RouterBundle
 
-_PAGE_VIEWS = ("dashboard", "reports", "procedures", "autosystem", "capability", "knowledge", "sessions")
+_PAGE_VIEWS = ("dashboard", "reports", "commonality", "procedures", "autosystem", "capability", "knowledge", "sessions")
 
 
 def create_router(deps: NamespaceProvider) -> RouterBundle:

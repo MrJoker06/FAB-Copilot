@@ -408,6 +408,11 @@
       "artifact_group": "application_bundle"
     },
     {
+      "path": "app/api/routers/lot_commonality.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
       "path": "app/api/routers/models.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"
@@ -554,6 +559,11 @@
     },
     {
       "path": "app/bootstrap/loop_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/lot_commonality_assembly.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"
     },
@@ -1280,6 +1290,16 @@
       "artifact_group": "application_bundle"
     },
     {
+      "path": "app/static/app/commonality/controller.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/app/commonality/model.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
       "path": "app/static/app/core/api.js",
       "primary_module": "static_ui",
       "artifact_group": "application_bundle"
@@ -1536,6 +1556,36 @@
     },
     {
       "path": "app/tools/knowledge_search/runtime_search.py",
+      "primary_module": "integrations",
+      "artifact_group": "enterprise_adapters"
+    },
+    {
+      "path": "app/tools/lot_commonality/__init__.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/lot_commonality/analysis.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/lot_commonality/binding.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/lot_commonality/contracts.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/lot_commonality/service.py",
+      "primary_module": "business_tools",
+      "artifact_group": "manufacturing_capability"
+    },
+    {
+      "path": "app/tools/lot_commonality/sqlite_source.py",
       "primary_module": "integrations",
       "artifact_group": "enterprise_adapters"
     },
@@ -2726,6 +2776,7 @@
         "connection.executemany"
       ],
       "table_hints": [
+        "analysis_snapshots",
         "result_store_meta",
         "result_store_sessions",
         "sqlite_master",
@@ -2849,6 +2900,18 @@
       "table_hints": [
         "defect_types"
       ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
+      "source_file": "app/tools/lot_commonality/sqlite_source.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "connection.execute",
+        "sqlite3.connect"
+      ],
+      "table_hints": [],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
@@ -3119,8 +3182,8 @@
         "source_file": "app/persistence/tool_result_store.py",
         "owner": "persistence",
         "classification": "internal-store",
-        "stores": "result_store_meta, result_store_sessions, tool_result_snapshots",
-        "init_effects": "Explicit independent SQLite store; no import-time IO. Host-controlled initialization, session retention and transactional publication/revocation. Durable deletion intent and startup recovery are owned by the conversation use case.",
+        "stores": "analysis_snapshots, result_store_meta, result_store_sessions, tool_result_snapshots",
+        "init_effects": "Explicit independent SQLite store; no import-time IO. Host-controlled initialization (schema 1 is upgraded in place to 2 by adding analysis_snapshots), session retention, page-analysis expiry and transactional publication/revocation. Durable deletion intent and startup recovery are owned by the conversation use case.",
         "exit_task": "MOD-029 (retain result store)"
       },
       {
@@ -3193,6 +3256,14 @@
         "classification": "knowledge-read",
         "stores": "knowledge.knowledge_documents, knowledge.knowledge_chunks, knowledge.knowledge_trigram_fts, knowledge.personal_knowledge_documents, knowledge.personal_knowledge_chunks, knowledge.personal_knowledge_fts, quality.defect_types, quality.defect_type_aliases",
         "init_effects": "Default knowledge composition opens an in-memory SQLite connection only to attach the explicitly configured knowledge file read-only, and opens the explicit quality file read-only for aliases. It sets query_only, bounded busy/progress deadlines and closes both; it never initializes, seeds, attaches the global main database or falls back.",
+        "exit_task": "MOD-009 conformance (retain adapter)"
+      },
+      {
+        "source_file": "app/tools/lot_commonality/sqlite_source.py",
+        "owner": "integrations",
+        "classification": "business-read",
+        "stores": "lots, process_runs",
+        "init_effects": "One fixed lot lookup and one fixed keyset-paged pass query over the explicit manufacturing SQLite file. URI mode=ro/query_only; bounded busy/progress deadlines, row budget and finally close; no initialization, migration, seed, attachment or source fallback.",
         "exit_task": "MOD-009 conformance (retain adapter)"
       },
       {

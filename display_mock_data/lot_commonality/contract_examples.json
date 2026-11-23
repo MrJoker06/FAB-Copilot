@@ -1,0 +1,2086 @@
+{
+  "fixture": "lot-commonality-v1",
+  "classification": "synthetic_non_production",
+  "source_fixture": "source_passes.json",
+  "note": "计数、成员和错误为人工按 docs/lot-commonality-backend-plan.md 第 4 节规定的预期；履历明细为来源夹具的原样投影。修改须独立审阅。",
+  "examples": {
+    "create_analysis": {
+      "method": "POST",
+      "path": "/api/lot-commonality/analyses",
+      "request": {
+        "groups": [
+          {
+            "group_id": "main",
+            "name": "本次异常",
+            "role": "primary",
+            "lot_ids": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "E",
+              "F",
+              "G",
+              "H",
+              "A"
+            ]
+          },
+          {
+            "group_id": "concurrent",
+            "name": "同期异常",
+            "role": "concurrent_abnormal",
+            "lot_ids": [
+              "B",
+              "J",
+              "K"
+            ]
+          }
+        ],
+        "dimensions": [
+          "equipment",
+          "chamber",
+          "path_adjacent"
+        ],
+        "scope": {
+          "time_range": null,
+          "cutoff": null
+        },
+        "timezone": "Asia/Shanghai",
+        "description": "GATE 层刻蚀后 CD 偏大"
+      },
+      "status": 200,
+      "response": {
+        "analysis_ref": "lca_0123456789abcdef0123456789abcdef",
+        "status": "complete",
+        "created_at": "2026-11-21T10:00:00+08:00",
+        "expires_at": "2026-11-28T10:00:00+08:00",
+        "timezone": "Asia/Shanghai",
+        "source": {
+          "source_id": "fixture:lot-commonality-v1",
+          "kind": "synthetic",
+          "timezone": "Asia/Shanghai",
+          "chamber_granularities": [
+            "unknown",
+            "reported",
+            "wafer_count",
+            "wafer_ids"
+          ],
+          "pass_identity": "source_pass_id",
+          "rework_model": "separate_pass",
+          "queried_at": "2026-11-21T10:00:00+08:00"
+        },
+        "scope": {
+          "time_range": null,
+          "cutoff": null,
+          "boundaries": {
+            "time_range": "start_inclusive_end_exclusive",
+            "cutoff": "inclusive"
+          }
+        },
+        "dimensions": [
+          "equipment",
+          "chamber",
+          "path_adjacent"
+        ],
+        "groups": [
+          {
+            "group_id": "main",
+            "name": "本次异常",
+            "role": "primary",
+            "input_count": 9,
+            "unique_count": 8,
+            "duplicates": [
+              "A"
+            ],
+            "lot_states": [
+              {
+                "lot_id": "A",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "B",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "C",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "D",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "E",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "F",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "G",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "H",
+                "state": "incomplete",
+                "reasons": [
+                  "FIELD_MISSING",
+                  "SEQUENCE_UNKNOWN"
+                ]
+              }
+            ]
+          },
+          {
+            "group_id": "concurrent",
+            "name": "同期异常",
+            "role": "concurrent_abnormal",
+            "input_count": 3,
+            "unique_count": 3,
+            "duplicates": [],
+            "lot_states": [
+              {
+                "lot_id": "B",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "J",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "K",
+                "state": "complete",
+                "reasons": []
+              }
+            ]
+          }
+        ],
+        "overlaps": [
+          {
+            "lot_id": "B",
+            "group_ids": [
+              "main",
+              "concurrent"
+            ]
+          }
+        ],
+        "union": {
+          "unique_count": 10
+        },
+        "limits": {
+          "max_groups": 4,
+          "max_lots_per_group": 200,
+          "max_unique_lots": 500,
+          "max_source_rows": 50000,
+          "max_candidates": 500,
+          "page_limit_default": 50,
+          "page_limit_max": 200
+        },
+        "candidates": [
+          {
+            "candidate_id": "eq:GATE/CLEAN:CLEAN-03",
+            "dimension": "equipment",
+            "subject": {
+              "operation_key": "GATE/CLEAN",
+              "equipment_id": "CLEAN-03"
+            },
+            "label": "GATE/CLEAN · CLEAN-03",
+            "all_shared": true,
+            "counts": {
+              "main": {
+                "hit": 8,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 3,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 10,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "eq:GATE/ETCH:ETCH-07",
+            "dimension": "equipment",
+            "subject": {
+              "operation_key": "GATE/ETCH",
+              "equipment_id": "ETCH-07"
+            },
+            "label": "GATE/ETCH · ETCH-07",
+            "all_shared": true,
+            "counts": {
+              "main": {
+                "hit": 8,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 3,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 10,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "eq:GATE/METROLOGY:METRO-02",
+            "dimension": "equipment",
+            "subject": {
+              "operation_key": "GATE/METROLOGY",
+              "equipment_id": "METRO-02"
+            },
+            "label": "GATE/METROLOGY · METRO-02",
+            "all_shared": true,
+            "counts": {
+              "main": {
+                "hit": 8,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 3,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 10,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "path:GATE/CLEAN>GATE/ETCH",
+            "dimension": "path_adjacent",
+            "subject": {
+              "from_operation_key": "GATE/CLEAN",
+              "to_operation_key": "GATE/ETCH"
+            },
+            "label": "GATE/CLEAN → GATE/ETCH",
+            "all_shared": false,
+            "counts": {
+              "main": {
+                "hit": 7,
+                "miss": 0,
+                "unknown": 1,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 3,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 9,
+                "miss": 0,
+                "unknown": 1,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "ch:GATE/ETCH:ETCH-07/CH-B",
+            "dimension": "chamber",
+            "subject": {
+              "operation_key": "GATE/ETCH",
+              "equipment_id": "ETCH-07",
+              "chamber": "CH-B",
+              "chamber_key": "ETCH-07/CH-B"
+            },
+            "label": "GATE/ETCH · ETCH-07 · CH-B",
+            "all_shared": false,
+            "counts": {
+              "main": {
+                "hit": 6,
+                "miss": 1,
+                "unknown": 1,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 1,
+                "miss": 2,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 6,
+                "miss": 3,
+                "unknown": 1,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "path:GATE/ETCH>GATE/METROLOGY",
+            "dimension": "path_adjacent",
+            "subject": {
+              "from_operation_key": "GATE/ETCH",
+              "to_operation_key": "GATE/METROLOGY"
+            },
+            "label": "GATE/ETCH → GATE/METROLOGY",
+            "all_shared": false,
+            "counts": {
+              "main": {
+                "hit": 5,
+                "miss": 2,
+                "unknown": 1,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 3,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 7,
+                "miss": 2,
+                "unknown": 1,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "ch:GATE/ETCH:ETCH-07/CH-A",
+            "dimension": "chamber",
+            "subject": {
+              "operation_key": "GATE/ETCH",
+              "equipment_id": "ETCH-07",
+              "chamber": "CH-A",
+              "chamber_key": "ETCH-07/CH-A"
+            },
+            "label": "GATE/ETCH · ETCH-07 · CH-A",
+            "all_shared": false,
+            "counts": {
+              "main": {
+                "hit": 3,
+                "miss": 4,
+                "unknown": 1,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 3,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 5,
+                "miss": 4,
+                "unknown": 1,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "eq:GATE/WET-STRIP:WET-02",
+            "dimension": "equipment",
+            "subject": {
+              "operation_key": "GATE/WET-STRIP",
+              "equipment_id": "WET-02"
+            },
+            "label": "GATE/WET-STRIP · WET-02",
+            "all_shared": false,
+            "counts": {
+              "main": {
+                "hit": 2,
+                "miss": 6,
+                "unknown": 0,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 0,
+                "miss": 3,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 2,
+                "miss": 8,
+                "unknown": 0,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "path:GATE/ETCH>GATE/WET-STRIP",
+            "dimension": "path_adjacent",
+            "subject": {
+              "from_operation_key": "GATE/ETCH",
+              "to_operation_key": "GATE/WET-STRIP"
+            },
+            "label": "GATE/ETCH → GATE/WET-STRIP",
+            "all_shared": false,
+            "counts": {
+              "main": {
+                "hit": 2,
+                "miss": 5,
+                "unknown": 1,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 0,
+                "miss": 3,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 2,
+                "miss": 7,
+                "unknown": 1,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "path:GATE/WET-STRIP>GATE/METROLOGY",
+            "dimension": "path_adjacent",
+            "subject": {
+              "from_operation_key": "GATE/WET-STRIP",
+              "to_operation_key": "GATE/METROLOGY"
+            },
+            "label": "GATE/WET-STRIP → GATE/METROLOGY",
+            "all_shared": false,
+            "counts": {
+              "main": {
+                "hit": 2,
+                "miss": 5,
+                "unknown": 1,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 0,
+                "miss": 3,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 2,
+                "miss": 7,
+                "unknown": 1,
+                "denominator": 10
+              }
+            }
+          }
+        ],
+        "candidates_truncated": false
+      }
+    },
+    "read_analysis": {
+      "method": "GET",
+      "path": "/api/lot-commonality/analyses/lca_0123456789abcdef0123456789abcdef",
+      "request": null,
+      "status": 200,
+      "response": {
+        "analysis_ref": "lca_0123456789abcdef0123456789abcdef",
+        "status": "complete",
+        "created_at": "2026-11-21T10:00:00+08:00",
+        "expires_at": "2026-11-28T10:00:00+08:00",
+        "timezone": "Asia/Shanghai",
+        "source": {
+          "source_id": "fixture:lot-commonality-v1",
+          "kind": "synthetic",
+          "timezone": "Asia/Shanghai",
+          "chamber_granularities": [
+            "unknown",
+            "reported",
+            "wafer_count",
+            "wafer_ids"
+          ],
+          "pass_identity": "source_pass_id",
+          "rework_model": "separate_pass",
+          "queried_at": "2026-11-21T10:00:00+08:00"
+        },
+        "scope": {
+          "time_range": null,
+          "cutoff": null,
+          "boundaries": {
+            "time_range": "start_inclusive_end_exclusive",
+            "cutoff": "inclusive"
+          }
+        },
+        "dimensions": [
+          "equipment",
+          "chamber",
+          "path_adjacent"
+        ],
+        "groups": [
+          {
+            "group_id": "main",
+            "name": "本次异常",
+            "role": "primary",
+            "input_count": 9,
+            "unique_count": 8,
+            "duplicates": [
+              "A"
+            ],
+            "lot_states": [
+              {
+                "lot_id": "A",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "B",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "C",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "D",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "E",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "F",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "G",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "H",
+                "state": "incomplete",
+                "reasons": [
+                  "FIELD_MISSING",
+                  "SEQUENCE_UNKNOWN"
+                ]
+              }
+            ]
+          },
+          {
+            "group_id": "concurrent",
+            "name": "同期异常",
+            "role": "concurrent_abnormal",
+            "input_count": 3,
+            "unique_count": 3,
+            "duplicates": [],
+            "lot_states": [
+              {
+                "lot_id": "B",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "J",
+                "state": "complete",
+                "reasons": []
+              },
+              {
+                "lot_id": "K",
+                "state": "complete",
+                "reasons": []
+              }
+            ]
+          }
+        ],
+        "overlaps": [
+          {
+            "lot_id": "B",
+            "group_ids": [
+              "main",
+              "concurrent"
+            ]
+          }
+        ],
+        "union": {
+          "unique_count": 10
+        },
+        "limits": {
+          "max_groups": 4,
+          "max_lots_per_group": 200,
+          "max_unique_lots": 500,
+          "max_source_rows": 50000,
+          "max_candidates": 500,
+          "page_limit_default": 50,
+          "page_limit_max": 200
+        },
+        "candidates": [
+          {
+            "candidate_id": "eq:GATE/CLEAN:CLEAN-03",
+            "dimension": "equipment",
+            "subject": {
+              "operation_key": "GATE/CLEAN",
+              "equipment_id": "CLEAN-03"
+            },
+            "label": "GATE/CLEAN · CLEAN-03",
+            "all_shared": true,
+            "counts": {
+              "main": {
+                "hit": 8,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 3,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 10,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "eq:GATE/ETCH:ETCH-07",
+            "dimension": "equipment",
+            "subject": {
+              "operation_key": "GATE/ETCH",
+              "equipment_id": "ETCH-07"
+            },
+            "label": "GATE/ETCH · ETCH-07",
+            "all_shared": true,
+            "counts": {
+              "main": {
+                "hit": 8,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 3,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 10,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "eq:GATE/METROLOGY:METRO-02",
+            "dimension": "equipment",
+            "subject": {
+              "operation_key": "GATE/METROLOGY",
+              "equipment_id": "METRO-02"
+            },
+            "label": "GATE/METROLOGY · METRO-02",
+            "all_shared": true,
+            "counts": {
+              "main": {
+                "hit": 8,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 3,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 10,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "path:GATE/CLEAN>GATE/ETCH",
+            "dimension": "path_adjacent",
+            "subject": {
+              "from_operation_key": "GATE/CLEAN",
+              "to_operation_key": "GATE/ETCH"
+            },
+            "label": "GATE/CLEAN → GATE/ETCH",
+            "all_shared": false,
+            "counts": {
+              "main": {
+                "hit": 7,
+                "miss": 0,
+                "unknown": 1,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 3,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 9,
+                "miss": 0,
+                "unknown": 1,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "ch:GATE/ETCH:ETCH-07/CH-B",
+            "dimension": "chamber",
+            "subject": {
+              "operation_key": "GATE/ETCH",
+              "equipment_id": "ETCH-07",
+              "chamber": "CH-B",
+              "chamber_key": "ETCH-07/CH-B"
+            },
+            "label": "GATE/ETCH · ETCH-07 · CH-B",
+            "all_shared": false,
+            "counts": {
+              "main": {
+                "hit": 6,
+                "miss": 1,
+                "unknown": 1,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 1,
+                "miss": 2,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 6,
+                "miss": 3,
+                "unknown": 1,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "path:GATE/ETCH>GATE/METROLOGY",
+            "dimension": "path_adjacent",
+            "subject": {
+              "from_operation_key": "GATE/ETCH",
+              "to_operation_key": "GATE/METROLOGY"
+            },
+            "label": "GATE/ETCH → GATE/METROLOGY",
+            "all_shared": false,
+            "counts": {
+              "main": {
+                "hit": 5,
+                "miss": 2,
+                "unknown": 1,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 3,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 7,
+                "miss": 2,
+                "unknown": 1,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "ch:GATE/ETCH:ETCH-07/CH-A",
+            "dimension": "chamber",
+            "subject": {
+              "operation_key": "GATE/ETCH",
+              "equipment_id": "ETCH-07",
+              "chamber": "CH-A",
+              "chamber_key": "ETCH-07/CH-A"
+            },
+            "label": "GATE/ETCH · ETCH-07 · CH-A",
+            "all_shared": false,
+            "counts": {
+              "main": {
+                "hit": 3,
+                "miss": 4,
+                "unknown": 1,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 3,
+                "miss": 0,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 5,
+                "miss": 4,
+                "unknown": 1,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "eq:GATE/WET-STRIP:WET-02",
+            "dimension": "equipment",
+            "subject": {
+              "operation_key": "GATE/WET-STRIP",
+              "equipment_id": "WET-02"
+            },
+            "label": "GATE/WET-STRIP · WET-02",
+            "all_shared": false,
+            "counts": {
+              "main": {
+                "hit": 2,
+                "miss": 6,
+                "unknown": 0,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 0,
+                "miss": 3,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 2,
+                "miss": 8,
+                "unknown": 0,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "path:GATE/ETCH>GATE/WET-STRIP",
+            "dimension": "path_adjacent",
+            "subject": {
+              "from_operation_key": "GATE/ETCH",
+              "to_operation_key": "GATE/WET-STRIP"
+            },
+            "label": "GATE/ETCH → GATE/WET-STRIP",
+            "all_shared": false,
+            "counts": {
+              "main": {
+                "hit": 2,
+                "miss": 5,
+                "unknown": 1,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 0,
+                "miss": 3,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 2,
+                "miss": 7,
+                "unknown": 1,
+                "denominator": 10
+              }
+            }
+          },
+          {
+            "candidate_id": "path:GATE/WET-STRIP>GATE/METROLOGY",
+            "dimension": "path_adjacent",
+            "subject": {
+              "from_operation_key": "GATE/WET-STRIP",
+              "to_operation_key": "GATE/METROLOGY"
+            },
+            "label": "GATE/WET-STRIP → GATE/METROLOGY",
+            "all_shared": false,
+            "counts": {
+              "main": {
+                "hit": 2,
+                "miss": 5,
+                "unknown": 1,
+                "denominator": 8
+              },
+              "concurrent": {
+                "hit": 0,
+                "miss": 3,
+                "unknown": 0,
+                "denominator": 3
+              },
+              "union": {
+                "hit": 2,
+                "miss": 7,
+                "unknown": 1,
+                "denominator": 10
+              }
+            }
+          }
+        ],
+        "candidates_truncated": false
+      }
+    },
+    "members_chamber_b": {
+      "method": "POST",
+      "path": "/api/lot-commonality/analyses/lca_0123456789abcdef0123456789abcdef/members",
+      "request": {
+        "group_id": "main",
+        "conditions": [
+          {
+            "candidate_id": "ch:GATE/ETCH:ETCH-07/CH-B"
+          }
+        ],
+        "match_scope": "any_pass",
+        "status": null,
+        "limit": 50,
+        "cursor": null
+      },
+      "status": 200,
+      "response": {
+        "analysis_ref": "lca_0123456789abcdef0123456789abcdef",
+        "group_id": "main",
+        "query": {
+          "conditions": [
+            {
+              "candidate_id": "ch:GATE/ETCH:ETCH-07/CH-B"
+            }
+          ],
+          "match_scope": "any_pass",
+          "status": null
+        },
+        "counts": {
+          "hit": 6,
+          "miss": 1,
+          "unknown": 1,
+          "denominator": 8
+        },
+        "hit_time_range": {
+          "first": "2026-11-10T08:30:00+08:00",
+          "last": "2026-11-10T13:30:00+08:00",
+          "timezone": "Asia/Shanghai"
+        },
+        "members": [
+          {
+            "lot_id": "A",
+            "status": "hit",
+            "record_refs": [
+              "pass:A-02"
+            ],
+            "reasons": []
+          },
+          {
+            "lot_id": "B",
+            "status": "hit",
+            "record_refs": [
+              "pass:B-02"
+            ],
+            "reasons": []
+          },
+          {
+            "lot_id": "C",
+            "status": "hit",
+            "record_refs": [
+              "pass:C-02"
+            ],
+            "reasons": []
+          },
+          {
+            "lot_id": "D",
+            "status": "hit",
+            "record_refs": [
+              "pass:D-02"
+            ],
+            "reasons": []
+          },
+          {
+            "lot_id": "E",
+            "status": "hit",
+            "record_refs": [
+              "pass:E-02",
+              "pass:E-03"
+            ],
+            "reasons": []
+          },
+          {
+            "lot_id": "F",
+            "status": "hit",
+            "record_refs": [
+              "pass:F-02"
+            ],
+            "reasons": []
+          },
+          {
+            "lot_id": "G",
+            "status": "miss",
+            "record_refs": [
+              "pass:G-02"
+            ],
+            "reasons": [
+              {
+                "code": "OTHER_VALUE"
+              }
+            ]
+          },
+          {
+            "lot_id": "H",
+            "status": "unknown",
+            "record_refs": [
+              "pass:H-02"
+            ],
+            "reasons": [
+              {
+                "code": "FIELD_MISSING",
+                "field": "chamber"
+              }
+            ]
+          }
+        ],
+        "page": {
+          "limit": 50,
+          "returned": 8,
+          "total": 8,
+          "next_cursor": null
+        }
+      }
+    },
+    "members_chamber_b_rework_same_pass": {
+      "method": "POST",
+      "path": "/api/lot-commonality/analyses/lca_0123456789abcdef0123456789abcdef/members",
+      "request": {
+        "group_id": "main",
+        "conditions": [
+          {
+            "candidate_id": "ch:GATE/ETCH:ETCH-07/CH-B"
+          },
+          {
+            "attribute": "rework",
+            "value": true
+          }
+        ],
+        "match_scope": "same_pass",
+        "status": null,
+        "limit": 50,
+        "cursor": null
+      },
+      "status": 200,
+      "response": {
+        "analysis_ref": "lca_0123456789abcdef0123456789abcdef",
+        "group_id": "main",
+        "query": {
+          "conditions": [
+            {
+              "candidate_id": "ch:GATE/ETCH:ETCH-07/CH-B"
+            },
+            {
+              "attribute": "rework",
+              "value": true
+            }
+          ],
+          "match_scope": "same_pass",
+          "status": null
+        },
+        "counts": {
+          "hit": 1,
+          "miss": 7,
+          "unknown": 0,
+          "denominator": 8
+        },
+        "hit_time_range": {
+          "first": "2026-11-10T12:55:00+08:00",
+          "last": "2026-11-10T12:55:00+08:00",
+          "timezone": "Asia/Shanghai"
+        },
+        "members": [
+          {
+            "lot_id": "E",
+            "status": "hit",
+            "record_refs": [
+              "pass:E-03"
+            ],
+            "reasons": []
+          },
+          {
+            "lot_id": "A",
+            "status": "miss",
+            "record_refs": [
+              "pass:A-02"
+            ],
+            "reasons": [
+              {
+                "code": "CONDITIONS_NOT_MET"
+              }
+            ]
+          },
+          {
+            "lot_id": "B",
+            "status": "miss",
+            "record_refs": [
+              "pass:B-02"
+            ],
+            "reasons": [
+              {
+                "code": "CONDITIONS_NOT_MET"
+              }
+            ]
+          },
+          {
+            "lot_id": "C",
+            "status": "miss",
+            "record_refs": [
+              "pass:C-02"
+            ],
+            "reasons": [
+              {
+                "code": "CONDITIONS_NOT_MET"
+              }
+            ]
+          },
+          {
+            "lot_id": "D",
+            "status": "miss",
+            "record_refs": [
+              "pass:D-02"
+            ],
+            "reasons": [
+              {
+                "code": "CONDITIONS_NOT_MET"
+              }
+            ]
+          },
+          {
+            "lot_id": "F",
+            "status": "miss",
+            "record_refs": [
+              "pass:F-02"
+            ],
+            "reasons": [
+              {
+                "code": "CONDITIONS_NOT_MET"
+              }
+            ]
+          },
+          {
+            "lot_id": "G",
+            "status": "miss",
+            "record_refs": [
+              "pass:G-02"
+            ],
+            "reasons": [
+              {
+                "code": "CONDITIONS_NOT_MET"
+              }
+            ]
+          },
+          {
+            "lot_id": "H",
+            "status": "miss",
+            "record_refs": [
+              "pass:H-02"
+            ],
+            "reasons": [
+              {
+                "code": "CONDITIONS_NOT_MET"
+              }
+            ]
+          }
+        ],
+        "page": {
+          "limit": 50,
+          "returned": 8,
+          "total": 8,
+          "next_cursor": null
+        }
+      }
+    },
+    "members_path_etch_metrology_page_1": {
+      "method": "POST",
+      "path": "/api/lot-commonality/analyses/lca_0123456789abcdef0123456789abcdef/members",
+      "request": {
+        "group_id": "main",
+        "conditions": [
+          {
+            "candidate_id": "path:GATE/ETCH>GATE/METROLOGY"
+          }
+        ],
+        "match_scope": "any_pass",
+        "status": null,
+        "limit": 4,
+        "cursor": null
+      },
+      "status": 200,
+      "response": {
+        "analysis_ref": "lca_0123456789abcdef0123456789abcdef",
+        "group_id": "main",
+        "query": {
+          "conditions": [
+            {
+              "candidate_id": "path:GATE/ETCH>GATE/METROLOGY"
+            }
+          ],
+          "match_scope": "any_pass",
+          "status": null
+        },
+        "counts": {
+          "hit": 5,
+          "miss": 2,
+          "unknown": 1,
+          "denominator": 8
+        },
+        "hit_time_range": {
+          "first": "2026-11-10T08:30:00+08:00",
+          "last": "2026-11-10T13:30:00+08:00",
+          "timezone": "Asia/Shanghai"
+        },
+        "members": [
+          {
+            "lot_id": "A",
+            "status": "hit",
+            "record_refs": [
+              "pass:A-02",
+              "pass:A-03"
+            ],
+            "reasons": []
+          },
+          {
+            "lot_id": "B",
+            "status": "hit",
+            "record_refs": [
+              "pass:B-02",
+              "pass:B-03"
+            ],
+            "reasons": []
+          },
+          {
+            "lot_id": "C",
+            "status": "hit",
+            "record_refs": [
+              "pass:C-02",
+              "pass:C-03"
+            ],
+            "reasons": []
+          },
+          {
+            "lot_id": "D",
+            "status": "hit",
+            "record_refs": [
+              "pass:D-02",
+              "pass:D-03"
+            ],
+            "reasons": []
+          }
+        ],
+        "page": {
+          "limit": 4,
+          "returned": 4,
+          "total": 8,
+          "next_cursor": "lcc_opaque_example_page_2"
+        }
+      }
+    },
+    "members_path_etch_metrology_page_2": {
+      "method": "POST",
+      "path": "/api/lot-commonality/analyses/lca_0123456789abcdef0123456789abcdef/members",
+      "request": {
+        "group_id": "main",
+        "conditions": [
+          {
+            "candidate_id": "path:GATE/ETCH>GATE/METROLOGY"
+          }
+        ],
+        "match_scope": "any_pass",
+        "status": null,
+        "limit": 4,
+        "cursor": "lcc_opaque_example_page_2"
+      },
+      "status": 200,
+      "response": {
+        "analysis_ref": "lca_0123456789abcdef0123456789abcdef",
+        "group_id": "main",
+        "query": {
+          "conditions": [
+            {
+              "candidate_id": "path:GATE/ETCH>GATE/METROLOGY"
+            }
+          ],
+          "match_scope": "any_pass",
+          "status": null
+        },
+        "counts": {
+          "hit": 5,
+          "miss": 2,
+          "unknown": 1,
+          "denominator": 8
+        },
+        "hit_time_range": {
+          "first": "2026-11-10T08:30:00+08:00",
+          "last": "2026-11-10T13:30:00+08:00",
+          "timezone": "Asia/Shanghai"
+        },
+        "members": [
+          {
+            "lot_id": "E",
+            "status": "hit",
+            "record_refs": [
+              "pass:E-03",
+              "pass:E-04"
+            ],
+            "reasons": []
+          },
+          {
+            "lot_id": "F",
+            "status": "miss",
+            "record_refs": [
+              "pass:F-02",
+              "pass:F-03"
+            ],
+            "reasons": [
+              {
+                "code": "NOT_ADJACENT"
+              }
+            ]
+          },
+          {
+            "lot_id": "G",
+            "status": "miss",
+            "record_refs": [
+              "pass:G-02",
+              "pass:G-03"
+            ],
+            "reasons": [
+              {
+                "code": "NOT_ADJACENT"
+              }
+            ]
+          },
+          {
+            "lot_id": "H",
+            "status": "unknown",
+            "record_refs": [
+              "pass:H-02",
+              "pass:H-03"
+            ],
+            "reasons": [
+              {
+                "code": "SEQUENCE_UNKNOWN"
+              }
+            ]
+          }
+        ],
+        "page": {
+          "limit": 4,
+          "returned": 4,
+          "total": 8,
+          "next_cursor": null
+        }
+      }
+    },
+    "records_chamber_b": {
+      "method": "POST",
+      "path": "/api/lot-commonality/analyses/lca_0123456789abcdef0123456789abcdef/records",
+      "request": {
+        "group_id": "main",
+        "lot_ids": [
+          "B",
+          "C",
+          "E",
+          "H"
+        ],
+        "candidate_id": "ch:GATE/ETCH:ETCH-07/CH-B",
+        "limit": 50,
+        "cursor": null
+      },
+      "status": 200,
+      "response": {
+        "analysis_ref": "lca_0123456789abcdef0123456789abcdef",
+        "group_id": "main",
+        "candidate_id": "ch:GATE/ETCH:ETCH-07/CH-B",
+        "lots": [
+          {
+            "lot_id": "B",
+            "wafer_count": 25,
+            "candidate_status": "hit",
+            "coverage": {
+              "records": "complete",
+              "order": "complete",
+              "truncated": false,
+              "gaps": [],
+              "failures": []
+            }
+          },
+          {
+            "lot_id": "C",
+            "wafer_count": 25,
+            "candidate_status": "hit",
+            "coverage": {
+              "records": "complete",
+              "order": "complete",
+              "truncated": false,
+              "gaps": [],
+              "failures": []
+            }
+          },
+          {
+            "lot_id": "E",
+            "wafer_count": 25,
+            "candidate_status": "hit",
+            "coverage": {
+              "records": "complete",
+              "order": "complete",
+              "truncated": false,
+              "gaps": [],
+              "failures": []
+            }
+          },
+          {
+            "lot_id": "H",
+            "wafer_count": 25,
+            "candidate_status": "unknown",
+            "coverage": {
+              "records": "complete",
+              "order": "partial",
+              "truncated": false,
+              "gaps": [
+                {
+                  "after_record_ref": "pass:H-01",
+                  "before_record_ref": null,
+                  "reason": "SEQUENCE_UNKNOWN",
+                  "record_refs": [
+                    "pass:H-02",
+                    "pass:H-03"
+                  ]
+                }
+              ],
+              "failures": []
+            }
+          }
+        ],
+        "passes": [
+          {
+            "record_ref": "pass:B-01",
+            "source_record_refs": [
+              "fx:B-01"
+            ],
+            "source_pass_id": "TI-B-01",
+            "lot_id": "B",
+            "pass_seq": 1,
+            "operation_key": "GATE/CLEAN",
+            "layer": "GATE",
+            "step": "CLEAN",
+            "equipment_id": "CLEAN-03",
+            "chamber_granularity": "not_applicable",
+            "chamber_set_complete": true,
+            "chambers": [],
+            "allocated_wafer_total": null,
+            "recipe": "GAN-GATE-CLEAN-R1",
+            "track_in_at": "2026-11-10T09:00:00+08:00",
+            "queue_hours": 0.5,
+            "rework": {
+              "is_rework": false,
+              "rework_of_record_ref": null
+            },
+            "missing_fields": []
+          },
+          {
+            "record_ref": "pass:B-02",
+            "source_record_refs": [
+              "fx:B-02-CH-A",
+              "fx:B-02-CH-B"
+            ],
+            "source_pass_id": "TI-B-02",
+            "lot_id": "B",
+            "pass_seq": 2,
+            "operation_key": "GATE/ETCH",
+            "layer": "GATE",
+            "step": "ETCH",
+            "equipment_id": "ETCH-07",
+            "chamber_granularity": "wafer_ids",
+            "chamber_set_complete": true,
+            "chambers": [
+              {
+                "chamber": "CH-A",
+                "chamber_key": "ETCH-07/CH-A",
+                "wafer_count": 12,
+                "wafer_ids": [
+                  "W01",
+                  "W02",
+                  "W03",
+                  "W04",
+                  "W05",
+                  "W06",
+                  "W07",
+                  "W08",
+                  "W09",
+                  "W10",
+                  "W11",
+                  "W12"
+                ]
+              },
+              {
+                "chamber": "CH-B",
+                "chamber_key": "ETCH-07/CH-B",
+                "wafer_count": 13,
+                "wafer_ids": [
+                  "W13",
+                  "W14",
+                  "W15",
+                  "W16",
+                  "W17",
+                  "W18",
+                  "W19",
+                  "W20",
+                  "W21",
+                  "W22",
+                  "W23",
+                  "W24",
+                  "W25"
+                ]
+              }
+            ],
+            "allocated_wafer_total": 25,
+            "recipe": "GAN-GATE-ETCH-R3",
+            "track_in_at": "2026-11-10T09:30:00+08:00",
+            "queue_hours": 0.5,
+            "rework": {
+              "is_rework": false,
+              "rework_of_record_ref": null
+            },
+            "missing_fields": []
+          },
+          {
+            "record_ref": "pass:B-03",
+            "source_record_refs": [
+              "fx:B-03"
+            ],
+            "source_pass_id": "TI-B-03",
+            "lot_id": "B",
+            "pass_seq": 3,
+            "operation_key": "GATE/METROLOGY",
+            "layer": "GATE",
+            "step": "METROLOGY",
+            "equipment_id": "METRO-02",
+            "chamber_granularity": "not_applicable",
+            "chamber_set_complete": true,
+            "chambers": [],
+            "allocated_wafer_total": null,
+            "recipe": "GAN-GATE-CD-R1",
+            "track_in_at": "2026-11-10T10:30:00+08:00",
+            "queue_hours": 0.5,
+            "rework": {
+              "is_rework": false,
+              "rework_of_record_ref": null
+            },
+            "missing_fields": []
+          },
+          {
+            "record_ref": "pass:C-01",
+            "source_record_refs": [
+              "fx:C-01"
+            ],
+            "source_pass_id": "TI-C-01",
+            "lot_id": "C",
+            "pass_seq": 1,
+            "operation_key": "GATE/CLEAN",
+            "layer": "GATE",
+            "step": "CLEAN",
+            "equipment_id": "CLEAN-03",
+            "chamber_granularity": "not_applicable",
+            "chamber_set_complete": true,
+            "chambers": [],
+            "allocated_wafer_total": null,
+            "recipe": "GAN-GATE-CLEAN-R1",
+            "track_in_at": "2026-11-10T10:00:00+08:00",
+            "queue_hours": 0.5,
+            "rework": {
+              "is_rework": false,
+              "rework_of_record_ref": null
+            },
+            "missing_fields": []
+          },
+          {
+            "record_ref": "pass:C-02",
+            "source_record_refs": [
+              "fx:C-02"
+            ],
+            "source_pass_id": "TI-C-02",
+            "lot_id": "C",
+            "pass_seq": 2,
+            "operation_key": "GATE/ETCH",
+            "layer": "GATE",
+            "step": "ETCH",
+            "equipment_id": "ETCH-07",
+            "chamber_granularity": "reported",
+            "chamber_set_complete": true,
+            "chambers": [
+              {
+                "chamber": "CH-A",
+                "chamber_key": "ETCH-07/CH-A",
+                "wafer_count": null,
+                "wafer_ids": null
+              },
+              {
+                "chamber": "CH-B",
+                "chamber_key": "ETCH-07/CH-B",
+                "wafer_count": null,
+                "wafer_ids": null
+              }
+            ],
+            "allocated_wafer_total": null,
+            "recipe": "GAN-GATE-ETCH-R3",
+            "track_in_at": "2026-11-10T10:30:00+08:00",
+            "queue_hours": 0.5,
+            "rework": {
+              "is_rework": false,
+              "rework_of_record_ref": null
+            },
+            "missing_fields": []
+          },
+          {
+            "record_ref": "pass:C-03",
+            "source_record_refs": [
+              "fx:C-03"
+            ],
+            "source_pass_id": "TI-C-03",
+            "lot_id": "C",
+            "pass_seq": 3,
+            "operation_key": "GATE/METROLOGY",
+            "layer": "GATE",
+            "step": "METROLOGY",
+            "equipment_id": "METRO-02",
+            "chamber_granularity": "not_applicable",
+            "chamber_set_complete": true,
+            "chambers": [],
+            "allocated_wafer_total": null,
+            "recipe": "GAN-GATE-CD-R1",
+            "track_in_at": "2026-11-10T11:30:00+08:00",
+            "queue_hours": 0.5,
+            "rework": {
+              "is_rework": false,
+              "rework_of_record_ref": null
+            },
+            "missing_fields": []
+          },
+          {
+            "record_ref": "pass:E-01",
+            "source_record_refs": [
+              "fx:E-01"
+            ],
+            "source_pass_id": "TI-E-01",
+            "lot_id": "E",
+            "pass_seq": 1,
+            "operation_key": "GATE/CLEAN",
+            "layer": "GATE",
+            "step": "CLEAN",
+            "equipment_id": "CLEAN-03",
+            "chamber_granularity": "not_applicable",
+            "chamber_set_complete": true,
+            "chambers": [],
+            "allocated_wafer_total": null,
+            "recipe": "GAN-GATE-CLEAN-R1",
+            "track_in_at": "2026-11-10T12:00:00+08:00",
+            "queue_hours": 0.5,
+            "rework": {
+              "is_rework": false,
+              "rework_of_record_ref": null
+            },
+            "missing_fields": []
+          },
+          {
+            "record_ref": "pass:E-02",
+            "source_record_refs": [
+              "fx:E-02"
+            ],
+            "source_pass_id": "TI-E-02",
+            "lot_id": "E",
+            "pass_seq": 2,
+            "operation_key": "GATE/ETCH",
+            "layer": "GATE",
+            "step": "ETCH",
+            "equipment_id": "ETCH-07",
+            "chamber_granularity": "wafer_count",
+            "chamber_set_complete": true,
+            "chambers": [
+              {
+                "chamber": "CH-B",
+                "chamber_key": "ETCH-07/CH-B",
+                "wafer_count": 25,
+                "wafer_ids": null
+              }
+            ],
+            "allocated_wafer_total": 25,
+            "recipe": "GAN-GATE-ETCH-R3",
+            "track_in_at": "2026-11-10T12:30:00+08:00",
+            "queue_hours": 0.5,
+            "rework": {
+              "is_rework": false,
+              "rework_of_record_ref": null
+            },
+            "missing_fields": []
+          },
+          {
+            "record_ref": "pass:E-03",
+            "source_record_refs": [
+              "fx:E-03"
+            ],
+            "source_pass_id": "TI-E-03",
+            "lot_id": "E",
+            "pass_seq": 3,
+            "operation_key": "GATE/ETCH",
+            "layer": "GATE",
+            "step": "ETCH",
+            "equipment_id": "ETCH-07",
+            "chamber_granularity": "wafer_count",
+            "chamber_set_complete": true,
+            "chambers": [
+              {
+                "chamber": "CH-B",
+                "chamber_key": "ETCH-07/CH-B",
+                "wafer_count": 25,
+                "wafer_ids": null
+              }
+            ],
+            "allocated_wafer_total": 25,
+            "recipe": "GAN-GATE-ETCH-R3",
+            "track_in_at": "2026-11-10T12:55:00+08:00",
+            "queue_hours": 0.5,
+            "rework": {
+              "is_rework": true,
+              "rework_of_record_ref": "pass:E-02"
+            },
+            "missing_fields": []
+          },
+          {
+            "record_ref": "pass:E-04",
+            "source_record_refs": [
+              "fx:E-04"
+            ],
+            "source_pass_id": "TI-E-04",
+            "lot_id": "E",
+            "pass_seq": 4,
+            "operation_key": "GATE/METROLOGY",
+            "layer": "GATE",
+            "step": "METROLOGY",
+            "equipment_id": "METRO-02",
+            "chamber_granularity": "not_applicable",
+            "chamber_set_complete": true,
+            "chambers": [],
+            "allocated_wafer_total": null,
+            "recipe": "GAN-GATE-CD-R1",
+            "track_in_at": "2026-11-10T13:30:00+08:00",
+            "queue_hours": 0.5,
+            "rework": {
+              "is_rework": false,
+              "rework_of_record_ref": null
+            },
+            "missing_fields": []
+          },
+          {
+            "record_ref": "pass:H-01",
+            "source_record_refs": [
+              "fx:H-01"
+            ],
+            "source_pass_id": "TI-H-01",
+            "lot_id": "H",
+            "pass_seq": 1,
+            "operation_key": "GATE/CLEAN",
+            "layer": "GATE",
+            "step": "CLEAN",
+            "equipment_id": "CLEAN-03",
+            "chamber_granularity": "not_applicable",
+            "chamber_set_complete": true,
+            "chambers": [],
+            "allocated_wafer_total": null,
+            "recipe": "GAN-GATE-CLEAN-R1",
+            "track_in_at": "2026-11-10T15:00:00+08:00",
+            "queue_hours": 0.5,
+            "rework": {
+              "is_rework": false,
+              "rework_of_record_ref": null
+            },
+            "missing_fields": []
+          },
+          {
+            "record_ref": "pass:H-02",
+            "source_record_refs": [
+              "fx:H-02"
+            ],
+            "source_pass_id": "TI-H-02",
+            "lot_id": "H",
+            "pass_seq": null,
+            "operation_key": "GATE/ETCH",
+            "layer": "GATE",
+            "step": "ETCH",
+            "equipment_id": "ETCH-07",
+            "chamber_granularity": "unknown",
+            "chamber_set_complete": false,
+            "chambers": [],
+            "allocated_wafer_total": null,
+            "recipe": "GAN-GATE-ETCH-R3",
+            "track_in_at": null,
+            "queue_hours": null,
+            "rework": {
+              "is_rework": false,
+              "rework_of_record_ref": null
+            },
+            "missing_fields": [
+              "pass_seq",
+              "track_in_at",
+              "chamber"
+            ]
+          },
+          {
+            "record_ref": "pass:H-03",
+            "source_record_refs": [
+              "fx:H-03"
+            ],
+            "source_pass_id": "TI-H-03",
+            "lot_id": "H",
+            "pass_seq": null,
+            "operation_key": "GATE/METROLOGY",
+            "layer": "GATE",
+            "step": "METROLOGY",
+            "equipment_id": "METRO-02",
+            "chamber_granularity": "not_applicable",
+            "chamber_set_complete": true,
+            "chambers": [],
+            "allocated_wafer_total": null,
+            "recipe": "GAN-GATE-CD-R1",
+            "track_in_at": null,
+            "queue_hours": null,
+            "rework": {
+              "is_rework": false,
+              "rework_of_record_ref": null
+            },
+            "missing_fields": [
+              "pass_seq",
+              "track_in_at"
+            ]
+          }
+        ],
+        "page": {
+          "limit": 50,
+          "returned": 13,
+          "total": 13,
+          "next_cursor": null
+        }
+      }
+    }
+  },
+  "errors": {
+    "scope_denied": {
+      "method": "POST",
+      "path": "/api/lot-commonality/analyses",
+      "request": {
+        "groups": [
+          {
+            "group_id": "main",
+            "name": "本次异常",
+            "role": "primary",
+            "lot_ids": [
+              "A",
+              "Z-RESTRICTED"
+            ]
+          }
+        ],
+        "dimensions": [
+          "chamber"
+        ],
+        "scope": {
+          "time_range": null,
+          "cutoff": null
+        },
+        "timezone": "Asia/Shanghai"
+      },
+      "status": 403,
+      "response": {
+        "error_code": "SCOPE_DENIED",
+        "detail": "当前身份无权访问请求的数据范围。",
+        "request_id": "req_example",
+        "retryable": false
+      }
+    },
+    "result_unavailable": {
+      "method": "GET",
+      "path": "/api/lot-commonality/analyses/lca_ffffffffffffffffffffffffffffffff",
+      "request": null,
+      "status": 404,
+      "response": {
+        "error_code": "RESULT_UNAVAILABLE",
+        "detail": "结果当前不可读取。",
+        "request_id": "req_example",
+        "retryable": false
+      }
+    },
+    "cursor_invalid": {
+      "method": "POST",
+      "path": "/api/lot-commonality/analyses/lca_0123456789abcdef0123456789abcdef/members",
+      "request": {
+        "group_id": "main",
+        "conditions": [
+          {
+            "candidate_id": "ch:GATE/ETCH:ETCH-07/CH-B"
+          }
+        ],
+        "match_scope": "any_pass",
+        "status": null,
+        "limit": 50,
+        "cursor": "lcc_opaque_example_page_2"
+      },
+      "status": 400,
+      "response": {
+        "error_code": "RESULT_CURSOR_INVALID",
+        "detail": "结果分页游标无效，请从第一页重新读取。",
+        "request_id": "req_example",
+        "retryable": false
+      }
+    },
+    "same_pass_with_path": {
+      "method": "POST",
+      "path": "/api/lot-commonality/analyses/lca_0123456789abcdef0123456789abcdef/members",
+      "request": {
+        "group_id": "main",
+        "conditions": [
+          {
+            "candidate_id": "path:GATE/ETCH>GATE/METROLOGY"
+          },
+          {
+            "attribute": "rework",
+            "value": true
+          }
+        ],
+        "match_scope": "same_pass",
+        "status": null,
+        "limit": 50,
+        "cursor": null
+      },
+      "status": 422,
+      "response": {
+        "error_code": "VALIDATION_ERROR",
+        "detail": "same_pass 只接受单次过站可判断的条件。",
+        "request_id": "req_example",
+        "retryable": false
+      }
+    },
+    "cutoff_ambiguous": {
+      "method": "POST",
+      "path": "/api/lot-commonality/analyses",
+      "request": {
+        "groups": [
+          {
+            "group_id": "main",
+            "name": "本次异常",
+            "role": "primary",
+            "lot_ids": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "E",
+              "F",
+              "G",
+              "H",
+              "A"
+            ]
+          },
+          {
+            "group_id": "concurrent",
+            "name": "同期异常",
+            "role": "concurrent_abnormal",
+            "lot_ids": [
+              "B",
+              "J",
+              "K"
+            ]
+          }
+        ],
+        "dimensions": [
+          "equipment",
+          "chamber",
+          "path_adjacent"
+        ],
+        "scope": {
+          "time_range": null,
+          "cutoff": {
+            "mode": "operation",
+            "operation_key": "GATE/ETCH",
+            "occurrence": null,
+            "per_lot": {}
+          }
+        },
+        "timezone": "Asia/Shanghai",
+        "description": "GATE 层刻蚀后 CD 偏大"
+      },
+      "status": 422,
+      "response": {
+        "error_code": "CUTOFF_AMBIGUOUS",
+        "detail": "截止工序在部分 lot 中出现多次，请为这些 lot 指定出现次数或截止时间。",
+        "request_id": "req_example",
+        "retryable": false,
+        "context": {
+          "lots": [
+            {
+              "lot_id": "E",
+              "record_refs": [
+                "pass:E-02",
+                "pass:E-03"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "limit_exceeded": {
+      "method": "POST",
+      "path": "/api/lot-commonality/analyses",
+      "request": null,
+      "status": 422,
+      "response": {
+        "error_code": "ANALYSIS_LIMIT_EXCEEDED",
+        "detail": "输入超过分析限额，请缩小 lot 范围。",
+        "request_id": "req_example",
+        "retryable": false,
+        "context": {
+          "limit": "max_lots_per_group",
+          "group_id": "main",
+          "max": 200,
+          "actual": 201
+        }
+      }
+    },
+    "source_failed": {
+      "method": "POST",
+      "path": "/api/lot-commonality/analyses",
+      "request": null,
+      "status": 502,
+      "response": {
+        "error_code": "DATA_SOURCE_FAILED",
+        "detail": "数据来源失败，不能将其当作无数据或切换到模拟来源。",
+        "request_id": "req_example",
+        "retryable": false
+      }
+    }
+  }
+}

@@ -120,6 +120,7 @@ test('index loads core scripts in dependency order and keeps app last', () => {
     '/static/app/knowledge/controller.js?v=__APP_VERSION__', '/static/app/model/controller.js?v=__APP_VERSION__',
     '/static/app/dashboard/controller.js?v=__APP_VERSION__',
     '/static/app/shift/controller.js?v=__APP_VERSION__',
+    '/static/app/commonality/model.js?v=__APP_VERSION__', '/static/app/commonality/controller.js?v=__APP_VERSION__',
     '/static/app/chat/presenter.js?v=__APP_VERSION__', '/static/app/sessions/controller.js?v=__APP_VERSION__',
     '/static/app/chat/controller.js?v=__APP_VERSION__',
     '/static/app/layout/controller.js?v=__APP_VERSION__', '/static/app/bootstrap.js?v=__APP_VERSION__',

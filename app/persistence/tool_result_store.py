@@ -1,4 +1,8 @@
-"""Explicitly initialized, session-owned result snapshots in an independent DB."""
+"""Explicitly initialized result snapshots in an independent DB.
+
+Tool results are Session-owned; analysis snapshots may also exist without a
+Session and then expire on their own retention.
+"""
 
 from __future__ import annotations
 
@@ -10,6 +14,7 @@ import secrets
 import stat
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from ..core.tool_result_units import canonical_json, result_page, result_units
@@ -31,6 +36,10 @@ class ResultStoreLimits:
     session_count: int = 128
     total_bytes: int = 1024**3
     total_count: int = 4096
+    analysis_bytes: int = 32 * 1024**2
+    analysis_owner_bytes: int = 256 * 1024**2
+    analysis_owner_count: int = 64
+    analysis_session_count: int = 16
 
     def __post_init__(self):
         if any(type(value) is not int or value < 1 for value in vars(self).values()):
@@ -49,6 +58,34 @@ CREATE TABLE tool_result_snapshots(
  UNIQUE(tenant_id, owner_id, session_id, run_id, call_id));
 CREATE INDEX snapshots_session ON tool_result_snapshots(tenant_id,owner_id,session_id);
 """
+# Schema 2: page analyses have no session and expire on their own retention;
+# session-bound rows never expire and follow the Session revocation instead.
+_ANALYSIS_SCHEMA = """
+CREATE TABLE analysis_snapshots(
+ analysis_ref TEXT PRIMARY KEY, kind TEXT NOT NULL, tenant_id TEXT NOT NULL,
+ owner_id TEXT NOT NULL, session_id TEXT, created_at TEXT NOT NULL,
+ expires_at TEXT, content_json TEXT NOT NULL, stored_bytes INTEGER NOT NULL,
+ CHECK ((session_id IS NULL) = (expires_at IS NOT NULL)));
+CREATE INDEX analysis_owner ON analysis_snapshots(tenant_id,owner_id,session_id);
+CREATE INDEX analysis_expiry ON analysis_snapshots(expires_at);
+"""
+_SCHEMA_VERSION = "2"
+_ANALYSIS_PREFIXES = {"lot_commonality": "lca_"}
+_TOTAL_USAGE = (
+    "SELECT (SELECT COALESCE(SUM(stored_bytes),0) FROM tool_result_snapshots)"
+    " + (SELECT COALESCE(SUM(stored_bytes),0) FROM analysis_snapshots),"
+    " (SELECT COUNT(*) FROM tool_result_snapshots) + (SELECT COUNT(*) FROM analysis_snapshots)"
+)
+
+
+def _utc_text(moment: datetime) -> str:
+    if type(moment) is not datetime or moment.utcoffset() is None:
+        raise ResultStoreError("RESULT_INVALID")
+    return moment.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+
+def _statements(script: str):
+    return (statement for statement in script.split(";") if statement.strip())
 
 
 class ToolResultStore:
@@ -80,7 +117,7 @@ class ToolResultStore:
                 row = connection.execute(
                     "SELECT value FROM result_store_meta WHERE key='schema_version'"
                 ).fetchone()
-                if row is None or row[0] != "1":
+                if row is None or row[0] != _SCHEMA_VERSION:
                     raise ResultStoreError("RESULT_STORE_SCHEMA_INVALID")
             yield connection
         finally:
@@ -105,9 +142,8 @@ class ToolResultStore:
                 )
             }
             if not tables:
-                for statement in _SCHEMA.split(";"):
-                    if statement.strip():
-                        connection.execute(statement)
+                for statement in _statements(_SCHEMA):
+                    connection.execute(statement)
                 connection.executemany(
                     "INSERT INTO result_store_meta VALUES (?,?)",
                     [
@@ -119,7 +155,14 @@ class ToolResultStore:
             version = connection.execute(
                 "SELECT value FROM result_store_meta WHERE key='schema_version'"
             ).fetchone()
-            if version is None or version[0] != "1":
+            if version is not None and version[0] == "1":
+                for statement in _statements(_ANALYSIS_SCHEMA):
+                    connection.execute(statement)
+                connection.execute(
+                    "UPDATE result_store_meta SET value=? WHERE key='schema_version'",
+                    (_SCHEMA_VERSION,),
+                )
+            elif version is None or version[0] != _SCHEMA_VERSION:
                 raise ResultStoreError("RESULT_STORE_SCHEMA_INVALID")
             connection.commit()
 
@@ -212,7 +255,6 @@ class ToolResultStore:
                     self.limits.session_bytes,
                     self.limits.session_count,
                 ),
-                ("1=1", (), self.limits.total_bytes, self.limits.total_count),
             ]
             for where, params, byte_limit, count_limit in checks:
                 used, count = connection.execute(
@@ -221,6 +263,7 @@ class ToolResultStore:
                 ).fetchone()
                 if used + size > byte_limit or count >= count_limit:
                     raise ResultStoreError("RESULT_STORAGE_LIMIT")
+            self._check_total(connection, size)
             reference = "tr_" + secrets.token_hex(16)
             connection.execute(
                 "INSERT INTO tool_result_snapshots VALUES (?,?,?,?,?,?,?,?,?)",
@@ -327,4 +370,133 @@ class ToolResultStore:
                 "DELETE FROM tool_result_snapshots WHERE tenant_id=? AND owner_id=? AND session_id=?",
                 scope,
             )
+            connection.execute(
+                "DELETE FROM analysis_snapshots WHERE tenant_id=? AND owner_id=? AND session_id=?",
+                scope,
+            )
             connection.commit()
+
+    def _check_total(self, connection, size):
+        used, count = connection.execute(_TOTAL_USAGE).fetchone()
+        if used + size > self.limits.total_bytes or count >= self.limits.total_count:
+            raise ResultStoreError("RESULT_STORAGE_LIMIT")
+
+    @staticmethod
+    def _analysis_scope(kind, tenant_id, owner_id, session_id):
+        if kind not in _ANALYSIS_PREFIXES:
+            raise ResultStoreError("RESULT_INVALID")
+        if session_id is None:
+            ToolResultStore._scope(tenant_id, owner_id, "page")
+            return (tenant_id, owner_id, None)
+        return ToolResultStore._scope(tenant_id, owner_id, session_id)
+
+    def save_analysis(
+        self, *, kind, tenant_id, owner_id, session_id, content, now, retention, permit
+    ):
+        """Store one immutable analysis version; ``permit(session_id)`` is rechecked in the write transaction.
+
+        Page versions (no Session) require a positive ``retention``; Session versions take none.
+        """
+        scope = self._analysis_scope(kind, tenant_id, owner_id, session_id)
+        if session_id is None:
+            if type(retention) is not timedelta or retention <= timedelta(0):
+                raise ResultStoreError("RESULT_INVALID")
+        elif retention is not None:
+            raise ResultStoreError("RESULT_INVALID")
+        created_at = _utc_text(now)
+        expires_at = _utc_text(now + retention) if session_id is None else None
+        body = canonical_json(content)
+        size = len(body.encode("utf-8"))
+        if size > self.limits.analysis_bytes:
+            raise ResultStoreError("RESULT_STORAGE_LIMIT")
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if session_id is None:
+                if not permit(None):
+                    raise ResultStoreError("RESULT_UNAVAILABLE")
+            else:
+                self._permitted(connection, scope, lambda: permit(session_id))
+            connection.execute(
+                "DELETE FROM analysis_snapshots WHERE expires_at IS NOT NULL AND expires_at <= ?",
+                (created_at,),
+            )
+            used, page_count = connection.execute(
+                "SELECT COALESCE(SUM(stored_bytes),0), COALESCE(SUM(session_id IS NULL),0)"
+                " FROM analysis_snapshots WHERE tenant_id=? AND owner_id=?",
+                scope[:2],
+            ).fetchone()
+            if session_id is None:
+                over_count = page_count >= self.limits.analysis_owner_count
+            else:
+                over_count = connection.execute(
+                    "SELECT COUNT(*) FROM analysis_snapshots WHERE tenant_id=? AND owner_id=? AND session_id=?",
+                    scope,
+                ).fetchone()[0] >= self.limits.analysis_session_count
+            if used + size > self.limits.analysis_owner_bytes or over_count:
+                raise ResultStoreError("RESULT_STORAGE_LIMIT")
+            self._check_total(connection, size)
+            reference = _ANALYSIS_PREFIXES[kind] + secrets.token_hex(16)
+            connection.execute(
+                "INSERT INTO analysis_snapshots VALUES (?,?,?,?,?,?,?,?,?)",
+                (reference, kind, *scope, created_at, expires_at, body, size),
+            )
+            connection.commit()
+        return {"analysis_ref": reference, "created_at": created_at, "expires_at": expires_at}
+
+    def read_analysis(self, *, kind, tenant_id, owner_id, analysis_ref, now, permit):
+        """Missing, expired, foreign and revoked versions are indistinguishable."""
+        self._analysis_scope(kind, tenant_id, owner_id, None)
+        if type(analysis_ref) is not str or len(analysis_ref) > 128:
+            raise ResultStoreError("RESULT_UNAVAILABLE")
+        moment = _utc_text(now)
+        with self._connection() as connection:
+            connection.execute("BEGIN")
+            row = connection.execute(
+                "SELECT session_id,created_at,expires_at,content_json FROM analysis_snapshots"
+                " WHERE analysis_ref=? AND kind=? AND tenant_id=? AND owner_id=?",
+                (analysis_ref, kind, tenant_id, owner_id),
+            ).fetchone()
+            if row is None or (row[2] is not None and row[2] <= moment):
+                raise ResultStoreError("RESULT_UNAVAILABLE")
+            if row[0] is None:
+                if not permit(None):
+                    raise ResultStoreError("RESULT_UNAVAILABLE")
+            else:
+                self._permitted(
+                    connection, (tenant_id, owner_id, row[0]), lambda: permit(row[0])
+                )
+            return {
+                "analysis_ref": analysis_ref,
+                "session_id": row[0],
+                "created_at": row[1],
+                "expires_at": row[2],
+                "content": json.loads(row[3]),
+            }
+
+    def _cursor_key(self):
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT value FROM result_store_meta WHERE key='cursor_key'"
+            ).fetchone()
+        if row is None:
+            raise ResultStoreError("RESULT_STORE_SCHEMA_INVALID")
+        return row[0].encode()
+
+    def sign_token(self, payload):
+        token = base64.urlsafe_b64encode(canonical_json(payload).encode()).decode()
+        return token + "." + hmac.new(self._cursor_key(), token.encode(), hashlib.sha512).hexdigest()
+
+    def verify_token(self, value):
+        key = self._cursor_key()
+        try:
+            token, signature = value.split(".")
+            if not hmac.compare_digest(
+                signature, hmac.new(key, token.encode(), hashlib.sha512).hexdigest()
+            ):
+                raise ValueError
+            payload = json.loads(base64.urlsafe_b64decode(token.encode()))
+            if type(payload) is not dict:
+                raise ValueError
+            return payload
+        except (ValueError, TypeError, AttributeError):
+            raise ResultStoreError("RESULT_CURSOR_INVALID") from None

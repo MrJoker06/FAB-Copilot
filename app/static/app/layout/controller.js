@@ -15,14 +15,26 @@
       loadShiftView = () => {},
       documentImpl = root.document, localStorageImpl = root.localStorage,
       requestAnimationFrameImpl = root.requestAnimationFrame,
+      historyImpl = root.history, locationImpl = root.location,
     } = deps;
     const window = windowImpl;
     const document = documentImpl;
     const localStorage = localStorageImpl;
     const requestAnimationFrame = requestAnimationFrameImpl;
 
-    function showView(name) {
+    // Only the view name enters the address; page inputs such as lot lists stay in memory.
+    function recordViewHistory(name, mode) {
+      if (!historyImpl || !locationImpl || !['push', 'replace'].includes(mode)) return;
+      const params = new URLSearchParams(locationImpl.search);
+      if (params.get('view') === name) return;
+      const url = `${locationImpl.pathname}?view=${encodeURIComponent(name)}${locationImpl.hash || ''}`;
+      if (mode === 'push') historyImpl.pushState({ view: name }, '', url);
+      else historyImpl.replaceState({ view: name }, '', url);
+    }
+
+    function showView(name, options = {}) {
       if (name === 'cases') name = 'procedures';
+      recordViewHistory(name, options.history);
       if (name !== 'sessions') state.previousView = name;
       state.activeView = name;
       if (name !== 'knowledge') stopPersonalJobEvents({ complete: true });

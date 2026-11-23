@@ -6,6 +6,7 @@ import sqlite3
 import tempfile
 import unittest
 from contextlib import closing
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from app.core.tool_result_units import canonical_json, result_units
@@ -289,6 +290,133 @@ class ToolResultStoreTests(unittest.TestCase):
             self.skipTest(f"symlinks unavailable: {type(exc).__name__}")
         with self.assertRaisesRegex(ResultStoreError, "RESULT_STORE_PATH_INVALID"):
             ToolResultStore(alias).enabled()
+
+
+class AnalysisSnapshotStoreTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name) / "results.db"
+        self.store = ToolResultStore(self.path)
+        self.store.initialize()
+        self.now = datetime(2026, 11, 21, 2, 0, tzinfo=timezone.utc)
+
+    def save(self, *, store=None, owner_id="owner-a", session_id=None, content=None, now=None, permit=None):
+        return (store or self.store).save_analysis(
+            kind="lot_commonality", tenant_id="tenant-a", owner_id=owner_id, session_id=session_id,
+            content=content if content is not None else {"value": 1}, now=now or self.now,
+            retention=timedelta(days=7) if session_id is None else None,
+            permit=permit or (lambda _session: True),
+        )
+
+    def read(self, ref, *, tenant_id="tenant-a", owner_id="owner-a", now=None, permit=None):
+        return self.store.read_analysis(
+            kind="lot_commonality", tenant_id=tenant_id, owner_id=owner_id, analysis_ref=ref,
+            now=now or self.now, permit=permit or (lambda _session: True),
+        )
+
+    def count(self):
+        with closing(sqlite3.connect(self.path)) as connection:
+            return connection.execute("SELECT COUNT(*) FROM analysis_snapshots").fetchone()[0]
+
+    def test_schema_1_store_is_upgraded_in_place(self):
+        path = Path(self.temp.name) / "v1.db"
+        with closing(sqlite3.connect(path)) as connection:
+            connection.executescript(
+                """
+                CREATE TABLE result_store_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                CREATE TABLE result_store_sessions(tenant_id TEXT NOT NULL, owner_id TEXT NOT NULL,
+                  session_id TEXT NOT NULL, PRIMARY KEY(tenant_id, owner_id, session_id));
+                CREATE TABLE tool_result_snapshots(result_ref TEXT PRIMARY KEY, tenant_id TEXT NOT NULL,
+                  owner_id TEXT NOT NULL, session_id TEXT NOT NULL, run_id TEXT NOT NULL, call_id TEXT NOT NULL,
+                  metadata_json TEXT NOT NULL, content_json TEXT NOT NULL, stored_bytes INTEGER NOT NULL,
+                  UNIQUE(tenant_id, owner_id, session_id, run_id, call_id));
+                INSERT INTO result_store_meta VALUES ('schema_version','1'),('cursor_key','k'),('enabled','true');
+                INSERT INTO tool_result_snapshots VALUES ('tr_old','t','o','s','r','c','{}','[1]',3);
+                """
+            )
+        store = ToolResultStore(path)
+        with self.assertRaisesRegex(ResultStoreError, "RESULT_STORE_SCHEMA_INVALID"):
+            store.enabled()
+        store.initialize()
+        store.initialize()
+        with closing(sqlite3.connect(path)) as connection:
+            self.assertEqual(
+                connection.execute("SELECT value FROM result_store_meta WHERE key='schema_version'").fetchone()[0], "2"
+            )
+            self.assertEqual(connection.execute("SELECT result_ref FROM tool_result_snapshots").fetchall(), [("tr_old",)])
+        self.assertTrue(self.save(store=store)["analysis_ref"].startswith("lca_"))
+
+    def test_versions_are_owner_scoped_and_expire(self):
+        saved = self.save(content={"lots": ["A"]})
+        self.assertEqual(saved["created_at"], "2026-11-21T02:00:00+00:00")
+        self.assertEqual(saved["expires_at"], "2026-11-28T02:00:00+00:00")
+        self.assertEqual(self.read(saved["analysis_ref"])["content"], {"lots": ["A"]})
+        for kwargs in ({"owner_id": "owner-b"}, {"tenant_id": "tenant-b"}, {"now": self.now + timedelta(days=7)}):
+            with self.subTest(**{key: str(value) for key, value in kwargs.items()}):
+                with self.assertRaisesRegex(ResultStoreError, "RESULT_UNAVAILABLE"):
+                    self.read(saved["analysis_ref"], **kwargs)
+        self.save(now=self.now + timedelta(days=7))
+        self.assertEqual(self.count(), 1)
+
+    def test_session_versions_follow_revocation(self):
+        page = self.save()
+        bound = self.save(session_id="session-a")
+        self.assertIsNone(bound["expires_at"])
+        later = self.now + timedelta(days=30)
+        self.assertEqual(self.read(bound["analysis_ref"], now=later)["session_id"], "session-a")
+        self.save(now=later)
+        self.assertEqual(self.count(), 2)
+        # A deleted Session whose cleanup is still pending must already hide its versions.
+        with self.assertRaisesRegex(ResultStoreError, "RESULT_UNAVAILABLE"):
+            self.read(bound["analysis_ref"], permit=lambda session: session != "session-a")
+        self.store.revoke_session(tenant_id="tenant-a", owner_id="owner-a", session_id="session-a")
+        with self.assertRaisesRegex(ResultStoreError, "RESULT_UNAVAILABLE"):
+            self.read(bound["analysis_ref"])
+        with self.assertRaisesRegex(ResultStoreError, "RESULT_UNAVAILABLE"):
+            self.save(session_id="session-a")
+        with self.assertRaisesRegex(ResultStoreError, "RESULT_UNAVAILABLE"):
+            self.save(session_id="session-b", permit=lambda _session: False)
+        self.assertEqual(self.count(), 1)
+        with self.assertRaisesRegex(ResultStoreError, "RESULT_UNAVAILABLE"):
+            self.read(page["analysis_ref"], now=later)
+
+    def test_quota_and_size_limits_reject_without_writing(self):
+        limited = ToolResultStore(
+            self.path,
+            limits=ResultStoreLimits(analysis_bytes=64, analysis_owner_count=2, analysis_session_count=1),
+        )
+        with self.assertRaisesRegex(ResultStoreError, "RESULT_STORAGE_LIMIT"):
+            self.save(store=limited, content={"text": "x" * 64})
+        self.save(store=limited)
+        self.save(store=limited)
+        with self.assertRaisesRegex(ResultStoreError, "RESULT_STORAGE_LIMIT"):
+            self.save(store=limited)
+        self.save(store=limited, session_id="session-a")
+        with self.assertRaisesRegex(ResultStoreError, "RESULT_STORAGE_LIMIT"):
+            self.save(store=limited, session_id="session-a")
+        self.save(store=limited, session_id="session-b")
+        self.save(store=limited, owner_id="owner-b")
+        self.assertEqual(self.count(), 5)
+
+    def test_retention_must_match_the_version_kind(self):
+        for session_id, retention in ((None, None), (None, timedelta(0)), ("session-a", timedelta(days=7))):
+            with self.subTest(session_id=session_id, retention=retention):
+                with self.assertRaisesRegex(ResultStoreError, "RESULT_INVALID"):
+                    self.store.save_analysis(
+                        kind="lot_commonality", tenant_id="tenant-a", owner_id="owner-a", session_id=session_id,
+                        content={}, now=self.now, retention=retention, permit=lambda _session: True,
+                    )
+        self.assertEqual(self.count(), 0)
+
+    def test_signed_tokens_reject_tampering(self):
+        token = self.store.sign_token({"v": 1, "o": 4})
+        self.assertEqual(self.store.verify_token(token), {"v": 1, "o": 4})
+        body, signature = token.split(".")
+        for value in (body + "." + signature[:-1] + ("0" if signature[-1] != "0" else "1"), body, "x.y"):
+            with self.subTest(value=value[:12]):
+                with self.assertRaisesRegex(ResultStoreError, "RESULT_CURSOR_INVALID"):
+                    self.store.verify_token(value)
 
 
 if __name__ == "__main__":

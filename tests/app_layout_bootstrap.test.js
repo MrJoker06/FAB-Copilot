@@ -144,3 +144,30 @@ test('bootstrap retains the migrated dialog, session, source, and chart bindings
   }
   assert.match(source, /document\.addEventListener\('click'/);
 });
+
+test('layout records only the view name in history when navigation asks for it', () => {
+  const fakeNode = { classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, setAttribute() {}, removeAttribute() {} };
+  const pushed = [];
+  const location = { pathname: '/', search: '?view=reports', hash: '' };
+  const controller = layoutModule.createLayoutController({
+    state: { knowledgeMode: 'factory' },
+    $: () => fakeNode,
+    documentImpl: { querySelector: () => fakeNode, querySelectorAll: () => [] },
+    windowImpl: { innerWidth: 1400 },
+    localStorageImpl: { getItem: () => null, setItem() {}, removeItem() {} },
+    requestAnimationFrameImpl: () => {},
+    historyImpl: {
+      pushState: (state, title, url) => { pushed.push(['push', state, url]); location.search = url.slice(1); },
+      replaceState: (state, title, url) => pushed.push(['replace', state, url]),
+    },
+    locationImpl: location,
+  });
+  controller.showView('commonality', { history: 'push' });
+  controller.showView('commonality', { history: 'push' });
+  controller.showView('reports');
+  controller.showView('cases', { history: 'replace' });
+  assert.deepEqual(pushed, [
+    ['push', { view: 'commonality' }, '/?view=commonality'],
+    ['replace', { view: 'procedures' }, '/?view=procedures'],
+  ]);
+});

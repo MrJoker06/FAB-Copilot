@@ -14,7 +14,7 @@ async function accessible(page) {
 
 test('duty navigation preserves the original dashboard, folds legacy views and toggles the assistant', async ({page}) => {
   await ready(page);
-  await expect(page.locator('.sidebar > .nav-item')).toHaveText(['▥基础报表', '▤SOP&历史case', '↗Autosystem 平台', '◇值班智能助手']);
+  await expect(page.locator('.sidebar > .nav-item')).toHaveText(['▥基础报表', '◫相关性分析', '▤SOP&历史case', '↗Autosystem 平台', '◇值班智能助手']);
   await expect(page.locator('#allFunctions')).not.toHaveAttribute('open');
   await expect(page.locator('#dashboardView')).toBeVisible();
   await page.locator('#allFunctions summary').focus();
