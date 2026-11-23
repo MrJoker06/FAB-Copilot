@@ -54,6 +54,7 @@
     function updateBadges() {
       const stale = isStale();
       view().querySelectorAll('[data-lc-stale]').forEach(node => { node.hidden = !stale; });
+      view().querySelectorAll('[data-lc-unavailable]').forEach(node => { node.hidden = !ui.result?.unavailable; });
       $('#commonalitySampleBadge').hidden = !ui.result?.sample;
     }
     function setStatus(message, tone = 'info', extraHtml = '') {
@@ -155,6 +156,8 @@
       } else if (error?.code === 'ANALYSIS_LIMIT_EXCEEDED' && context) {
         parts.push(`限额 ${context.limit}${context.group_id ? `（组 ${context.group_id}）` : ''}：上限 ${context.max}，实际 ${context.actual}`);
       }
+      if (error?.fields?.length) parts.push(`字段：${error.fields.join('、')}`);
+      if (error?.retryable) parts.push('可稍后重试');
       if (error?.requestId) parts.push(`请求编号 ${error.requestId}`);
       return parts.length ? `<span class="lc-status-detail">${parts.map(esc).join(' · ')}</span>` : '';
     }
@@ -207,7 +210,21 @@
     }
 
     const sampleBadge = () => (ui.result?.sample ? '<span class="lc-sample-badge">合成样例</span>' : '');
-    const staleBadge = () => '<span class="lc-stale-badge" data-lc-stale hidden>上次查询</span>';
+    const staleBadge = () => '<span class="lc-stale-badge" data-lc-stale hidden>上次查询</span><span class="lc-warn-badge" data-lc-unavailable hidden>已失效</span>';
+    function markUnavailable(error) {
+      if (ui.result.unavailable) return;
+      ui.result.unavailable = true;
+      setStatus('该结果已不可读取（已过期、无权访问或所属会话已删除），请重新查询', 'error', failureDetails(error));
+      view().querySelectorAll('[data-lc-count]').forEach(node => { node.disabled = true; });
+    }
+    function drillError(error, kind) {
+      const hint = model.isResultUnavailable(error) ? '该结果已不可读取，请重新查询。'
+        : error?.code === 'RESULT_CURSOR_INVALID' ? '分页位置已失效，请回到第一页。' : '';
+      const action = error?.code === 'RESULT_CURSOR_INVALID'
+        ? `<button type="button" class="secondary-btn lc-small-btn" data-${kind}-page="first">回到第一页</button>`
+        : error?.retryable ? `<button type="button" class="secondary-btn lc-small-btn" data-${kind}-retry>重试</button>` : '';
+      return `<div class="lc-error" role="alert"><p>${esc(model.errorText(error))}</p>${hint ? `<p>${esc(hint)}</p>` : ''}${action}</div>`;
+    }
     function sampleSourceNote(response) {
       const source = response?.sample_source;
       if (!source) return '';
@@ -241,7 +258,8 @@
     function countCells(candidate, column) {
       const counts = candidate.counts?.[column.id];
       if (!counts) return '<td>—</td><td>—</td><td>—</td><td>—</td>';
-      return `${STATUSES.map(status => `<td><button type="button" class="lc-count lc-count-${status}" data-lc-count data-candidate-id="${esc(candidate.candidate_id)}" data-group-id="${esc(column.id)}" data-status="${status}" aria-label="${esc(column.name)} ${esc(MEMBER_STATUS_LABELS[status])} ${esc(counts[status])}，查看成员">${esc(counts[status])}</button></td>`).join('')}<td class="lc-denominator">${esc(counts.denominator)}</td>`;
+      const disabled = ui.result?.unavailable ? ' disabled' : '';
+      return `${STATUSES.map(status => `<td><button type="button" class="lc-count lc-count-${status}"${disabled} data-lc-count data-candidate-id="${esc(candidate.candidate_id)}" data-group-id="${esc(column.id)}" data-status="${status}" aria-label="${esc(column.name)} ${esc(MEMBER_STATUS_LABELS[status])} ${esc(counts[status])}，查看成员">${esc(counts[status])}</button></td>`).join('')}<td class="lc-denominator">${esc(counts.denominator)}</td>`;
     }
     function candidateTableTemplate() {
       const { analysis } = ui.result;
@@ -252,7 +270,7 @@
       const columns = resultColumns(analysis);
       const head = `<thead><tr><th rowspan="2" scope="col">维度</th><th rowspan="2" scope="col">发现</th><th rowspan="2" scope="col">共有</th>${columns.map(column => `<th colspan="4" scope="colgroup" class="lc-group-col">${esc(column.name)}</th>`).join('')}</tr><tr>${columns.map(() => '<th scope="col">命中</th><th scope="col">确认未命中</th><th scope="col">未知</th><th scope="col">分母</th>').join('')}</tr></thead>`;
       const rows = items.map(candidate => `<tr data-candidate-row="${esc(candidate.candidate_id)}"><td>${esc(DIMENSION_LABELS[candidate.dimension] || candidate.dimension)}</td><td class="lc-label">${esc(candidate.label)}</td><td>${candidate.all_shared ? '<span class="lc-share lc-share-all">全部共有</span>' : '<span class="lc-share">部分共有</span>'}</td>${columns.map(column => countCells(candidate, column)).join('')}</tr>`).join('');
-      return `<div class="table-wrap"><table class="lc-table lc-candidates">${head}<tbody>${rows}</tbody></table></div>${analysis.candidates_truncated ? '<p class="lc-hint">候选数超过限额，已按排序截取。</p>' : ''}`;
+      return `<div class="table-wrap" tabindex="0" role="region" aria-labelledby="commonalityResultTitle"><table class="lc-table lc-candidates">${head}<tbody>${rows}</tbody></table></div>${analysis.candidates_truncated ? '<p class="lc-hint">候选数超过限额，已按排序截取。</p>' : ''}`;
     }
 
     function renderResults() {
@@ -285,7 +303,7 @@
     function membersBody() {
       const state = ui.members;
       if (state.loading) return '<p class="lc-loading" role="status">正在读取成员…</p>';
-      if (state.error) return `<p class="lc-error" role="alert">${esc(model.errorText(state.error))}</p>`;
+      if (state.error) return drillError(state.error, 'member');
       const response = state.response;
       if (!response) return '';
       const counts = response.counts || {};
@@ -362,6 +380,7 @@
       } catch (error) {
         if (!membersGate.isCurrent(token) || ui.members !== state) return;
         state.response = null; state.error = error;
+        if (model.isResultUnavailable(error) && ui.result === result) markUnavailable(error);
       }
       state.loading = false;
       renderMembers();
@@ -465,7 +484,7 @@
     function recordsBody() {
       const state = ui.records;
       if (state.loading) return '<p class="lc-loading" role="status">正在读取履历…</p>';
-      if (state.error) return `<p class="lc-error" role="alert">${esc(model.errorText(state.error))}</p>`;
+      if (state.error) return drillError(state.error, 'records');
       const response = state.response;
       if (!response) return '';
       const candidate = findCandidate(response.candidate_id ?? state.candidateId);
@@ -510,6 +529,7 @@
       } catch (error) {
         if (!recordsGate.isCurrent(token) || ui.records !== state) return;
         state.response = null; state.error = error;
+        if (model.isResultUnavailable(error) && ui.result === result) markUnavailable(error);
       }
       state.loading = false;
       renderRecords();
@@ -569,6 +589,7 @@
         focusMatching('[data-lc-count]', node => node.dataset.candidateId === origin.candidateId && node.dataset.groupId === origin.groupId && node.dataset.status === origin.status);
         return;
       }
+      if (event.target.closest('[data-member-retry]')) { loadMembers(); return; }
       const lot = event.target.closest('[data-member-lot]');
       if (lot) { openRecords([lot.dataset.memberLot]); return; }
       if (event.target.closest('[data-member-compare]')) {
@@ -593,6 +614,7 @@
         focusMatching('[data-member-lot]', node => node.dataset.memberLot === lotId);
         return;
       }
+      if (event.target.closest('[data-records-retry]')) { loadRecords(); return; }
       const toggle = event.target.closest('[data-records-view]');
       if (toggle) { state.view = toggle.dataset.recordsView; renderRecords(); return; }
       const ref = event.target.closest('[data-record-ref]');

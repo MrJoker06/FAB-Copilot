@@ -176,6 +176,34 @@ test('http client posts the contract body and keeps the error envelope', async (
   assert.equal(model.isServiceMissing(unavailable), false);
 });
 
+test('server envelopes keep validation fields and classify unreadable results', async () => {
+  const replies = {
+    [`/api/lot-commonality/analyses/${REF}/members`]: { status: 422, body: { error_code: 'VALIDATION_ERROR', detail: '请求参数不符合要求', fields: ['limit'], request_id: 'req_1', retryable: false } },
+    [`/api/lot-commonality/analyses/${REF}/records`]: { status: 404, body: { error_code: 'RESULT_UNAVAILABLE', detail: '结果当前不可读取。', request_id: 'req_2', retryable: false } },
+    [`/api/lot-commonality/analyses/${REF}`]: { status: 503, body: { error_code: 'RESULT_STORE_UNAVAILABLE', detail: '结果库暂不可用。', request_id: 'req_3', retryable: true } },
+  };
+  const client = model.createHttpClient({
+    fetchImpl: async url => ({ ok: false, status: replies[url].status, headers: { get: () => '' }, json: async () => replies[url].body }),
+  });
+  await assert.rejects(client.readMembers(REF, {}), error => {
+    assert.deepEqual(error.fields, ['limit']);
+    assert.equal(model.isResultUnavailable(error), false);
+    return true;
+  });
+  await assert.rejects(client.readRecords(REF, {}), error => {
+    assert.equal(model.isResultUnavailable(error), true);
+    assert.equal(model.isServiceMissing(error), false);
+    assert.equal(model.errorText(error), '结果当前不可读取（RESULT_UNAVAILABLE）：结果当前不可读取。');
+    return true;
+  });
+  await assert.rejects(client.readAnalysis(REF), error => {
+    assert.equal(error.retryable, true);
+    assert.equal(model.errorText(error), '结果库暂不可用（RESULT_STORE_UNAVAILABLE）：结果库暂不可用。');
+    return true;
+  });
+  assert.equal(model.errorText({ code: 'RESULT_STORAGE_LIMIT', detail: '' }), '结果存储已达上限（RESULT_STORAGE_LIMIT）');
+});
+
 test('reason codes, path order and candidate stations are presented from contract fields', () => {
   assert.equal(model.reasonText({ code: 'FIELD_MISSING', field: 'chamber' }), '字段缺失（chamber）');
   for (const code of ['SEQUENCE_UNKNOWN', 'LOT_NOT_FOUND', 'SOURCE_TRUNCATED', 'SOURCE_PAGE_FAILED', 'CUTOFF_NOT_FOUND', 'OTHER_VALUE', 'OPERATION_NOT_VISITED', 'NOT_ADJACENT', 'CONDITIONS_NOT_MET']) {

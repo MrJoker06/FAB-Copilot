@@ -35,14 +35,15 @@
     SCOPE_DENIED: '无权访问请求的数据范围', RESULT_UNAVAILABLE: '结果当前不可读取', RESULT_CURSOR_INVALID: '分页游标无效',
     VALIDATION_ERROR: '请求参数不符合要求', CUTOFF_AMBIGUOUS: '截止工序出现多次', ANALYSIS_LIMIT_EXCEEDED: '超过分析限额',
     DATA_SOURCE_FAILED: '数据来源失败', NETWORK_ERROR: '无法连接服务', INVALID_RESPONSE: '响应格式不符合契约',
+    RESULT_STORAGE_LIMIT: '结果存储已达上限', RESULT_STORE_UNAVAILABLE: '结果库暂不可用', INTERNAL_ERROR: '服务器内部错误',
   };
   const SERVICE_MISSING_CODES = new Set(['NOT_FOUND', 'REQUEST_ERROR', 'HTTP_ERROR']);
 
   class CommonalityClientError extends Error {
-    constructor(message, { code = 'REQUEST_ERROR', status = 0, detail = '', context = null, requestId = '', retryable = false } = {}) {
+    constructor(message, { code = 'REQUEST_ERROR', status = 0, detail = '', context = null, fields = [], requestId = '', retryable = false } = {}) {
       super(message);
       this.name = 'CommonalityClientError';
-      Object.assign(this, { code, status, detail: detail || message, context, requestId, retryable });
+      Object.assign(this, { code, status, detail: detail || message, context, fields, requestId, retryable });
     }
   }
 
@@ -183,6 +184,11 @@
     return code === 'FIELD_MISSING' && reason?.field ? `${label}（${reason.field}）` : label;
   }
 
+  // The server answers RESULT_UNAVAILABLE alike for expired, foreign and session-deleted results.
+  function isResultUnavailable(error) {
+    return error?.code === 'RESULT_UNAVAILABLE';
+  }
+
   function isServiceMissing(error) {
     return Number(error?.status) === 404 && SERVICE_MISSING_CODES.has(error.code);
   }
@@ -234,7 +240,8 @@
       if (!response.ok) {
         throw new CommonalityClientError(payload.detail || `请求失败 (${response.status})`, {
           code: payload.error_code || 'REQUEST_ERROR', status: response.status, detail: payload.detail || '',
-          context: payload.context || null, requestId: payload.request_id || response.headers?.get?.('x-request-id') || '',
+          context: payload.context || null, fields: Array.isArray(payload.fields) ? payload.fields : [],
+          requestId: payload.request_id || response.headers?.get?.('x-request-id') || '',
           retryable: Boolean(payload.retryable),
         });
       }
@@ -372,7 +379,7 @@
     LOT_STATE_LABELS, MEMBER_STATUS_LABELS, UNKNOWN_REASON_LABELS, MISS_BASIS_LABELS, MATCH_SCOPE_LABELS,
     GRANULARITY_LABELS, COVERAGE_LABELS, ANALYSIS_STATUS_LABELS, CommonalityClientError,
     splitLotInput, summarizeLots, describeGroupSummary, findOverlaps, assignGroupIds, isValidGroupId,
-    localDateTime, buildCutoff, validateDraft, buildCreateRequest, describeScope, reasonText, isServiceMissing, errorText, createLatestGate,
+    localDateTime, buildCutoff, validateDraft, buildCreateRequest, describeScope, reasonText, isResultUnavailable, isServiceMissing, errorText, createLatestGate,
     createHttpClient, createSampleClient, validateSampleDocument, draftFromRequest, candidateOperations,
     passesByLot, splitPathOrder,
   };
