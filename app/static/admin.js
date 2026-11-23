@@ -363,6 +363,7 @@ function reportFolderPath(id) {
 }
 
 function renderReportDirectory() {
+  $('#reportAccessResult').textContent = '';
   const data = adminState.reportDirectory;
   if (!data) return;
   const tree = parent => `<ul>${data.folders.filter(folder => folder.parent_id === parent).map(folder => `<li><button type="button" class="report-folder-button${folder.id === selectedReportFolder ? ' active' : ''}" data-report-folder="${escapeHtml(folder.id)}" aria-pressed="${folder.id === selectedReportFolder}">▱ ${escapeHtml(folder.name)}</button>${tree(folder.id)}</li>`).join('')}</ul>`;
@@ -429,6 +430,8 @@ function openReportFolder(edit = false) {
   const current = adminState.reportDirectory.folders.find(folder => folder.id === editingReportFolder);
   $('#reportFolderDialogTitle').textContent = current ? '编辑文件夹' : '新建文件夹';
   $('#reportFolderName').value = current?.name || '';
+  $('#reportOwnerModule').value = current?.access?.owner || '';
+  $('#reportReaderModules').value = (current?.access?.readers || []).join('，');
   $('#reportFolderParent').innerHTML = '<option value="">根目录</option>' + adminState.reportDirectory.folders.filter(folder => folder.id !== editingReportFolder).map(folder => `<option value="${escapeHtml(folder.id)}">${escapeHtml(reportFolderPath(folder.id))}</option>`).join('');
   $('#reportFolderParent').value = current ? current.parent_id || '' : selectedReportFolder || '';
   $('#removeReportFolder').hidden = !current;
@@ -449,13 +452,46 @@ function applyReportFolder(event) {
   if (!name || data.folders.some(folder => folder.id !== id && folder.parent_id === parent && folder.name === name)) {
     $('#reportFolderMessage').textContent = '名称不能为空，也不能与同级文件夹重名。'; $('#reportFolderMessage').hidden = false; return;
   }
-  const folder = {id, name, parent_id:parent}, previous = data.folders.findIndex(item => item.id === id);
+  const owner = $('#reportOwnerModule').value.trim();
+  const readers = moduleList($('#reportReaderModules').value);
+  if ((!owner && readers.length) || ![...(owner ? [owner] : []), ...readers].every(validModuleId) || readers.length > 100) {
+    $('#reportFolderMessage').textContent = '请填写归属部门，再按需添加最多 100 个开放部门。名称限 1～64 个字母、汉字、数字、下划线或短横线。';
+    $('#reportFolderMessage').hidden = false;
+    return;
+  }
+  const folder = {id, name, parent_id:parent, access:owner ? {owner, readers} : null};
+  const previous = data.folders.findIndex(item => item.id === id);
   if (previous < 0) data.folders.push(folder); else data.folders[previous] = folder;
   selectedReportFolder = id; $('#reportFolderDialog').close(); renderReportDirectory(); resetReportEditor();
   showNotice('#reportDirectoryNotice', '文件夹已应用到本页，请保存目录。');
 }
 
+function moduleList(value) {
+  return [...new Set(value.split(/[,，\n]/).map(item => item.trim()).filter(Boolean))];
+}
+
+function validModuleId(value) {
+  return /^[\p{L}\p{N}_-]{1,64}$/u.test(value);
+}
+
+async function previewReportAccess(event) {
+  event.preventDefault();
+  const result = $('#reportAccessResult');
+  const modules = moduleList($('#previewReportModules').value);
+  result.textContent = '正在读取已保存的目录…';
+  try {
+    const data = await adminApi('/api/admin/report-directory/preview', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({modules}),
+    });
+    const titles = data.reports.map(item => item.title).join('、');
+    result.textContent = `版本 ${data.revision} · ${modules.join('、') || '公共目录'} · ${data.reports.length} 份报表${titles ? '：' + titles : ''}`;
+  } catch (error) {
+    result.textContent = error.message;
+  }
+}
+
 function bindReportDirectory() {
+  $('#reportAccessPreview').addEventListener('submit', previewReportAccess);
   $('#refreshReportDirectory').addEventListener('click', loadReportDirectory);
   $('#saveReportDirectory').addEventListener('click', saveReportDirectory);
   $('#reportEditorForm').addEventListener('submit', stageReportEdit);

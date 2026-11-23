@@ -85,6 +85,51 @@ class DutyWorkspaceManagementTests(unittest.TestCase):
                 self.assertEqual((await restarted.get('/api/admin/report-directory',headers=self.admin_headers)).json(),saved)
         self.run_async(run)
 
+    def test_module_permissions_apply_to_saved_directory_and_admin_preview(self):
+        async def run(client):
+            admin_url = '/api/admin/report-directory'
+            public_url = '/api/reports/directory'
+            preview = admin_url + '/preview'
+            payload = {
+                'folders': [
+                    {'id': 'litho', 'name': '光刻', 'access': {'owner': '光刻', 'readers': ['质量']}},
+                    {'id': 'daily', 'name': '日报', 'parent_id': 'litho'},
+                    {'id': 'detail', 'name': '明细', 'parent_id': 'litho', 'access': {'owner': '光刻', 'readers': ['整合']}},
+                ],
+                'reports': [
+                    {'id': key, 'title': key, 'folder_id': folder, 'url': '/' + key}
+                    for key, folder in [('public', None), ('daily', 'daily'), ('detail', 'detail')]
+                ],
+            }
+            saved = await client.put(admin_url, headers=self.admin_headers, json=payload)
+            self.assertEqual(saved.status_code, 200, saved.text)
+            for groups, expected in [
+                ([], ['public']), (['光刻'], ['daily', 'detail', 'public']),
+                (['质量'], ['daily', 'public']), (['整合'], ['public']),
+                (['质量', '整合'], ['daily', 'detail', 'public']),
+            ]:
+                response = await client.post(preview, headers=self.admin_headers, json={'modules': groups})
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual([r['id'] for r in response.json()['reports']], expected)
+            headers = {'X-Modules': 'quality', 'X-Roles': 'admin', 'X-User-ID': 'litho-lead'}
+            self.assertEqual((await client.post(preview, headers=headers, json={'modules':['光刻']})).status_code, 401)
+            public = await client.get(public_url, headers=headers, params={'modules': '光刻'})
+            self.assertEqual([r['id'] for r in public.json()['reports']], ['public'])
+            self.assertNotIn('/detail', public.text)
+
+            # Older directory editors omit access when renaming a folder.
+            edited = saved.json()
+            del edited['folders'][0]['access']
+            edited['folders'][0]['name'] = '光刻目录'
+            updated = await client.put(admin_url, headers=self.admin_headers, json=edited)
+            self.assertEqual(updated.json()['folders'][0]['access'], payload['folders'][0]['access'])
+            revised = updated.json()
+            revised['folders'][0]['access']['readers'] = []
+            self.assertEqual((await client.put(admin_url, headers=self.admin_headers, json=revised)).status_code, 200)
+            after = await client.post(preview, headers=self.admin_headers, json={'modules':['质量']})
+            self.assertEqual([r['id'] for r in after.json()['reports']], ['public'])
+        self.run_async(run)
+
     def test_report_url_and_folder_rejections_do_not_persist(self):
         async def run(client):
             for url in ('javascript:alert(1)','//evil.example/report','https://user:secret@example.org/','/\\evil','https://example.org:bad/'):

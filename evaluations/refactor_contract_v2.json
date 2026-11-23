@@ -123,7 +123,7 @@
     }
   },
   "api": {
-    "openapi_sha256": "642c7ff9818ee921dc78dc0e2bd76ecdd87da5c82601ee7e1066408355dbe738",
+    "openapi_sha256": "0ad6081d153f5a5f0cbdc2a14fe27cb455dac10b46b3f91a07f781d018488501",
     "routes": [
       {
         "method": "GET",
@@ -201,6 +201,12 @@
         "method": "PUT",
         "name": "update_directory",
         "path": "/api/admin/report-directory",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "preview_directory",
+        "path": "/api/admin/report-directory/preview",
         "success_status": 200
       },
       {
@@ -627,6 +633,7 @@
         "modelNotice",
         "modelsView",
         "openPublishModel",
+        "previewReportModules",
         "publishBaseUrl",
         "publishDisplayName",
         "publishModelDialog",
@@ -652,6 +659,8 @@
         "refreshRuntime",
         "refreshSharedDocuments",
         "removeReportFolder",
+        "reportAccessPreview",
+        "reportAccessResult",
         "reportDescription",
         "reportDirectoryBody",
         "reportDirectoryCount",
@@ -668,6 +677,8 @@
         "reportFolderParent",
         "reportFolderTree",
         "reportObject",
+        "reportOwnerModule",
+        "reportReaderModules",
         "reportSortOrder",
         "reportTitle",
         "reportUrl",

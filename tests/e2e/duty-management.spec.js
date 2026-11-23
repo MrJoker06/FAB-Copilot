@@ -39,6 +39,24 @@ test('admin report folders persist and manage flat user report links without cha
     await expect(page.locator('.shift-report-card')).toHaveCount(7);
     await expect(page.locator('.shift-report-card').filter({hasText:'当班 SPC 扩展链接'})).toBeVisible();
     await expect(page.locator('[data-report-role]')).toHaveCount(0);
+    await page.goto('/admin');
+    await page.locator('[data-admin-view="reports"]').click();
+    await page.getByRole('button', {name:'工程报表', exact:false}).first().click();
+    await page.locator('#editReportFolder').click();
+    await page.locator('#reportOwnerModule').fill('光刻');
+    await page.locator('#reportReaderModules').fill('质量');
+    await page.locator('#reportFolderForm button[type="submit"]').click();
+    await page.locator('#saveReportDirectory').click();
+    await expect(page.locator('#reportDirectoryNotice')).toContainText('目录已保存');
+    await page.locator('#previewReportModules').fill('质量');
+    await page.locator('#reportAccessPreview button').click();
+    await expect(page.locator('#reportAccessResult')).toContainText('当班 SPC 扩展链接');
+    await page.locator('#previewReportModules').fill('整合');
+    await page.locator('#reportAccessPreview button').click();
+    await expect(page.locator('#reportAccessResult')).toContainText('整合 · 6 份报表');
+    await expect(page.locator('#reportAccessResult')).not.toContainText('当班 SPC 扩展链接');
+    await page.goto('/?view=reports');
+    await expect(page.locator('.shift-report-card')).toHaveCount(6);
     const modelsAfter = await (await page.request.get('/api/admin/models',{headers:adminHeaders})).json();
     expect(modelsAfter).toEqual(modelsBefore);
   } finally {
