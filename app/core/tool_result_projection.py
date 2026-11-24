@@ -21,6 +21,8 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from .lot_commonality_view import MODEL_VIEWS
+
 
 @dataclass(frozen=True)
 class ToolLimit:
@@ -97,7 +99,12 @@ def project_result(tool: str, result: Any) -> tuple[Any, dict[str, Any] | None]:
     """Return ``(prompt_view, truncation_meta)`` for one successful tool result.
 
     ``truncation_meta`` is ``None`` when the result fits the limit unchanged.
+    Lot commonality results get a compact view that states its own omissions;
+    they keep ``None`` meta because the full version stays re-readable by reference.
     """
+    view = MODEL_VIEWS.get(tool)
+    if view is not None and isinstance(result, Mapping):
+        return view(result), None
     limit = TOOL_LIMITS.get(tool)
     if limit is None or not isinstance(result, list) or len(result) <= limit.rows:
         return result, None

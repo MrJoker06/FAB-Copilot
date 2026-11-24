@@ -463,6 +463,11 @@
       "artifact_group": "application_bundle"
     },
     {
+      "path": "app/api/services/analysis_attachment.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
       "path": "app/api/services/chat.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"
@@ -684,6 +689,11 @@
     },
     {
       "path": "app/core/local_model_config.py",
+      "primary_module": "core_contracts_configuration",
+      "artifact_group": "platform_core"
+    },
+    {
+      "path": "app/core/lot_commonality_view.py",
       "primary_module": "core_contracts_configuration",
       "artifact_group": "platform_core"
     },

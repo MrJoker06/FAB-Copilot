@@ -9,6 +9,7 @@ IntentName = Literal[
     "yield_decline",
     "equipment_fault",
     "lot_trace",
+    "lot_commonality",
     "sop_lookup",
     "defect_analysis",
     "fab_diagnostic",

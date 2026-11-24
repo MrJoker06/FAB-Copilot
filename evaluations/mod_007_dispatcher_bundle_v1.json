@@ -40,6 +40,7 @@
         "app/tools/equipment_health/binding.py",
         "app/core/__init__.py",
         "app/core/sqlite_support.py",
+        "app/core/lot_commonality_view.py",
         "app/core/tool_result_projection.py",
         "app/demo_data/tool_sources/equipment_health.py",
         "app/tools/equipment_health/data_source.py",

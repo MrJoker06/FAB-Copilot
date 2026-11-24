@@ -63,6 +63,7 @@ SOURCE_FILES = (
     "app/bootstrap/skill_assembly.py",
     "app/core/__init__.py",
     "app/core/call_scope.py",
+    "app/core/lot_commonality_view.py",
     "app/core/tool_result_projection.py",
     "app/evidence/__init__.py",
     "app/evidence/evidence_truncation.py",

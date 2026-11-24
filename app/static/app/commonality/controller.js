@@ -8,7 +8,7 @@
 
   function createCommonalityController(deps = {}) {
     const {
-      $, escapeHtml: esc, identityHeaders, model = root.FabCommonalityModel,
+      $, escapeHtml: esc, identityHeaders, model = root.FabCommonalityModel, askAssistant, showView,
       fetchImpl = root.fetch?.bind(root), documentImpl = root.document,
     } = deps;
     const document = documentImpl;
@@ -211,11 +211,16 @@
 
     const sampleBadge = () => (ui.result?.sample ? '<span class="lc-sample-badge">合成样例</span>' : '');
     const staleBadge = () => '<span class="lc-stale-badge" data-lc-stale hidden>上次查询</span><span class="lc-warn-badge" data-lc-unavailable hidden>已失效</span>';
+    const askButton = () => {
+      const blocked = ui.result?.sample ? '合成样例未保存到服务端，不能附带给助手' : ui.result?.unavailable ? '该结果已不可读取' : '';
+      return `<button type="button" class="secondary-btn lc-small-btn" data-lc-ask${blocked ? ` disabled title="${esc(blocked)}"` : ' title="把该结果作为引用附带到对话草稿"'}>问助手</button>`;
+    };
+
     function markUnavailable(error) {
       if (ui.result.unavailable) return;
       ui.result.unavailable = true;
       setStatus('该结果已不可读取（已过期、无权访问或所属会话已删除），请重新查询', 'error', failureDetails(error));
-      view().querySelectorAll('[data-lc-count]').forEach(node => { node.disabled = true; });
+      view().querySelectorAll('[data-lc-count], [data-lc-ask]').forEach(node => { node.disabled = true; });
     }
     function drillError(error, kind) {
       const hint = model.isResultUnavailable(error) ? '该结果已不可读取，请重新查询。'
@@ -280,7 +285,7 @@
       const dimensions = DIMENSIONS.filter(item => analysis.candidates.some(candidate => candidate.dimension === item));
       node.hidden = false;
       node.innerHTML = `<section class="panel lc-panel" aria-labelledby="commonalityResultTitle">
-        <div class="panel-heading"><div><h2 id="commonalityResultTitle">共性结果</h2><p>排序只反映主组命中数和未知数，不代表根因判断</p></div><div class="lc-badges">${sampleBadge()}${staleBadge()}${analysis.status === 'partial' ? '<span class="lc-warn-badge">部分返回</span>' : ''}</div></div>
+        <div class="panel-heading"><div><h2 id="commonalityResultTitle">共性结果</h2><p>排序只反映主组命中数和未知数，不代表根因判断</p></div><div class="lc-badges">${sampleBadge()}${staleBadge()}${analysis.status === 'partial' ? '<span class="lc-warn-badge">部分返回</span>' : ''}${askButton()}</div></div>
         <dl class="lc-meta">
           <div><dt>结果引用</dt><dd>${esc(analysis.analysis_ref)}</dd></div>
           <div><dt>状态</dt><dd>${esc(ANALYSIS_STATUS_LABELS[analysis.status] || analysis.status)}</dd></div>
@@ -559,6 +564,10 @@
       $('#commonalityCandidateTable').innerHTML = candidateTableTemplate();
     }
     function onResultsClick(event) {
+      if (event.target.closest('[data-lc-ask]') && ui.result && !ui.result.sample && !ui.result.unavailable) {
+        askAssistant?.(model.assistantDraft(ui.result.analysis));
+        return;
+      }
       const count = event.target.closest('[data-lc-count]');
       if (count) openMembers({ candidateId: count.dataset.candidateId, groupId: count.dataset.groupId, status: count.dataset.status });
     }
@@ -672,6 +681,37 @@
       groupNode(group.key)?.querySelector('textarea')?.focus();
     }
 
+    async function openAnalysis(analysisRef) {
+      showView?.('commonality', { history: 'push' });
+      const shown = ui.result && !ui.result.sample && !ui.result.unavailable && ui.result.analysis.analysis_ref === analysisRef;
+      if (shown && !isStale()) { $('#commonalityResults').scrollIntoView?.({ block: 'start' }); return; }
+      const token = queryGate.begin();
+      setStatus('正在打开对话中的分析结果…', 'info');
+      updateBadges();
+      try {
+        const analysis = await httpClient.readAnalysis(analysisRef);
+        if (!queryGate.isCurrent(token)) return;
+        applyDraft(model.draftFromAnalysis(analysis));
+        ui.result = { analysis, client: httpClient, sample: false, token, inputVersion: ui.inputVersion };
+        ui.filters = { dimension: '', share: '' };
+        ui.members = null; ui.records = null;
+        membersGate.invalidate(); recordsGate.invalidate();
+        const partial = analysis.status === 'partial';
+        setStatus(`已打开分析结果：${analysis.candidates.length} 个共性项；输入区已按该结果回填${partial ? '；部分 lot 资料不足，见组回执' : ''}`, partial ? 'warn' : 'info');
+        renderAll();
+        $('#commonalityResults').scrollIntoView?.({ block: 'start' });
+      } catch (error) {
+        if (!queryGate.isCurrent(token)) return;
+        if (model.isResultUnavailable(error) && ui.result?.analysis.analysis_ref === analysisRef && !ui.result.sample) {
+          markUnavailable(error);
+        } else if (model.isResultUnavailable(error)) {
+          setStatus('该结果已不可读取（已过期、无权访问或所属会话已删除），请重新查询', 'error', failureDetails(error));
+        } else {
+          setStatus(`打开结果失败：${model.errorText(error)}`, 'error', failureDetails(error));
+        }
+        updateBadges();
+      }
+    }
     function bindCommonalityEvents() {
       if (bound || !$('#commonalityView')) return;
       bound = true;
@@ -694,7 +734,7 @@
       document.documentElement.dataset.commonalityReady = 'true';
     }
 
-    return { bindCommonalityEvents };
+    return { bindCommonalityEvents, openAnalysis };
   }
 
   return { createCommonalityController };

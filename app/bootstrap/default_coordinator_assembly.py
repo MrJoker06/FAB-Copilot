@@ -52,6 +52,7 @@ def build_default_coordinator_dependencies(
         run_id: str,
     ) -> DefaultRunTools:
         # Import lazily so historical explicit assembly remains importable alone.
+        from ..agent_runtime.result_access_run import current_result_access
         from .default_tool_assembly import build_default_run_tools
         from .tool_bindings import _LEGACY_BINDINGS
 
@@ -64,6 +65,7 @@ def build_default_coordinator_dependencies(
             usable_knowledge_result=namespace["_usable_knowledge_result"],
             handlers=namespace["TOOL_HANDLERS"],
             baseline_handlers=_LEGACY_BINDINGS,
+            session_id=getattr(current_result_access(), "session_id", None),
         )
 
     async def offline_tool_runner(
@@ -93,6 +95,8 @@ def build_default_coordinator_dependencies(
                 "conversation",
                 "unknown",
                 "ambiguous",
+                # Lot groups come from the user; there is no offline default query.
+                "lot_commonality",
             }
             and state.execution_plan.status != "clarification_required"
         ):

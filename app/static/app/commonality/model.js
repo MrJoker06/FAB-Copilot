@@ -351,6 +351,45 @@
     };
   }
 
+  // Turns a server instant back into the wall-clock text a datetime-local input accepts.
+  function wallClock(value, timezone = DEFAULT_TIMEZONE) {
+    const instant = Date.parse(String(value || ''));
+    const offset = String(TIMEZONE_OFFSETS[timezone] || '').match(/^([+-])(\d{2}):(\d{2})$/);
+    if (Number.isNaN(instant) || !offset) return '';
+    const minutes = (offset[1] === '-' ? -1 : 1) * (Number(offset[2]) * 60 + Number(offset[3]));
+    const local = new Date(instant + minutes * 60000).toISOString().slice(0, 19);
+    return local.endsWith(':00') ? local.slice(0, 16) : local;
+  }
+
+  // Rebuilds the editor from a stored analysis; duplicates and the description are not part of the stored summary.
+  function draftFromAnalysis(analysis) {
+    const timezone = analysis.timezone || DEFAULT_TIMEZONE;
+    const range = analysis.scope?.time_range, cutoff = analysis.scope?.cutoff;
+    return {
+      groups: analysis.groups.map(group => ({ name: group.name, role: group.role, text: (group.lot_states || []).map(lot => lot.lot_id).join('\n') })),
+      dimensions: [...(analysis.dimensions || [])],
+      scope: {
+        timeStart: wallClock(range?.start, timezone), timeEnd: wallClock(range?.end, timezone),
+        cutoffMode: cutoff?.mode || 'none', cutoffAt: cutoff?.mode === 'time' ? wallClock(cutoff.at, timezone) : '',
+        cutoffOperation: cutoff?.mode === 'operation' ? cutoff.operation_key : '',
+        cutoffOccurrence: cutoff?.mode === 'operation' && cutoff.occurrence ? String(cutoff.occurrence) : '',
+      },
+      description: '',
+      timezone,
+    };
+  }
+
+  function assistantDraft(analysis) {
+    const primary = analysis.groups.find(group => group.role === 'primary') || analysis.groups[0];
+    const count = `${analysis.candidates.length}${analysis.candidates_truncated ? '+' : ''}`;
+    const label = `${primary?.name || ROLE_LABELS.primary} ${primary?.unique_count ?? 0} 个 lot · ${count} 个共性项`;
+    return {
+      analysisRef: analysis.analysis_ref,
+      label,
+      message: `请解读附带的 Lot 共性分析结果（${label}）：哪些共同经历最值得优先排查，依据是什么，未知项和还需确认的信息有哪些？`,
+    };
+  }
+
   function candidateOperations(candidate) {
     const subject = candidate?.subject || {};
     if (candidate?.dimension === 'path_adjacent') return [subject.from_operation_key, subject.to_operation_key].filter(Boolean);
@@ -380,7 +419,7 @@
     GRANULARITY_LABELS, COVERAGE_LABELS, ANALYSIS_STATUS_LABELS, CommonalityClientError,
     splitLotInput, summarizeLots, describeGroupSummary, findOverlaps, assignGroupIds, isValidGroupId,
     localDateTime, buildCutoff, validateDraft, buildCreateRequest, describeScope, reasonText, isResultUnavailable, isServiceMissing, errorText, createLatestGate,
-    createHttpClient, createSampleClient, validateSampleDocument, draftFromRequest, candidateOperations,
+    createHttpClient, createSampleClient, validateSampleDocument, draftFromRequest, wallClock, draftFromAnalysis, assistantDraft, candidateOperations,
     passesByLot, splitPathOrder,
   };
 });

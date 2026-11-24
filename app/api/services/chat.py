@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 
 from ...memory_system.ports import HistoryReader
+from .analysis_attachment import analysis_references, attached_question
 
 
 class ChatService:
@@ -34,10 +35,12 @@ class ChatService:
         if cached:
             return session_id, [], cached, None
         history = self._history_reader.read(session_id)
+        attached = getattr(request, "analysis_ref", None)
         message = runtime["append_message"](
             session_id,
             "user",
             request.message,
+            {"analysis_ref": attached} if attached else None,
             client_message_id=request.client_message_id,
         )
         if (
@@ -108,6 +111,7 @@ class ChatService:
             thinking_effort, thinking_dialect = "off", ""
         else:
             principal, selected_model, thinking_effort, thinking_dialect = validated
+        question = attached_question(runtime, request, principal)
         session_id, history, cached, user_message = runtime["_prepare_chat"](request)
         if cached:
             cached["session_id"] = session_id
@@ -124,7 +128,7 @@ class ChatService:
         )
         try:
             result = await runtime["run_agent"](
-                request.message,
+                question,
                 history or [item.model_dump() for item in request.history],
                 recorder.observe,
                 thinking=thinking_effort != "off",
@@ -135,6 +139,9 @@ class ChatService:
                 **({"result_ref": request.tool_result_ref, "result_cursor": request.tool_result_cursor} if request.tool_result_ref else {}),
             )
             recorder.complete(result)
+            references = analysis_references(result, getattr(request, "analysis_ref", None))
+            if references:
+                result["analysis_refs"] = references
             result["session_id"] = session_id
             result["request_id"] = runtime["current_request_id"]()
             result["client_message_id"] = request.client_message_id

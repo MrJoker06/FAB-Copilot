@@ -20,11 +20,14 @@ class ChatRequest(BaseModel):
     thinking_effort: ThinkingEffort | None = None
     tool_result_ref: str | None = Field(default=None, pattern=r"^tr_[a-f0-9]{32}$")
     tool_result_cursor: str | None = Field(default=None, min_length=1, max_length=2048)
+    analysis_ref: str | None = Field(default=None, pattern=r"^lca_[a-f0-9]{32}$")
 
     @model_validator(mode="after")
     def result_cursor_requires_reference(self):
         if self.tool_result_cursor is not None and self.tool_result_ref is None:
             raise ValueError("tool_result_cursor requires tool_result_ref")
+        if self.analysis_ref is not None and self.tool_result_ref is not None:
+            raise ValueError("analysis_ref cannot be combined with tool_result_ref")
         return self
 
 

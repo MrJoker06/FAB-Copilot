@@ -25,6 +25,7 @@ from app.bootstrap.tool_catalog import TOOLS
 from app.bootstrap.tool_definitions import BUSINESS_TOOL_DEFINITIONS
 from app.demo_data.synthetic_fab import SyntheticFabProvider
 from app.tools.enterprise_data.contracts import EnterpriseDataError
+from app.tools.lot_commonality.binding import LOT_COMMONALITY_DEFINITIONS
 from app.planning_runtime.contracts import (
     AnalysisScopeContract,
     ExecutionPlan,
@@ -350,6 +351,70 @@ class DefaultToolAssemblyTests(unittest.TestCase):
             )
         self.assertEqual(result.status, ToolStatus.DENIED)
         self.assertEqual(guard.total_calls, 0)
+
+    def test_lot_commonality_route_installs_only_its_tools_bound_to_the_session(self) -> None:
+        reference = "lca_" + "a" * 32
+        calls = []
+
+        class _Service:
+            def create(self, body, principal, *, session_id):
+                calls.append((body["groups"][0]["lot_ids"], principal.user_id, session_id))
+                return {"analysis_ref": reference, "source": {"kind": "sqlite"}}
+
+        plan = replace(
+            _plan("create_lot_commonality_analysis"),
+            route_intent="lot_commonality",
+            status="unsupported",
+        )
+        guard = ToolLoopGuard(plan)
+        with (
+            patch("sqlite3.connect", side_effect=AssertionError("business source opened")),
+            patch(
+                "app.bootstrap.lot_commonality_assembly.lot_commonality_service",
+                return_value=_Service(),
+            ),
+        ):
+            run = build_default_run_tools(
+                settings=self.settings,
+                principal=self.principal,
+                plan=plan,
+                guard=guard,
+                run_id="lot-commonality",
+                usable_knowledge_result=lambda _q, _r: True,
+                session_id="session-1",
+            )
+            names = frozenset(LOT_COMMONALITY_DEFINITIONS)
+            self.assertEqual(run.dispatcher.allowed_tools, names)
+            self.assertEqual(
+                {item["function"]["name"] for item in run.dispatcher.registry.model_tools},
+                set(names),
+            )
+            denied = asyncio.run(
+                run.dispatcher.dispatch("get_fab_overview", "{}", run.context.for_tool_call("forged"))
+            )
+            arguments = {
+                "groups": [{"group_id": "main", "name": "异常", "role": "primary", "lot_ids": ["L1-001", "L1-002"]}],
+                "dimensions": ["chamber"],
+                "scope": {"time_range": None, "cutoff": None},
+                "timezone": "Asia/Shanghai",
+            }
+            created = asyncio.run(
+                run.dispatcher.dispatch(
+                    "create_lot_commonality_analysis",
+                    json.dumps(arguments),
+                    run.context.for_tool_call("create"),
+                )
+            )
+        self.assertEqual(denied.status, ToolStatus.DENIED)
+        self.assertEqual(created.status, ToolStatus.SUCCEEDED)
+        self.assertEqual(created.sources[0].source_ref, reference)
+        self.assertEqual(calls, [(["L1-001", "L1-002"], "analyst", "session-1")])
+
+    def test_other_routes_keep_the_default_catalog_without_lot_commonality(self) -> None:
+        run = self._build()
+        names = {item["function"]["name"] for item in run.dispatcher.registry.model_tools}
+        self.assertEqual(len(names), 21)
+        self.assertFalse(names & set(LOT_COMMONALITY_DEFINITIONS))
 
     def test_sql_is_not_resolvable_even_if_legacy_budget_mentions_it(self) -> None:
         run = self._build(tool="query_manufacturing_data")

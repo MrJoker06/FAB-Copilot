@@ -3,6 +3,8 @@
   "modules": {
     "tests.system.test_data_reports": {"warning_seconds": 45, "fail_seconds": 75},
     "tests.system.test_knowledge_uploads": {"warning_seconds": 45, "fail_seconds": 75},
+    "tests.system.test_lot_commonality_api": {"warning_seconds": 30, "fail_seconds": 60},
+    "tests.system.test_lot_commonality_chat": {"warning_seconds": 45, "fail_seconds": 75},
     "tests.system.test_http_contracts": {"warning_seconds": 60, "fail_seconds": 90},
     "tests.system.test_model_governance": {"warning_seconds": 45, "fail_seconds": 75},
     "tests.system.test_sessions_streaming": {"warning_seconds": 50, "fail_seconds": 80}

@@ -1,4 +1,4 @@
-"""Optional Agent tools over the lot commonality service; not part of the default catalog.
+"""Agent tools over the lot commonality service, exposed only on the lot_commonality route.
 
 The tools reuse :class:`LotCommonalityService`, so an ``analysis_ref`` created by
 the page API or by a tool reads back the same version through either entry.
@@ -112,7 +112,7 @@ class CreateAnalysisInput:
         )
         cutoff = {
             "type": ["object", "null"],
-            "description": "mode=time 时给 at；mode=operation 时给 operation_key，可选 occurrence",
+            "description": "异常截止；不设截止时为 null，仅用户明确要求截止时间或工序时才设置。mode=time 时给 at；mode=operation 时给 operation_key，可选 occurrence",
             "properties": {
                 "mode": {"type": "string", "enum": ["time", "operation"]},
                 "at": _OFFSET_TIME,
@@ -125,6 +125,7 @@ class CreateAnalysisInput:
         }
         time_range = {
             "type": ["object", "null"],
+            "description": "加工时间范围（含开始、不含结束）；不限时间时为 null",
             "properties": {"start": _OFFSET_TIME, "end": _OFFSET_TIME},
             "required": ["start", "end"],
             "additionalProperties": False,
@@ -204,7 +205,7 @@ LOT_COMMONALITY_DEFINITIONS = {
     CREATE_TOOL: ToolDefinition(
         CREATE_TOOL,
         _VERSION,
-        "按明确给出的 lot 分组创建 Lot 相关性分析，返回固定版本引用 analysis_ref、各组计数与候选共同设备/腔体/路径。不推断 lot，不生成 SQL。",
+        "按用户明确给出的 lot 分组创建 Lot 共性分析：至少一个 role=primary 的主组，可加对照组；只用用户写出的 lot，不推断、不补全 lot，不生成 SQL。返回固定版本引用 analysis_ref、各组计数与排序靠前的共同设备/腔体/recipe/路径候选。用户未明确给出时间范围或异常截止时，scope.time_range 和 scope.cutoff 都必须为 null，不要自行附加截止条件。",
         CreateAnalysisInput,
         _validate_output,
         title="创建 Lot 相关性分析",

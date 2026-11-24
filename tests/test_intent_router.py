@@ -74,6 +74,30 @@ class IntentRouterTests(unittest.TestCase):
                 self.assertEqual(route.intent, expected_intent)
                 self.assertIn(expected_requirement, route.data_requirements)
 
+    def test_lot_commonality_needs_both_a_lot_subject_and_a_commonality_goal(self):
+        for question in (
+            "分析 L241226-00001、L241226-00002、L241226-00003 这几个 lot 的共性",
+            "这几个批次有什么共同点：L241226-00004 L241226-00005",
+            "Lot commonality for L241226-00001 and L241226-00002",
+            "请解读这次 Lot 共性分析，哪些候选值得优先排查？",
+        ):
+            with self.subTest(question=question):
+                route = route_question(question, current_date=date(2026, 11, 21))
+                self.assertEqual(route.intent, "lot_commonality")
+                self.assertEqual(route.candidate_intents, ("lot_commonality",))
+                self.assertEqual(
+                    route.data_requirements,
+                    (
+                        "create_lot_commonality_analysis",
+                        "read_lot_commonality_members",
+                        "read_lot_commonality_records",
+                    ),
+                )
+        lot_only = route_question("追踪批次 L260708-02460 的完整履历", current_date=date(2026, 7, 18))
+        self.assertEqual(lot_only.intent, "lot_trace")
+        goal_only = route_question("CMP 良率下降的共性原因", current_date=date(2026, 7, 18))
+        self.assertNotEqual(goal_only.intent, "lot_commonality")
+
     def test_routes_open_manufacturing_diagnostics_without_clarification(self):
         questions = (
             "关于目前的制造数据你有什么改进建议",

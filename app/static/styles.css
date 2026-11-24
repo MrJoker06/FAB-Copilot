@@ -360,6 +360,11 @@ tbody tr:hover { background: #f8fbfa; }
 .chat-form { flex: 0 0 auto; padding: 12px; border-top: 1px solid var(--line); background: #fafcfb; }
 .chat-form textarea { width: 100%; resize: none; border: 1px solid #cfd9d6; border-radius: 4px; padding: 9px 10px; outline: none; color: var(--ink); font-size: 12px; line-height: 1.45; }
 .chat-form textarea:focus { border-color: #67a99a; box-shadow: 0 0 0 2px rgba(8,127,112,.08); }
+.chat-attachment { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; padding: 5px 8px; border: 1px solid #bcd9d1; border-radius: 4px; color: #2f5a51; background: #eef7f4; font-size: 10px; }.chat-attachment[hidden] { display: none; }
+.chat-attachment-kind { flex: 0 0 auto; font-weight: 700; }.chat-attachment-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-attachment-remove { margin-left: auto; padding: 2px 6px; border: 1px solid #a9cbc2; border-radius: 3px; color: #2f5a51; background: #fff; font-size: 9px; cursor: pointer; }
+.message-attachment { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 4px; color: #54706a; font-size: 9px; }.message-attachment code { font-size: 9px; }.message-attachment .source-link { padding: 0; border: 0; background: transparent; font-size: 9px; }
+.analysis-refs p { margin: 7px 0 0; }.analysis-refs code { font-size: 9px; }
 .chat-actions { margin-top: 7px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .chat-actions span { color: #62716c; font-size: 8px; }
 .chat-action-buttons { display: flex; align-items: center; gap: 7px; }

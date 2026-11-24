@@ -45,6 +45,7 @@ const sourcePresenter = globalThis.FabSourcePresenter;
 const presenter = globalThis.FabChatPresenter.createChatPresenter({
   $, escapeHtml, sourcePresenter, toolLabels,
   onReadResult: (resultRef, resultCursor) => chat.sendChat('查看之前保存的工具结果', {resultRef, resultCursor, effort:'off'}),
+  onOpenAnalysis: analysisRef => commonality.openAnalysis(analysisRef),
 });
 let layout;
 
@@ -70,6 +71,8 @@ const shift = globalThis.FabShiftController.createShiftController({
 });
 const commonality = globalThis.FabCommonalityController.createCommonalityController({
   $, escapeHtml, identityHeaders,
+  showView: (...args) => layout.showView(...args),
+  askAssistant: draft => { layout.setAgentOpen(true); chat.attachAnalysis(draft); },
 });
 const sessions = globalThis.FabSessionController.createSessionController({
   state, $, escapeHtml, api, showToast, sourcePresenter, presenter,

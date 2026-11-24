@@ -46,7 +46,7 @@ class LoopDispatcherPortableTests(unittest.TestCase):
         files = (
             tuple(baseline) + RUNTIME_FILES + MODERN_FILES + READY_FILES + LOOP_FILES
         )
-        self.assertEqual((len(files), len(set(files))), (63, 63))
+        self.assertEqual((len(files), len(set(files))), (64, 64))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

@@ -123,6 +123,9 @@ class _LotView:
     successors: dict[str, object] = field(default_factory=dict)
     state: str = "complete"
     state_reasons: tuple[str, ...] = ()
+    # In-scope passes per operation, in pass order; candidate checks look up one
+    # operation instead of scanning every pass of the lot.
+    by_operation: dict[str, tuple[dict[str, object], ...]] = field(default_factory=dict)
 
 
 def _refs(passes) -> tuple[str, ...]:
@@ -243,6 +246,9 @@ def _view(lot_id: str, history: LotHistory | None, scope: Mapping[str, object]) 
     if not order_complete and (null_seq or coverage["gaps"] or coverage["order"] != "complete"):
         codes.add("SEQUENCE_UNKNOWN")
     order_unknown = tuple(dict.fromkeys([*gap_refs, *null_seq, *scope_unknown]))
+    by_operation: dict[str, list[dict[str, object]]] = {}
+    for item in passes:
+        by_operation.setdefault(item["operation_key"], []).append(item)
     return _LotView(
         lot_id,
         True,
@@ -254,6 +260,7 @@ def _view(lot_id: str, history: LotHistory | None, scope: Mapping[str, object]) 
         successors,
         "complete" if not codes else "incomplete",
         tuple(sorted(codes)),
+        {key: tuple(items) for key, items in by_operation.items()},
     )
 
 
@@ -262,7 +269,7 @@ def _incomplete(view: _LotView, refs=()) -> Outcome:
 
 
 def _eval_value(view: _LotView, operation_key: str, field_name: str, value: str) -> Outcome:
-    at = [item for item in view.passes if item["operation_key"] == operation_key]
+    at = view.by_operation.get(operation_key, ())
     hits = [item for item in at if item[field_name] == value]
     if hits:
         return Outcome(HIT, _refs(hits))
@@ -277,7 +284,7 @@ def _eval_value(view: _LotView, operation_key: str, field_name: str, value: str)
 
 
 def _eval_chamber(view: _LotView, operation_key: str, equipment_id: str, chamber_key: str) -> Outcome:
-    at = [item for item in view.passes if item["operation_key"] == operation_key]
+    at = view.by_operation.get(operation_key, ())
     on_tool = [item for item in at if item["equipment_id"] == equipment_id]
     hits = [
         item
@@ -303,7 +310,7 @@ def _eval_chamber(view: _LotView, operation_key: str, equipment_id: str, chamber
 
 
 def _eval_path(view: _LotView, from_key: str, to_key: str) -> Outcome:
-    starts = [item for item in view.passes if item["operation_key"] == from_key]
+    starts = view.by_operation.get(from_key, ())
     hit_refs: list[str] = []
     for item in starts:
         successor = view.successors.get(item["record_ref"], _NO_SUCCESSOR)
@@ -418,6 +425,12 @@ def _counts(outcomes) -> dict[str, int]:
 
 
 class _Evaluation:
+    """Lot views and candidate keys of one snapshot; counts are computed on demand.
+
+    Ranking needs only primary-group counts, so the other groups are evaluated
+    just for the candidates a summary returns or a read names.
+    """
+
     def __init__(self, snapshot: AnalysisSnapshot) -> None:
         self.snapshot = snapshot
         request = snapshot.request
@@ -432,32 +445,52 @@ class _Evaluation:
             lot: _view(lot, snapshot.batch.lots.get(lot), request["scope"])
             for lot in self.group_lots[UNION_GROUP]
         }
-        primary = next(group["group_id"] for group in self.groups if group["role"] == "primary")
+        self.primary = next(group["group_id"] for group in self.groups if group["role"] == "primary")
+        self.group_ids = [*(group["group_id"] for group in self.groups), UNION_GROUP]
         keys: set[tuple[str, tuple[str, ...]]] = set()
-        for lot in self.group_lots[primary]:
+        for lot in self.group_lots[self.primary]:
             keys |= _subject_keys(self.views[lot], request["dimensions"])
-        candidates = []
-        for dimension, key in keys:
-            candidate = _candidate(dimension, key)
-            counts = {
-                group_id: _counts(_evaluate(self.views[lot], candidate) for lot in self.group_lots[group_id])
-                for group_id in [*(group["group_id"] for group in self.groups), UNION_GROUP]
-            }
-            if counts[primary]["hit"] < 2:
-                continue
-            candidate["all_shared"] = counts[primary]["hit"] == counts[primary]["denominator"]
-            candidate["counts"] = counts
-            candidates.append(candidate)
-        candidates.sort(
+        self.templates = {
+            candidate["candidate_id"]: candidate
+            for candidate in (_candidate(dimension, key) for dimension, key in keys)
+        }
+
+    def _outcomes(self, candidate: Mapping[str, object], group_id: str) -> dict[str, Outcome]:
+        return {lot: _evaluate(self.views[lot], candidate) for lot in self.group_lots[group_id]}
+
+    def _counted(self, template: Mapping[str, object]) -> dict[str, object]:
+        outcomes = self._outcomes(template, UNION_GROUP)
+        counts = {
+            group_id: _counts(outcomes[lot] for lot in self.group_lots[group_id])
+            for group_id in self.group_ids
+        }
+        primary = counts[self.primary]
+        return dict(template, all_shared=primary["hit"] == primary["denominator"], counts=counts)
+
+    def candidate(self, candidate_id: object) -> dict[str, object] | None:
+        """A candidate of this analysis: a primary key that at least two primary lots hit."""
+        template = self.templates.get(candidate_id) if isinstance(candidate_id, str) else None
+        if template is None:
+            return None
+        hits = sum(item.status == HIT for item in self._outcomes(template, self.primary).values())
+        return self._counted(template) if hits >= 2 else None
+
+    def ranked(self, limit: int) -> tuple[list[dict[str, object]], bool]:
+        """Return the first ``limit`` candidates in rank order and whether more exist."""
+        survivors = []
+        for template in self.templates.values():
+            primary = _counts(self._outcomes(template, self.primary).values())
+            if primary["hit"] >= 2:
+                survivors.append((primary, template))
+        survivors.sort(
             key=lambda item: (
-                -item["counts"][primary]["hit"],
-                item["counts"][primary]["unknown"],
-                DIMENSION_ORDER[item["dimension"]],
-                item["candidate_id"],
+                -item[0]["hit"],
+                item[0]["unknown"],
+                DIMENSION_ORDER[item[1]["dimension"]],
+                item[1]["candidate_id"],
             )
         )
-        self.candidates = {item["candidate_id"]: item for item in candidates}
-
+        return [self._counted(template) for _primary, template in survivors[:limit]], len(survivors) > limit
 
 def _check_batch(batch: LotHistoryBatch, requested: tuple[str, ...], limits: AnalysisLimits) -> None:
     if not isinstance(batch, LotHistoryBatch) or set(batch.lots) - set(requested):
@@ -552,7 +585,7 @@ def summarize(
         or history.coverage["records"] == "failed"
         for history in snapshot.batch.lots.values()
     )
-    candidates = list(evaluation.candidates.values())
+    candidates, truncated = evaluation.ranked(snapshot.limits.max_candidates)
     return {
         "analysis_ref": analysis_ref,
         "status": "partial" if partial else "complete",
@@ -566,8 +599,8 @@ def summarize(
         "overlaps": overlaps,
         "union": {"unique_count": len(evaluation.group_lots[UNION_GROUP])},
         "limits": snapshot.limits.to_dict(),
-        "candidates": candidates[: snapshot.limits.max_candidates],
-        "candidates_truncated": len(candidates) > snapshot.limits.max_candidates,
+        "candidates": candidates,
+        "candidates_truncated": truncated,
     }
 
 
@@ -674,7 +707,7 @@ def _conditions(evaluation: _Evaluation, value: object, match_scope: object) -> 
     parsed: list[dict[str, object]] = []
     for item in value:
         if isinstance(item, Mapping) and set(item) == {"candidate_id"}:
-            candidate = evaluation.candidates.get(item["candidate_id"])
+            candidate = evaluation.candidate(item["candidate_id"])
             if candidate is None:
                 raise LotCommonalityInputError("candidate_id 不属于本次分析。")
             if match_scope == "same_pass" and candidate["dimension"] not in PASS_DIMENSIONS:
@@ -768,7 +801,7 @@ def read_records(
     candidate_id = query.get("candidate_id")
     candidate = None
     if candidate_id is not None:
-        candidate = evaluation.candidates.get(candidate_id)
+        candidate = evaluation.candidate(candidate_id)
         if candidate is None:
             raise LotCommonalityInputError("candidate_id 不属于本次分析。")
     limit = _limit(query.get("limit"), snapshot.limits)

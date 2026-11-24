@@ -36,6 +36,10 @@ from app.tools.enterprise_data.binding import (
 )
 from app.tools.enterprise_data.contracts import EnterpriseWindow
 from app.tools.equipment_health.binding import create_equipment_health_binding
+from app.tools.lot_commonality.binding import (
+    LOT_COMMONALITY_DEFINITIONS,
+    create_lot_commonality_bindings,
+)
 from app.tools.named_queries.binding import create_named_query_bindings
 from app.tools.operational_reports.binding import (
     create_defect_pareto_binding,
@@ -67,6 +71,15 @@ _NATIVE_CATALOG_JSON = json.dumps(
 
 _ALL_CAPABILITIES = frozenset(_DECLARED_DEFINITIONS)
 _KNOWLEDGE_CAPABILITIES = frozenset({"search_knowledge"})
+# Lot commonality is a separate profile: only its route sees these tools, and
+# the 21-tool default catalog of every other route stays unchanged.
+_LOT_COMMONALITY_CAPABILITIES = frozenset(LOT_COMMONALITY_DEFINITIONS)
+_PROFILE_DEFINITIONS = {**_DECLARED_DEFINITIONS, **LOT_COMMONALITY_DEFINITIONS}
+_LOT_COMMONALITY_CATALOG_JSON = json.dumps(
+    [model_function_view(definition) for definition in LOT_COMMONALITY_DEFINITIONS.values()],
+    ensure_ascii=False,
+    separators=(",", ":"),
+)
 _KNOWLEDGE_CATALOG_JSON = json.dumps(
     [
         item
@@ -151,25 +164,26 @@ class _RunRegistry(ToolRegistry):
         if self._native_bindings or self._model_tools or self.legacy_handlers:
             raise RuntimeError("run registry is already initialized")
         capabilities = _ALL_CAPABILITIES if capabilities is None else capabilities
-        if capabilities not in (_ALL_CAPABILITIES, _KNOWLEDGE_CAPABILITIES):
+        catalogs = {
+            _ALL_CAPABILITIES: _NATIVE_CATALOG_JSON,
+            _KNOWLEDGE_CAPABILITIES: _KNOWLEDGE_CATALOG_JSON,
+            _LOT_COMMONALITY_CAPABILITIES: _LOT_COMMONALITY_CATALOG_JSON,
+        }
+        if capabilities not in catalogs:
             raise ValueError("unsupported default capability profile")
         native = {}
         for binding in bindings:
             if not isinstance(binding, ToolBinding):
                 raise TypeError("default native binding is invalid")
             name = binding.definition.name
-            if name in native or binding.definition is not _DECLARED_DEFINITIONS.get(
+            if name in native or binding.definition is not _PROFILE_DEFINITIONS.get(
                 name
             ):
                 raise ValueError("default binding must use its declared definition")
             native[name] = binding
         if native.keys() != capabilities:
             raise ValueError("default native binding set is incomplete")
-        catalog_json = (
-            _KNOWLEDGE_CATALOG_JSON
-            if capabilities == _KNOWLEDGE_CAPABILITIES
-            else _NATIVE_CATALOG_JSON
-        )
+        catalog_json = catalogs[capabilities]
         catalog = json.loads(catalog_json) if self._catalog_exposed else None
         self._native_bindings.update(native)
         self._catalog_json = catalog_json
@@ -273,6 +287,7 @@ def build_default_run_tools(
     usable_knowledge_result: Callable[[str, dict[str, object]], bool],
     handlers: Mapping[str, Callable[..., Any]] | None = None,
     baseline_handlers: Mapping[str, Callable[..., Any]] | None = None,
+    session_id: str | None = None,
 ) -> DefaultRunTools:
     """Build native bindings lazily; legacy functions are an explicit live-patch bridge."""
     from ..agent_runtime.tools.tool_registry import DEFAULT_TOOL_REGISTRY
@@ -361,14 +376,22 @@ def build_default_run_tools(
     knowledge = _LazyPort(
         lambda: create_runtime_knowledge_port(settings=settings, principal=principal)
     )
-    declared = (
-        _KNOWLEDGE_CAPABILITIES
-        if plan.route_intent in {"general_knowledge", "sop_lookup"}
-        else _ALL_CAPABILITIES
-    )
+    if plan.route_intent in {"general_knowledge", "sop_lookup"}:
+        declared = _KNOWLEDGE_CAPABILITIES
+    elif plan.route_intent == "lot_commonality":
+        declared = _LOT_COMMONALITY_CAPABILITIES
+    else:
+        declared = _ALL_CAPABILITIES
     if declared == _KNOWLEDGE_CAPABILITIES:
         bindings = (
             create_knowledge_search_binding(knowledge, default_tenant_id=tenant),
+        )
+    elif declared == _LOT_COMMONALITY_CAPABILITIES:
+        from .lot_commonality_assembly import lot_commonality_service
+
+        # Analyses created in a chat belong to its Session and are revoked with it.
+        bindings = create_lot_commonality_bindings(
+            lot_commonality_service(), session_id=session_id
         )
     else:
         bindings = (

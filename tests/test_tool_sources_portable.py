@@ -69,6 +69,7 @@ SOURCE_FILES = (
     "app/bootstrap/tool_sources_demo.py",
     "app/core/__init__.py",
     "app/core/sqlite_support.py",
+    "app/core/lot_commonality_view.py",
     "app/core/tool_result_projection.py",
     "app/tools/knowledge_search/backend_search.py",
     "app/demo_data/tool_sources/knowledge_search.py",

@@ -218,3 +218,32 @@ test('reason codes, path order and candidate stations are presented from contrac
   assert.deepEqual(model.candidateOperations(candidates.find(item => item.dimension === 'path_adjacent')), ['GATE/CLEAN', 'GATE/ETCH']);
   assert.deepEqual(model.candidateOperations(candidates.find(item => item.dimension === 'chamber')), ['GATE/ETCH']);
 });
+
+test('stored analysis rebuilds the editor in wall-clock time and drafts a question for the assistant', () => {
+  const analysis = {
+    ...examples.create_analysis.response,
+    scope: {
+      time_range: { start: '2026-11-10T00:00:00Z', end: '2026-11-11T08:30:15+08:00' },
+      cutoff: { mode: 'operation', operation_key: 'GATE/ETCH', occurrence: 2, per_lot: {} },
+    },
+  };
+  const draft = model.draftFromAnalysis(analysis);
+  assert.deepEqual(draft.groups.map(group => group.role), analysis.groups.map(group => group.role));
+  assert.equal(draft.groups[0].text, analysis.groups[0].lot_states.map(lot => lot.lot_id).join('\n'));
+  assert.deepEqual(draft.scope, {
+    timeStart: '2026-11-10T08:00', timeEnd: '2026-11-11T08:30:15',
+    cutoffMode: 'operation', cutoffAt: '', cutoffOperation: 'GATE/ETCH', cutoffOccurrence: '2',
+  });
+  const { errors, request } = model.buildCreateRequest(draft);
+  assert.deepEqual(errors, []);
+  assert.equal(request.scope.time_range.start, '2026-11-10T08:00:00+08:00');
+  assert.equal(model.wallClock('2026-11-10T09:30:00+08:00', 'Europe/Paris'), '');
+  assert.equal(model.wallClock('not a time'), '');
+
+  const ask = model.assistantDraft(examples.create_analysis.response);
+  const primary = examples.create_analysis.response.groups[0];
+  assert.equal(ask.analysisRef, REF);
+  assert.equal(ask.label, `${primary.name} ${primary.unique_count} 个 lot · ${examples.create_analysis.response.candidates.length} 个共性项`);
+  assert.ok(ask.message.includes(ask.label));
+  assert.ok(!ask.message.includes(REF), 'the reference travels as a structured field, not in the message');
+});

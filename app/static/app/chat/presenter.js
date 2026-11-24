@@ -5,7 +5,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
   function createChatPresenter(deps = {}) {
     const {
-      $, escapeHtml, sourcePresenter, toolLabels, onReadResult,
+      $, escapeHtml, sourcePresenter, toolLabels, onReadResult, onOpenAnalysis,
       windowImpl = root, documentImpl = root.document, navigatorImpl = root.navigator,
     } = deps;
     const window = windowImpl;
@@ -150,6 +150,19 @@
   }
 
 
+  const ANALYSIS_ORIGIN_LABELS = { attached: '本轮附带', created: '本轮创建', read: '本轮读取' };
+  function openAnalysisButton(analysisRef) {
+    return `<button type="button" class="source-link" data-open-analysis="${escapeHtml(analysisRef)}">在共性分析页打开</button>`;
+  }
+  function renderAnalysisRefs(references) {
+    const items = (Array.isArray(references) ? references : []).filter(item => typeof item?.analysis_ref === 'string');
+    if (!items.length) return '';
+    return `<section class="source-list analysis-refs" aria-label="共性分析结果">${items.map(item => `<p data-analysis-origin="${escapeHtml(item.origin || '')}">${escapeHtml(ANALYSIS_ORIGIN_LABELS[item.origin] || '相关')}的共性分析 <code>${escapeHtml(item.analysis_ref)}</code> ${openAnalysisButton(item.analysis_ref)}</p>`).join('')}</section>`;
+  }
+  function bindOpenAnalysis(el) {
+    for (const button of el.querySelectorAll?.('[data-open-analysis]') || []) button.addEventListener('click', () => onOpenAnalysis?.(button.dataset.openAnalysis));
+  }
+
   function renderAssistantInto(el, content, extra = {}) {
     const sources = extra.sources || [];
     const renderedContent = renderMarkdown(sourcePresenter.stripSourceAppendix(content), sourceReferenceMap(sources));
@@ -160,8 +173,9 @@
     const resultPanel = notices.length ? `<section class="source-list" aria-label="工具结果内容状态">${notices.map(item => `<p data-result-state="${escapeHtml(item.status)}">${escapeHtml(item.message)}${item.queried_at ? ` · 查询时间 ${escapeHtml(item.queried_at)}` : ''}${item.result_ref && item.status === 'saved' ? ` <button type="button" class="source-link" data-read-result="${escapeHtml(item.result_ref)}">查看已保存结果</button>` : ''}</p>`).join('')}</section>` : '';
     const page = extra.tool_result_page;
     const nextPage = page?.has_more && page.next_cursor ? `<button type="button" class="source-link" data-read-result="${escapeHtml(page.result_ref)}" data-result-cursor="${escapeHtml(page.next_cursor)}">下一页已保存结果</button>` : '';
-    el.innerHTML = `<div class="message-meta"><div class="message-label">值班智能助手</div></div>${renderToolTrace(extra.tool_trace, extra.run_id)}${resultPanel}<div class="message-content markdown-content">${renderedContent}</div>${nextPage}<div class="message-actions">${copyButton}</div>${sourcePanel}`;
+    el.innerHTML = `<div class="message-meta"><div class="message-label">值班智能助手</div></div>${renderToolTrace(extra.tool_trace, extra.run_id)}${resultPanel}<div class="message-content markdown-content">${renderedContent}</div>${nextPage}${renderAnalysisRefs(extra.analysis_refs)}<div class="message-actions">${copyButton}</div>${sourcePanel}`;
     for (const button of el.querySelectorAll?.('[data-read-result]') || []) button.addEventListener('click', () => onReadResult?.(button.dataset.readResult, button.dataset.resultCursor || null));
+    bindOpenAnalysis(el);
     const copyAnswer = el.querySelector('.copy-answer');
     copyAnswer.addEventListener('click', async () => {
       try {
@@ -181,7 +195,9 @@
       renderAssistantInto(el, content, extra);
     } else {
       el.className = 'message user';
-      el.innerHTML = `<div class="message-meta"><div class="message-label">YOU</div></div><div class="message-content">${escapeHtml(content).replace(/\n/g,'<br>')}</div>`;
+      const attached = typeof extra.analysis_ref === 'string' ? `<div class="message-attachment"><span>附带共性分析 <code>${escapeHtml(extra.analysis_ref)}</code></span>${openAnalysisButton(extra.analysis_ref)}</div>` : '';
+      el.innerHTML = `<div class="message-meta"><div class="message-label">YOU</div></div><div class="message-content">${escapeHtml(content).replace(/\n/g,'<br>')}</div>${attached}`;
+      bindOpenAnalysis(el);
     }
     $('#chatMessages').appendChild(el);
     $('#chatMessages').scrollTop = $('#chatMessages').scrollHeight;
@@ -192,7 +208,7 @@
     return {
       formatDuration, copyText, renderToolTrace, renderToolFailure, welcomeMarkup, sourceNavigationAttributes, sourceLink,
       sourceReferenceMap, renderSourcePanel, inlineMarkdown, markdownCells, renderMarkdown,
-      renderAssistantInto, addMessage,
+      renderAssistantInto, addMessage, renderAnalysisRefs,
     };
   }
 

@@ -623,6 +623,7 @@ class LightImportTests(unittest.TestCase):
             # Prompt truncation helpers are pure stdlib (json/dataclasses) and
             # are deliberately pulled in by the loop stage's tool messages.
             "app.core",
+            "app.core.lot_commonality_view",
             "app.core.tool_result_projection",
             *(
                 f"app.agent_runtime.stages.{name}"

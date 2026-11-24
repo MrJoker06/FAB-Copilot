@@ -62,7 +62,7 @@ class ProcessDiagnosticsPortableTests(unittest.TestCase):
             + LOOP_FILES
             + DIAGNOSTICS_FILES
         )
-        self.assertEqual((len(files), len(set(files))), (70, 70))
+        self.assertEqual((len(files), len(set(files))), (71, 71))
         with tempfile.TemporaryDirectory() as raw:
             unit = Path(raw) / "unit"
             for relative in files:

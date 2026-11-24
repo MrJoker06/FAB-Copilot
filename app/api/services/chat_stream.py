@@ -7,6 +7,8 @@ import traceback
 import httpx
 from fastapi.responses import StreamingResponse
 
+from .analysis_attachment import analysis_references, attached_question
+
 
 class ChatStreamService:
     def __init__(self, deps):
@@ -27,6 +29,7 @@ class ChatStreamService:
             thinking_effort, thinking_dialect = "off", ""
         else:
             principal, selected_model, thinking_effort, thinking_dialect = validated
+        question = attached_question(runtime, request, principal)
         session_id, history, cached, user_message = runtime["_prepare_chat"](request)
         recorder = runtime["RunExecutionRecorder"](
             session_id,
@@ -82,7 +85,7 @@ class ChatStreamService:
 
             task = asyncio.create_task(
                 runtime["run_agent"](
-                    request.message,
+                    question,
                     history,
                     progress,
                     thinking=thinking_effort != "off",
@@ -136,6 +139,9 @@ class ChatStreamService:
                         "answer_stream_duration_ms"
                     ]
                 recorder.complete(result)
+                references = analysis_references(result, getattr(request, "analysis_ref", None))
+                if references:
+                    result["analysis_refs"] = references
                 result["session_id"] = session_id
                 result["request_id"] = runtime["current_request_id"]()
                 result["client_message_id"] = request.client_message_id

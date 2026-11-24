@@ -21,6 +21,7 @@ from .rules import (
     _looks_like_conversation,
     _looks_like_fab_diagnostic,
     _looks_like_general_question,
+    _looks_like_lot_commonality,
     _request_type,
     _risk,
 )
@@ -41,7 +42,13 @@ def route_question(question: str, current_date: date | None = None) -> IntentRou
     fab_diagnostic = _looks_like_fab_diagnostic(normalized, process_steps, scores)
 
     clarification_questions: list[str] = []
-    if request_type == "mixed":
+    if _looks_like_lot_commonality(normalized):
+        # Commonality requests name lots and a comparison goal; without this
+        # branch they score as lot_trace or as a multi-intent conjunction.
+        intent = "lot_commonality"
+        candidate_intents = ("lot_commonality",)
+        confidence = 0.9
+    elif request_type == "mixed":
         intent = "ambiguous"
         candidate_intents = tuple(dict.fromkeys(("general_knowledge", *positive[:2])))
         confidence = 0.45

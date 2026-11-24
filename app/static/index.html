@@ -53,7 +53,7 @@
       </section>
 
       <section id="commonalityView" class="view __ACTIVE_commonality__">
-        <div class="page-heading"><div><p class="eyebrow">LOT COMMONALITY</p><h1>相关性分析</h1><p>粘贴异常 lot，查询共同加工经历；需要比较时再添加对比组</p></div><div class="shift-page-actions"><span id="commonalitySampleBadge" class="lc-sample-badge" hidden>合成样例</span><button id="loadCommonalitySample" class="secondary-btn" type="button">载入契约样例（合成数据）</button></div></div>
+        <div class="page-heading"><div><p class="eyebrow">LOT COMMONALITY</p><h1>相关性分析</h1><p>输入异常批次的 Lot ID，查找这些批次共同经过的工序和用过的机台、腔室。可添加正常批次或其他异常批次作对照。</p></div><div class="shift-page-actions"><span id="commonalitySampleBadge" class="lc-sample-badge" hidden>合成样例</span><button id="loadCommonalitySample" class="secondary-btn" type="button">载入契约样例（合成数据）</button></div></div>
         <form id="commonalityForm" class="lc-form" novalidate>
           <section class="panel lc-panel" aria-labelledby="commonalityGroupsTitle">
             <div class="panel-heading"><div><h2 id="commonalityGroupsTitle">输入组</h2><p>逐行输入或从 Excel 粘贴单列；换行、制表符、逗号分隔均可，首尾空白和空行会被去除</p></div><div class="lc-add-group"><label class="lc-field"><span>新组用途</span><select id="commonalityNewGroupRole"><option value="concurrent_abnormal">同期异常</option><option value="historical_abnormal">历史异常</option><option value="normal_reference">正常参考</option></select></label><button id="addCommonalityGroup" type="button" class="secondary-btn lc-small-btn">＋ 添加对比组</button></div></div>
@@ -247,6 +247,7 @@
         </div>
       </div>
       <form id="chatForm" class="chat-form">
+        <div id="chatAttachment" class="chat-attachment" hidden></div>
         <textarea id="chatInput" rows="3" maxlength="4000" placeholder="描述当班问题、设备或批次异常…" required></textarea>
         <div class="chat-actions"><span id="chatHint">基于历史数据库与厂内知识</span><div class="chat-action-buttons"><select id="thinkingEffort" class="thinking-toggle thinking-select" aria-label="思考强度" title="当前模型不支持 Thinking" disabled><option value="off">Thinking 关闭</option></select><button id="sendButton" type="submit" class="send-btn" aria-label="发送">发送</button></div></div>
       </form>

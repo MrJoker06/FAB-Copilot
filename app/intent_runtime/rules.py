@@ -10,6 +10,7 @@ INTENT_LABELS: dict[str, str] = {
     "yield_decline": "良率分析",
     "equipment_fault": "设备故障分析",
     "lot_trace": "批次追踪",
+    "lot_commonality": "Lot 共性分析",
     "sop_lookup": "SOP 与知识查询",
     "defect_analysis": "缺陷分析",
     "fab_diagnostic": "制造综合诊断",
@@ -86,6 +87,11 @@ _DATA_REQUIREMENTS: dict[str, tuple[str, ...]] = {
         "search_knowledge",
     ),
     "lot_trace": ("query_manufacturing_data", "search_knowledge"),
+    "lot_commonality": (
+        "create_lot_commonality_analysis",
+        "read_lot_commonality_members",
+        "read_lot_commonality_records",
+    ),
     "sop_lookup": ("search_knowledge",),
     "defect_analysis": (
         "get_defect_pareto",
@@ -120,6 +126,8 @@ _LOT_PATTERN = re.compile(
     r"\b(?:LOT[-_ ]?[A-Z0-9]+(?:-[A-Z0-9]+)*|L\d{4,}-\d{3,})\b",
     re.IGNORECASE,
 )
+_LOT_COMMONALITY_PATTERN = re.compile(r"(?:共性|共同点|共通|共同经过|共同使用|commonality)", re.IGNORECASE)
+_LOT_SUBJECT_PATTERN = re.compile(r"(?:lot|批次)", re.IGNORECASE)
 _EXPLICIT_DATE_PATTERN = re.compile(r"(?<!\d)(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})日?(?!\d)")
 _RELATIVE_RANGE_PATTERN = re.compile(
     r"(?:最近|近|过去)\s*(\d{1,3}|[一二三四五六七八九十两]{1,3})\s*(天|日|周|星期|个月|月)"
@@ -199,6 +207,10 @@ def _intent_scores(normalized: str) -> dict[str, int]:
     if _LOT_PATTERN.search(normalized):
         scores["lot_trace"] += 5
     return scores
+
+
+def _looks_like_lot_commonality(normalized: str) -> bool:
+    return bool(_LOT_COMMONALITY_PATTERN.search(normalized) and _LOT_SUBJECT_PATTERN.search(normalized))
 
 
 def _looks_like_general_question(normalized: str) -> bool:

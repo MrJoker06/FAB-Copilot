@@ -54,3 +54,59 @@ test('tool failures show the safe Chinese explanation and escaped error code in 
   assert.doesNotMatch(html,/technical message/);
   assert.doesNotMatch(presenter.renderToolFailure({error:'<img src=x>',error_code:'<script>'}), /<img|<script>/);
 });
+
+test('chat stream sends an attached analysis reference but never together with a tool result reference', async () => {
+  const bodies = [];
+  const encoder = new TextEncoder();
+  const controller = chat.createChatController({
+    state: { sessionId: 's1', modelConfig: {} }, $: () => ({}), escapeHtml: value => String(value), identityHeaders: headers => headers,
+    FabApiError: Error, apiError: payload => new Error(payload.detail), thinkingControl: { requestPayload: payload => ({ ...payload }) },
+    toolLabels: {}, presenter: {}, newClientMessageId: () => 'id', thinkingEffort: () => 'off', localStorageImpl: { setItem: () => {} },
+    fetchImpl: async (url, options) => {
+      bodies.push(JSON.parse(options.body));
+      let sent = false;
+      return { ok: true, headers: { get: () => '' }, body: { getReader: () => ({ read: async () => (sent ? { done: true } : (sent = true, { value: encoder.encode('{"type":"result","result":{"answer":"ok"}}\n'), done: false })) }) } };
+    },
+    TextDecoderImpl: TextDecoder,
+  });
+  const diagnostics = { markRead: () => {}, markProgress: () => {} };
+  const ref = `lca_${'a'.repeat(32)}`;
+  await controller.streamAgent('q', 'c1', () => {}, diagnostics, 'off', null, null, ref);
+  await controller.streamAgent('q', 'c2', () => {}, diagnostics, 'off', 'tr_x', null, ref);
+  assert.equal(bodies[0].analysis_ref, ref);
+  assert.equal(bodies[0].tool_result_ref, undefined);
+  assert.equal(bodies[1].tool_result_ref, 'tr_x');
+  assert.equal(bodies[1].analysis_ref, undefined);
+});
+
+test('attaching an analysis writes the draft and a removable reference tag', () => {
+  const events = [];
+  const remove = { listeners: [], addEventListener(type, handler) { this.listeners.push(handler); } };
+  const tag = { hidden: true, innerHTML: '', querySelector: () => remove };
+  const input = { value: 'old', maxLength: 20, dispatchEvent: event => events.push(event.type), focus: () => events.push('focus') };
+  const nodes = { '#chatAttachment': tag, '#chatInput': input };
+  const escapeHtml = value => String(value).replaceAll('<', '&lt;');
+  const controller = chat.createChatController({ state: {}, $: selector => nodes[selector], escapeHtml, presenter: {} });
+  controller.attachAnalysis({ analysisRef: `lca_${'b'.repeat(32)}`, label: '<主组> 3 个 lot', message: '请解读附带的 Lot 共性分析结果，并给出建议与待确认信息' });
+  assert.equal(tag.hidden, false);
+  assert.match(tag.innerHTML, /附带共性分析/);
+  assert.match(tag.innerHTML, /&lt;主组>/);
+  assert.equal(input.value.length, 20);
+  assert.deepEqual(events, ['input', 'focus']);
+  remove.listeners[0]();
+  assert.equal(tag.hidden, true);
+  assert.equal(tag.innerHTML, '');
+});
+
+test('assistant messages offer to reopen every analysis the turn used, escaped', () => {
+  const {createChatPresenter} = require('../app/static/app/chat/presenter.js');
+  const escapeHtml = value => String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+  const presenter = createChatPresenter({escapeHtml,toolLabels:{},sourcePresenter:{}});
+  assert.equal(presenter.renderAnalysisRefs(undefined), '');
+  assert.equal(presenter.renderAnalysisRefs([{origin:'created'}]), '');
+  const html = presenter.renderAnalysisRefs([{analysis_ref:'lca_1',origin:'attached'},{analysis_ref:'"><img>',origin:'read'}]);
+  assert.match(html, /本轮附带的共性分析/);
+  assert.match(html, /本轮读取的共性分析/);
+  assert.equal((html.match(/data-open-analysis=/g) || []).length, 2);
+  assert.doesNotMatch(html, /<img>/);
+});

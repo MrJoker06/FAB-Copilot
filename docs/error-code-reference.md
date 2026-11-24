@@ -88,7 +88,7 @@
 | 执行与结果 | DATA_SOURCE_FAILED：来源明确失败；TOOL_FAILED：未分类执行异常；INVALID_RESULT：结果对象、Schema、调用身份或来源范围不符合契约；RESULT_POLICY_FAILED：结果收敛异常；ACCOUNTING_FAILED：结果记账失败，不能发布为成功 |
 | 依赖、期限与取消 | DEPENDENCY_FAILED：所依赖步骤未成功；DEADLINE_EXCEEDED：开始前或结束时超过期限；SOURCE_TIMEOUT：来源超时；CANCELLED：收到取消信号。后两者及晚到结果按实际执行状态处理，unknown 不可自动重放 |
 | 结果回读 | RESULT_UNAVAILABLE：会话、身份、所有权或可见性校验不通过，统一不泄露资源是否存在；RESULT_CURSOR_INVALID/RESULT_INVALID：游标/读取输入无效；RESULT_READ_BUDGET：读取额度用尽；RESULT_RESPONSE_LIMIT：可返回字节不足；RESULT_READ_FAILED：存储读取发生其他故障 |
-| Lot 相关性工具（可选装配） | ANALYSIS_LIMIT_EXCEEDED：组数或 lot 数超过分析限额；CUTOFF_AMBIGUOUS：截止工序在部分 lot 中出现多次且未指定；RESULT_STORAGE_LIMIT：分析版本超过主体或会话的保存容量，未写入；其余输入错误为 INVALID_ARGUMENTS，无权 lot 或缺少 analyst 角色为 SCOPE_DENIED，存储故障为 RESULT_READ_FAILED。见 `app/tools/lot_commonality/binding.py` |
+| Lot 相关性工具（`lot_commonality` 意图装配） | ANALYSIS_LIMIT_EXCEEDED：组数或 lot 数超过分析限额；CUTOFF_AMBIGUOUS：截止工序在部分 lot 中出现多次且未指定；RESULT_STORAGE_LIMIT：分析版本超过主体或会话的保存容量，未写入；其余输入错误为 INVALID_ARGUMENTS，无权 lot 或缺少 analyst 角色为 SCOPE_DENIED，存储故障为 RESULT_READ_FAILED。见 `app/tools/lot_commonality/binding.py`；聊天附带引用在入库前的拒绝为 RESULT_UNAVAILABLE（404，不区分不存在、过期、他人或会话已删除），见 `app/api/services/analysis_attachment.py` |
 
 ## 模型、轨迹与前端
 

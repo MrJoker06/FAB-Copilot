@@ -163,6 +163,7 @@ class FrozenSampleTests(unittest.TestCase):
         for query in (
             {**base, "group_id": "nobody"},
             {**base, "conditions": [{"candidate_id": "ch:GATE/ETCH:ETCH-07/CH-Z"}]},
+            {**base, "conditions": [{"candidate_id": [CHB]}]},
             {**base, "limit": 201},
             {**base, "extra": True},
         ):
@@ -170,6 +171,8 @@ class FrozenSampleTests(unittest.TestCase):
                 read_members(self.snapshot, query, analysis_ref="x")
         with self.assertRaises(LotCommonalityInputError):
             read_records(self.snapshot, {"group_id": "concurrent", "lot_ids": ["A"]}, analysis_ref="x")
+        with self.assertRaises(LotCommonalityInputError):
+            read_records(self.snapshot, {"group_id": "main", "lot_ids": ["E"], "candidate_id": {"id": CHB}}, analysis_ref="x")
 
 
 def _pass(lot, seq, op, equipment, chamber, *, rework=False):

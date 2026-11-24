@@ -23,6 +23,28 @@
     const FabStreamDiagnostics = FabStreamDiagnosticsImpl;
     const FabIncrementalMarkdown = FabIncrementalMarkdownImpl;
     const { renderMarkdown, renderAssistantInto, addMessage, renderToolFailure } = presenter;
+  let attachment = null;
+  function renderAttachment() {
+    const node = $('#chatAttachment');
+    if (!node) return;
+    node.hidden = !attachment;
+    node.innerHTML = attachment ? `<span class="chat-attachment-kind">附带共性分析</span><span class="chat-attachment-name" title="${escapeHtml(attachment.analysisRef)}">${escapeHtml(attachment.label)}</span><button type="button" class="chat-attachment-remove" aria-label="移除附带的共性分析">移除</button>` : '';
+    node.querySelector('.chat-attachment-remove')?.addEventListener('click', clearAnalysisAttachment);
+  }
+  function attachAnalysis({analysisRef, label, message}) {
+    attachment = {analysisRef, label: label || analysisRef};
+    renderAttachment();
+    const input = $('#chatInput');
+    input.value = String(message || '').slice(0, input.maxLength > 0 ? input.maxLength : 4000);
+    input.dispatchEvent(new root.Event('input', {bubbles:true}));
+    input.focus();
+  }
+  function clearAnalysisAttachment() {
+    attachment = null;
+    renderAttachment();
+  }
+  const pendingAnalysisRef = () => attachment?.analysisRef || null;
+
   function createLiveAnalysis() {
     const el = document.createElement('div'); el.className = 'message assistant live-analysis';
     el.innerHTML = '<div class="message-meta"><div class="message-label">值班智能助手 · 分析中</div><span class="live-indicator">运行中</span></div><details class="live-path" open><summary><span class="live-path-title">正在建立分析路径</span><small class="live-path-count">准备中</small></summary><div class="live-path-body"><ol></ol><div class="trace-footer"><span>工具调用会在执行时实时更新</span><span class="live-run-id"></span></div></div></details><div class="message-content markdown-content streaming-answer" hidden></div>';
@@ -202,11 +224,12 @@
     renderLiveAnalysis(live);
   }
 
-  async function streamAgent(message, clientMessageId, onProgress, diagnostics, effort = 'off', resultRef = null, resultCursor = null) {
+  async function streamAgent(message, clientMessageId, onProgress, diagnostics, effort = 'off', resultRef = null, resultCursor = null, analysisRef = null) {
     let response;
     try {
       const payload = thinkingControl.requestPayload({message, session_id:state.sessionId, client_message_id:clientMessageId}, state.modelConfig, effort);
       if (resultRef) Object.assign(payload, {tool_result_ref:resultRef, tool_result_cursor:resultCursor});
+      else if (analysisRef) payload.analysis_ref = analysisRef;
       const headers = identityHeaders({'Content-Type':'application/json'});
       response = await fetch('/api/chat/stream', {method:'POST', headers, body:JSON.stringify(payload)});
     } catch {
@@ -267,19 +290,20 @@
     live.el.querySelector('.live-indicator').textContent = '失败';
   }
 
-  async function sendChat(message, {clientMessageId = newClientMessageId(), isRetry = false, effort = thinkingEffort(), resultRef = null, resultCursor = null} = {}) {
+  async function sendChat(message, {clientMessageId = newClientMessageId(), isRetry = false, effort = thinkingEffort(), resultRef = null, resultCursor = null, analysisRef = null} = {}) {
     const text = message.trim(); if (!text || state.streaming) return;
     if (!state.sessionId) await createConversation();
     $('.suggestions')?.remove();
     if (!isRetry) {
-      addMessage('user', text); state.history.push({role:'user', content:text});
+      if (!resultRef && pendingAnalysisRef()) { analysisRef = pendingAnalysisRef(); clearAnalysisAttachment(); }
+      addMessage('user', text, analysisRef ? {analysis_ref:analysisRef} : {}); state.history.push({role:'user', content:text});
       $('#chatInput').value = '';
       localStorage.removeItem(chatDraftKey);
     }
     $('#sendButton').disabled = true; state.streaming = true;
     const live = createLiveAnalysis();
     try {
-      const result = await streamAgent(text, clientMessageId, event => updateLiveAnalysis(live, event), live.telemetry, effort, resultRef, resultCursor);
+      const result = await streamAgent(text, clientMessageId, event => updateLiveAnalysis(live, event), live.telemetry, effort, resultRef, resultCursor, analysisRef);
       await finishLiveAnswer(live, result.answer);
       reportStreamTelemetry(live, result.answer);
       renderAssistantInto(live.el, result.answer, result);
@@ -290,7 +314,7 @@
       updateLiveAnalysis(live, {event:'run_failed', message:error.message});
       renderAgentRequestError(live, error, () => {
         live.el.remove();
-        sendChat(text, {clientMessageId, isRetry:true, effort, resultRef, resultCursor});
+        sendChat(text, {clientMessageId, isRetry:true, effort, resultRef, resultCursor, analysisRef});
       });
     }
     finally {
@@ -304,7 +328,7 @@
       createLiveAnalysis, renderLiveAnalysis, startLiveAnswer, resolveLiveAnswerDrain,
       renderLiveAnswerFrame, scheduleLiveAnswerFrame, armLiveAnswerStall, appendLiveAnswer,
       finishLiveAnswer, cancelLiveAnswer, updateLiveAnalysis, streamAgent, reportStreamTelemetry,
-      renderAgentRequestError, sendChat,
+      renderAgentRequestError, sendChat, attachAnalysis, clearAnalysisAttachment,
     };
   }
 
