@@ -123,7 +123,7 @@
     }
   },
   "api": {
-    "openapi_sha256": "0ad6081d153f5a5f0cbdc2a14fe27cb455dac10b46b3f91a07f781d018488501",
+    "openapi_sha256": "c90de2871718e9a8e4958d5f6e28e567c9043070a0af46d896e0b65a2a68d9f0",
     "routes": [
       {
         "method": "GET",
@@ -210,10 +210,28 @@
         "success_status": 200
       },
       {
+        "method": "PUT",
+        "name": "configure_area",
+        "path": "/api/admin/shared-document-areas",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "preview_areas",
+        "path": "/api/admin/shared-document-areas/preview",
+        "success_status": 200
+      },
+      {
         "method": "GET",
         "name": "admin_documents",
         "path": "/api/admin/shared-documents",
         "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "admin_upload_document",
+        "path": "/api/admin/shared-documents",
+        "success_status": 202
       },
       {
         "method": "GET",

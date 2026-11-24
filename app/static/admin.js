@@ -376,7 +376,7 @@ function renderReportDirectory() {
   $('#reportFolder').value = selected;
   const reports = data.reports.filter(item => selectedReportFolder === null || item.folder_id === selectedReportFolder).slice().sort((a,b) => a.sort_order - b.sort_order || a.id.localeCompare(b.id));
   $('#reportDirectoryCount').textContent = `${selectedReportFolder ? reportFolderPath(selectedReportFolder) : '全部报表'} · ${reports.length} 份（目录共 ${data.reports.length} 份）`;
-  $('#reportDirectoryBody').innerHTML = reports.map(item => `<tr><td><strong>${escapeHtml(item.title)}</strong><div class="report-directory-url">${escapeHtml(item.url)}</div></td><td>${escapeHtml(reportFolderPath(item.folder_id))}</td><td>${item.sort_order}</td><td>${item.enabled ? '启用' : '停用'}</td><td><div class="report-row-actions"><button type="button" class="quiet-button" data-edit-report="${escapeHtml(item.id)}">编辑</button><button type="button" class="quiet-button" data-toggle-report="${escapeHtml(item.id)}">${item.enabled ? '停用' : '启用'}</button><button type="button" class="quiet-button" data-remove-report="${escapeHtml(item.id)}">移除</button></div></td></tr>`).join('') || '<tr><td colspan="5" class="empty-row">此目录暂无报表</td></tr>';
+  $('#reportDirectoryBody').innerHTML = reports.map(item => `<tr><td><strong>${escapeHtml(item.title)}</strong><div class="report-directory-url" title="${escapeHtml(item.url)}">${escapeHtml(item.url)}</div></td><td>${escapeHtml(reportFolderPath(item.folder_id))}</td><td>${item.sort_order}</td><td><span class="report-state" data-enabled="${item.enabled}">${item.enabled ? '启用' : '停用'}</span></td><td><div class="report-row-actions"><button type="button" class="quiet-button" data-edit-report="${escapeHtml(item.id)}">编辑</button><button type="button" class="quiet-button" data-toggle-report="${escapeHtml(item.id)}">${item.enabled ? '停用' : '启用'}</button><button type="button" class="quiet-button" data-remove-report="${escapeHtml(item.id)}">移除</button></div></td></tr>`).join('') || '<tr><td colspan="5" class="empty-row">此目录暂无报表</td></tr>';
   $('#saveReportDirectory').disabled = false;
 }
 
@@ -410,6 +410,7 @@ function stageReportEdit(event) {
   const previous = data.reports.findIndex(row => row.id === item.id);
   if (previous < 0) data.reports.push(item); else data.reports[previous] = item;
   renderReportDirectory(); resetReportEditor();
+  $('#reportEditorForm').closest('dialog').close();
   showNotice('#reportDirectoryNotice', '报表已加入本页修改，请点击「保存目录」使前台生效。');
 }
 
@@ -483,19 +484,33 @@ async function previewReportAccess(event) {
     const data = await adminApi('/api/admin/report-directory/preview', {
       method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({modules}),
     });
-    const titles = data.reports.map(item => item.title).join('、');
-    result.textContent = `版本 ${data.revision} · ${modules.join('、') || '公共目录'} · ${data.reports.length} 份报表${titles ? '：' + titles : ''}`;
+    const summary = document.createElement('strong');
+    summary.textContent = `${modules.join('、') || '公共目录'} · ${data.reports.length} 份报表`;
+    const list = document.createElement('ul');
+    for (const report of data.reports) {
+      const item = document.createElement('li');
+      item.textContent = report.title;
+      list.append(item);
+    }
+    result.replaceChildren(summary, list);
   } catch (error) {
     result.textContent = error.message;
   }
 }
 
 function bindReportDirectory() {
+  const editor = $('#reportEditorForm').closest('dialog');
+  $('[data-new-report]').addEventListener('click', () => {
+    resetReportEditor();
+    editor.showModal();
+    $('#reportTitle').focus();
+  });
+  $('[data-close-report]').addEventListener('click', () => editor.close());
   $('#reportAccessPreview').addEventListener('submit', previewReportAccess);
   $('#refreshReportDirectory').addEventListener('click', loadReportDirectory);
   $('#saveReportDirectory').addEventListener('click', saveReportDirectory);
   $('#reportEditorForm').addEventListener('submit', stageReportEdit);
-  $('#cancelReportEdit').addEventListener('click', resetReportEditor);
+  $('#cancelReportEdit').addEventListener('click', () => editor.close());
   $('#addReportFolder').addEventListener('click', () => openReportFolder());
   $('#editReportFolder').addEventListener('click', () => openReportFolder(true));
   $('#closeReportFolder').addEventListener('click', () => $('#reportFolderDialog').close());
@@ -520,7 +535,8 @@ function bindReportDirectory() {
     else {
       adminState.editingReportId = id;
       for (const [selector, value] of [['#reportTitle',item.title],['#reportUrl',item.url],['#reportDescription',item.description],['#reportObject',item.object],['#reportFolder',item.folder_id || ''],['#reportSortOrder',item.sort_order]]) $(selector).value = value;
-      $('#reportEnabled').checked = item.enabled; $('#reportEditorTitle').textContent = '编辑报表'; $('#stageReportEdit').textContent = '应用修改'; $('#reportTitle').focus(); return;
+      $('#reportEnabled').checked = item.enabled; $('#reportEditorTitle').textContent = '编辑报表'; $('#stageReportEdit').textContent = '应用修改';
+      editor.showModal(); $('#reportTitle').focus(); return;
     }
     renderReportDirectory(); showNotice('#reportDirectoryNotice', '修改尚未保存，请点击「保存目录」。');
   });
@@ -542,13 +558,34 @@ function showView(name) {
 }
 
 let managedSharedDocuments = [], editingSharedDocumentId = null;
+let documentAreas = [];
+const commonAreaName = '通用资料区';
+function areaOptions(commonValue = '') {
+  return `<option value="${commonValue}">通用资料区</option>` + documentAreas.map(({owner}) =>
+    `<option value="${escapeHtml(owner)}">${escapeHtml(owner)}</option>`).join('');
+}
+function renderManagedDocuments() {
+    const filter = $('[data-doc-filter]').value;
+    const items = managedSharedDocuments.filter(item => filter === '*' || (item.area || '') === filter);
+    $('#sharedDocumentsCount').textContent = `${items.length} 份`;
+    const status = {processing:'正在处理',ready:'可阅读',failed:'处理失败'};
+    $('#sharedDocumentsBody').innerHTML = items.map(item => `<tr><td><strong>${escapeHtml(item.title)}</strong><div>${escapeHtml(item.filename)}</div>${item.error_message ? `<small class="shared-document-error">${escapeHtml(item.error_message)}</small>` : ''}</td><td>${item.kind === 'sop' ? 'SOP' : '历史case'} · ${escapeHtml(item.process || '通用')}</td><td>${escapeHtml(item.area || commonAreaName)}</td><td>${escapeHtml(item.tenant_id)} / ${escapeHtml(item.user_id)}</td><td>${escapeHtml(status[item.status] || item.status)}</td><td>${item.enabled ? '启用' : '停用'}</td><td><button type="button" class="quiet-button" data-manage-document="${escapeHtml(item.document_id)}">查看 / 编辑</button>${item.status === 'failed' ? `<button type="button" class="quiet-button" data-retry-document="${escapeHtml(item.document_id)}">重试</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="empty-row">该范围内暂无共享上传资料</td></tr>';
+}
+
 async function loadSharedDocuments() {
   try {
     const data = await adminApi('/api/admin/shared-documents');
     managedSharedDocuments = data.items;
-    $('#sharedDocumentsCount').textContent = `${data.items.length} 份`;
-    const status = {processing:'正在处理',ready:'可阅读',failed:'处理失败'};
-    $('#sharedDocumentsBody').innerHTML = data.items.map(item => `<tr><td><strong>${escapeHtml(item.title)}</strong><div>${escapeHtml(item.filename)}</div>${item.error_message ? `<small class="shared-document-error">${escapeHtml(item.error_message)}</small>` : ''}</td><td>${item.kind === 'sop' ? 'SOP' : '历史case'} · ${escapeHtml(item.process || '通用')}</td><td>${escapeHtml(item.tenant_id)} / ${escapeHtml(item.user_id)}</td><td>${escapeHtml(status[item.status] || item.status)}</td><td>${item.enabled ? '启用' : '停用'}</td><td><button type="button" class="quiet-button" data-manage-document="${escapeHtml(item.document_id)}">查看 / 编辑</button>${item.status === 'failed' ? `<button type="button" class="quiet-button" data-retry-document="${escapeHtml(item.document_id)}">重试</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="empty-row">暂无共享上传资料</td></tr>';
+    documentAreas = data.areas;
+    const previous = $('[data-doc-filter]').value;
+    const options = areaOptions();
+    $('[data-doc-filter]').innerHTML = '<option value="*">全部资料区</option>' + options;
+    $('[data-doc-filter]').value = previous;
+    $('[data-admin-upload] [name=area]').innerHTML = '<option value="" disabled selected>请选择资料区</option>' + areaOptions('*');
+    $('[data-doc-areas]').innerHTML = documentAreas.map(({owner, readers}) =>
+      `<li><span><strong>${escapeHtml(owner)}</strong><br>${escapeHtml(readers.length ? '也向 ' + readers.join('、') + ' 开放' : '仅本部门')}</span><button type="button" class="quiet-button" data-edit-area="${escapeHtml(owner)}">编辑</button></li>`).join('');
+    $('[data-doc-preview-result]').textContent = '';
+    renderManagedDocuments();
     showNotice('#sharedDocumentsNotice','');
   } catch (error) { showNotice('#sharedDocumentsNotice',error.message,true); if (error.status === 401) showAuth(); }
 }
@@ -557,6 +594,8 @@ async function openSharedDocument(id) {
   try {
     const item = await adminApi(`/api/admin/shared-documents/${encodeURIComponent(id)}`);
     editingSharedDocumentId = id;
+    $('[data-doc-destination]').innerHTML = areaOptions();
+    $('[data-doc-destination]').value = item.area || '';
     $('#sharedDocumentTitle').value = item.title; $('#sharedDocumentKind').value = item.kind;
     $('#sharedDocumentProcess').value = item.process; $('#sharedDocumentEnabled').checked = item.enabled;
     $('#sharedDocumentMessage').hidden = true;
@@ -566,6 +605,60 @@ async function openSharedDocument(id) {
 }
 
 function bindSharedDocuments() {
+  $('[data-doc-filter]').addEventListener('change', renderManagedDocuments);
+  const areaForm = $('[data-doc-area-form]');
+  $('[data-doc-areas]').addEventListener('click', event => {
+    const button = event.target.closest('[data-edit-area]');
+    if (!button) return;
+    const area = documentAreas.find(item => item.owner === button.dataset.editArea);
+    areaForm.closest('details').open = true;
+    areaForm.elements.owner.readOnly = true;
+    areaForm.elements.owner.value = area.owner;
+    areaForm.elements.readers.value = area.readers.join('，');
+    areaForm.elements.readers.focus();
+  });
+  areaForm.addEventListener('reset', () => { areaForm.elements.owner.readOnly = false; });
+  areaForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const owner = areaForm.elements.owner.value.trim();
+    const readers = moduleList(areaForm.elements.readers.value);
+    if (!areaForm.elements.owner.readOnly && documentAreas.some(area => area.owner === owner)) {
+      showNotice('#sharedDocumentsNotice','部门区已存在，请点击该部门旁的编辑按钮',true); return;
+    }
+    if (![owner, ...readers].every(validModuleId)) { showNotice('#sharedDocumentsNotice','请检查部门名称',true); return; }
+    try {
+      await adminApi('/api/admin/shared-document-areas',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner, readers})});
+      areaForm.reset(); await loadSharedDocuments(); showToast('资料区可见范围已保存');
+    } catch (error) { showNotice('#sharedDocumentsNotice', error.message, true); }
+  });
+  $('[data-doc-preview]').addEventListener('submit', async event => {
+    event.preventDefault();
+    const modules = moduleList(event.currentTarget.elements.modules.value);
+    const out = $('[data-doc-preview-result]');
+    try {
+      const result = await adminApi('/api/admin/shared-document-areas/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({modules})});
+      const heading = document.createElement('p');
+      heading.textContent = [commonAreaName, ...result.areas.map(area => area.owner)].join('、') + ` · ${result.items.length} 份共享上传`;
+      const list = document.createElement('ul');
+      for (const item of result.items) {
+        const row = document.createElement('li');
+        row.textContent = item.title;
+        list.append(row);
+      }
+      out.replaceChildren(heading, list);
+    } catch (error) { out.textContent = error.message; }
+  });
+  $('[data-admin-upload]').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget, data = new FormData(form), button = form.querySelector('button');
+    if (data.get('area') === '*') data.delete('area');
+    button.disabled = true;
+    try {
+      await adminApi('/api/admin/shared-documents',{method:'POST',body:data});
+      form.reset(); await loadSharedDocuments(); showToast('上传已接收，可刷新查看处理结果');
+    } catch (error) { showNotice('#sharedDocumentsNotice',error.message,true); }
+    finally { button.disabled = false; }
+  });
   $('#refreshSharedDocuments').addEventListener('click',loadSharedDocuments);
   $('#closeSharedDocument').addEventListener('click',() => $('#sharedDocumentDialog').close());
   $('#sharedDocumentsBody').addEventListener('click',async event => {
@@ -580,7 +673,7 @@ function bindSharedDocuments() {
   $('#sharedDocumentForm').addEventListener('submit',async event => {
     event.preventDefault(); const submit = event.submitter; if (submit) submit.disabled = true;
     try {
-      await adminApi(`/api/admin/shared-documents/${encodeURIComponent(editingSharedDocumentId)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:$('#sharedDocumentTitle').value,kind:$('#sharedDocumentKind').value,process:$('#sharedDocumentProcess').value,enabled:$('#sharedDocumentEnabled').checked})});
+      await adminApi(`/api/admin/shared-documents/${encodeURIComponent(editingSharedDocumentId)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:$('#sharedDocumentTitle').value,kind:$('#sharedDocumentKind').value,process:$('#sharedDocumentProcess').value,enabled:$('#sharedDocumentEnabled').checked,area:$('[data-doc-destination]').value || null})});
       $('#sharedDocumentDialog').close(); await loadSharedDocuments(); showToast('共享资料已更新');
     } catch (error) { $('#sharedDocumentMessage').textContent = error.message; $('#sharedDocumentMessage').hidden = false; }
     finally { if (submit) submit.disabled = false; }

@@ -2637,7 +2637,7 @@
       "source_file": "app/knowledge/shared_documents.py",
       "imports": ["sqlite3"],
       "calls": ["conn.execute", "sqlite3.connect"],
-      "table_hints": ["documents"],
+      "table_hints": ["document_areas", "document_placement", "documents"],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {

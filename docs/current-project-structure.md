@@ -20,7 +20,7 @@ MOD-029c 增补：`app/agent_runtime/tools/result_access.py` 提供每 Run 辅�
 
 根目录 `display_mock_data/` 包含 `catalog.json`、六个报表 HTML、共享样式和内部 README，仅保存合成展示资料，不在 app 源码计数内。`app/api/application.py` 在目录存在时挂载公开静态路由；未放入 Tool、RAG 或业务数据库。`run.py` 的完整源码导出白名单包含该目录；独立模块 Profile 不包含它，真实公司接入与授权另行验收。
 
-后续补充以 `220a333` 为基线：报表前台平铺，管理员通过侧栏文件夹树维护目录；用户上传的 SOP/case 解析成功后立即向所有用户共享，管理员可编辑元数据、停用和恢复。原案例列表与来源跳转合入同一资料页，旧个人知识保持隔离。报表配置与上传资料分别保存在工作树根下的 `runtime/local/report_directory.json`、`runtime/local/shared_documents/`，可显式配置路径；后者不作为静态目录公开，也不自动加入 RAG 索引。模型配置及凭据未纳入新目录。
+后续补充以 `220a333` 为基线：报表前台平铺，管理员通过侧栏文件夹树维护目录；用户上传的 SOP/case 解析成功后在所选资料区共享，管理员可独立配置部门资料区，旧上传归入通用资料区（见[部门可见范围](reports/module-report-access.md)），管理员可编辑元数据、停用和恢复。原案例列表与来源跳转合入同一资料页，旧个人知识保持隔离。报表配置与上传资料分别保存在工作树根下的 `runtime/local/report_directory.json`、`runtime/local/shared_documents/`，可显式配置路径；后者不作为静态目录公开，也不自动加入 RAG 索引。模型配置及凭据未纳入新目录。
 
 ## 平台启动入口
 

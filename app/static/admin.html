@@ -63,23 +63,62 @@
         </section>
       </section>
       <section id="reportsView" class="admin-view">
-        <div class="admin-page-heading"><div><p class="admin-eyebrow">REPORT DIRECTORY</p><h1>基础报表管理</h1><p>文件夹控制报表链接的可见范围，报表内容由目标系统授权</p></div><div class="runtime-controls"><button id="refreshReportDirectory" class="quiet-button" type="button">刷新</button><button id="saveReportDirectory" class="primary-button" type="button" disabled>保存目录</button></div></div>
+        <div class="admin-page-heading">
+          <div><h1>基础报表管理</h1><p>维护报表链接、目录和部门可见范围</p></div>
+          <div class="runtime-controls"><button id="refreshReportDirectory" class="quiet-button" type="button">刷新</button><button id="saveReportDirectory" class="primary-button" type="button" disabled>保存目录</button></div>
+        </div>
         <p id="reportDirectoryNotice" class="admin-notice" role="status" hidden></p>
-        <form id="reportAccessPreview" class="admin-panel model-form-grid">
-          <label><span>按部门预览已保存的报表目录</span><input id="previewReportModules" placeholder="逗号分隔，留空查看公共目录"></label>
-          <button class="quiet-button" type="submit">预览可见报表</button>
-          <output class="full-field" id="reportAccessResult" aria-live="polite"></output>
-        </form>
-        <section class="admin-panel"><div class="panel-heading"><div><h2>报表链接</h2><p id="reportDirectoryCount">正在加载</p></div></div><div class="admin-table-wrap"><table><thead><tr><th>名称 / 链接</th><th>分类</th><th>排序</th><th>状态</th><th>操作</th></tr></thead><tbody id="reportDirectoryBody"></tbody></table></div></section>
-        <section class="admin-panel report-directory-editor"><div class="panel-heading"><div><h2 id="reportEditorTitle">新增报表</h2><p>修改先保留在本页，保存目录后前台生效</p></div></div><form id="reportEditorForm" class="model-form-grid">
+        <div class="report-workbench">
+          <section class="admin-panel report-list-panel">
+            <div class="panel-heading"><div><h2>报表链接</h2><p id="reportDirectoryCount">正在加载</p></div><button type="button" class="quiet-button" data-new-report>＋ 新增报表</button></div>
+            <div class="admin-table-wrap"><table><thead><tr><th>名称 / 链接</th><th>分类</th><th>排序</th><th>状态</th><th>操作</th></tr></thead><tbody id="reportDirectoryBody"></tbody></table></div>
+          </section>
+          <form id="reportAccessPreview" class="admin-panel report-preview-panel">
+            <div class="panel-heading"><div><h2>部门可见性预览</h2><p>按已保存的目录查询</p></div></div>
+            <div class="report-preview-body">
+              <label for="previewReportModules">部门</label>
+              <div class="report-preview-controls"><input id="previewReportModules" placeholder="留空预览公共目录"><button class="quiet-button" type="submit">预览</button></div>
+              <small>多个部门用逗号分隔</small>
+              <div id="reportAccessResult" role="status" aria-live="polite"></div>
+            </div>
+          </form>
+        </div>
+        <dialog class="admin-dialog report-editor-dialog" aria-labelledby="reportEditorTitle">
+          <div class="dialog-heading"><h2 id="reportEditorTitle">新增报表</h2><button type="button" class="icon-button" data-close-report aria-label="关闭报表编辑">×</button></div>
+          <form id="reportEditorForm" class="model-form-grid dialog-body">
           <label><span>报表名称</span><input id="reportTitle" maxlength="100" required></label><label><span>所属文件夹</span><select id="reportFolder"><option value="">根目录</option></select></label>
           <label class="full-field"><span>报表链接</span><input id="reportUrl" maxlength="2000" placeholder="https:// 或 / 开头的地址" required></label>
           <label><span>说明</span><input id="reportDescription" maxlength="500"></label><label><span>关联对象</span><input id="reportObject" maxlength="200"></label>
           <label><span>排序（小值优先）</span><input id="reportSortOrder" type="number" min="0" max="100000" value="0" required></label><label class="report-enabled-field"><input id="reportEnabled" type="checkbox" checked><span>启用</span></label>
-          <div class="full-field"><button id="stageReportEdit" class="primary-button" type="submit">加入目录</button><button id="cancelReportEdit" class="quiet-button" type="button">重置表单</button></div>
-        </form></section>
+          <div class="full-field report-editor-actions"><button id="stageReportEdit" class="primary-button" type="submit">加入目录</button><button id="cancelReportEdit" class="quiet-button" type="button">取消</button></div>
+        </form>
+        </dialog>
       </section>
-      <section id="documentsView" class="admin-view"><div class="admin-page-heading"><div><p class="admin-eyebrow">SHARED DOCUMENTS</p><h1>SOP 与历史case 管理</h1><p>用户上传解析成功后共享；停用后用户不能读取正文或下载原文</p></div><button id="refreshSharedDocuments" class="quiet-button" type="button">刷新</button></div><p id="sharedDocumentsNotice" class="admin-notice" role="status" hidden></p><section class="admin-panel"><div class="panel-heading"><h2>共享上传</h2><span id="sharedDocumentsCount"></span></div><div class="admin-table-wrap"><table><thead><tr><th>资料 / 文件</th><th>类别 / 制程</th><th>上传者</th><th>处理状态</th><th>共享状态</th><th>操作</th></tr></thead><tbody id="sharedDocumentsBody"></tbody></table></div></section></section>
+      <section id="documentsView" class="admin-view">
+        <div class="admin-page-heading"><div><h1>SOP 与历史case 管理</h1><p>管理共享上传的资料及其部门可见范围</p></div><button id="refreshSharedDocuments" class="quiet-button" type="button">刷新</button></div>
+        <p id="sharedDocumentsNotice" class="admin-notice" role="status" hidden></p>
+        <div class="report-workbench">
+          <section class="admin-panel"><div class="panel-heading"><div><h2>共享上传</h2><p id="sharedDocumentsCount"></p></div><label>资料区 <select data-doc-filter><option value="*">全部资料区</option></select></label></div>
+            <div class="admin-table-wrap"><table><thead><tr><th>资料 / 文件</th><th>类别 / 制程</th><th>资料区</th><th>上传者</th><th>处理状态</th><th>共享状态</th><th>操作</th></tr></thead><tbody id="sharedDocumentsBody"></tbody></table></div>
+            <details class="doc-area-controls"><summary>上传到指定资料区</summary><form data-admin-upload>
+              <label>目标资料区<select name="area" required></select></label>
+              <label>资料类别<select name="kind"><option value="sop">SOP</option><option value="case">历史case</option></select></label>
+              <label>原始文件<input type="file" name="file" required accept=".pdf,.docx,.md,.txt,.csv,.xlsx,.png,.jpg,.jpeg,.tif,.tiff"></label>
+              <button class="primary-button" type="submit">上传资料</button>
+            </form></details>
+          </section>
+          <aside class="admin-panel"><div class="panel-heading"><h2>资料区设置</h2></div><div class="doc-area-controls">
+            <strong>通用资料区</strong><p>所有部门可见。</p><ul data-doc-areas></ul>
+            <details><summary>配置部门资料区</summary><form data-doc-area-form>
+              <label>归属部门<input name="owner" maxlength="64" required placeholder="例如：光刻"></label>
+              <label>额外可见部门<input name="readers" placeholder="多个部门用逗号分隔"></label>
+              <button class="primary-button" type="submit">保存资料区</button><button class="quiet-button" type="reset">重置</button>
+            </form></details>
+            <details><summary>预览部门可见资料</summary><form data-doc-preview><label>部门<input name="modules" placeholder="留空预览通用区"></label>
+              <button class="quiet-button" type="submit">预览</button></form><div data-doc-preview-result role="status"></div></details>
+          </div></aside>
+        </div>
+      </section>
     </main>
   </div>
   </div>
@@ -93,7 +132,7 @@
   </dialog>
 
   <dialog id="reportFolderDialog" class="admin-dialog" aria-labelledby="reportFolderDialogTitle"><form id="reportFolderForm"><div class="dialog-heading"><h2 id="reportFolderDialogTitle">新建文件夹</h2><button id="closeReportFolder" class="icon-button" type="button" aria-label="关闭文件夹设置">×</button></div><div class="dialog-body model-form-grid"><label class="full-field"><span>文件夹名称</span><input id="reportFolderName" maxlength="60" required></label><label class="full-field"><span>上级文件夹</span><select id="reportFolderParent"><option value="">根目录</option></select></label><label class="full-field"><span>归属部门（留空继承上级，根目录默认公共）</span><input id="reportOwnerModule" maxlength="64" placeholder="例如：光刻"></label><label class="full-field"><span>额外开放的部门（逗号分隔，仍须满足上级范围）</span><input id="reportReaderModules" placeholder="例如：质量，整合"></label><p id="reportFolderMessage" class="form-message full-field" role="alert" hidden></p></div><div class="dialog-actions"><button id="removeReportFolder" class="quiet-button" type="button" hidden>移除空文件夹</button><button class="primary-button" type="submit">应用</button></div></form></dialog>
-  <dialog id="sharedDocumentDialog" class="admin-dialog shared-document-dialog" aria-labelledby="sharedDocumentDialogTitle"><form id="sharedDocumentForm"><div class="dialog-heading"><h2 id="sharedDocumentDialogTitle">编辑共享资料</h2><button id="closeSharedDocument" class="icon-button" type="button" aria-label="关闭资料管理">×</button></div><div class="dialog-body model-form-grid"><label class="full-field"><span>标题</span><input id="sharedDocumentTitle" maxlength="200" required></label><label><span>类别</span><select id="sharedDocumentKind"><option value="sop">SOP</option><option value="case">历史case</option></select></label><label><span>制程</span><select id="sharedDocumentProcess"><option value="">通用</option><option>LITHO</option><option>ETCH</option><option>CVD</option><option>PVD</option><option>DIFFUSION</option><option>IMPLANT</option><option>CMP</option><option>CLEAN</option><option>METROLOGY</option></select></label><label class="full-field report-enabled-field"><input id="sharedDocumentEnabled" type="checkbox"><span>启用共享</span></label><p id="sharedDocumentMessage" class="form-message full-field" role="alert" hidden></p><div id="sharedDocumentPreview" class="full-field shared-document-preview"></div></div><div class="dialog-actions"><button class="primary-button" type="submit">保存修改</button></div></form></dialog>
+  <dialog id="sharedDocumentDialog" class="admin-dialog shared-document-dialog" aria-labelledby="sharedDocumentDialogTitle"><form id="sharedDocumentForm"><div class="dialog-heading"><h2 id="sharedDocumentDialogTitle">编辑共享资料</h2><button id="closeSharedDocument" class="icon-button" type="button" aria-label="关闭资料管理">×</button></div><div class="dialog-body model-form-grid"><label class="full-field"><span>标题</span><input id="sharedDocumentTitle" maxlength="200" required></label><label><span>类别</span><select id="sharedDocumentKind"><option value="sop">SOP</option><option value="case">历史case</option></select></label><label><span>制程</span><select id="sharedDocumentProcess"><option value="">通用</option><option>LITHO</option><option>ETCH</option><option>CVD</option><option>PVD</option><option>DIFFUSION</option><option>IMPLANT</option><option>CMP</option><option>CLEAN</option><option>METROLOGY</option></select></label><label class="full-field">所属资料区<select data-doc-destination></select></label><label class="full-field report-enabled-field"><input id="sharedDocumentEnabled" type="checkbox"><span>启用共享</span></label><p id="sharedDocumentMessage" class="form-message full-field" role="alert" hidden></p><div id="sharedDocumentPreview" class="full-field shared-document-preview"></div></div><div class="dialog-actions"><button class="primary-button" type="submit">保存修改</button></div></form></dialog>
 
   <dialog id="publishModelDialog" class="admin-dialog publish-dialog" aria-labelledby="publishModelDialogTitle">
     <form id="publishModelForm">

@@ -10,24 +10,14 @@ from typing import Annotated
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from ..core.identity import current_principal
 from ..core.settings import PROJECT_DIR
 from .routers.runtime import RouterBundle
+from .schemas import FolderAccess, ModulePreview
 
 _LOCK = threading.RLock()
-ModuleId = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64, pattern=r"^[\p{L}\p{N}_-]+$")]
-
-
-class FolderAccess(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    owner: ModuleId
-    readers: list[ModuleId] = Field(default_factory=list, max_length=100)
-
-
-class ModulePreview(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    modules: list[ModuleId] = Field(max_length=100)
 
 
 class ReportLink(BaseModel):
@@ -197,7 +187,7 @@ def create_router(current_admin) -> RouterBundle:
     @router.get("/api/reports/directory")
     def public_directory():
         # Demo identity headers cannot establish trusted module memberships.
-        return visible_reports(load_directory(), set())
+        return visible_reports(load_directory(), set(current_principal().modules))
 
     @router.post("/api/admin/report-directory/preview")
     def preview_directory(request: ModulePreview, _: Annotated[str, Depends(current_admin)]):

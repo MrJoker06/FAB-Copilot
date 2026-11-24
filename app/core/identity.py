@@ -26,6 +26,8 @@ class Principal:
     roles: tuple[str, ...] = ("analyst",)
     authentication_scheme: str = "demo"
 
+    modules: tuple[str, ...] = ()  # Populated only by a trusted identity provider.
+
     @classmethod
     def from_claims(cls, claims: IdentityClaims) -> "Principal":
         return cls(
