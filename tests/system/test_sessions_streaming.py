@@ -339,6 +339,68 @@ class SessionsStreamingSystemTests(unittest.TestCase):
             self.assertNotIn("Restricted fixture contents", client.get("/api/sessions", headers=litho).text)
             client.delete(f"/api/sessions/{session_id}/permanent", headers=litho)
 
+    def test_duty_checklist_chat_rechecks_role_and_uses_the_exact_previous_shift(self):
+        from app.core.identity import VERIFIED_IDENTITY_SCOPE_KEY
+        from app.core.identity_contracts import IdentityClaims
+        from app.core.settings import get_settings
+
+        member_roles = ("analyst", "PE")
+        tenant = get_settings().enterprise_default_tenant_id
+
+        async def verified_app(scope, receive, send):
+            if scope["type"] == "http":
+                scope[VERIFIED_IDENTITY_SCOPE_KEY] = IdentityClaims(
+                    tenant, "check-fixture", member_roles, "verified",
+                )
+            await app(scope, receive, send)
+
+        with (
+            patch.dict(os.environ, {"FAB_REQUIRE_VERIFIED_IDENTITY": "true"}),
+            patch("app.main.run_agent", side_effect=AssertionError("checklist reference must not call the model")),
+            TestClient(verified_app) as client,
+        ):
+            url = "/api/reports/duty-checklist"
+            query = {"work_date": "2026-08-07", "shift": "night"}
+            pe = client.get(url, params=query).json()
+            self.assertEqual(pe["available_roles"], ["PE"])
+            self.assertEqual(pe["window"], {"start": "2026-08-07T20:00:00+08:00", "end": "2026-08-08T08:00:00+08:00"})
+            by_id = {item["id"]: item for item in pe["checks"]}
+            self.assertEqual({item["status"] for item in pe["checks"]}, {"exception", "unavailable"})
+            self.assertIsNone(by_id["metrology"]["count"])
+            earlier = by_id["handover"]
+            self.assertEqual(earlier["window"], {"start": "2026-08-07T08:00:00+08:00", "end": "2026-08-07T20:00:00+08:00"})
+            self.assertEqual(earlier["records"][0]["object"], "HO-PE-001")
+            self.assertEqual(client.get(url, params={**query, "role": "EE"}).status_code, 403)
+            session = client.post("/api/sessions").json()["session_id"]
+            request = {"session_id": session, "message": "说一下开班检查", "duty_check_ref": earlier["reference"],
+                       "client_message_id": "check-offline-01"}
+            sync = client.post("/api/chat", json=request)
+            self.assertEqual(sync.status_code, 200, sync.text)
+            self.assertIn("HO-PE-001", sync.json()["answer"])
+            self.assertIn(earlier["window"]["start"], sync.json()["answer"])
+            self.assertIn(earlier["source"], sync.json()["answer"])
+            self.assertEqual(sync.json()["duty_check_ref"], earlier["reference"])
+            wrong_check = {**request, "duty_check_ref": by_id["lots"]["reference"]}
+            self.assertEqual(client.post("/api/chat", json=wrong_check).status_code, 409)
+            stream = client.post("/api/chat/stream", json={
+                **request, "client_message_id": "check-offline-02", "duty_check_ref": by_id["metrology"]["reference"],
+            })
+            events = [json.loads(line) for line in stream.text.splitlines()]
+            self.assertEqual(events[-1]["type"], "result")
+            self.assertIn("数据不足", events[-1]["result"]["answer"])
+            self.assertNotIn("记录数：0", events[-1]["result"]["answer"])
+
+            member_roles = ("analyst", "EE")
+            self.assertEqual(client.post("/api/chat/stream", json=request).status_code, 403)
+            self.assertNotIn("HO-PE-001", client.get(f"/api/sessions/{session}").text)
+            ee_night = client.get(url, params=query).json()
+            self.assertEqual([i["id"] for i in ee_night["checks"]], ["alarms", "equipment", "handover"])
+            self.assertEqual(ee_night["checks"][1]["status"], "error")
+            self.assertIsNone(ee_night["checks"][1]["count"])
+            ee_day = client.get(url, params={**query, "shift": "day"}).json()
+            self.assertEqual((ee_day["checks"][1]["status"], ee_day["checks"][1]["count"]), ("clear", 0))
+            client.delete(f"/api/sessions/{session}/permanent")
+
     @classmethod
     def setUpClass(cls):
         seed_reference_data()

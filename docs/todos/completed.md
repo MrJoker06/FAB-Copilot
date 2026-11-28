@@ -40,6 +40,10 @@
 
 受信身份声明、部门 Tool / Skill、治理型知识检索和旧结果撤权已经通过本地验证。公司 LDAP、组织映射、实际资料及部署接入保留在 GitHub Issue #6。详见[离线接入与验收](../issue-3-offline-access-plan.md)。
 
+## GitHub Issue #4 PE / EE 开班检查与交接
+
+本地合成班次清单、前端明细、岗位校验与聊天引用完成。公司班次和真实数据继续由 GitHub Issue #6 验收。见[实施与验证](../duty-shift-start-checklist-plan.md)。
+
 ## TODO 文档治理
 
 2026-11-12，关联 GitHub [Issue #2 第 1 项](https://github.com/MrJoker06/FAB-Copilot/issues/2)。文档整理完成；提交与推送状态以 Git 记录为准，不新增产品或 MOD 编号。

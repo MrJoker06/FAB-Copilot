@@ -785,6 +785,11 @@
       "artifact_group": "simulation_fixtures"
     },
     {
+      "path": "app/demo_data/shift_checklist.py",
+      "primary_module": "simulation",
+      "artifact_group": "simulation_fixtures"
+    },
+    {
       "path": "app/demo_data/synthetic_fab.py",
       "primary_module": "simulation",
       "artifact_group": "simulation_fixtures"

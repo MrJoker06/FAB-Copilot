@@ -77,12 +77,19 @@
     const node = $('#chatAttachment');
     if (!node) return;
     node.hidden = !attachment;
-    node.innerHTML = attachment ? `<span class="chat-attachment-kind">附带共性分析</span><span class="chat-attachment-name" title="${escapeHtml(attachment.analysisRef)}">${escapeHtml(attachment.label)}</span><button type="button" class="chat-attachment-remove" aria-label="移除附带的共性分析">移除</button>` : '';
+    const label = attachment?.analysisRef ? '共性分析' : '开班检查项';
+    node.innerHTML = attachment ? `<span class="chat-attachment-kind">附带${label}</span><span class="chat-attachment-name" title="${escapeHtml(attachment.analysisRef || attachment.dutyCheckRef)}">${escapeHtml(attachment.label)}</span><button type="button" class="chat-attachment-remove" aria-label="移除附带的${label}">移除</button>` : '';
     node.querySelector('.chat-attachment-remove')?.addEventListener('click', clearAnalysisAttachment);
   }
   function attachAnalysis({analysisRef, label, message}) {
+    attachReference({analysisRef, label: label || analysisRef}, message);
+  }
+  function attachDutyCheck({dutyCheckRef, label, message}) {
+    attachReference({dutyCheckRef, label: label || dutyCheckRef}, message);
+  }
+  function attachReference(reference, message) {
     setSelectedSkill(null);
-    attachment = {analysisRef, label: label || analysisRef};
+    attachment = reference;
     renderAttachment();
     const input = $('#chatInput');
     input.value = String(message || '').slice(0, input.maxLength > 0 ? input.maxLength : 4000);
@@ -93,7 +100,6 @@
     attachment = null;
     renderAttachment();
   }
-  const pendingAnalysisRef = () => attachment?.analysisRef || null;
 
   function createLiveAnalysis() {
     const el = document.createElement('div'); el.className = 'message assistant live-analysis';
@@ -274,13 +280,14 @@
     renderLiveAnalysis(live);
   }
 
-  async function streamAgent(message, clientMessageId, onProgress, diagnostics, effort = 'off', resultRef = null, resultCursor = null, analysisRef = null, skillId = null) {
+  async function streamAgent(message, clientMessageId, onProgress, diagnostics, effort = 'off', resultRef = null, resultCursor = null, analysisRef = null, skillId = null, dutyCheckRef = null) {
     let response;
     try {
       const payload = thinkingControl.requestPayload({message, session_id:state.sessionId, client_message_id:clientMessageId}, state.modelConfig, effort);
       if (resultRef) Object.assign(payload, {tool_result_ref:resultRef, tool_result_cursor:resultCursor});
       else if (analysisRef) payload.analysis_ref = analysisRef;
       else if (skillId) payload.skill_id = skillId;
+      else if (dutyCheckRef) payload.duty_check_ref = dutyCheckRef;
       const headers = identityHeaders({'Content-Type':'application/json'});
       response = await fetch('/api/chat/stream', {method:'POST', headers, body:JSON.stringify(payload)});
     } catch {
@@ -341,13 +348,17 @@
     live.el.querySelector('.live-indicator').textContent = '失败';
   }
 
-  async function sendChat(message, {clientMessageId = newClientMessageId(), isRetry = false, effort = thinkingEffort(), resultRef = null, resultCursor = null, analysisRef = null, skillId = null} = {}) {
+  async function sendChat(message, {clientMessageId = newClientMessageId(), isRetry = false, effort = thinkingEffort(), resultRef = null, resultCursor = null, analysisRef = null, skillId = null, dutyCheckRef = null} = {}) {
     const text = message.trim(); if (!text || state.streaming) return;
     if (!state.sessionId) await createConversation();
     $('.suggestions')?.remove();
     if (!isRetry) {
-      if (!resultRef && pendingAnalysisRef()) { analysisRef = pendingAnalysisRef(); clearAnalysisAttachment(); }
-      if (!resultRef && !analysisRef && selectedSkill) {
+      if (!resultRef && attachment) {
+        analysisRef = attachment.analysisRef || null;
+        dutyCheckRef = attachment.dutyCheckRef || null;
+        clearAnalysisAttachment();
+      }
+      if (!resultRef && !analysisRef && !dutyCheckRef && selectedSkill) {
         skillId = selectedSkill.id;
         setSelectedSkill(null);
       }
@@ -358,7 +369,7 @@
     $('#sendButton').disabled = true; state.streaming = true;
     const live = createLiveAnalysis();
     try {
-      const result = await streamAgent(text, clientMessageId, event => updateLiveAnalysis(live, event), live.telemetry, effort, resultRef, resultCursor, analysisRef, skillId);
+      const result = await streamAgent(text, clientMessageId, event => updateLiveAnalysis(live, event), live.telemetry, effort, resultRef, resultCursor, analysisRef, skillId, dutyCheckRef);
       await finishLiveAnswer(live, result.answer);
       reportStreamTelemetry(live, result.answer);
       renderAssistantInto(live.el, result.answer, result);
@@ -369,7 +380,7 @@
       updateLiveAnalysis(live, {event:'run_failed', message:error.message});
       renderAgentRequestError(live, error, () => {
         live.el.remove();
-        sendChat(text, {clientMessageId, isRetry:true, effort, resultRef, resultCursor, analysisRef, skillId});
+        sendChat(text, {clientMessageId, isRetry:true, effort, resultRef, resultCursor, analysisRef, skillId, dutyCheckRef});
       });
     }
     finally {
@@ -383,7 +394,7 @@
       createLiveAnalysis, renderLiveAnalysis, startLiveAnswer, resolveLiveAnswerDrain,
       renderLiveAnswerFrame, scheduleLiveAnswerFrame, armLiveAnswerStall, appendLiveAnswer,
       finishLiveAnswer, cancelLiveAnswer, updateLiveAnalysis, streamAgent, reportStreamTelemetry,
-      renderAgentRequestError, sendChat, attachAnalysis, clearAnalysisAttachment, bindSkillPicker,
+      renderAgentRequestError, sendChat, attachAnalysis, attachDutyCheck, clearAnalysisAttachment, bindSkillPicker,
     };
   }
 

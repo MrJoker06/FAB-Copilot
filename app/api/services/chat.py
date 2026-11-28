@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from uuid import uuid4
+
 import httpx
+
+from app.demo_data.shift_checklist import ChecklistError, read_check
 
 from ...bootstrap.duty_chat_skill import (
     ChatSkillRequest,
@@ -19,7 +23,38 @@ from ...planning_runtime.named_playbooks import resolve_duty_date_reply
 from .analysis_attachment import analysis_references, attached_question
 
 
+def _checklist_item(runtime, principal, reference):
+    try:
+        return read_check(principal, reference)
+    except ChecklistError as exc:
+        raise runtime["http_problem"](exc.status, exc.code, str(exc), False) from None
+
+
 async def run_chat_agent(runtime, request, principal, question, history, progress, **options):
+    if reference := getattr(request, "duty_check_ref", None):
+        check = _checklist_item(runtime, principal, reference)
+        status = {
+            "exception": "有待跟进事项", "clear": "已检查，无异常",
+            "unavailable": "当前数据不足", "error": "来源读取失败",
+        }[check["status"]]
+        window = check["window"]
+        lines = [
+            f"**{check['title']}** · {status}",
+            f"查询窗口：{window['start']} 至 {window['end']}。来源：{check['source']}。",
+        ]
+        if check["count"] is not None:
+            lines.append(f"记录数：{check['count']}。")
+        lines.extend(
+            f"- {row['object']} · {row['detail']}。{row.get('follow_up', '')}"
+            for row in check["records"]
+        )
+        lines.append("以上为合成开班记录，现场情况与处置请由工程师核对。")
+        answer = "\n\n".join(lines)
+        run_id = str(uuid4())
+        await progress({"event": "run_started", "run_id": run_id, "message": "已读取开班检查项"})
+        await progress({"event": "answer_delta", "delta": answer})
+        return {"answer": answer, "run_id": run_id, "mode": "duty_checklist", "model": "local-rules",
+                "tool_trace": [], "sources": [], "duty_check_ref": reference}
     trusted_history = filter_saved_history(principal, allowed_history(history, principal))
     if getattr(request, "tool_result_ref", None):
         return await runtime["run_agent"](question, trusted_history, progress, **options)
@@ -52,6 +87,9 @@ class ChatService:
     def prepare_chat(self, request):
         runtime = self._deps()
         selected = getattr(request, "skill_id", None)
+        duty_check_ref = getattr(request, "duty_check_ref", None)
+        if duty_check_ref:
+            _checklist_item(runtime, runtime["current_principal"](), duty_check_ref)
         if selected:
             try:
                 require_skill(runtime["current_principal"](), selected)
@@ -77,6 +115,8 @@ class ChatService:
             )
         cached = runtime["cached_agent_result"](session_id, request.client_message_id)
         if cached:
+            if cached.get("duty_check_ref") != duty_check_ref:
+                raise runtime["http_problem"](409, "IDEMPOTENCY_CONFLICT", "同一客户端消息编号不能更改开班检查项。", False)
             if cached.get("requested_skill_id") != selected:
                 raise runtime["http_problem"](409, "IDEMPOTENCY_CONFLICT", "同一客户端消息编号不能更改技能选择。", False)
             skill_execution = cached.get("skill_execution")
@@ -93,6 +133,8 @@ class ChatService:
         metadata = {"analysis_ref": attached} if attached else {}
         if selected:
             metadata["requested_skill_id"] = selected
+        if duty_check_ref:
+            metadata["duty_check_ref"] = duty_check_ref
         message = runtime["append_message"](
             session_id,
             "user",
@@ -103,6 +145,7 @@ class ChatService:
         if message.get("duplicate") and (
             message.get("content", request.message) != request.message
             or (message.get("metadata") or {}).get("requested_skill_id") != selected
+            or (message.get("metadata") or {}).get("duty_check_ref") != duty_check_ref
         ):
             raise runtime["http_problem"](409, "IDEMPOTENCY_CONFLICT", "同一客户端消息编号不能更改内容或技能。", False)
         if (

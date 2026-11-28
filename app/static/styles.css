@@ -574,3 +574,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .lc-passes td { height: auto; padding-top: 6px; padding-bottom: 6px; }
 .lc-passes tr.lc-selected td, .lc-passes tr.lc-selected th { background: #eff8f4; }
 .lc-passes tr.lc-selected th { box-shadow: inset 3px 0 #087f70; }
+
+.duty-checklist-filters label { display: grid; gap: .25rem; }
+.duty-checklist-filters { align-items: end; flex-wrap: wrap; }
+.duty-checklist-items { display: grid; gap: .75rem; }
+.duty-checklist-item { padding: .9rem 1rem; }
+.duty-checklist-item summary { cursor: pointer; line-height: 1.6; }
+.duty-checklist-item summary .shift-tag { margin-inline-start: .5rem; }
+.duty-checklist-item p, .duty-checklist-item ul { margin-block: .6rem; }

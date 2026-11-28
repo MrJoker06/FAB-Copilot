@@ -2,6 +2,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StringConstraints, model_validator
 
+from app.demo_data.shift_checklist import CHECK_REFERENCE_PATTERN
+
 ThinkingEffort = Literal["off", "low", "medium", "high", "xhigh"]
 ThinkingDialect = Literal["qwen", "deepseek", "openai"]
 
@@ -35,6 +37,7 @@ class ChatRequest(BaseModel):
     tool_result_ref: str | None = Field(default=None, pattern=r"^tr_[a-f0-9]{32}$")
     tool_result_cursor: str | None = Field(default=None, min_length=1, max_length=2048)
     analysis_ref: str | None = Field(default=None, pattern=r"^lca_[a-f0-9]{32}$")
+    duty_check_ref: str | None = Field(default=None, pattern=CHECK_REFERENCE_PATTERN, max_length=45)
 
     skill_id: str | None = Field(default=None, min_length=1, max_length=64, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
@@ -44,6 +47,8 @@ class ChatRequest(BaseModel):
             raise ValueError("tool_result_cursor requires tool_result_ref")
         if self.analysis_ref is not None and self.tool_result_ref is not None:
             raise ValueError("analysis_ref cannot be combined with tool_result_ref")
+        if self.duty_check_ref and (self.analysis_ref or self.tool_result_ref or self.skill_id):
+            raise ValueError("duty_check_ref cannot be combined with saved result references or skill_id")
         if self.skill_id is not None and (self.analysis_ref or self.tool_result_ref):
             raise ValueError("skill_id cannot be combined with saved result references")
         return self

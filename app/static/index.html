@@ -30,6 +30,7 @@
       <button class="nav-item __ACTIVE_procedures__" data-view="procedures" title="SOP&历史case" __CURRENT_procedures__><span aria-hidden="true">▤</span><span>SOP&amp;历史case</span></button>
       <button class="nav-item __ACTIVE_autosystem__" id="autosystemLink" data-view="autosystem" title="Autosystem 平台" __CURRENT_autosystem__><span aria-hidden="true">↗</span><span>Autosystem 平台</span></button>
       <button class="nav-item" id="focusAgent" title="显示或隐藏值班智能助手" aria-expanded="true"><span aria-hidden="true">◇</span><span>值班智能助手</span></button>
+      <button class="nav-item __ACTIVE_checklist__" type="button" data-view="checklist" title="开班检查" __CURRENT_checklist__><span aria-hidden="true">☷</span><span>开班检查</span></button>
       <details id="allFunctions" class="all-functions">
         <summary title="展开或收起所有功能"><span>所有功能</span><span class="nav-chevron" aria-hidden="true">›</span></summary>
         <div class="all-functions-items">
@@ -112,6 +113,18 @@
           <h2>平台正在建设中</h2>
           <p>相关功能将陆续开放，敬请期待。</p>
         </div>
+      </section>
+
+      <section id="checklistView" class="view __ACTIVE_checklist__">
+        <div class="page-heading"><div><h1>开班检查</h1><p>按岗位和班次核对异常与上一班未结事项</p></div></div>
+        <form id="dutyChecklistForm" class="shift-toolbar duty-checklist-filters">
+          <label>岗位 <select id="dutyChecklistRole"><option value="">默认岗位</option></select></label>
+          <label>开班日期 <input id="dutyChecklistDate" type="date"></label>
+          <label>班次 <select id="dutyChecklistShift"><option value="day">白班</option><option value="night">夜班</option></select></label>
+          <button type="submit" class="secondary-btn">查看班次</button>
+        </form>
+        <p id="dutyChecklistStatus" class="shift-status" role="status"></p>
+        <div id="dutyChecklistItems" class="duty-checklist-items" aria-label="开班检查项"></div>
       </section>
 
       <section id="dashboardView" class="view __ACTIVE_dashboard__">

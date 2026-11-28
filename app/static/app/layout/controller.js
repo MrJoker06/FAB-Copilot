@@ -58,7 +58,7 @@
       if (!document.querySelector('.app-shell').classList.contains('agent-collapsed')) {
         $('#focusAgent').classList.add('active');
       }
-      if (name === 'reports' || name === 'procedures') loadShiftView(name);
+      if (['reports', 'procedures', 'checklist'].includes(name)) loadShiftView(name);
       else if (name === 'capability') loadCapability();
       else if (name === 'knowledge') {
         if (state.knowledgeMode === 'personal') loadPersonalKnowledgeDocuments();

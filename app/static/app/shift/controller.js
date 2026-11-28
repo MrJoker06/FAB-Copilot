@@ -72,7 +72,51 @@
       $('#shiftDocumentReader').innerHTML = `<header><h2>${esc(item.title)}</h2><p class="shift-document-meta">${esc(item.id)} · ${esc(item.version || item.updated_at)}</p></header>${(item.sections || []).map(section => `<section><h3>${esc(section.title)}</h3>${section.steps ? `<ol>${section.steps.map(step => `<li>${esc(step)}</li>`).join('')}</ol>` : `<p class="shift-section-text">${esc(section.text)}</p>`}</section>`).join('')}${related ? `<section><h3>关联 SOP</h3><button type="button" class="shift-related" data-related-sop="${esc(related.key)}">${esc(related.title)} · ${esc(related.version)} ↗</button></section>` : ''}<div class="shift-reader-actions"><button type="button" class="secondary-btn" id="askShiftAssistant">向值班智能助手提问</button>${item.shared ? '<button type="button" class="secondary-btn" id="downloadSharedDocument">下载原文</button>' : ''}</div>`;
     }
 
+    let checkLoadVersion = 0;
+    let recentChecks = [];
+    const checkStatuses = {
+      exception: '待跟进', clear: '已检查 · 无异常', unavailable: '数据不足', error: '来源失败',
+    };
+
+    async function loadChecklist() {
+      const version = ++checkLoadVersion;
+      const status = $('#dutyChecklistStatus');
+      const area = $('#dutyChecklistItems');
+      const role = $('#dutyChecklistRole');
+      const day = $('#dutyChecklistDate');
+      const query = new URLSearchParams({shift: $('#dutyChecklistShift').value});
+      if (role.value) query.set('role', role.value);
+      if (day.value) query.set('work_date', day.value);
+      status.textContent = '正在读取开班检查…';
+      recentChecks = [];
+      area.replaceChildren();
+      try {
+        const data = await api(`/api/reports/duty-checklist?${query}`);
+        if (version !== checkLoadVersion) return;
+        role.replaceChildren(...data.available_roles.map(name => new root.Option(name, name)));
+        role.value = data.role;
+        day.value = data.work_date;
+        recentChecks = data.checks;
+        status.textContent = `${data.window.start.replace('T', ' ')} 至 ${data.window.end.replace('T', ' ')} · 合成数据`;
+        area.innerHTML = recentChecks.map(check => `
+          <details class="panel duty-checklist-item">
+            <summary><strong>${esc(check.title)}</strong><span class="shift-tag">${esc(checkStatuses[check.status])}</span></summary>
+            <p>${esc(check.source)} · ${check.count === null ? '数量待确认' : `${check.count} 条`}</p>
+            <p>${esc(check.window.start.replace('T', ' '))} 至 ${esc(check.window.end.replace('T', ' '))}</p>
+            ${check.updated_at ? `<p>更新时间 ${esc(check.updated_at.replace('T', ' '))}</p>` : ''}
+            <ul>${check.records.map(row => `<li><strong>${esc(row.object)}</strong> ${esc(row.detail)}${row.follow_up ? ` · ${esc(row.follow_up)}` : ''}</li>`).join('')}</ul>
+            <div class="shift-reader-actions">
+              ${safeLink(check.report_url) ? `<a class="shift-report-link" href="${esc(safeLink(check.report_url))}" target="_blank" rel="noopener noreferrer">打开对应报表</a>` : ''}
+              <button type="button" class="secondary-btn" data-check-assistant="${esc(check.id)}">带入值班助手</button>
+            </div>
+          </details>`).join('');
+      } catch (error) {
+        if (version === checkLoadVersion) status.textContent = error.message;
+      }
+    }
+
     async function loadShiftView(name) {
+      if (name === 'checklist') return loadChecklist();
       if (name === 'reports') {
         $('#shiftReportsStatus').textContent = '正在读取目录…';
         try {
@@ -158,6 +202,18 @@
     }
 
     function bindShiftEvents() {
+      $('#dutyChecklistForm')?.addEventListener('submit', event => { event.preventDefault(); loadChecklist(); });
+      $('#dutyChecklistItems')?.addEventListener('click', event => {
+        const button = event.target.closest('[data-check-assistant]');
+        if (!button) return;
+        const check = recentChecks.find(item => item.id === button.dataset.checkAssistant);
+        if (check) deps.askChecklist({
+          dutyCheckRef: check.reference,
+          label: check.title,
+          message: `请说明这项开班检查的结果与限制。
+${check.title}`,
+        });
+      });
       $('#shiftReportSearch').addEventListener('input', renderReports);
       $('#reportsView').addEventListener('click', event => {
         const anchor = event.target.closest('[data-open-report]'); if (!anchor) return;

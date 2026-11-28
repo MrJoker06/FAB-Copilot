@@ -123,7 +123,7 @@
     }
   },
   "api": {
-    "openapi_sha256": "c89fe6356872d4d20e8f149cbb8d90c47beab01ebef54d39de6f9ec464273781",
+    "openapi_sha256": "86cfbeb8b0d0103e2c94beb73e2491c390291726ffb9db36f141d520a32f2a91",
     "routes": [
       {
         "method": "GET",
@@ -529,6 +529,12 @@
       },
       {
         "method": "GET",
+        "name": "duty_checklist",
+        "path": "/api/reports/duty-checklist",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
         "name": "session_list",
         "path": "/api/sessions",
         "success_status": 200
@@ -778,6 +784,7 @@
         "chatHint",
         "chatInput",
         "chatMessages",
+        "checklistView",
         "clearChat",
         "closeKnowledgeUploadDialog",
         "closeModelDialog",
@@ -822,6 +829,12 @@
         "deleteSelectedSessions",
         "dismissVersionBanner",
         "downloadPersonalKnowledge",
+        "dutyChecklistDate",
+        "dutyChecklistForm",
+        "dutyChecklistItems",
+        "dutyChecklistRole",
+        "dutyChecklistShift",
+        "dutyChecklistStatus",
         "editPersonalKnowledge",
         "endDate",
         "equipmentBody",

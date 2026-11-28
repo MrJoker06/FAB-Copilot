@@ -53,6 +53,8 @@ def _tool_allowed(principal, tool):
 def _access_claims(result):
     for entry in result.get("tool_trace") or ():
         yield {"tool": entry.get("tool")}
+    if check := result.get("duty_check_ref"):
+        yield {"duty_check": check}
     if skill := result.get("skill_execution"):
         yield {"skill": skill["id"]}
     sources = list(result.get("sources") or ())
@@ -93,6 +95,8 @@ def saved_answer_allowed(principal, result):
     if not _verified(principal):
         return True
     try:
+        from app.demo_data.shift_checklist import read_check
+
         from .duty_chat_skill import require_skill
 
         claims = {
@@ -105,6 +109,8 @@ def saved_answer_allowed(principal, result):
                     return False
             elif "skill" in claim:
                 require_skill(principal, claim["skill"])
+            elif "duty_check" in claim:
+                read_check(principal, claim["duty_check"])
             elif "source" in claim:
                 sources.append(claim["source"])
             else:

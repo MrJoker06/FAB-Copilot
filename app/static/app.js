@@ -68,6 +68,7 @@ const dashboard = globalThis.FabDashboardController.createDashboardController({
 const shift = globalThis.FabShiftController.createShiftController({
   $, escapeHtml, showToast, api, identityHeaders, processLabels,
   setAgentOpen: (...args) => layout.setAgentOpen(...args), showView: (...args) => layout.showView(...args),
+  askChecklist: draft => { layout.setAgentOpen(true); chat.attachDutyCheck(draft); },
 });
 const commonality = globalThis.FabCommonalityController.createCommonalityController({
   $, escapeHtml, identityHeaders,

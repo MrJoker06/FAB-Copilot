@@ -14,7 +14,7 @@ async function accessible(page) {
 
 test('duty navigation preserves the original dashboard, folds legacy views and toggles the assistant', async ({page}) => {
   await ready(page);
-  await expect(page.locator('.sidebar > .nav-item')).toHaveText(['▥基础报表', '◫相关性分析', '▤SOP&历史case', '↗Autosystem 平台', '◇值班智能助手']);
+  await expect(page.locator('.sidebar > .nav-item')).toHaveText(['▥基础报表', '◫相关性分析', '▤SOP&历史case', '↗Autosystem 平台', '◇值班智能助手', '☷开班检查']);
   await expect(page.locator('#allFunctions')).not.toHaveAttribute('open');
   await expect(page.locator('#dashboardView')).toBeVisible();
   await page.locator('#allFunctions summary').focus();
@@ -153,4 +153,27 @@ test('malformed materials are reported separately while original cases remain av
   await page.unroute('**/display_mock_data/catalog.json');
   await page.locator('#refreshShiftDocuments').click();
   await expect(page.locator('[data-shift-document^="sample:"]')).toHaveCount(3);
+});
+
+test('duty checklist shows separate overnight windows and attaches the selected item', async ({page}) => {
+  await ready(page);
+  await page.getByRole('button', {name:'开班检查'}).click();
+  await expect(page.locator('#dutyChecklistRole')).toHaveValue('PE');
+  await page.locator('#dutyChecklistDate').fill('2026-08-07');
+  await page.locator('#dutyChecklistShift').selectOption('night');
+  await page.getByRole('button', {name:'查看班次'}).click();
+  await expect(page.locator('#dutyChecklistStatus')).toContainText('2026-08-08 08:00');
+  await expect(page.locator('#dutyChecklistItems')).toContainText('数据不足');
+  const handover = page.locator('.duty-checklist-item').filter({hasText:'上一班未结事项'});
+  await handover.locator('summary').click();
+  await expect(handover).toContainText('HO-PE-001');
+  await handover.getByRole('button', {name:'带入值班助手'}).click();
+  await expect(page.locator('#chatAttachment')).toContainText('上一班未结事项');
+  await page.locator('#sendButton').click();
+  await expect(page.locator('#chatMessages')).toContainText('HO-PE-001');
+  await expect(page.locator('#chatMessages')).toContainText('值班交接台账');
+  await page.locator('#dutyChecklistRole').selectOption('EE');
+  await page.getByRole('button', {name:'查看班次'}).click();
+  await expect(page.locator('#dutyChecklistItems')).toContainText('来源失败');
+  await expect(page.locator('#dutyChecklistItems')).toContainText('设备报警');
 });
