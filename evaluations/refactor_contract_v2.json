@@ -123,7 +123,7 @@
     }
   },
   "api": {
-    "openapi_sha256": "c4c56476d4177ea2242bbe25bd0ada8151abf07fcd32e1425d48dcfc1cc002a2",
+    "openapi_sha256": "f0dde939f2fd8afbfe151cae6fe2035614c326b02b7cf7623ccee62997aad81f",
     "routes": [
       {
         "method": "GET",
@@ -135,6 +135,18 @@
         "method": "GET",
         "name": "admin_index",
         "path": "/admin",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "manage",
+        "path": "/api/admin/capabilities",
+        "success_status": 200
+      },
+      {
+        "method": "PUT",
+        "name": "register",
+        "path": "/api/admin/capabilities/{kind}/{name}",
         "success_status": 200
       },
       {
@@ -204,10 +216,34 @@
         "success_status": 200
       },
       {
+        "method": "POST",
+        "name": "preview_directory",
+        "path": "/api/admin/report-directory/preview",
+        "success_status": 200
+      },
+      {
+        "method": "PUT",
+        "name": "configure_area",
+        "path": "/api/admin/shared-document-areas",
+        "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "preview_areas",
+        "path": "/api/admin/shared-document-areas/preview",
+        "success_status": 200
+      },
+      {
         "method": "GET",
         "name": "admin_documents",
         "path": "/api/admin/shared-documents",
         "success_status": 200
+      },
+      {
+        "method": "POST",
+        "name": "admin_upload_document",
+        "path": "/api/admin/shared-documents",
+        "success_status": 202
       },
       {
         "method": "GET",
@@ -249,6 +285,12 @@
         "method": "GET",
         "name": "read_agent_run_audit",
         "path": "/api/agent-runs/{run_id}/audit",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "visible",
+        "path": "/api/capabilities",
         "success_status": 200
       },
       {
@@ -568,6 +610,7 @@
   "frontend": {
     "admin": {
       "element_ids": [
+        "abilitiesView",
         "addReportFolder",
         "adminAuthDialog",
         "adminAuthDialogTitle",
@@ -627,6 +670,7 @@
         "modelNotice",
         "modelsView",
         "openPublishModel",
+        "previewReportModules",
         "publishBaseUrl",
         "publishDisplayName",
         "publishModelDialog",
@@ -652,6 +696,8 @@
         "refreshRuntime",
         "refreshSharedDocuments",
         "removeReportFolder",
+        "reportAccessPreview",
+        "reportAccessResult",
         "reportDescription",
         "reportDirectoryBody",
         "reportDirectoryCount",
@@ -668,6 +714,8 @@
         "reportFolderParent",
         "reportFolderTree",
         "reportObject",
+        "reportOwnerModule",
+        "reportReaderModules",
         "reportSortOrder",
         "reportTitle",
         "reportUrl",
@@ -699,6 +747,7 @@
       ],
       "script_sources": [
         "/static/model_capabilities.js?v=__APP_VERSION__",
+        "/static/capabilities.js?v=__APP_VERSION__",
         "/static/admin.js?v=__APP_VERSION__"
       ]
     },

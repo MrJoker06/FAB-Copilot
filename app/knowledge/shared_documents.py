@@ -35,6 +35,12 @@ def connection(root: Path):
             process TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,
             sections_json TEXT NOT NULL DEFAULT '[]', error_code TEXT, error_message TEXT,
             created_at TEXT NOT NULL, updated_at TEXT NOT NULL)""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS document_areas (
+            owner TEXT PRIMARY KEY, readers TEXT NOT NULL)""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS document_placement (
+            document_id TEXT PRIMARY KEY REFERENCES documents(document_id),
+            owner TEXT NOT NULL REFERENCES document_areas(owner))""")
+        conn.execute("PRAGMA foreign_keys=ON")
         with conn:
             yield conn
     finally:
@@ -45,9 +51,45 @@ def now():
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
+# An absent placement is the common area, including documents from older databases.
+_AREA_JOIN = """ FROM documents AS d
+    LEFT JOIN document_placement AS p ON p.document_id=d.document_id
+    LEFT JOIN document_areas AS a ON a.owner=p.owner """
+
+
+def area_visible(owner, readers, modules):
+    return owner is None or owner in modules or not set(modules).isdisjoint(json.loads(readers))
+
+
+def list_areas(*, storage_root, modules=(), admin=False):
+    with connection(storage_root) as conn:
+        rows = conn.execute("SELECT owner, readers FROM document_areas ORDER BY owner").fetchall()
+    return [{"owner": row["owner"], **({"readers": json.loads(row["readers"])} if admin else {})}
+            for row in rows if admin or area_visible(row["owner"], row["readers"], modules)]
+
+
+def save_area(owner, readers, *, storage_root):
+    with connection(storage_root) as conn:
+        conn.execute("""INSERT INTO document_areas(owner,readers) VALUES (?,?)
+            ON CONFLICT(owner) DO UPDATE SET readers=excluded.readers""",
+            (owner, json.dumps(readers, ensure_ascii=False)))
+    return {"owner": owner, "readers": readers}
+
+
+def place_document(conn, document_id, owner, modules=(), admin=False):
+    if owner:
+        area = conn.execute("SELECT readers FROM document_areas WHERE owner=?", (owner,)).fetchone()
+        if area is None or not (admin or area_visible(owner, area["readers"], modules)):
+            raise PersonalKnowledgeError(404, "AREA_NOT_FOUND", "资料区不存在或不可访问")
+        conn.execute("INSERT OR REPLACE INTO document_placement(document_id,owner) VALUES (?,?)",
+                     (document_id, owner))
+    else:
+        conn.execute("DELETE FROM document_placement WHERE document_id=?", (document_id,))
+
+
 def public_document(row, *, content=False, own=False, admin=False):
     item = {key: row[key] for key in ("document_id", "kind", "title", "filename", "mime_type", "size_bytes", "process", "status", "created_at", "updated_at")}
-    item.update(enabled=bool(row["enabled"]), own=own)
+    item.update(enabled=bool(row["enabled"]), own=own, area=row["area"])
     if own or admin:
         item.update(error_code=row["error_code"], error_message=row["error_message"])
     if admin:
@@ -57,7 +99,7 @@ def public_document(row, *, content=False, own=False, admin=False):
     return item
 
 
-def create_upload(principal, filename, data, kind, title, process, *, storage_root: Path):
+def create_upload(principal, filename, data, kind, title, process, *, storage_root: Path, area=None, admin=False):
     filename = _safe_filename(filename)
     suffix, mime = _validate_file(filename, data)
     document_id = str(uuid.uuid4())
@@ -73,6 +115,7 @@ def create_upload(principal, filename, data, kind, title, process, *, storage_ro
                 VALUES (?,?,?,?,?,?,?,?,?,?,'processing',?,?)""",
                 (document_id,kind,title or Path(filename).stem,filename,mime,len(data),key,
                  principal.tenant_id,principal.user_id,process,timestamp,timestamp))
+            place_document(conn, document_id, area, getattr(principal, "modules", ()), admin)
     except Exception:
         path.unlink(missing_ok=True)
         raise
@@ -105,12 +148,16 @@ def process_document(document_id, *, storage_root: Path):
             conn.execute("UPDATE documents SET status='failed',error_code=?,error_message=?,updated_at=? WHERE document_id=?", (code,message,now(),document_id))
 
 
-def list_documents(principal=None, *, storage_root: Path, admin=False):
+def list_documents(principal=None, *, storage_root: Path, admin=False, modules=None):
+    if modules is None:
+        modules = getattr(principal, "modules", ())
     with connection(storage_root) as conn:
-        rows = conn.execute("SELECT document_id,kind,title,filename,mime_type,size_bytes,tenant_id,user_id,process,status,enabled,error_code,error_message,created_at,updated_at FROM documents ORDER BY updated_at DESC,document_id DESC").fetchall()
+        rows = conn.execute("SELECT d.document_id,kind,title,filename,mime_type,size_bytes,tenant_id,user_id,process,status,enabled,error_code,error_message,created_at,updated_at,p.owner AS area,a.readers" + _AREA_JOIN + "ORDER BY updated_at DESC,d.document_id DESC").fetchall()
     result = []
     for row in rows:
         own = principal is not None and row["tenant_id"] == principal.tenant_id and row["user_id"] == principal.user_id
+        if not admin and not area_visible(row["area"], row["readers"], modules):
+            continue
         if admin or own or (row["status"] == "ready" and row["enabled"]):
             result.append(public_document(row, own=own, admin=admin))
     return result
@@ -118,10 +165,11 @@ def list_documents(principal=None, *, storage_root: Path, admin=False):
 
 def get_document(document_id, principal=None, *, storage_root: Path, admin=False, content=True):
     with connection(storage_root) as conn:
-        row = conn.execute("SELECT * FROM documents WHERE document_id=?", (document_id,)).fetchone()
+        row = conn.execute("SELECT d.*,p.owner AS area,a.readers" + _AREA_JOIN + "WHERE d.document_id=?", (document_id,)).fetchone()
     own = row is not None and principal is not None and row["tenant_id"] == principal.tenant_id and row["user_id"] == principal.user_id
     # A disabled document is withheld from user content/download routes, including its uploader.
-    if row is None or not admin and (not row["enabled"] or row["status"] != "ready" and not own):
+    if row is None or not admin and (not area_visible(row["area"], row["readers"], getattr(principal, "modules", ()))
+            or not row["enabled"] or row["status"] != "ready" and not own):
         raise PersonalKnowledgeError(404, "DOCUMENT_NOT_FOUND", "共享资料不存在或已停用")
     return public_document(row, content=content, own=own, admin=admin), row
 
@@ -131,6 +179,8 @@ def update_document(document_id, changes, *, storage_root: Path):
         row = conn.execute("SELECT * FROM documents WHERE document_id=?", (document_id,)).fetchone()
         if row is None:
             raise PersonalKnowledgeError(404, "DOCUMENT_NOT_FOUND", "共享资料不存在")
+        if "area" in changes:
+            place_document(conn, document_id, changes["area"], admin=True)
         values = {key: changes.get(key, row[key]) for key in ("title", "kind", "process", "enabled")}
         conn.execute("UPDATE documents SET title=?,kind=?,process=?,enabled=?,updated_at=? WHERE document_id=?",
             (values["title"],values["kind"],values["process"],int(values["enabled"]),now(),document_id))

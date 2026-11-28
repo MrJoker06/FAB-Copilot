@@ -1,9 +1,23 @@
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StringConstraints, model_validator
 
 ThinkingEffort = Literal["off", "low", "medium", "high", "xhigh"]
 ThinkingDialect = Literal["qwen", "deepseek", "openai"]
+
+
+ModuleId = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64, pattern=r"^[\p{L}\p{N}_-]+$")]
+
+
+class FolderAccess(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    owner: ModuleId
+    readers: list[ModuleId] = Field(default_factory=list, max_length=100)
+
+
+class ModulePreview(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    modules: list[ModuleId] = Field(max_length=100)
 
 
 class ChatMessage(BaseModel):

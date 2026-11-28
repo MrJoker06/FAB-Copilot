@@ -54,9 +54,11 @@ def build_default_coordinator_dependencies(
         # Import lazily so historical explicit assembly remains importable alone.
         from ..agent_runtime.result_access_run import current_result_access
         from .default_tool_assembly import build_default_run_tools
+        from . import capability_catalog
         from .tool_bindings import _LEGACY_BINDINGS
 
         return build_default_run_tools(
+            management=capability_catalog,
             settings=settings,
             principal=current_principal(),
             plan=plan,

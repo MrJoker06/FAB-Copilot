@@ -363,6 +363,11 @@
       "artifact_group": "application_bundle"
     },
     {
+      "path": "app/api/capability_directory.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
       "path": "app/api/dependencies.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"
@@ -499,6 +504,11 @@
     },
     {
       "path": "app/bootstrap/agent_demo.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/bootstrap/capability_catalog.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"
     },
@@ -1361,6 +1371,11 @@
     },
     {
       "path": "app/static/app/shift/controller.js",
+      "primary_module": "static_ui",
+      "artifact_group": "application_bundle"
+    },
+    {
+      "path": "app/static/capabilities.js",
       "primary_module": "static_ui",
       "artifact_group": "application_bundle"
     },
@@ -2531,6 +2546,21 @@
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
+      "source_file": "app/bootstrap/capability_catalog.py",
+      "imports": [
+        "sqlite3"
+      ],
+      "calls": [
+        "conn.execute",
+        "sqlite3.connect"
+      ],
+      "table_hints": [
+        "registrations",
+        "sqlite_master"
+      ],
+      "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
+    },
+    {
       "source_file": "app/bootstrap/storage_identity_assembly.py",
       "imports": [],
       "calls": [
@@ -2647,7 +2677,7 @@
       "source_file": "app/knowledge/shared_documents.py",
       "imports": ["sqlite3"],
       "calls": ["conn.execute", "sqlite3.connect"],
-      "table_hints": ["documents"],
+      "table_hints": ["document_areas", "document_placement", "documents"],
       "manual_review": "SQL hints are incomplete; dynamic SQL and injected callables require review"
     },
     {
@@ -3331,6 +3361,14 @@
         "stores": "lots, process_runs",
         "init_effects": "Fixed legacy Tool read operations, relocated without changing SQL or data semantics; db_session retains existing lifecycle and configuration behavior.",
         "exit_task": "MOD-027"
+      },
+      {
+        "source_file": "app/bootstrap/capability_catalog.py",
+        "owner": "application_bootstrap",
+        "classification": "internal-store",
+        "stores": "Instance-local capability directory registrations",
+        "exit_task": "Retained application-owned registration store",
+        "init_effects": "Created on first administrator write. Discovery does not initialize the database."
       }
     ]
   },

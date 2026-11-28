@@ -180,6 +180,12 @@ class QualityGateTests(unittest.TestCase):
         self.assertEqual(report["modules"][0]["returncode"], 7)
         self.assertEqual(report["total"]["status"], "failed")
 
+    def test_committed_budgets_cover_all_system_test_modules(self):
+        run_quality_gate.validate_system_test_budgets(
+            run_quality_gate.load_system_test_budgets(),
+            run_quality_gate.system_test_modules(),
+        )
+
     def test_budget_schema_requires_exact_modules_and_ordered_thresholds(self):
         valid = {"schema_version": 1, "modules": {"tests.system.test_a": {"warning_seconds": 1, "fail_seconds": 2}}, "total": {"warning_seconds": 3, "fail_seconds": 4}}
         run_quality_gate.validate_system_test_budgets(valid, ["tests.system.test_a"])

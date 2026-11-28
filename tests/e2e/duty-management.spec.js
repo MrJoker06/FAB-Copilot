@@ -9,6 +9,38 @@ async function admin(page) {
   await expect(page.locator('#adminWorkspace')).toBeVisible();
 }
 
+test('platform admin registers a common skill and can restrict it to a department', async ({page}) => {
+  const name = 'litho-cpk-diagnostic';
+  await admin(page);
+  await page.locator('[data-admin-view="abilities"]').click();
+  await page.locator('[data-ability-kind="skill"]').click();
+  await page.locator('[data-register-ability]').click();
+  const form = page.locator('[data-ability-form]');
+  await form.locator('[name=candidate]').selectOption(name);
+  await form.locator('[name=scope]').selectOption('common');
+  await form.locator('[name=groups]').fill('值班排查');
+  await form.locator('[name=enabled]').check();
+  await form.getByRole('button', {name:'保存'}).click();
+  await expect(page.locator('[data-ability-rows]')).toContainText('值班排查');
+  const row = page.locator('[data-ability-rows] tr').filter({hasText:name});
+  const title = await row.locator('strong').innerText();
+  await page.goto('/');
+  await page.locator('#allFunctions summary').click();
+  await page.locator('[data-my-capabilities]').click();
+  await expect(page.locator('[data-my-catalog-body]')).toContainText(title);
+  await page.goto('/admin');
+  await page.locator('[data-admin-view="abilities"]').click();
+  await page.locator('[data-ability-kind="skill"]').click();
+  await row.locator('button').click();
+  await form.locator('[name=scope]').selectOption('module');
+  await form.locator('[name=owner]').fill('Litho');
+  await form.getByRole('button', {name:'保存'}).click();
+  await expect(row).toContainText('Litho');
+  const visible = await page.request.get('/api/capabilities');
+  expect(visible.ok()).toBeTruthy();
+  expect((await visible.json()).items.map(item => item.name)).not.toContain(name);
+});
+
 test('admin report folders persist and manage flat user report links without changing models',async ({page}) => {
   const before = await (await page.request.get('/api/admin/report-directory',{headers:adminHeaders})).json();
   const modelsBefore = await (await page.request.get('/api/admin/models',{headers:adminHeaders})).json();
@@ -23,6 +55,7 @@ test('admin report folders persist and manage flat user report links without cha
     await page.locator('#reportFolderName').fill('SPC');
     await page.locator('#reportFolderForm button[type="submit"]').click();
     await expect(page.locator('#reportFolderTree ul ul').first()).toContainText('SPC');
+    await page.getByRole('button', {name:'＋ 新增报表'}).click();
     await page.locator('#reportTitle').fill('当班 SPC 扩展链接');
     await page.locator('#reportUrl').fill('/display_mock_data/reports/spc.html');
     await page.locator('#reportEditorForm button[type="submit"]').click();
@@ -39,6 +72,24 @@ test('admin report folders persist and manage flat user report links without cha
     await expect(page.locator('.shift-report-card')).toHaveCount(7);
     await expect(page.locator('.shift-report-card').filter({hasText:'当班 SPC 扩展链接'})).toBeVisible();
     await expect(page.locator('[data-report-role]')).toHaveCount(0);
+    await page.goto('/admin');
+    await page.locator('[data-admin-view="reports"]').click();
+    await page.getByRole('button', {name:'工程报表', exact:false}).first().click();
+    await page.locator('#editReportFolder').click();
+    await page.locator('#reportOwnerModule').fill('光刻');
+    await page.locator('#reportReaderModules').fill('质量');
+    await page.locator('#reportFolderForm button[type="submit"]').click();
+    await page.locator('#saveReportDirectory').click();
+    await expect(page.locator('#reportDirectoryNotice')).toContainText('目录已保存');
+    await page.locator('#previewReportModules').fill('质量');
+    await page.locator('#reportAccessPreview button').click();
+    await expect(page.locator('#reportAccessResult')).toContainText('当班 SPC 扩展链接');
+    await page.locator('#previewReportModules').fill('整合');
+    await page.locator('#reportAccessPreview button').click();
+    await expect(page.locator('#reportAccessResult')).toContainText('整合 · 6 份报表');
+    await expect(page.locator('#reportAccessResult')).not.toContainText('当班 SPC 扩展链接');
+    await page.goto('/?view=reports');
+    await expect(page.locator('.shift-report-card')).toHaveCount(6);
     const modelsAfter = await (await page.request.get('/api/admin/models',{headers:adminHeaders})).json();
     expect(modelsAfter).toEqual(modelsBefore);
   } finally {
@@ -71,7 +122,24 @@ test('user upload becomes shared, admin edits and disables it, other users lose 
     await page.locator('[data-admin-view="documents"]').click();
     await page.locator(`[data-manage-document="${id}"]`).click();
     await expect(page.locator('#sharedDocumentPreview')).toContainText('保留工程师复核结论');
+    await page.locator('#closeSharedDocument').click();
+    await page.getByText('配置部门资料区', {exact:true}).click();
+    await page.locator('[data-doc-area-form] [name=owner]').fill('光刻');
+    await page.locator('[data-doc-area-form] [name=readers]').fill('质量');
+    await page.getByRole('button',{name:'保存资料区'}).click();
+    await expect(page.locator('[data-doc-areas]')).toContainText('质量');
+    await page.locator(`[data-manage-document="${id}"]`).click();
     await page.locator('#sharedDocumentTitle').fill('已复核的交接案例');
+    await page.locator('[data-doc-destination]').selectOption('光刻');
+    await page.locator('#sharedDocumentForm button[type="submit"]').click();
+    await expect(page.locator('#sharedDocumentDialog')).not.toBeVisible();
+    await reader.locator('#refreshShiftDocuments').click();
+    await expect(reader.locator(`[data-shift-document="shared:${id}"]`)).toHaveCount(0);
+    await page.getByText('预览部门可见资料', {exact:true}).click();
+    await page.locator('[data-doc-preview] [name=modules]').fill('质量');
+    await page.locator('[data-doc-preview] button').click();
+    await expect(page.locator('[data-doc-preview-result]')).toContainText('已复核的交接案例');
+    await page.locator(`[data-manage-document="${id}"]`).click();
     await page.locator('#sharedDocumentEnabled').uncheck();
     await page.locator('#sharedDocumentForm button[type="submit"]').click();
     await expect(page.locator('#sharedDocumentDialog')).not.toBeVisible();
@@ -81,5 +149,17 @@ test('user upload becomes shared, admin edits and disables it, other users lose 
     expect((await context.request.get(`/api/knowledge/shared/documents/${id}/file`)).status()).toBe(404);
     const retained = await (await page.request.get(`/api/admin/shared-documents/${id}`,{headers:adminHeaders})).json();
     expect(retained.title).toBe('已复核的交接案例'); expect(retained.enabled).toBe(false);
+    await page.getByText('上传到指定资料区', {exact:true}).click();
+    const uploadForm = page.locator('[data-admin-upload]');
+    await uploadForm.locator('[name=area]').selectOption('光刻');
+    await uploadForm.locator('[name=file]').setInputFiles({name:'private-sop.txt',mimeType:'text/plain',buffer:Buffer.from('部门交接步骤')});
+    const restrictedUpload = page.waitForResponse(response => response.url().endsWith('/api/admin/shared-documents') && response.request().method() === 'POST');
+    await uploadForm.getByRole('button', {name:'上传资料'}).click();
+    const restricted = await restrictedUpload;
+    expect(restricted.status()).toBe(202);
+    const restrictedId = (await restricted.json()).document_id;
+    await expect(page.locator('#sharedDocumentsBody')).toContainText('private-sop.txt');
+    expect((await context.request.get(`/api/knowledge/shared/documents/${restrictedId}/file`)).status()).toBe(404);
+
   } finally {await context.close();}
 });

@@ -7,6 +7,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.system.support import isolated_system_environment
 
@@ -138,6 +139,43 @@ class LotCommonalityChatTests(unittest.TestCase):
         attached = [message for message in messages if message["role"] == "user"][-1]
         self.assertEqual(attached["content"], "请解读这次结果，哪些候选值得优先排查？")
         self.assertEqual(attached["metadata"], {"analysis_ref": reference})
+
+    def test_catalog_policy_controls_chat_tools_and_reference_attachments(self):
+        from app.bootstrap import capability_catalog as catalog
+
+        with tempfile.TemporaryDirectory() as root, patch.object(
+            catalog, "db_path", return_value=Path(root) / "capabilities.db"
+        ):
+            name = "create_lot_commonality_analysis"
+            self.assertIn(
+                name, {entry["name"] for entry in self.client.get("/api/capabilities").json()["items"]}
+            )
+            reference = self._create()["analysis_refs"][0]["analysis_ref"]
+            catalog.save("tool", name, {"access": {"owner": "Litho", "readers": []},
+                                        "groups": [], "enabled": True})
+            self.assertNotIn(
+                name, {entry["name"] for entry in self.client.get("/api/capabilities").json()["items"]}
+            )
+            self.fixture.requests.clear()
+            blocked = self._create()
+            self.assertEqual(blocked.get("analysis_refs", []), [])
+            self.assertFalse(any(
+                call["tool"] == name and call["tool_status"] == "succeeded"
+                for call in blocked["tool_trace"]
+            ))
+            for request in self._tool_rounds():
+                self.assertNotIn(name, {tool["function"]["name"] for tool in request["tools"]})
+            before = self.client.get(f"/api/sessions/{self.session}").json()["messages"]
+            self.fixture.requests.clear()
+            for path in ("/api/chat", "/api/chat/stream"):
+                response = self.client.post(path, json={
+                    "message": "请解读这次共性分析", "session_id": self.session,
+                    "analysis_ref": reference,
+                })
+                self.assertEqual(response.status_code, 403, response.text)
+                self.assertEqual(response.json()["error_code"], "CAPABILITY_DENIED")
+            self.assertFalse(self.fixture.requests)
+            self.assertEqual(self.client.get(f"/api/sessions/{self.session}").json()["messages"], before)
 
     def test_unusable_references_are_rejected_before_anything_is_stored(self):
         reference = self._create()["analysis_refs"][0]["analysis_ref"]

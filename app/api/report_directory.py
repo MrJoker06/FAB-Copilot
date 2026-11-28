@@ -12,8 +12,10 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from ..core.identity import current_principal
 from ..core.settings import PROJECT_DIR
 from .routers.runtime import RouterBundle
+from .schemas import FolderAccess, ModulePreview
 
 _LOCK = threading.RLock()
 
@@ -65,6 +67,7 @@ class ReportFolder(BaseModel):
     id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$")
     name: str = Field(min_length=1, max_length=60)
     parent_id: str | None = Field(default=None, max_length=64)
+    access: FolderAccess | None = None
 
     @field_validator("name")
     @classmethod
@@ -127,6 +130,11 @@ def save_directory(request: ReportDirectory) -> ReportDirectory:
         if previous.revision != request.revision:
             raise HTTPException(409, detail={"error_code": "REPORT_DIRECTORY_CONFLICT", "message": "目录已被更新，请刷新后重新编辑。", "retryable": False})
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        # An older admin client may edit folder names without sending the policy.
+        old_folders = {folder.id: folder for folder in previous.folders}
+        for folder in request.folders:
+            if folder.id in old_folders and "access" not in folder.model_fields_set:
+                folder.access = old_folders[folder.id].access
         old = {item.id: item for item in previous.reports}
         for item in request.reports:
             before = old.get(item.id)
@@ -147,27 +155,47 @@ def save_directory(request: ReportDirectory) -> ReportDirectory:
         return saved
 
 
+def visible_reports(directory: ReportDirectory, modules: set[str]) -> dict:
+    folders = {folder.id: folder for folder in directory.folders}
+
+    def visible(item: ReportLink) -> bool:
+        folder_id = item.folder_id
+        while folder_id is not None:
+            folder = folders[folder_id]
+            policy = folder.access
+            if policy and policy.owner not in modules and modules.isdisjoint(policy.readers):
+                return False
+            folder_id = folder.parent_id
+        return item.enabled
+
+    items = sorted(filter(visible, directory.reports), key=lambda item: (item.sort_order, item.id))
+    return {"revision": directory.revision, "reports": [item.model_dump(exclude={"folder_id", "sort_order", "enabled"}) for item in items]}
+
+
 def create_router(current_admin) -> RouterBundle:
     router = APIRouter()
 
     def unavailable():
         return HTTPException(503, detail={"error_code": "REPORT_DIRECTORY_UNAVAILABLE", "message": "报表目录暂不可用，请联系管理员检查配置。", "retryable": True})
 
-    @router.get("/api/reports/directory")
-    def public_directory():
+    def load_directory():
         try:
-            directory = read_directory()
+            return read_directory()
         except (OSError, ValueError):
             raise unavailable() from None
-        items = sorted((item for item in directory.reports if item.enabled), key=lambda item: (item.sort_order, item.id))
-        return {"revision": directory.revision, "reports": [item.model_dump(exclude={"folder_id", "sort_order", "enabled"}) for item in items]}
+
+    @router.get("/api/reports/directory")
+    def public_directory():
+        # Demo identity headers cannot establish trusted module memberships.
+        return visible_reports(load_directory(), set(current_principal().modules))
+
+    @router.post("/api/admin/report-directory/preview")
+    def preview_directory(request: ModulePreview, _: Annotated[str, Depends(current_admin)]):
+        return visible_reports(load_directory(), set(request.modules))
 
     @router.get("/api/admin/report-directory")
     def admin_directory(_: Annotated[str, Depends(current_admin)]):
-        try:
-            return read_directory().model_dump()
-        except (OSError, ValueError):
-            raise unavailable() from None
+        return load_directory().model_dump()
 
     @router.put("/api/admin/report-directory")
     def update_directory(request: ReportDirectory, _: Annotated[str, Depends(current_admin)]):

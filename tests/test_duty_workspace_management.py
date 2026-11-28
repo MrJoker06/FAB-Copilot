@@ -15,7 +15,7 @@ from fastapi import FastAPI, Header, HTTPException
 from app.api.dependencies import AuthenticationDependencies, current_admin
 from app.api.report_directory import create_router as report_router
 from app.api.routers.shared_documents import create_router as document_router
-from app.core.identity import PrincipalContextMiddleware, current_principal
+from app.core.identity import Principal, PrincipalContextMiddleware, current_principal
 from app.knowledge import shared_documents
 
 
@@ -36,7 +36,7 @@ class DutyWorkspaceManagementTests(unittest.TestCase):
         self.model_before = self.model_config.read_bytes()
         self.app = self.make_app()
 
-    def make_app(self):
+    def make_app(self, document_principal=current_principal):
         app = FastAPI()
         app.add_middleware(PrincipalContextMiddleware)
         dependencies = AuthenticationDependencies(get_settings=lambda:SimpleNamespace(admin_api_token='test-admin'), current_principal=current_principal, compare_digest=secrets.compare_digest, http_problem=lambda status,code,message,retry:HTTPException(status,detail={'error_code':code,'message':message,'retryable':retry}))
@@ -47,7 +47,7 @@ class DutyWorkspaceManagementTests(unittest.TestCase):
         def user():
             return current_principal().knowledge_owner_id
 
-        runtime = {'current_principal':current_principal, 'get_settings':lambda:SimpleNamespace(personal_knowledge_max_upload_bytes=1024),
+        runtime = {'current_principal':document_principal, 'get_settings':lambda:SimpleNamespace(personal_knowledge_max_upload_bytes=1024),
             'personal_problem':lambda exc:HTTPException(exc.status_code,detail={'error_code':exc.error_code,'message':exc.detail}),
             'http_problem':dependencies.http_problem}
         app.include_router(report_router(admin).router)
@@ -83,6 +83,51 @@ class DutyWorkspaceManagementTests(unittest.TestCase):
             self.assertEqual((await client.put('/api/admin/report-directory',json=payload,headers=self.admin_headers)).status_code,409)
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=self.make_app()),base_url='http://restart') as restarted:
                 self.assertEqual((await restarted.get('/api/admin/report-directory',headers=self.admin_headers)).json(),saved)
+        self.run_async(run)
+
+    def test_module_permissions_apply_to_saved_directory_and_admin_preview(self):
+        async def run(client):
+            admin_url = '/api/admin/report-directory'
+            public_url = '/api/reports/directory'
+            preview = admin_url + '/preview'
+            payload = {
+                'folders': [
+                    {'id': 'litho', 'name': '光刻', 'access': {'owner': '光刻', 'readers': ['质量']}},
+                    {'id': 'daily', 'name': '日报', 'parent_id': 'litho'},
+                    {'id': 'detail', 'name': '明细', 'parent_id': 'litho', 'access': {'owner': '光刻', 'readers': ['整合']}},
+                ],
+                'reports': [
+                    {'id': key, 'title': key, 'folder_id': folder, 'url': '/' + key}
+                    for key, folder in [('public', None), ('daily', 'daily'), ('detail', 'detail')]
+                ],
+            }
+            saved = await client.put(admin_url, headers=self.admin_headers, json=payload)
+            self.assertEqual(saved.status_code, 200, saved.text)
+            for groups, expected in [
+                ([], ['public']), (['光刻'], ['daily', 'detail', 'public']),
+                (['质量'], ['daily', 'public']), (['整合'], ['public']),
+                (['质量', '整合'], ['daily', 'detail', 'public']),
+            ]:
+                response = await client.post(preview, headers=self.admin_headers, json={'modules': groups})
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual([r['id'] for r in response.json()['reports']], expected)
+            headers = {'X-Modules': 'quality', 'X-Roles': 'admin', 'X-User-ID': 'litho-lead'}
+            self.assertEqual((await client.post(preview, headers=headers, json={'modules':['光刻']})).status_code, 401)
+            public = await client.get(public_url, headers=headers, params={'modules': '光刻'})
+            self.assertEqual([r['id'] for r in public.json()['reports']], ['public'])
+            self.assertNotIn('/detail', public.text)
+
+            # Older directory editors omit access when renaming a folder.
+            edited = saved.json()
+            del edited['folders'][0]['access']
+            edited['folders'][0]['name'] = '光刻目录'
+            updated = await client.put(admin_url, headers=self.admin_headers, json=edited)
+            self.assertEqual(updated.json()['folders'][0]['access'], payload['folders'][0]['access'])
+            revised = updated.json()
+            revised['folders'][0]['access']['readers'] = []
+            self.assertEqual((await client.put(admin_url, headers=self.admin_headers, json=revised)).status_code, 200)
+            after = await client.post(preview, headers=self.admin_headers, json={'modules':['质量']})
+            self.assertEqual([r['id'] for r in after.json()['reports']], ['public'])
         self.run_async(run)
 
     def test_report_url_and_folder_rejections_do_not_persist(self):
@@ -131,6 +176,51 @@ class DutyWorkspaceManagementTests(unittest.TestCase):
             body['enabled']=True
             await client.patch('/api/admin/shared-documents/'+document_id,json=body,headers=self.admin_headers)
             self.assertEqual((await client.get(endpoint,headers=self.second)).json()['title'],'共享 SOP')
+        self.run_async(run)
+
+    def test_department_document_placement_and_revocation(self):
+        async def run(client):
+            areas = '/api/admin/shared-document-areas'
+            admin_docs = '/api/admin/shared-documents'
+            docs = '/api/knowledge/shared/documents'
+            policy = {'owner': '光刻', 'readers': ['质量', 'QA']}
+            self.assertEqual((await client.put(areas, json=policy)).status_code, 401)
+            self.assertEqual((await client.put(areas, json=policy, headers=self.admin_headers)).json(), policy)
+            files = {'file': ('shift.txt', b'protected content')}
+            form = {'kind': 'case', 'area': '光刻'}
+            self.assertEqual((await client.post(admin_docs, data=form, files=files)).status_code, 401)
+            spoof = {**self.first, 'X-Modules': 'QA', 'X-Roles': 'admin'}
+            self.assertEqual((await client.post(docs, headers=spoof, data=form, files=files)).status_code, 404)
+            unknown = await client.post(admin_docs, headers=self.admin_headers, data={**form, 'area': '其他'}, files=files)
+            self.assertEqual(unknown.status_code, 404)
+            saved = await client.post(admin_docs, headers=self.admin_headers, data=form, files=files)
+            self.assertEqual(saved.status_code, 202, saved.text)
+            doc_id = saved.json()['document_id']
+            endpoint = f'{docs}/{doc_id}'
+            self.assertEqual((await client.get(docs, headers=spoof)).json(), {'items': [], 'areas': []})
+            for suffix in ('', '/file'):
+                self.assertEqual((await client.get(endpoint + suffix, headers=spoof)).status_code, 404)
+            self.assertEqual((await client.post(areas + '/preview', json={'modules':['质量']})).status_code, 401)
+            for modules, count in [([], 0), (['质量'], 1), (['设备'], 0), (['光刻'], 1)]:
+                preview = await client.post(areas + '/preview', headers=self.admin_headers, json={'modules':modules})
+                self.assertEqual(len(preview.json()['items']), count)
+            edit = {'title':'改名', 'kind':'sop', 'enabled':True}
+            updated = await client.patch(f'{admin_docs}/{doc_id}', headers=self.admin_headers, json=edit)
+            self.assertEqual(updated.json()['area'], '光刻')  # Older editors preserve placement.
+            member = self.make_app(lambda: Principal('company', 'engineer', modules=('质量',)))
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=member), base_url='http://member') as reader:
+                self.assertEqual((await reader.get(docs)).json()['areas'], [{'owner':'光刻'}])
+                self.assertEqual((await reader.get(endpoint + '/file')).content, b'protected content')
+                own = await reader.post(docs, data=form, files=files)
+                self.assertEqual(own.status_code, 202)
+                await client.put(areas, headers=self.admin_headers, json={**policy, 'readers':[]})
+                self.assertEqual((await reader.get(docs)).json(), {'items':[], 'areas':[]})
+                for restricted_id in (doc_id, own.json()['document_id']):
+                    for suffix in ('', '/file'):
+                        self.assertEqual((await reader.get(f'{docs}/{restricted_id}{suffix}')).status_code, 404)
+            moved = await client.patch(f'{admin_docs}/{doc_id}', headers=self.admin_headers, json={**edit, 'area':None})
+            self.assertIsNone(moved.json()['area'])
+            self.assertEqual((await client.get(endpoint + '/file')).content, b'protected content')
         self.run_async(run)
 
     def test_invalid_upload_and_failed_parse_are_not_shared(self):

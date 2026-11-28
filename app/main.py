@@ -32,6 +32,7 @@ from .api.errors import (
 from .api.errors import (
     personal_problem as _personal_problem,
 )
+from .api.capability_directory import create_router as create_capability_directory_router
 from .api.report_directory import create_router as create_report_directory_router
 from .api.routers.shared_documents import (
     create_router as create_shared_documents_router,
@@ -225,6 +226,7 @@ _register_bundles(
     _admin_routes,
     _report_routes,
     _report_directory_routes,
+    create_capability_directory_router(current_admin),
     _shared_document_routes,
     _knowledge_routes,
     _lot_commonality_routes,

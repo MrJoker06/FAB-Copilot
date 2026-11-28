@@ -44,7 +44,7 @@
 
     async function renderDocuments() {
       const version = ++renderVersion;
-      const items = filterItems(documents.filter(item => item.kind === kind), $('#shiftDocumentSearch').value, $('#shiftDocumentRole').value, $('#shiftDocumentProcess').value);
+      const items = filterItems(documents.filter(item => item.kind === kind && (item.area || '') === $('[data-shift-area]').value), $('#shiftDocumentSearch').value, $('#shiftDocumentRole').value, $('#shiftDocumentProcess').value);
       if (!items.some(item => item.key === selected)) selected = items[0]?.key || null;
       $('#shiftDocumentCount').textContent = `共 ${items.length} 份${kind === 'sop' ? ' SOP' : '历史case'}`;
       $('#shiftDocumentList').innerHTML = items.map(item => `<button type="button" class="shift-document-item${item.key === selected ? ' selected' : ''}" data-shift-document="${esc(item.key)}" aria-pressed="${item.key === selected}"><strong>${esc(item.title)}</strong><span>${item.process ? `<span class="shift-tag">${esc(item.process)}</span> ` : ''}<span class="shift-tag">${esc(item.source)}</span></span><small>${esc(item.summary || '')}</small><time>${esc(item.updated_at)}</time></button>`).join('');
@@ -86,6 +86,7 @@
       }
       windowImpl.clearTimeout(refreshTimer);
       $('#shiftDocumentsStatus').textContent = '正在读取资料…';
+      let areas = [];
       const results = await Promise.allSettled([
         fetchImpl('/display_mock_data/catalog.json', {cache:'no-store'}).then(async response => {
           if (!response.ok) throw new Error('展示资料暂不可用');
@@ -94,8 +95,15 @@
           return data.documents.map(item => ({...item,key:`sample:${item.id}`,source:'值班资料'}));
         }),
         api('/api/cases').then(items => items.map(historicalItem)),
-        api('/api/knowledge/shared/documents').then(data => data.items.map(item => ({...item,key:`shared:${item.document_id}`,id:item.document_id,shared:true,roles:['PE','EE'],source:item.own ? '我的共享上传' : '共享上传',summary:!item.enabled ? '已停用' : statuses[item.status]}))),
+        api('/api/knowledge/shared/documents').then(data => {
+          areas = data.areas || [];
+          return data.items.map(item => ({...item,key:`shared:${item.document_id}`,id:item.document_id,shared:true,roles:['PE','EE'],source:item.own ? '我的共享上传' : '共享上传',summary:!item.enabled ? '已停用' : statuses[item.status]}));
+        }),
       ]);
+      const currentArea = $('[data-shift-area]').value;
+      const options = '<option value="">通用资料区</option>' + areas.map(({owner}) => `<option value="${esc(owner)}">${esc(owner)}</option>`).join('');
+      $('[data-shift-area]').innerHTML = options;
+      if (areas.some(area => area.owner === currentArea)) $('[data-shift-area]').value = currentArea;
       documents = results.flatMap(result => result.status === 'fulfilled' ? result.value : []);
       const errors = results.map((result,index) => result.status === 'rejected' ? `${['值班资料','案例库','共享资料'][index]}：${result.reason.message}` : '').filter(Boolean);
       $('#shiftDocumentsStatus').textContent = errors.join('；');
@@ -114,7 +122,7 @@
     }
     function resetDocumentFilters() { $('#shiftDocumentSearch').value = ''; $('#shiftDocumentRole').value = ''; $('#shiftDocumentProcess').value = ''; }
     async function openHistoricalCase(id) {
-      switchKind('case'); resetDocumentFilters(); selected = `case:${id}`;
+      switchKind('case'); resetDocumentFilters(); $('[data-shift-area]').value = ''; selected = `case:${id}`;
       showView('procedures');
       await loadShiftView('procedures');
       if (!documents.some(item => item.key === `case:${id}`)) { showToast('案例不存在或暂不可用'); return; }
@@ -126,12 +134,15 @@
       const file = $('#sharedUploadFile').files[0]; if (!file) return;
       $('#confirmSharedUpload').disabled = true; $('#sharedUploadMessage').textContent = '正在上传…';
       const form = new root.FormData(); form.append('file',file); form.append('kind',$('#sharedUploadKind').value);
+      const area = $('[data-shift-upload-area]').value;
+      if (area) form.append('area', area);
       form.append('title',$('#sharedUploadTitle').value); form.append('process',$('#sharedUploadProcess').value);
       try {
         const uploaded = await api('/api/knowledge/shared/documents',{method:'POST',body:form});
+        $('[data-shift-area]').value = area;
         switchKind($('#sharedUploadKind').value); resetDocumentFilters(); selected = `shared:${uploaded.document_id}`;
         $('#sharedUploadDialog').close(); $('#sharedUploadForm').reset();
-        showToast('上传已接收，处理完成后将对所有用户共享。');
+        showToast(`上传已接收，处理完成后将在${area || '通用资料区'}共享。`);
         await loadShiftView('procedures');
       } catch (error) { $('#sharedUploadMessage').textContent = error.message; }
       finally { $('#confirmSharedUpload').disabled = false; }
@@ -156,6 +167,7 @@
       });
       $('#shiftDocumentSearch').addEventListener('input', renderDocuments);
       $('#shiftDocumentProcess').addEventListener('change', renderDocuments);
+      $('[data-shift-area]').addEventListener('change', renderDocuments);
       $('#shiftDocumentRole').addEventListener('change', renderDocuments);
       $('#shiftDocumentTabs').addEventListener('click', event => { const button = event.target.closest('[data-document-kind]'); if (button) { switchKind(button.dataset.documentKind); renderDocuments(); } });
       $('#shiftDocumentList').addEventListener('click', event => { const button = event.target.closest('[data-shift-document]'); if (button) { selected = button.dataset.shiftDocument; renderDocuments(); } });
@@ -170,7 +182,7 @@
           input.dispatchEvent(new root.Event('input',{bubbles:true})); setAgentOpen(true);
         }
       });
-      $('#openSharedUpload').addEventListener('click', () => { $('#sharedUploadKind').value = kind; $('#sharedUploadMessage').textContent = ''; $('#sharedUploadDialog').showModal(); $('#sharedUploadFile').focus(); });
+      $('#openSharedUpload').addEventListener('click', () => { $('[data-shift-upload-area]').innerHTML = $('[data-shift-area]').innerHTML; $('[data-shift-upload-area]').value = $('[data-shift-area]').value; $('#sharedUploadKind').value = kind; $('#sharedUploadMessage').textContent = ''; $('#sharedUploadDialog').showModal(); $('#sharedUploadFile').focus(); });
       $('#closeSharedUpload').addEventListener('click', () => $('#sharedUploadDialog').close());
       $('#sharedUploadForm').addEventListener('submit', uploadSharedDocument);
       $('#refreshShiftDocuments').addEventListener('click', () => loadShiftView('procedures'));

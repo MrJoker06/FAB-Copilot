@@ -377,6 +377,13 @@ tbody tr:hover { background: #f8fbfa; }
 .send-btn:disabled { opacity: .5; cursor: wait; }
 
 .settings-dialog { width: min(440px, calc(100vw - 28px)); padding: 0; color: var(--ink); background: var(--surface); border: 1px solid #cdd8d5; border-radius: 6px; box-shadow: 0 22px 70px rgba(12, 30, 25, .28); }
+[data-my-catalog] { width: min(600px, calc(100vw - 28px)); }
+[data-my-catalog-body] { max-height: 65vh; overflow-y: auto; }
+[data-my-catalog-body] h3 { margin: 12px 0 4px; font-size: 15px; }
+[data-my-catalog-body] details { padding: 9px 0; border-bottom: 1px solid var(--line); }
+[data-my-catalog-body] summary { cursor: pointer; overflow-wrap: anywhere; }
+[data-my-catalog-body] small { display: block; margin-top: 6px; color: var(--muted); }
+[data-my-catalog-body] p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .settings-dialog::backdrop { background: rgba(16, 28, 25, .55); }
 .dialog-heading { min-height: 70px; display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); }
 .dialog-heading h2 { margin: 0; font-size: 16px; }.dialog-heading .eyebrow { margin-bottom: 4px; }

@@ -12,6 +12,7 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
+from app.bootstrap.capability_catalog import tool_allowed
 from app.core.lot_commonality_view import CREATE_TOOL, MODEL_VIEWS, summary_view
 from app.tools.lot_commonality.contracts import LotCommonalityAccessError
 from app.tools.lot_commonality.service import ANALYSIS_REF_RE, LotCommonalityResultError
@@ -24,6 +25,8 @@ def attached_question(runtime: Mapping[str, Any], request: Any, principal: Any) 
     reference = getattr(request, "analysis_ref", None)
     if not reference:
         return request.message
+    if not tool_allowed(CREATE_TOOL, principal):
+        raise runtime["http_problem"](403, "CAPABILITY_DENIED", "当前身份无权使用 Lot 共性分析附件。", False)
     try:
         summary = runtime["lot_commonality_service"]().read(reference, principal)
     except LotCommonalityAccessError as exc:
