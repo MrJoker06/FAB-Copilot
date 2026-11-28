@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import replace
+from datetime import date
 from typing import Protocol
 
 from ..intent_runtime.contracts import IntentRoute
@@ -121,11 +122,56 @@ def focus_duty_lookup(question: str, route: IntentRoute, selection: PlaybookSele
     return replace(selection, selected_playbook=focused, candidate_playbooks=(_reference(focused),))
 
 
+_DUTY_DATE_REPLY = re.compile(
+    r"(?:(?:确认(?:改查)?|改查|查|就查)\s*)?(20\d{2}-\d{2}-\d{2})\s*全天(?:记录|数据)?[。！!]*"
+)
+
+
+def resolve_duty_date_reply(question: str, history: list[dict]) -> str | None:
+    """Resume only an immediately preceding day-grain clarification."""
+    matched = _DUTY_DATE_REPLY.fullmatch(question.strip())
+    if not matched or not history or history[-1].get("role") != "assistant":
+        return None
+    try:
+        day = date.fromisoformat(matched[1])
+    except ValueError:
+        return None
+    metadata = history[-1].get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    plan = metadata.get("execution_plan")
+    if (
+        not isinstance(plan, dict)
+        or plan.get("status") != "clarification_required"
+        or plan.get("missing_inputs") != ["supported_time_range"]
+    ):
+        return None
+    route, contract = metadata.get("intent_route"), metadata.get("answer_contract")
+    if not isinstance(route, dict) or not isinstance(contract, dict):
+        return None
+    equipment = route.get("equipment_ids")
+    policy = contract.get("evidence_policy_ref")
+    if (
+        not isinstance(equipment, list)
+        or len(equipment) != 1
+        or not isinstance(equipment[0], str)
+        or not re.fullmatch(r"[A-Z]+-[0-9]{1,3}[A-Z]?", equipment[0])
+        or not isinstance(policy, dict)
+    ):
+        return None
+    if (route.get("intent"), policy.get("component_id")) == ("equipment_fault", "PB-DUTY-ALARMS"):
+        return f"查询 {day} {equipment[0]} 报警次数"
+    if (route.get("intent"), policy.get("component_id")) == ("capability_excursion", "PB-DUTY-CPK"):
+        return f"查询 {day} {equipment[0]} 的 Cpk 是多少"
+    return None
+
+
 __all__ = [
     "NAMED_DOMAIN_PLAYBOOKS",
     "NAMED_PLAYBOOK_RELEASED_AT",
     "NAMED_PLAYBOOK_VERSION",
     "NAMED_QUERY_CAPABILITY_ID",
     "NAMED_QUERY_CAPABILITY_VERSION",
+    "resolve_duty_date_reply",
     "select_named_playbook",
 ]

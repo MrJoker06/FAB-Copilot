@@ -893,5 +893,291 @@ class SessionsStreamingSystemTests(unittest.TestCase):
         self._mod031_roundtrip(checker_failure="initial")
 
 
+class DutyChatRegressionTests(unittest.TestCase):
+    _tool = "get_equipment_event_timeline"
+    _question = "查询 2026-08-07 CMP-02 报警次数"
+    _lot = "LOT-DUTY-001"
+
+    def setUp(self):
+        from contextlib import closing
+        from dataclasses import replace
+        from pathlib import Path
+        import sqlite3
+        from tempfile import TemporaryDirectory
+
+        from app.bootstrap import capability_catalog
+        from app.core.settings import get_settings
+        from app.demo_data.schemas import EQUIPMENT_SCHEMA, MANUFACTURING_SCHEMA
+
+        root = Path(self.enterContext(TemporaryDirectory()))
+        self.settings = get_settings()
+        self.equipment_path = root / "equipment.db"
+        self.manufacturing_path = root / "manufacturing.db"
+        with closing(sqlite3.connect(self.equipment_path)) as db, db:
+            db.executescript(EQUIPMENT_SCHEMA)
+            db.executemany(
+                """INSERT INTO equipment_events
+                   (equipment_id, event_time, event_type, duration_minutes, severity, reason)
+                   VALUES (?, ?, ?, 1, 'warning', 'synthetic duty fixture')""",
+                [
+                    ("CMP-02", "2026-08-07 00:00:00", "ALARM"),
+                    ("CMP-02", "2026-08-07 23:59:00", "ALARM"),
+                    ("CMP-02", "2026-08-07 12:00:00", "PM"),
+                    ("CMP-03", "2026-08-07 12:00:00", "ALARM"),
+                    ("CMP-02", "2026-08-08 00:00:00", "ALARM"),
+                ],
+            )
+        with closing(sqlite3.connect(self.manufacturing_path)) as db, db:
+            db.executescript(MANUFACTURING_SCHEMA)
+            db.executemany(
+                """INSERT INTO lots (
+                       lot_id, product, technology_nm, route, priority, start_time,
+                       status, wafer_count, good_wafers, yield_rate, cycle_time_hours, hold_hours
+                   ) VALUES (?, ?, 28, 'fixture-route', 'normal', '2026-08-07', 'hold', 25, 24, 0.96, 12, 2)""",
+                [(self._lot, "Duty-A"), ("LOT-DUTY-002", "Duty-B")],
+            )
+            db.executemany(
+                """INSERT INTO process_runs (
+                       lot_id, operation_seq, process_step, equipment_id, chamber, recipe,
+                       run_time, temperature_c, pressure_torr, duration_sec, defect_density,
+                       pass_flag, excursion_code
+                   ) VALUES (?, ?, ?, ?, ?, 'fixture-recipe', ?, 25, 1, 10, 0.2, ?, ?)""",
+                [
+                    (self._lot, 20, "CMP", "CMP-02", "B", "2026-08-07 10:00:00", 0, "DUTY-CMP"),
+                    (self._lot, 10, "ETCH", "ETCH-01", "A", "2026-08-07 09:00:00", 1, None),
+                    ("LOT-DUTY-002", 10, "CMP", "CMP-02", "C", "2026-08-07 09:00:00", 1, None),
+                ],
+            )
+        offline = replace(
+            self.settings,
+            model_connection=replace(self.settings.model_connection, api_key=""),
+            equipment_database_path=self.equipment_path,
+            manufacturing_database_path=self.manufacturing_path,
+        )
+        self.effective_settings = self.enterContext(patch(
+            "app.agent_runtime.service.effective_agent_settings", return_value=offline,
+        ))
+        self.network = self.enterContext(patch.object(
+            httpx.AsyncClient, "send", side_effect=AssertionError("external network prohibited"),
+        ))
+        self.enterContext(patch.object(capability_catalog, "db_path", return_value=root / "catalog.db"))
+        self.client = self.enterContext(TestClient(app))
+        self.session_ids = []
+        self.addCleanup(self._cleanup_sessions)
+
+    def _cleanup_sessions(self):
+        for session_id in self.session_ids:
+            self.client.delete(f"/api/sessions/{session_id}/permanent")
+        self.network.assert_not_called()
+
+    def _chat(self, message, *, session_id=None, stream=True):
+        if session_id is None:
+            created = self.client.post("/api/sessions")
+            self.assertEqual(created.status_code, 200, created.text)
+            session_id = created.json()["session_id"]
+            self.session_ids.append(session_id)
+        response = self.client.post(
+            "/api/chat/stream" if stream else "/api/chat",
+            json={"session_id": session_id, "message": message},
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        if not stream:
+            return response.json(), []
+        events = [json.loads(line) for line in response.text.splitlines()]
+        self.assertEqual(events[-1]["type"], "result", events)
+        self.assertFalse([event for event in events if event["type"] == "error"], events)
+        result = events[-1]["result"]
+        self.assertEqual(
+            "".join(event["delta"] for event in events if event.get("event") == "answer_delta"),
+            result["answer"],
+        )
+        return result, events
+
+    def _saved_answer(self, result):
+        response = self.client.get(f"/api/sessions/{result['session_id']}")
+        self.assertEqual(response.status_code, 200, response.text)
+        saved = response.json()["messages"][-1]
+        self.assertEqual(saved["content"], result["answer"])
+        return saved["metadata"]
+
+    def _assert_alarm_plan(self, result, day):
+        route = result["intent_route"]
+        self.assertEqual((route["intent"], route["request_type"]), ("equipment_fault", "data_query"))
+        plan = result["execution_plan"]
+        self.assertEqual(plan["status"], "ready")
+        self.assertEqual(
+            [(step["tool"], step["parameters"]) for step in plan["steps"]],
+            [(self._tool, {"start": day, "end": day, "equipment_id": "CMP-02"})],
+        )
+        call, = result["tool_trace"]
+        self.assertEqual(call["tool"], self._tool)
+        return call
+
+    def _assert_alarm_result(self, result, *, day, rows, alarms):
+        call = self._assert_alarm_plan(result, day)
+        self.assertEqual((call["tool_status"], call["rows"]), ("succeeded", rows))
+        self.assertEqual(call["arguments"], {"start": day, "end": day, "equipment_id": "CMP-02"})
+        source, = call["sources"]
+        self.assertEqual(source["source_ref"], "sqlite:named-query/equipment_events")
+        self.assertEqual(source["scope"]["equipment_ids"], ["CMP-02"])
+        self.assertEqual((source["scope"]["start"], source["scope"]["end"]), (day, day))
+        self.assertEqual(result["answer_synthesis"]["source_refs"], ["TOOL:S01"])
+        for fragment in ("CMP-02", day, "日期口径", "设备事件时间线", f"记录了 {alarms} 条报警"):
+            self.assertIn(fragment, result["answer"])
+        saved = self._saved_answer(result)
+        self.assertEqual(saved["execution_plan"], result["execution_plan"])
+        self.assertEqual(saved["tool_trace"], result["tool_trace"])
+
+    def _assert_shift_clarification(self, result, events):
+        self.assertEqual(result["execution_plan"]["status"], "clarification_required")
+        self.assertIn("supported_time_range", result["execution_plan"]["missing_inputs"])
+        self.assertEqual(result["execution_plan"]["steps"], [])
+        self.assertEqual(result["tool_trace"], [])
+        self.assertFalse([event for event in events if event.get("event") == "tool_started"])
+        self.assertIn("只支持日期范围", result["answer"])
+        self.assertIn("全天记录", result["answer"])
+        self.assertNotIn("条报警", result["answer"])
+
+    def test_duty_reg_01_equipment_alarm_count_and_scope(self):
+        result, events = self._chat(self._question)
+        self._assert_alarm_result(result, day="2026-08-07", rows=3, alarms=2)
+        finished, = [event for event in events if event.get("event") == "tool_finished"]
+        self.assertEqual((finished["tool"], finished["tool_status"]), (self._tool, "succeeded"))
+
+    def test_duty_reg_02_lot_history_preserves_identity_scope_and_order(self):
+        from dataclasses import replace
+        from unittest.mock import AsyncMock
+
+        offline = self.effective_settings.return_value
+        self.effective_settings.return_value = replace(
+            offline, model_connection=replace(offline.model_connection, api_key="synthesis-fixture",
+                                               base_url="http://127.0.0.1:9"),
+        )
+        synthesize = AsyncMock(return_value=(
+            {"role": "assistant", "content": "综合夹具，须核对其来源。"}, {}, None, {},
+        ))
+        with patch("app.agent_runtime.service._request_ready_synthesis_session", synthesize):
+            result, _ = self._chat(f"追踪批次 {self._lot}")
+        self.assertEqual((result["intent_route"]["intent"], result["intent_route"]["request_type"]),
+                         ("lot_trace", "data_query"))
+        plan = result["execution_plan"]
+        self.assertEqual((plan["status"], plan["playbook_id"]), ("ready", "PB-LOT-001"))
+        names = [
+            "get_lot_identity", "get_lot_process_history", "get_lot_excursion_history",
+            "get_lot_defect_history", "get_lot_wafer_map_patterns",
+        ]
+        self.assertEqual([(step["tool"], step["parameters"]) for step in plan["steps"]],
+                         [(name, {"lot_id": self._lot}) for name in names] + [
+                             ("search_knowledge", {
+                                 "query": f"追踪批次 {self._lot}", "limit": 10,
+                                 "source_types": ["personal", "knowledge", "case"],
+                             }),
+                         ])
+        by_tool = {call["tool"]: call for call in result["tool_trace"]}
+        self.assertEqual(set(by_tool), set(names) | {"search_knowledge"})
+        for name, rows in zip(names, (1, 2, 1, 0, 0), strict=True):
+            call = by_tool[name]
+            self.assertEqual((call["tool_status"], call["rows"]), ("succeeded", rows))
+            source, = call["sources"]
+            scope = source["scope"]
+            self.assertEqual(scope["lot_ids"], [self._lot])
+            self.assertIsNone(scope["start"])
+            self.assertIsNone(scope["end"])
+        synthesize.assert_awaited_once()
+        task = json.loads(synthesize.await_args.args[3][-1]["content"])
+        evidence = {entry["tool"]: entry for entry in task["evidence"]}
+        lot, = evidence["get_lot_identity"]["result"]
+        self.assertEqual((lot["lot_id"], lot["product"], lot["status"], lot["wafer_count"]),
+                         (self._lot, "Duty-A", "hold", 25))
+        records = evidence["get_lot_process_history"]["result"]
+        self.assertEqual(
+            [(row["lot_id"], row["operation_seq"], row["equipment_id"], row["chamber"]) for row in records],
+            [(self._lot, 10, "ETCH-01", "A"), (self._lot, 20, "CMP-02", "B")],
+        )
+        excursion, = evidence["get_lot_excursion_history"]["result"]
+        self.assertEqual((excursion["lot_id"], excursion["operation_seq"], excursion["excursion_code"]),
+                         (self._lot, 20, "DUTY-CMP"))
+        self.assertEqual(evidence["get_lot_process_history"]["source_ref"], "TOOL:S02")
+        self.assertFalse(result["evidence_validation"]["evidence_sufficient"])
+        self.assertIn("证据限制", result["answer"])
+        self.assertEqual(self._saved_answer(result)["tool_trace"], result["tool_trace"])
+
+    def test_duty_reg_03_handover_confirmation_inherits_equipment_and_metric(self):
+        first, events = self._chat("交班时查询 2026-08-07 CMP-02 夜班报警次数")
+        self._assert_shift_clarification(first, events)
+        confirmed, _ = self._chat("改查 2026-08-07 全天", session_id=first["session_id"], stream=False)
+        self._assert_alarm_result(confirmed, day="2026-08-07", rows=3, alarms=2)
+        history = self.client.get(f"/api/sessions/{first['session_id']}").json()["messages"]
+        self.assertEqual(history[-2]["content"], "改查 2026-08-07 全天")
+        stale, _ = self._chat("改查 2026-08-08 全天", session_id=first["session_id"])
+        self.assertEqual(stale["tool_trace"], [])
+
+    def test_duty_reg_03_cpk_confirmation_preserves_the_metric(self):
+        first, events = self._chat("查询 2026-08-07 夜班 CMP-02 Cpk 是多少")
+        self._assert_shift_clarification(first, events)
+        confirmed, _ = self._chat("确认 2026-08-07 全天数据", session_id=first["session_id"])
+        plan = confirmed["execution_plan"]
+        self.assertEqual((plan["status"], plan["playbook_id"]), ("ready", "PB-DUTY-CPK"))
+        step, = plan["steps"]
+        self.assertEqual(step["tool"], "get_process_capability")
+        self.assertEqual(step["parameters"]["start"], "2026-08-07")
+        self.assertEqual(step["parameters"]["end"], "2026-08-07")
+        self.assertEqual(plan["scope_contract"]["primary_scope_ids"], ["CMP-02"])
+
+    def test_duty_reg_03_unbound_or_invalid_confirmation_never_runs_tools(self):
+        standalone, _ = self._chat("改查 2026-08-07 全天")
+        self.assertEqual(standalone["tool_trace"], [])
+        first, _ = self._chat("交班时查询 2026-08-07 CMP-02 夜班报警次数")
+        invalid, _ = self._chat("改查 2026-02-30 全天", session_id=first["session_id"])
+        self.assertEqual(invalid["tool_trace"], [])
+        self.assertEqual(invalid["execution_plan"]["status"], "clarification_required")
+
+    def test_duty_reg_04_cross_shift_is_not_widened_to_days(self):
+        from app.tools.named_queries.data_source import SQLiteNamedQueryAdapter
+
+        with patch.object(SQLiteNamedQueryAdapter, "fetch") as fetch:
+            result, events = self._chat("查询 2026-08-07 夜班到 2026-08-08 白班 CMP-02 报警次数")
+        self._assert_shift_clarification(result, events)
+        fetch.assert_not_called()
+
+    def test_duty_reg_05_successful_empty_source_reports_zero(self):
+        result, _ = self._chat("查询 2026-08-09 CMP-02 报警次数")
+        self._assert_alarm_result(result, day="2026-08-09", rows=0, alarms=0)
+
+    def test_duty_reg_06_source_failure_has_no_zero_count_or_evidence(self):
+        from app.tools.named_queries.contracts import NamedQueryDataError
+        from app.tools.named_queries.data_source import SQLiteNamedQueryAdapter
+
+        with patch.object(SQLiteNamedQueryAdapter, "fetch", side_effect=NamedQueryDataError("fixture failure")) as fetch:
+            result, events = self._chat(self._question)
+        fetch.assert_called_once()
+        self.assertEqual(fetch.call_args.args[0].equipment_id, "CMP-02")
+        self._assert_failed_alarm(result, events, "failed", "DATA_SOURCE_FAILED", "读取失败")
+
+    def test_duty_reg_06_departments_enforce_tool_deny_before_source(self):
+        from app.bootstrap import capability_catalog
+        from app.tools.named_queries.data_source import SQLiteNamedQueryAdapter
+
+        first, _ = self._chat("交班时查询 2026-08-07 CMP-02 夜班报警次数")
+        capability_catalog.save("tool", self._tool, {
+            "enabled": True, "access": {"owner": "equipment-private", "readers": []}, "groups": [],
+        })
+        with patch.object(SQLiteNamedQueryAdapter, "fetch") as fetch:
+            result, events = self._chat("改查 2026-08-07 全天", session_id=first["session_id"])
+        fetch.assert_not_called()
+        self._assert_failed_alarm(result, events, "denied", "TOOL_DENIED", "调用受限")
+
+    def _assert_failed_alarm(self, result, events, status, code, text):
+        call = self._assert_alarm_plan(result, "2026-08-07")
+        self.assertEqual((call["tool_status"], call["error_code"]), (status, code))
+        self.assertEqual(call["sources"], [])
+        self.assertEqual(result["answer_synthesis"]["source_refs"], [])
+        self.assertIn(text, result["answer"])
+        self.assertNotIn("0 条报警", result["answer"])
+        finished, = [event for event in events if event.get("event") == "tool_finished"]
+        self.assertEqual(finished["error_code"], code)
+        self.assertEqual(self._saved_answer(result)["tool_trace"], result["tool_trace"])
+
+
 if __name__ == "__main__":
     unittest.main()

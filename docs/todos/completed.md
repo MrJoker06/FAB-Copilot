@@ -32,6 +32,10 @@
 
 光刻 Cpk Skill 的手动指定、按意图选择、缺参澄清、部门授权和会话回读已完成本地验收。关联 GitHub #2 第 3 项。见[开发清单](../duty-chat-skill-execution-plan.md)及[验收报告](../reports/duty-chat-skill-execution.md)。
 
+## PE / EE 值班聊天回归
+
+2026-11-28 完成 DUTY-REG-01～06，覆盖报警计数、Lot 履历、交班确认、跨班次澄清、成功查空、来源故障与部门拒绝。同步与流式聊天支持紧邻澄清后的单机台全天确认。WSL 完整离线门及 Windows 定向回归通过。场景、改动文件、基线和验证命令见[开发及验收文档](../duty-chat-regression-plan.md)。
+
 ## TODO 文档治理
 
 2026-11-12，关联 GitHub [Issue #2 第 1 项](https://github.com/MrJoker06/FAB-Copilot/issues/2)。文档整理完成；提交与推送状态以 Git 记录为准，不新增产品或 MOD 编号。

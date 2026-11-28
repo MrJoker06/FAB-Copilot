@@ -10,6 +10,7 @@ from ...bootstrap.duty_chat_skill import (
     require_skill,
 )
 from ...memory_system.ports import HistoryReader
+from ...planning_runtime.named_playbooks import resolve_duty_date_reply
 from .analysis_attachment import analysis_references, attached_question
 
 
@@ -20,7 +21,10 @@ async def run_chat_agent(runtime, request, principal, question, history, progres
     skill = choose_chat_skill(question, getattr(request, "skill_id", None), principal, history)
     selection = ChatSkillRequest(principal, skill)
     with selection.activate():
-        result = await runtime["run_agent"](skill.question if skill else question, trusted_history, progress, **options)
+        effective_question = (
+            skill.question if skill else resolve_duty_date_reply(question, trusted_history) or question
+        )
+        result = await runtime["run_agent"](effective_question, trusted_history, progress, **options)
         if selection.selected is not None:
             result["skill_execution"] = selection.selected.metadata()
         if getattr(request, "skill_id", None):
