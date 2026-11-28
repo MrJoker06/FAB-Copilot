@@ -49,10 +49,12 @@ class ResultAccessRun:
         enabled=False,
         authorize=lambda: False,
         unavailable_reason="NO_SESSION",
+        authorize_snapshot=None,
     ):
         self.session_id, self.run_id, self.principal = session_id, run_id, principal
         self.store, self.enabled, self.authorize = store, enabled, authorize
         self.unavailable_reason = unavailable_reason
+        self.authorize_snapshot = authorize_snapshot
         self.guard = None
         self.reader = None
         self.dispatcher = None
@@ -117,6 +119,7 @@ class ResultAccessRun:
                 self.authorized,
                 enabled=self.enabled,
                 cancelled=lambda: self.closed,
+                authorize_snapshot=self.authorize_snapshot,
             )
             self.dispatcher = install_result_reader(
                 registry or ToolRegistry(), self.reader

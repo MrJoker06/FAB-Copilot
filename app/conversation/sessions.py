@@ -89,7 +89,9 @@ def get_session(session_id: str) -> dict:
 
 
 def list_sessions(query: str = "", limit: int = 100, include_archived: bool = False) -> list[dict]:
-    tenant_id, owner_user_id = _scope()
+    principal = current_principal()
+    tenant_id, owner_user_id = principal.tenant_id, principal.user_id
+    verified = getattr(principal, "authentication_scheme", None) == "verified"
     clauses = ["s.tenant_id = ?", "s.owner_user_id = ?"]
     params: list[object] = [tenant_id, owner_user_id]
     if not include_archived:
@@ -97,14 +99,19 @@ def list_sessions(query: str = "", limit: int = 100, include_archived: bool = Fa
     if storage_identity_bindings().result_store_factory is not None:
         clauses.append("NOT EXISTS (SELECT 1 FROM session_result_deletions d WHERE d.session_id=s.session_id AND d.tenant_id=s.tenant_id AND d.owner_user_id=s.owner_user_id)")
     if query.strip():
-        clauses.append("(s.title LIKE ? OR s.last_message_preview LIKE ?)")
         value = f"%{query.strip()}%"
-        params.extend([value, value])
+        if verified:
+            clauses.append("s.title LIKE ?")
+            params.append(value)
+        else:
+            clauses.append("(s.title LIKE ? OR s.last_message_preview LIKE ?)")
+            params.extend([value, value])
+    preview = "NULL AS last_message_preview" if verified else "s.last_message_preview"
     params.append(max(1, min(limit, 200)))
     with db_session() as connection:
         rows = connection.execute(
             f"""SELECT s.session_id, s.title, s.created_at, s.updated_at, s.model,
-                       s.archived_at, s.last_message_preview,
+                       s.archived_at, {preview},
                        COUNT(m.message_id) AS message_count
                 FROM chat_sessions s
                 LEFT JOIN chat_messages m ON m.session_id = s.session_id

@@ -27,6 +27,9 @@ class FactorySearchPrincipal(Protocol):
     @property
     def roles(self) -> Sequence[str]: ...
 
+    @property
+    def modules(self) -> Sequence[str]: ...
+
 
 @dataclass(frozen=True)
 class FactorySearchRequest:
@@ -174,6 +177,21 @@ def validate_historical_case(case_id: str, response: object) -> dict | None:
     if response.get("case_status") != "Validated":
         raise _catalog_error("historical case detail must have case_status Validated")
     return dict(response)
+
+
+def factory_reference_allowed(backend: FactoryCatalogBackend, principal: FactorySearchPrincipal, source: Mapping) -> bool:
+    """Use the same guarded catalogue lookup for search and saved references."""
+    if source.get("source_type") == "knowledge":
+        chunk_id = source.get("chunk_id")
+        if not _positive_chunk_id(chunk_id):
+            return False
+        return validate_knowledge_document(chunk_id, backend.get_knowledge_document(principal, chunk_id)) is not None
+    if source.get("source_type") == "case":
+        case_id = source.get("case_id") or source.get("reference_id")
+        if not isinstance(case_id, str) or not case_id:
+            return False
+        return validate_historical_case(case_id, backend.get_historical_case(principal, case_id)) is not None
+    return False
 
 
 def validate_factory_candidates(candidates: object) -> list[dict]:

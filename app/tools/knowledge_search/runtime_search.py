@@ -9,7 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from app.agent_runtime.tools.contracts import ToolSourceKind
-from app.knowledge.search_registry import get_factory_search_backend
+from app.knowledge.search_registry import get_factory_catalog_backend, get_factory_search_backend
 from app.tools.knowledge_search.contracts import (
     KnowledgeSearchTimeoutError,
     PersonalSearchBatch,
@@ -183,6 +183,7 @@ def create_runtime_knowledge_port(*, settings: object, principal: object):
         if principal.tenant_id == default_tenant
         else f"{principal.tenant_id}:{principal.user_id}"
     )
+    governed = getattr(principal, "authentication_scheme", None) == "verified" and name != "sqlite"
     if name == "sqlite":
         session = _readonly_session(getattr(settings, "knowledge_database_path", None))
         factory = SqliteFactorySearchBackend(
@@ -193,7 +194,7 @@ def create_runtime_knowledge_port(*, settings: object, principal: object):
         )
         factory_source_kind = ToolSourceKind.SQLITE
     else:
-        factory = get_factory_search_backend(name)
+        factory = get_factory_catalog_backend(name) if governed else get_factory_search_backend(name)
         factory_source_kind = getattr(factory, "tool_source_kind", None)
         if not isinstance(factory_source_kind, ToolSourceKind):
             raise ValueError(
@@ -211,6 +212,7 @@ def create_runtime_knowledge_port(*, settings: object, principal: object):
         source_kind=factory_source_kind,
         personal_source_kind=ToolSourceKind.SQLITE,
         source_ref="runtime:knowledge-search",
+        check_catalog_access=governed,
     )
 
 

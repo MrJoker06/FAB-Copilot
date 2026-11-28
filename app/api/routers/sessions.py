@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
+from ...bootstrap.result_access_assembly import filter_saved_history, saved_answer_allowed
 from ...conversation.result_lifecycle import SessionResultCleanupPending
 from ..schemas import BulkSessionDeleteRequest, SessionUpdateRequest
 from .runtime import NamespaceProvider, RouterBundle
@@ -51,14 +52,29 @@ def create_router(deps: NamespaceProvider) -> RouterBundle:
         return result
 
     def read_session(session_id: str) -> dict:
+        runtime = deps()
         try:
-            return deps()["get_session"](session_id)
+            result = runtime["get_session"](session_id)
+            result["messages"] = filter_saved_history(runtime["current_principal"](), result["messages"])
+            return result
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     def read_agent_run_audit(run_id: str) -> dict:
+        runtime = deps()
         try:
-            return deps()["get_run_audit"](run_id)
+            audit = runtime["get_run_audit"](run_id)
+            principal = runtime["current_principal"]()
+            if getattr(principal, "authentication_scheme", None) == "verified":
+                run = audit["run"]
+                session = runtime["get_session"](run["session_id"])
+                response = next(
+                    (item for item in session["messages"] if item["message_id"] == run["assistant_message_id"]),
+                    None,
+                )
+                if not response or not saved_answer_allowed(principal, response.get("metadata") or {}):
+                    raise ValueError("Agent Run 不存在")
+            return audit
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 

@@ -8,6 +8,7 @@ from ..personal_knowledge_runtime.service import search_personal_knowledge
 from .ranking import _metadata_rerank
 from .search_contracts import (
     FactorySearchRequest,
+    factory_reference_allowed,
     validate_factory_candidates,
     validate_historical_case,
     validate_historical_cases,
@@ -74,7 +75,9 @@ def search_knowledge(
     if not _search_terms(query):
         return []
     principal = current_principal()
-    backend = get_factory_search_backend(get_settings().factory_search_backend)
+    name = get_settings().factory_search_backend
+    governed = getattr(principal, "authentication_scheme", None) == "verified" and name != "sqlite"
+    backend = get_factory_catalog_backend(name) if governed else get_factory_search_backend(name)
     aliases = backend.defect_aliases(principal)
     if not isinstance(aliases, Mapping):
         raise ValueError("factory search backend must return defect aliases as a mapping")
@@ -91,6 +94,8 @@ def search_knowledge(
         source_types=requested_sources or ("knowledge", "case"),
     )
     combined = validate_factory_candidates(backend.search(principal, request))
+    if governed:
+        combined = [row for row in combined if factory_reference_allowed(backend, principal, row)]
     if include_personal and (not source_types or "personal" in source_types):
         personal_owner = owner_user_id or get_settings().personal_knowledge_user_id
         process_expansion = PROCESS_SEARCH_EXPANSIONS.get(filters.get("process_step"), "")

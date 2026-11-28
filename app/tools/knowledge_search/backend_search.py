@@ -8,6 +8,7 @@ from copy import deepcopy
 from app.agent_runtime.tools.contracts import ToolPrincipal, ToolSource, ToolSourceKind
 from app.knowledge.search_contracts import (
     FactorySearchBackend,
+    factory_reference_allowed,
     validate_factory_candidates,
 )
 from app.tools.knowledge_search.contracts import (
@@ -89,6 +90,7 @@ class BackendKnowledgeSearchAdapter:
         personal_source_kind: ToolSourceKind | None = None,
         source_ref: str = "backend:knowledge-search",
         adapter_id: str = "knowledge-backend",
+        check_catalog_access: bool = False,
     ) -> None:
         self.demo_tenant_id = _non_empty_string(demo_tenant_id, "demo_tenant_id")
         self.default_tenant_id = _non_empty_string(
@@ -111,6 +113,7 @@ class BackendKnowledgeSearchAdapter:
             raise TypeError("personal_source_kind must be a ToolSourceKind")
         self.factory = factory
         self.personal = personal
+        self.check_catalog_access = check_catalog_access
         self.source_kind = source_kind
         self.personal_source_kind = personal_source_kind or source_kind
 
@@ -147,6 +150,11 @@ class BackendKnowledgeSearchAdapter:
                 row["source_type"] not in request.source_types for row in factory_rows
             ):
                 raise KnowledgeSearchDataError("knowledge-search source is unavailable")
+            if self.check_catalog_access:
+                factory_rows = [
+                    row for row in factory_rows
+                    if factory_reference_allowed(self.factory, principal, row)
+                ]
             owner: str | None = None
             personal_rows: tuple[dict[str, object], ...] = ()
             sources = [self._factory_source(principal)]

@@ -283,6 +283,7 @@ class ToolResultStore:
         cursor=None,
         limit=20,
         max_bytes=4096,
+        authorize_snapshot=None,
     ):
         scope = self._scope(tenant_id, owner_id, session_id)
         if (
@@ -303,6 +304,12 @@ class ToolResultStore:
             ).fetchone()
             if row is None:
                 raise ResultStoreError("RESULT_UNAVAILABLE")
+            metadata = json.loads(row[0])
+            content = json.loads(row[1])
+            if authorize_snapshot is not None:
+                if not authorize_snapshot(metadata, content):
+                    raise ResultStoreError("RESULT_UNAVAILABLE")
+                self._permitted(connection, scope, permit)
             key = (
                 connection.execute(
                     "SELECT value FROM result_store_meta WHERE key='cursor_key'"
@@ -340,9 +347,9 @@ class ToolResultStore:
 
             try:
                 return result_page(
-                    json.loads(row[1]),
+                    content,
                     {
-                        **json.loads(row[0]),
+                        **metadata,
                         "result_ref": result_ref,
                         "version": "1.0.0",
                     },

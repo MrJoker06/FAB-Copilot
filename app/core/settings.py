@@ -106,6 +106,7 @@ class Settings:
     chat_template_compat: str | None = None
     tool_result_database_path: Path | None = None
     personal_database_path: Path | None = None
+    require_verified_identity: bool = False
 
 
 def get_settings() -> Settings:
@@ -190,6 +191,7 @@ def get_settings() -> Settings:
             os.getenv("FAB_PERSONAL_KNOWLEDGE_USER_ID", "local-user"),
         ).strip() or "local-user",
         enterprise_require_identity=os.getenv("FAB_REQUIRE_IDENTITY", "false").strip().lower() in {"1", "true", "yes", "on"},
+        require_verified_identity=os.getenv("FAB_REQUIRE_VERIFIED_IDENTITY", "false").strip().lower() in {"1", "true", "yes", "on"},
         enterprise_mock_seed=int(os.getenv("FAB_MOCK_SEED", "20260717")),
         enterprise_mock_virtual_lots=max(100_000, int(os.getenv("FAB_MOCK_VIRTUAL_LOTS", "25000000"))),
         enterprise_mock_cursor_secret=os.getenv("FAB_MOCK_CURSOR_SECRET", "fab-insight-local-demo-secret").strip()

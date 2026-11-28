@@ -1,9 +1,4 @@
-"""Dependency-free claims and demo header identity resolution policy.
-
-This module deliberately models only the transitional header-based identity
-contract. It performs no authentication and must be replaced by a trusted
-identity adapter before a production deployment.
-"""
+"""Claims supplied by trusted authentication or by the explicit demo path."""
 from __future__ import annotations
 
 import re
@@ -13,7 +8,7 @@ from typing import Mapping, Sequence
 
 IDENTITY_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$")
 DEFAULT_ROLE = "analyst"
-AUTHENTICATION_SCHEMES = frozenset({"demo", "headers"})
+AUTHENTICATION_SCHEMES = frozenset({"demo", "headers", "verified"})
 
 
 @dataclass(frozen=True)
@@ -24,6 +19,7 @@ class IdentityClaims:
     user_id: str
     roles: tuple[str, ...] = (DEFAULT_ROLE,)
     authentication_scheme: str = "demo"
+    modules: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not valid_identifier(self.tenant_id) or not valid_identifier(self.user_id):
@@ -35,6 +31,18 @@ class IdentityClaims:
             raise ValueError("identity claims require valid roles")
         if not isinstance(self.authentication_scheme, str) or self.authentication_scheme not in AUTHENTICATION_SCHEMES:
             raise ValueError("identity claims require a supported authentication_scheme")
+        if isinstance(self.modules, (str, bytes)) or not isinstance(self.modules, Sequence):
+            raise ValueError("identity claims require valid modules")
+        if any(
+            not isinstance(module, str)
+            or not 1 <= len(module) <= 64
+            or not all(char.isalnum() or char in "_-" for char in module)
+            for module in self.modules
+        ):
+            raise ValueError("identity claims require valid modules")
+        if self.modules and self.authentication_scheme != "verified":
+            raise ValueError("department membership requires verified identity claims")
+        object.__setattr__(self, "modules", tuple(dict.fromkeys(self.modules)))
         object.__setattr__(self, "roles", roles)
 
 

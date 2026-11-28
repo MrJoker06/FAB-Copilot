@@ -181,6 +181,164 @@ class SessionsStreamingSystemTests(unittest.TestCase):
             })
             self.assertEqual(denied.status_code, 403)
 
+    def test_verified_department_applies_to_tool_skill_retrieval_and_saved_results(self):
+        from dataclasses import replace
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        from app.agent_runtime.tools.contracts import ToolSourceKind
+        from app.bootstrap import capability_catalog
+        from app.bootstrap.storage_identity_assembly import configured_result_store
+        from app.core.identity import VERIFIED_IDENTITY_SCOPE_KEY, Principal, reset_principal, set_principal
+        from app.core.identity_contracts import IdentityClaims
+        from app.core.settings import get_settings
+        from app.knowledge import search_registry
+        from app.tools.knowledge_search.contracts import KnowledgeSearchInput
+        from app.tools.knowledge_search.runtime_search import create_runtime_knowledge_port
+        from tests.test_factory_search_backend_boundary import RecordingCatalogBackend
+
+        class DepartmentCatalog(RecordingCatalogBackend):
+            tool_source_kind = ToolSourceKind.FAKE
+
+            def __init__(self):
+                super().__init__()
+                self.candidates[0].update(
+                    title="Private lithography evidence",
+                    excerpt="Restricted fixture contents",
+                )
+
+            def get_knowledge_document(self, principal, chunk_id):
+                if chunk_id == 9 and "光刻" in principal.modules:
+                    return super().get_knowledge_document(principal, chunk_id)
+
+            def list_knowledge_documents(self, principal):
+                return super().list_knowledge_documents(principal) if "光刻" in principal.modules else []
+
+        backend_name = "access-system-fixture"
+        backend = DepartmentCatalog()
+        settings = get_settings()
+        tenant = settings.enterprise_default_tenant_id
+        memberships = {"litho": ("光刻",), "etch": ("刻蚀",)}
+
+        async def verified_app(scope, receive, send):
+            if scope["type"] == "http":
+                headers = dict(scope["headers"])
+                user = headers.get(b"x-auth-fixture", b"").decode()
+                if user in memberships:
+                    scope[VERIFIED_IDENTITY_SCOPE_KEY] = IdentityClaims(
+                        tenant, user, authentication_scheme="verified",
+                        modules=memberships[user],
+                    )
+            await app(scope, receive, send)
+
+        offline = replace(
+            settings, factory_search_backend=backend_name,
+            model_connection=replace(settings.model_connection, api_key=""),
+        )
+        litho = {"X-Auth-Fixture": "litho"}
+        etch = {"X-Auth-Fixture": "etch", "X-Modules": "光刻".encode("utf-8"), "X-User-ID": "litho", "X-Roles": "administrator"}
+        alias = "get_equipment_event_timeline"
+        skill = "litho-cpk-diagnostic"
+        source = backend.candidates[0]
+        restricted = {"enabled": True, "access": {"owner": "光刻", "readers": []}, "groups": []}
+        with (
+            TemporaryDirectory() as directory,
+            patch.dict(os.environ, {"FAB_REQUIRE_VERIFIED_IDENTITY": "true", "FAB_FACTORY_SEARCH_BACKEND": backend_name,
+                                    "FAB_PERSONAL_KNOWLEDGE_API_TOKEN": ""}),
+            patch.dict(search_registry._FACTORIES, {backend_name: lambda: backend}),
+            patch.object(capability_catalog, "db_path", return_value=Path(directory) / "catalog.db"),
+            patch("app.agent_runtime.service.effective_agent_settings", return_value=offline),
+            patch.object(httpx.AsyncClient, "send", side_effect=AssertionError("external network prohibited")),
+            TestClient(verified_app) as client,
+        ):
+            for kind, name in (("tool", alias), ("tool", "get_capability_trend"), ("skill", skill)):
+                capability_catalog.save(kind, name, restricted)
+
+            response = client.get("/api/capabilities", headers={"X-Modules": "光刻".encode("utf-8"), "X-User-ID": "litho"})
+            self.assertEqual(response.status_code, 401, response.text)
+            self.assertEqual(response.json()["error_code"], "AUTHENTICATION_REQUIRED")
+            self.assertIn(skill, {item["name"] for item in client.get("/api/capabilities", headers=litho).json()["items"]})
+            self.assertNotIn(skill, {item["name"] for item in client.get("/api/capabilities", headers=etch).json()["items"]})
+            skill_denied = client.post("/api/chat", json={"message": "过去7天", "skill_id": skill}, headers=etch)
+            self.assertEqual(skill_denied.status_code, 403, skill_denied.text)
+            self.assertEqual(skill_denied.json()["error_code"], "CAPABILITY_DENIED")
+
+            search = "/api/rag/search"
+            params = {"q": "光刻颗粒"}
+            self.assertEqual(client.get(search, params=params, headers=etch).json()["results"], [])
+            authorized = client.get(search, params=params, headers=litho).json()["results"]
+            self.assertEqual([row["chunk_id"] for row in authorized], [9])
+            reference_route = "/api/knowledge/chunks/9"
+            self.assertEqual(client.get(reference_route, headers=etch).status_code, 404)
+            self.assertEqual(client.get(reference_route, headers=litho).status_code, 200)
+            query = KnowledgeSearchInput("光刻颗粒", source_types=("knowledge",)).resolve()
+            for user, allowed in (("litho", [9]), ("etch", [])):
+                principal = Principal(tenant, user, authentication_scheme="verified", modules=memberships[user])
+                port = create_runtime_knowledge_port(settings=offline, principal=principal)
+                self.assertEqual([row["chunk_id"] for row in port.fetch(query, principal).candidates], allowed)
+
+            created = client.post("/api/sessions", headers=litho)
+            self.assertEqual(created.status_code, 200, created.text)
+            session_id = created.json()["session_id"]
+            self.assertEqual(client.get(f"/api/sessions/{session_id}", headers=etch).status_code, 404)
+            question = {"message": "查询 2026-08-07 CMP-02 报警次数", "session_id": session_id}
+            tool_run = client.post("/api/chat", json=question, headers=litho)
+            self.assertEqual(tool_run.status_code, 200, tool_run.text)
+            self.assertEqual(tool_run.json()["tool_trace"][0]["tool_status"], "succeeded")
+            audit_route = f"/api/agent-runs/{tool_run.json()['run_id']}/audit"
+            self.assertEqual(client.get(audit_route, headers=litho).status_code, 200)
+            # Seed an already-persisted response and paged snapshots independently of model text.
+            identity = set_principal(Principal(tenant, "litho", authentication_scheme="verified", modules=("光刻",)))
+            try:
+                append_message(session_id, "assistant", "Restricted fixture contents", {
+                    "tool_trace": [{"tool": "search_knowledge"}], "sources": [source],
+                })
+                store = configured_result_store()
+                def save(tool, data):
+                    return store.save(
+                        tenant_id=tenant, owner_id="litho", session_id=session_id,
+                        run_id="access-fixture", call_id=tool,
+                        metadata={"tool": tool, "scope": {}, "source_ref": "TOOL:S01"}, content=data,
+                        permit=lambda: True,
+                    )
+
+                doc_ref = save("search_knowledge", [source])
+                tool_ref = save(alias, [{"reason": "Restricted device fixture"}])
+            finally:
+                reset_principal(identity)
+
+            def snapshot(ref):
+                return client.post("/api/chat", json={
+                    "message": "查看历史结果", "session_id": session_id, "tool_result_ref": ref,
+                }, headers=litho).json()
+
+            self.assertEqual(snapshot(doc_ref)["tool_result_page"]["units"][0]["chunk_id"], 9)
+            self.assertIn("Restricted device fixture", snapshot(tool_ref)["answer"])
+            self.assertIn("Restricted fixture contents", client.get(f"/api/sessions/{session_id}", headers=litho).text)
+
+            derived = client.post("/api/chat", json={
+                "message": "谢谢", "session_id": session_id, "client_message_id": "access-followup",
+            }, headers=litho)
+            self.assertEqual(derived.status_code, 200, derived.text)
+            self.assertIn({"source": {"source_type": "knowledge", "reference_id": "KB-FAKE-1", "chunk_id": 9}},
+                          derived.json()["context_access"])
+
+            memberships["litho"] = ()
+            denied = client.post("/api/chat", json=question, headers=litho)
+            self.assertEqual(denied.status_code, 200, denied.text)
+            self.assertEqual(denied.json()["tool_trace"][0]["tool_status"], "denied")
+            self.assertEqual(client.get(audit_route, headers=litho).status_code, 404)
+            retry = client.post("/api/chat", json={
+                "message": "谢谢", "session_id": session_id, "client_message_id": "access-followup",
+            }, headers=litho)
+            self.assertEqual(retry.status_code, 403, retry.text)
+            self.assertEqual(client.get(reference_route, headers=litho).status_code, 404)
+            self.assertIsNone(snapshot(doc_ref)["tool_result_page"])
+            self.assertIsNone(snapshot(tool_ref)["tool_result_page"])
+            self.assertNotIn("Restricted fixture contents", client.get(f"/api/sessions/{session_id}", headers=litho).text)
+            self.assertNotIn("Restricted fixture contents", client.get("/api/sessions", headers=litho).text)
+            client.delete(f"/api/sessions/{session_id}/permanent", headers=litho)
+
     @classmethod
     def setUpClass(cls):
         seed_reference_data()

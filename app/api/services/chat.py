@@ -9,22 +9,34 @@ from ...bootstrap.duty_chat_skill import (
     choose_chat_skill,
     require_skill,
 )
+from ...bootstrap.result_access_assembly import (
+    filter_saved_history,
+    history_access_claims,
+    saved_answer_allowed,
+)
 from ...memory_system.ports import HistoryReader
 from ...planning_runtime.named_playbooks import resolve_duty_date_reply
 from .analysis_attachment import analysis_references, attached_question
 
 
 async def run_chat_agent(runtime, request, principal, question, history, progress, **options):
-    trusted_history = allowed_history(history, principal)
-    if getattr(request, "analysis_ref", None) or getattr(request, "tool_result_ref", None):
+    trusted_history = filter_saved_history(principal, allowed_history(history, principal))
+    if getattr(request, "tool_result_ref", None):
         return await runtime["run_agent"](question, trusted_history, progress, **options)
-    skill = choose_chat_skill(question, getattr(request, "skill_id", None), principal, history)
+    if getattr(request, "analysis_ref", None):
+        result = await runtime["run_agent"](question, trusted_history, progress, **options)
+        if claims := history_access_claims(principal, trusted_history):
+            result["context_access"] = claims
+        return result
+    skill = choose_chat_skill(question, getattr(request, "skill_id", None), principal, trusted_history)
     selection = ChatSkillRequest(principal, skill)
     with selection.activate():
         effective_question = (
             skill.question if skill else resolve_duty_date_reply(question, trusted_history) or question
         )
         result = await runtime["run_agent"](effective_question, trusted_history, progress, **options)
+        if claims := history_access_claims(principal, trusted_history):
+            result["context_access"] = claims
         if selection.selected is not None:
             result["skill_execution"] = selection.selected.metadata()
         if getattr(request, "skill_id", None):
@@ -73,6 +85,8 @@ class ChatService:
                     require_skill(runtime["current_principal"](), skill_execution["id"])
                 except DutySkillError as exc:
                     raise runtime["http_problem"](exc.status, exc.code, str(exc), False) from None
+            if not saved_answer_allowed(runtime["current_principal"](), cached):
+                raise runtime["http_problem"](403, "CAPABILITY_DENIED", "当前身份无法读取此前保存的回答。", False)
             return session_id, [], cached, None
         history = self._history_reader.read(session_id)
         attached = getattr(request, "analysis_ref", None)

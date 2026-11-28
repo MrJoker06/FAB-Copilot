@@ -16,6 +16,9 @@ from .identity_contracts import (
 from .settings import get_settings
 
 
+VERIFIED_IDENTITY_SCOPE_KEY = "fab.verified_identity"
+
+
 _principal: ContextVar["Principal | None"] = ContextVar("fab_principal", default=None)
 
 
@@ -35,6 +38,7 @@ class Principal:
             user_id=claims.user_id,
             roles=claims.roles,
             authentication_scheme=claims.authentication_scheme,
+            modules=claims.modules,
         )
 
     @property
@@ -85,7 +89,7 @@ def _valid_identifier(value: str) -> bool:
 
 
 class PrincipalContextMiddleware:
-    """Resolve the demo identity now and leave a clean boundary for future SSO/JWT."""
+    """Resolve demo claims or consume verified claims from a server-side ASGI adapter."""
 
     def __init__(self, app):
         self.app = app
@@ -96,16 +100,30 @@ class PrincipalContextMiddleware:
             return
 
         settings = get_settings()
-        headers = _header_map(scope)
         try:
-            claims = resolve_demo_header_claims(
-                headers,
-                default_tenant_id=settings.enterprise_default_tenant_id,
-                default_user_id=settings.enterprise_default_user_id,
-                require_identity=settings.enterprise_require_identity,
-            )
+            if getattr(settings, "require_verified_identity", False):
+                claims = scope.get(VERIFIED_IDENTITY_SCOPE_KEY)
+                if not isinstance(claims, IdentityClaims) or claims.authentication_scheme != "verified":
+                    raise IdentityResolutionError("AUTHENTICATION_REQUIRED")
+            else:
+                claims = resolve_demo_header_claims(
+                    _header_map(scope),
+                    default_tenant_id=settings.enterprise_default_tenant_id,
+                    default_user_id=settings.enterprise_default_user_id,
+                    require_identity=settings.enterprise_require_identity,
+                )
         except IdentityResolutionError as error:
-            if error.error_code == "IDENTITY_REQUIRED":
+            if error.error_code == "AUTHENTICATION_REQUIRED":
+                response = JSONResponse(
+                    status_code=401,
+                    content={
+                        "error_code": error.error_code,
+                        "detail": "需要通过应用配置的登录方式认证",
+                        "request_id": current_request_id() or "",
+                        "retryable": False,
+                    },
+                )
+            elif error.error_code == "IDENTITY_REQUIRED":
                 response = JSONResponse(
                     status_code=401,
                     content={

@@ -189,6 +189,7 @@ class ResultReadAccess:
     response_bytes: int = 0
     _pending: int = 0
     _lock: Any = field(default_factory=threading.Lock, repr=False)
+    authorize_snapshot: Callable[[dict, Any], bool] | None = None
 
     def permitted(self, principal=None) -> bool:
         principal = self.principal if principal is None else principal
@@ -275,6 +276,7 @@ class ResultReadAccess:
                     limit=value.limit,
                     max_bytes=min(4096, 16384 - self.response_bytes),
                     permit=lambda: self.permitted(context.principal),
+                    **({"authorize_snapshot": self.authorize_snapshot} if self.authorize_snapshot else {}),
                 )
                 _validate_output(data)
                 result = ToolResult(
