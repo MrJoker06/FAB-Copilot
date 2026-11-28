@@ -6,6 +6,8 @@
 
 ## 当前安排
 
+2026-11-28 GitHub #2 第 3 项已在权限分支实现 Tool / Skill 注册、启停、部门范围和业务分组。Tool 调用按授权执行，Skill 目录核对依赖和说明可见性。默认聊天执行 Skill 及企业授权继续单独跟踪。见[本地验收记录](docs/reports/tool-skill-directory.md)。
+
 2026-11-23 权限开发分支 `feat/module-access-control` 实施首个本地验证场景。平台管理员可配置基础报表目录的部门范围并预览效果，操作和适用边界见[项目说明](docs/reports/module-report-access.md)。企业身份接入和 GitHub #3 的正式授权仍待实施。
 
 2026-11-19 单项更新：GitHub #2 第 5 项实现请求类型与业务主题分离，见[路由报告](docs/reports/issue-2-intent-routing.md)。第 6 项移除新任务的整轮五档，加入按日期核对 Cpk 与报警的值班查数路径。班次和真实来源验收范围见[回答依据报告](docs/reports/issue-2-duty-answer-evidence.md)。产品与 MOD 统计口径沿用现有台账。

@@ -19,6 +19,7 @@
     <aside class="admin-sidebar" aria-label="管理导航">
       <button class="admin-nav active" data-admin-view="runtime" type="button" aria-current="page"><span aria-hidden="true">◉</span><span>运行状态</span></button>
       <button class="admin-nav" data-admin-view="models" type="button"><span aria-hidden="true">▤</span><span>模型目录</span></button>
+      <button class="admin-nav" data-admin-view="abilities" type="button"><span aria-hidden="true">◇</span><span>工具与技能</span></button>
       <button class="admin-nav" data-admin-view="reports" type="button"><span aria-hidden="true">▥</span><span>报表目录</span></button>
       <section id="adminReportFolders" class="report-folder-sidebar" aria-label="报表文件夹" hidden><div class="folder-sidebar-actions"><button id="addReportFolder" type="button" class="quiet-button">＋ 文件夹</button><button id="editReportFolder" type="button" class="quiet-button" disabled>编辑</button></div><button id="allReportFolders" type="button" class="report-folder-button active">全部报表</button><div id="reportFolderTree"></div></section>
       <button class="admin-nav" data-admin-view="documents" type="button"><span aria-hidden="true">▤</span><span>共享资料</span></button>
@@ -93,6 +94,19 @@
           <div class="full-field report-editor-actions"><button id="stageReportEdit" class="primary-button" type="submit">加入目录</button><button id="cancelReportEdit" class="quiet-button" type="button">取消</button></div>
         </form>
         </dialog>
+      </section>
+      <section id="abilitiesView" class="admin-view">
+        <div class="admin-page-heading"><div><h1>工具与技能</h1><p>管理已部署的能力及部门可见范围</p></div><button type="button" class="primary-button" data-register-ability>＋ 注册工具</button></div>
+        <div class="ability-bar"><button type="button" class="quiet-button" data-ability-kind="tool" aria-pressed="true">工具</button><button type="button" class="quiet-button" data-ability-kind="skill" aria-pressed="false">技能</button>
+        <input data-ability-search aria-label="搜索名称或分组" placeholder="搜索名称或分组"><select data-ability-filter aria-label="可见范围"><option value="">全部范围</option><option value="common">通用</option><option value="module">部门专有</option></select></div>
+        <p data-ability-notice role="status"></p><section class="admin-panel admin-table-wrap"><table><thead><tr><th>名称 / 标识</th><th>可见范围</th><th>业务分组</th><th>版本</th><th>状态</th><th>操作</th></tr></thead><tbody data-ability-rows></tbody></table></section>
+        <dialog class="admin-dialog report-editor-dialog" data-ability-dialog aria-label="注册或配置能力"><form data-ability-form><div class="dialog-heading"><h2 data-ability-heading></h2><button type="button" class="icon-button" data-close-ability aria-label="关闭">×</button></div><div class="dialog-body model-form-grid">
+        <label class="full-field">已部署的能力<select name="candidate" required></select></label>
+        <details class="full-field"><summary>说明、依赖与接口详情</summary><pre data-ability-details></pre></details>
+        <label>可见范围<select name="scope" required><option value="">请选择</option><option value="common">通用 · 所有部门</option><option value="module">部门专有</option></select></label><label>归属部门<input name="owner" maxlength="64"></label>
+        <label class="full-field">额外开放部门<input name="readers" placeholder="用逗号分隔"></label><label class="full-field">业务分组<input name="groups" placeholder="例如：MES 履历、设备健康"></label>
+        <label class="report-enabled-field"><input name="enabled" type="checkbox">启用</label><p class="full-field" data-ability-error role="alert"></p></div>
+        <div class="dialog-actions"><button class="primary-button" type="submit">保存</button></div></form></dialog>
       </section>
       <section id="documentsView" class="admin-view">
         <div class="admin-page-heading"><div><h1>SOP 与历史case 管理</h1><p>管理共享上传的资料及其部门可见范围</p></div><button id="refreshSharedDocuments" class="quiet-button" type="button">刷新</button></div>
@@ -193,6 +207,7 @@
 
   <div id="adminToast" class="admin-toast" role="status" hidden></div>
   <script src="/static/model_capabilities.js?v=__APP_VERSION__" defer></script>
+  <script src="/static/capabilities.js?v=__APP_VERSION__" defer></script>
   <script src="/static/admin.js?v=__APP_VERSION__" defer></script>
 </body>
 </html>

@@ -33,6 +33,7 @@
       <details id="allFunctions" class="all-functions">
         <summary title="展开或收起所有功能"><span>所有功能</span><span class="nav-chevron" aria-hidden="true">›</span></summary>
         <div class="all-functions-items">
+          <button class="nav-item" type="button" data-my-capabilities>工具与技能</button>
           <button class="nav-item __ACTIVE_dashboard__" data-view="dashboard" title="制造总览" __CURRENT_dashboard__><span aria-hidden="true">▦</span><span>制造总览</span></button>
           <button class="nav-item __ACTIVE_capability__" data-view="capability" title="制程能力" __CURRENT_capability__><span aria-hidden="true">◎</span><span>制程能力</span></button>
           <button class="nav-item __ACTIVE_knowledge__" data-view="knowledge" title="知识库" __CURRENT_knowledge__><span aria-hidden="true">▤</span><span>知识库</span></button>
@@ -254,6 +255,7 @@
     </aside>
   </div>
 
+  <dialog class="settings-dialog" data-my-catalog aria-label="可用工具与技能"><div class="dialog-heading"><h2>可用工具与技能</h2><button type="button" class="icon-btn" data-close-catalog aria-label="关闭">×</button></div><div class="dialog-body" data-my-catalog-body></div></dialog>
   <dialog id="sharedUploadDialog" class="app-dialog" aria-labelledby="sharedUploadTitleLabel"><form id="sharedUploadForm"><div class="dialog-heading"><div><p class="eyebrow">SHARED DOCUMENTS</p><h2 id="sharedUploadTitleLabel">上传 SOP / 历史case</h2></div><button id="closeSharedUpload" class="icon-btn" type="button" aria-label="关闭共享资料上传">×</button></div><div class="dialog-body"><p class="shared-upload-scope">处理完成后，资料将对所选资料区的可见部门开放。通用资料区对所有用户开放。</p><div class="knowledge-form-grid"><label><span class="field-label">目标资料区</span><select data-shift-upload-area><option value="">通用资料区</option></select></label><label><span class="field-label">资料类别</span><select id="sharedUploadKind"><option value="sop">SOP</option><option value="case">历史case</option></select></label><label><span class="field-label">制程</span><select id="sharedUploadProcess"><option value="">通用</option></select></label><label class="shared-upload-full"><span class="field-label">资料标题（可选）</span><input id="sharedUploadTitle" class="dialog-text-input" maxlength="200" placeholder="留空使用文件名"></label><label class="shared-upload-full"><span class="field-label">选择文件</span><input id="sharedUploadFile" type="file" accept=".pdf,.docx,.md,.txt,.csv,.xlsx,.png,.jpg,.jpeg,.tif,.tiff" required></label></div><p class="shared-upload-help">支持 PDF、Word、文本、表格和图片。解析失败会显示原因，不会作为可阅读资料发布。</p><p id="sharedUploadMessage" class="form-message" role="status"></p></div><div class="dialog-actions"><button id="confirmSharedUpload" class="primary-btn" type="submit">上传并共享</button></div></form></dialog>
 
   <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>

@@ -220,8 +220,9 @@ class _RunRegistry(ToolRegistry):
 
 class _DefaultToolPolicy:
     def __init__(
-        self, declared: frozenset[str], principal: object, manufacturing_tenant: str
+        self, declared: frozenset[str], principal: object, manufacturing_tenant: str, management=None
     ) -> None:
+        self.management = management
         self._declared, self._principal, self._manufacturing_tenant = (
             declared,
             principal,
@@ -231,7 +232,7 @@ class _DefaultToolPolicy:
     def authorize(
         self, principal: object, name: str, scope: ToolScope
     ) -> PolicyDecision:
-        if name not in self._declared:
+        if name not in self._declared or (self.management and not self.management.tool_allowed(name, principal)):
             return PolicyDecision(
                 False, "CAPABILITY_DENIED", "This tool is not authorized."
             )
@@ -273,6 +274,7 @@ def build_default_run_tools(
     usable_knowledge_result: Callable[[str, dict[str, object]], bool],
     handlers: Mapping[str, Callable[..., Any]] | None = None,
     baseline_handlers: Mapping[str, Callable[..., Any]] | None = None,
+    management=None,
 ) -> DefaultRunTools:
     """Build native bindings lazily; legacy functions are an explicit live-patch bridge."""
     from ..agent_runtime.tools.tool_registry import DEFAULT_TOOL_REGISTRY
@@ -396,8 +398,6 @@ def build_default_run_tools(
     registry.install_declared_bindings(bindings, declared)
     if {binding.definition.name for binding in bindings} != declared:
         raise RuntimeError("default native bindings do not match declared capabilities")
-    if any(step.tool not in declared for step in plan.steps):
-        raise ValueError("plan contains an undeclared default capability")
     context = RuntimeContext(
         principal,
         run_id,
@@ -406,13 +406,30 @@ def build_default_run_tools(
     projector = ReadyResultPolicy(
         frozenset({"search_knowledge"}), usable_knowledge_result
     )
+    allowed = declared
+    route_tools = set(declared)
+    if management is not None:
+        rules = management.policies()
+        allowed = frozenset(name for name in declared if management.tool_allowed(name, principal, rules))
+        for name, provider in management.plugin_tools().items():
+            if plan.route_intent not in provider.routes:
+                continue
+            route_tools.add(name)
+            if management.tool_allowed(name, principal, rules):
+                binding = provider.bind(settings, principal)
+                if not isinstance(binding, ToolBinding) or binding.definition is not provider.definition:
+                    raise ValueError("plugin binding differs from installed definition")
+                registry.register_native(binding)
+                allowed = allowed | {name}
+    if any(step.tool not in route_tools for step in plan.steps):
+        raise ValueError("plan contains an undeclared default capability")
     dispatcher = ToolDispatcher(
         run_id=run_id,
         registry=registry,
-        policy=_DefaultToolPolicy(declared, principal, tenant),
+        policy=_DefaultToolPolicy(allowed, principal, tenant, management),
         budget=LoopGuardToolBudget(guard),
-        allowed_tools=declared,
-        legacy_tools=_COMPATIBLE & declared,
+        allowed_tools=allowed,
+        legacy_tools=_COMPATIBLE & allowed,
         result_policy=projector,
     )
     ready = (

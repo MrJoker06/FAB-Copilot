@@ -123,7 +123,7 @@
     }
   },
   "api": {
-    "openapi_sha256": "c90de2871718e9a8e4958d5f6e28e567c9043070a0af46d896e0b65a2a68d9f0",
+    "openapi_sha256": "7b4575a8c7d2cf017f612e3982200c92de79803ffdb7d51c2359746e58fc52b0",
     "routes": [
       {
         "method": "GET",
@@ -135,6 +135,18 @@
         "method": "GET",
         "name": "admin_index",
         "path": "/admin",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "manage",
+        "path": "/api/admin/capabilities",
+        "success_status": 200
+      },
+      {
+        "method": "PUT",
+        "name": "register",
+        "path": "/api/admin/capabilities/{kind}/{name}",
         "success_status": 200
       },
       {
@@ -273,6 +285,12 @@
         "method": "GET",
         "name": "read_agent_run_audit",
         "path": "/api/agent-runs/{run_id}/audit",
+        "success_status": 200
+      },
+      {
+        "method": "GET",
+        "name": "visible",
+        "path": "/api/capabilities",
         "success_status": 200
       },
       {
@@ -592,6 +610,7 @@
   "frontend": {
     "admin": {
       "element_ids": [
+        "abilitiesView",
         "addReportFolder",
         "adminAuthDialog",
         "adminAuthDialogTitle",
@@ -728,6 +747,7 @@
       ],
       "script_sources": [
         "/static/model_capabilities.js?v=__APP_VERSION__",
+        "/static/capabilities.js?v=__APP_VERSION__",
         "/static/admin.js?v=__APP_VERSION__"
       ]
     },

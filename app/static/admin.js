@@ -553,6 +553,7 @@ function showView(name) {
   $('#adminReportFolders').hidden = name !== 'reports';
   if (name === 'models') loadModels().catch(() => {});
   else if (name === 'reports') loadReportDirectory();
+  else if (name === 'abilities') loadAbilities();
   else if (name === 'documents') loadSharedDocuments();
   else loadOverview().catch(() => {});
 }
@@ -694,6 +695,7 @@ async function authenticate(event) {
 function init() {
   bindReportDirectory();
   bindSharedDocuments();
+  bindAbilities();
   document.querySelectorAll('[data-admin-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.adminView)));
   $('#adminAuthDialog').addEventListener('cancel', event => event.preventDefault());
   $('#adminAuthForm').addEventListener('submit', authenticate);

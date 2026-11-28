@@ -175,6 +175,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .shared-document-preview p { white-space: pre-wrap; line-height: 1.8; font-size: 12px; }
 .shared-document-error { color: #944732; }
 
+.ability-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:16px 0; }
+.ability-bar [aria-pressed="true"] { color:#fff; background:var(--accent-dark); }
+[data-ability-details] { white-space:pre-wrap; overflow-wrap:anywhere; max-height:230px; overflow:auto; font-size:12px; }
+#abilitiesView { max-width:1200px; }
 #documentsView { max-width: 1320px; }
 .doc-area-controls { padding: 14px 16px; font-size: 13px; }
 .doc-area-controls summary { cursor: pointer; font-weight: 650; padding: 6px 0; }

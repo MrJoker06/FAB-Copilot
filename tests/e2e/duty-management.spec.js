@@ -9,6 +9,38 @@ async function admin(page) {
   await expect(page.locator('#adminWorkspace')).toBeVisible();
 }
 
+test('platform admin registers a common skill and can restrict it to a department', async ({page}) => {
+  const name = 'litho-cpk-diagnostic';
+  await admin(page);
+  await page.locator('[data-admin-view="abilities"]').click();
+  await page.locator('[data-ability-kind="skill"]').click();
+  await page.locator('[data-register-ability]').click();
+  const form = page.locator('[data-ability-form]');
+  await form.locator('[name=candidate]').selectOption(name);
+  await form.locator('[name=scope]').selectOption('common');
+  await form.locator('[name=groups]').fill('值班排查');
+  await form.locator('[name=enabled]').check();
+  await form.getByRole('button', {name:'保存'}).click();
+  await expect(page.locator('[data-ability-rows]')).toContainText('值班排查');
+  const row = page.locator('[data-ability-rows] tr').filter({hasText:name});
+  const title = await row.locator('strong').innerText();
+  await page.goto('/');
+  await page.locator('#allFunctions summary').click();
+  await page.locator('[data-my-capabilities]').click();
+  await expect(page.locator('[data-my-catalog-body]')).toContainText(title);
+  await page.goto('/admin');
+  await page.locator('[data-admin-view="abilities"]').click();
+  await page.locator('[data-ability-kind="skill"]').click();
+  await row.locator('button').click();
+  await form.locator('[name=scope]').selectOption('module');
+  await form.locator('[name=owner]').fill('Litho');
+  await form.getByRole('button', {name:'保存'}).click();
+  await expect(row).toContainText('Litho');
+  const visible = await page.request.get('/api/capabilities');
+  expect(visible.ok()).toBeTruthy();
+  expect((await visible.json()).items.map(item => item.name)).not.toContain(name);
+});
+
 test('admin report folders persist and manage flat user report links without changing models',async ({page}) => {
   const before = await (await page.request.get('/api/admin/report-directory',{headers:adminHeaders})).json();
   const modelsBefore = await (await page.request.get('/api/admin/models',{headers:adminHeaders})).json();

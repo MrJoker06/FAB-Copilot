@@ -95,3 +95,24 @@ const bootstrap = globalThis.FabAppBootstrap.createBootstrap({
 });
 
 document.addEventListener('DOMContentLoaded', bootstrap.init);
+$('[data-close-catalog]').onclick = () => $('[data-my-catalog]').close();
+$('[data-my-capabilities]').onclick = async () => {
+  const dialog = $('[data-my-catalog]'), body = $('[data-my-catalog-body]');
+  dialog.showModal(); body.textContent = '正在读取…';
+  try {
+    const {items} = await api('/api/capabilities');
+    body.replaceChildren();
+    for (const [kind,label] of [['tool','工具'],['skill','技能']]) {
+      const heading = document.createElement('h3'); heading.textContent = label; body.append(heading);
+      const entries = items.filter(item => item.kind === kind);
+      if (!entries.length) body.append('暂无可用' + label);
+      for (const item of entries) {
+        const details = document.createElement('details'), title = document.createElement('summary'), p = document.createElement('p');
+        title.textContent = item.title || item.name; p.textContent = item.dependencies_ready ? (item.instructions || item.description) : '当前身份的依赖工具未就绪。';
+        const scope = document.createElement('small');
+        scope.textContent = [item.owner ? `${item.owner} · 部门专有` : '通用', ...item.groups].join(' / ');
+        details.append(title, scope, p); body.append(details);
+      }
+    }
+  } catch (error) { body.textContent = error.message; }
+};

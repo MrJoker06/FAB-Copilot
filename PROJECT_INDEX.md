@@ -3,6 +3,7 @@
 - 分类：agents
 - 简述：面向 PE / EE 值班工程师的助手；提供基础报表、SOP&历史case、Autosystem 入口，保留多制程分析、历史会话、RAG 与流式工具调用。
 - 持续优先级（2026-11-18）：后续优化首先服务 PE / EE 值班助手。GitHub #1 错误码收尾见[错误码参考](docs/error-code-reference.md)和[验收报告](docs/reports/issue-1-error-standardization.md)；Guardrail 仍由 #3 跟踪。
+- 工具与技能目录支持平台管理员注册已部署的能力，配置通用与部门专有范围。值班助手按当前身份展示目录并检查工具调用。[注册与授权说明](docs/reports/tool-skill-directory.md)
 - 意图路由（2026-11-19）：Issue #2 第 5 项实现请求类型/业务主题分离，保留兼容 intent；概念问答与 SOP 不开放制造工具，新查数追问核对范围来源。实现与验收见[报告](docs/reports/issue-2-intent-routing.md)，不代表真实量化模型或公司目录已验证。
 - 存储治理（2026-11-18）：Issue #2 第 4 项实现历史 SOP/case、个人上传状态/索引与运行状态分库；运行默认 `runtime/local/state/`，隔离实例用 `state/`，旧数据通过显式停服迁移保留，见[报告](docs/reports/issue-2-runtime-storage-separation.md)。未自动迁移其他实例或公司环境。
 - MOD-025 已完成（2026-11-21）：值班来源与状态接入、模型探针拆分及双平台制品安装见[实施报告](docs/reports/mod-025-adapter-integration.md)。接入入口和迁移成员见[接入说明](docs/adapter-integration-plan.md)。

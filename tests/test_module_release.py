@@ -141,7 +141,7 @@ class ModuleReleaseTests(unittest.TestCase):
 
     def _build(self, root: Path) -> Path:
         module_release.build(root, build_id="test-build")
-        self.assertEqual(module_release.verify(root)["members"], 339)
+        self.assertEqual(module_release.verify(root)["members"], 342)
         return root
 
     @staticmethod
@@ -194,7 +194,7 @@ class ModuleReleaseTests(unittest.TestCase):
             )
             self.assertTrue((first / "install_module_release.py").is_file())
             self.assertTrue((first / "verify_module_release.py").is_file())
-            self.assertEqual(len(release["ownership"]), 339)
+            self.assertEqual(len(release["ownership"]), 342)
             self.assertEqual(
                 len(release["profiles"]["tool_sources"]["source_files"]), 108
             )
@@ -208,6 +208,9 @@ class ModuleReleaseTests(unittest.TestCase):
                 *(set(item["source_files"]) for item in release["profiles"].values())
             )
             resources = set(release["profiles"]["skill_release"]["resource_files"])
+            for entry in ("app/api/capability_directory.py", "app/bootstrap/capability_catalog.py", "app/static/capabilities.js"):
+                self.assertIn(entry, release["ownership"])
+                self.assertNotIn(entry, union)
             self.assertEqual(len(union), 166)
             self.assertEqual(len(union | resources), 170)
             self.assertTrue(
