@@ -2,8 +2,30 @@ from __future__ import annotations
 
 import httpx
 
+from ...bootstrap.duty_chat_skill import (
+    ChatSkillRequest,
+    DutySkillError,
+    allowed_history,
+    choose_chat_skill,
+    require_skill,
+)
 from ...memory_system.ports import HistoryReader
 from .analysis_attachment import analysis_references, attached_question
+
+
+async def run_chat_agent(runtime, request, principal, question, history, progress, **options):
+    trusted_history = allowed_history(history, principal)
+    if getattr(request, "analysis_ref", None) or getattr(request, "tool_result_ref", None):
+        return await runtime["run_agent"](question, trusted_history, progress, **options)
+    skill = choose_chat_skill(question, getattr(request, "skill_id", None), principal, history)
+    selection = ChatSkillRequest(principal, skill)
+    with selection.activate():
+        result = await runtime["run_agent"](skill.question if skill else question, trusted_history, progress, **options)
+        if selection.selected is not None:
+            result["skill_execution"] = selection.selected.metadata()
+        if getattr(request, "skill_id", None):
+            result["requested_skill_id"] = request.skill_id
+        return result
 
 
 class ChatService:
@@ -13,6 +35,12 @@ class ChatService:
 
     def prepare_chat(self, request):
         runtime = self._deps()
+        selected = getattr(request, "skill_id", None)
+        if selected:
+            try:
+                require_skill(runtime["current_principal"](), selected)
+            except DutySkillError as exc:
+                raise runtime["http_problem"](exc.status, exc.code, str(exc), False) from None
         try:
             session = (
                 runtime["create_session"](request.message[:50])
@@ -33,16 +61,32 @@ class ChatService:
             )
         cached = runtime["cached_agent_result"](session_id, request.client_message_id)
         if cached:
+            if cached.get("requested_skill_id") != selected:
+                raise runtime["http_problem"](409, "IDEMPOTENCY_CONFLICT", "同一客户端消息编号不能更改技能选择。", False)
+            skill_execution = cached.get("skill_execution")
+            if isinstance(skill_execution, dict):
+                try:
+                    require_skill(runtime["current_principal"](), skill_execution["id"])
+                except DutySkillError as exc:
+                    raise runtime["http_problem"](exc.status, exc.code, str(exc), False) from None
             return session_id, [], cached, None
         history = self._history_reader.read(session_id)
         attached = getattr(request, "analysis_ref", None)
+        metadata = {"analysis_ref": attached} if attached else {}
+        if selected:
+            metadata["requested_skill_id"] = selected
         message = runtime["append_message"](
             session_id,
             "user",
             request.message,
-            {"analysis_ref": attached} if attached else None,
+            metadata or None,
             client_message_id=request.client_message_id,
         )
+        if message.get("duplicate") and (
+            message.get("content", request.message) != request.message
+            or (message.get("metadata") or {}).get("requested_skill_id") != selected
+        ):
+            raise runtime["http_problem"](409, "IDEMPOTENCY_CONFLICT", "同一客户端消息编号不能更改内容或技能。", False)
         if (
             message.get("duplicate")
             and history
@@ -127,8 +171,8 @@ class ChatService:
             principal, session_id, request.message, selected_model
         )
         try:
-            result = await runtime["run_agent"](
-                question,
+            result = await run_chat_agent(
+                runtime, request, principal, question,
                 history or [item.model_dump() for item in request.history],
                 recorder.observe,
                 thinking=thinking_effort != "off",
@@ -169,6 +213,10 @@ class ChatService:
                 str(result.get("model") or selected_model),
             )
             return result
+        except DutySkillError as exc:
+            recorder.fail(str(exc))
+            runtime["finish_agent_run"](principal, "error", model=selected_model, error=str(exc))
+            raise runtime["http_problem"](exc.status, exc.code, str(exc), False) from None
         except httpx.HTTPStatusError as exc:
             recorder.fail(str(exc))
             runtime["finish_agent_run"](

@@ -68,6 +68,119 @@ class SessionsStreamingSystemTests(unittest.TestCase):
             finally:
                 client.delete(f"/api/sessions/{session}/permanent")
 
+    def test_duty_skill_sync_stream_and_revoke_use_actual_dispatch(self):
+        from dataclasses import replace
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        from app.bootstrap import capability_catalog
+        from app.core.settings import get_settings
+
+        skill_id = "litho-cpk-diagnostic"
+        name = "get_capability_trend"
+        principal_headers = {"Authorization": "Bearer skill-fixture"}
+        settings = get_settings()
+
+        def register(client, kind, key, enabled=True, access=None):
+            response = client.put(
+                f"/api/admin/capabilities/{kind}/{key}",
+                json={"access": access, "enabled": enabled, "groups": []},
+                headers=principal_headers,
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+
+        def result(response):
+            self.assertEqual(response.status_code, 200, response.text)
+            if response.headers["content-type"].startswith("application/json"):
+                return response.json()
+            events = [json.loads(line) for line in response.text.splitlines()]
+            self.assertFalse([item for item in events if item.get("type") == "error"], events)
+            return next(item["result"] for item in events if item.get("type") == "result")
+
+        def offline_settings(_):
+            return replace(settings, model_connection=replace(settings.model_connection, api_key=""))
+
+        with (
+            TemporaryDirectory() as directory,
+            patch.object(capability_catalog, "db_path", return_value=Path(directory) / "catalog.db"),
+            patch.dict(os.environ, {"FAB_ADMIN_API_TOKEN": "skill-fixture"}),
+            patch("app.agent_runtime.service.effective_agent_settings", side_effect=offline_settings),
+            TestClient(app) as client,
+        ):
+            register(client, "skill", skill_id)
+            session = client.post("/api/sessions").json()["session_id"]
+            request = {"session_id": session, "skill_id": skill_id, "message": "分析过去7天"}
+            denied = client.post("/api/chat/stream", json=request)
+            self.assertEqual(denied.status_code, 409, denied.text)
+            self.assertEqual(denied.json()["error_code"], "SKILL_DEPENDENCY_UNAVAILABLE")
+            register(client, "tool", name)
+            request["message"] = "排查光刻 Cpk 异常"
+            asked = result(client.post("/api/chat/stream", json=request))
+            self.assertEqual(asked["skill_execution"]["selection"], "manual")
+            self.assertEqual(asked["skill_execution"]["status"], "clarification")
+            self.assertIn("日期", asked["answer"])
+            self.assertEqual(asked["tool_trace"], [])
+
+            completed = result(client.post("/api/chat", json={
+                "session_id": session, "message": "过去7天", "client_message_id": "skill-followup-001",
+            }))
+            self.assertEqual(completed["skill_execution"]["selection"], "followup")
+            self.assertEqual(completed["skill_execution"]["status"], "executed")
+            self.assertIn((name, "succeeded"), {
+                (item["tool"], item["tool_status"]) for item in completed["tool_trace"]
+            })
+            cache = result(client.post("/api/chat/stream", json={
+                "session_id": session, "message": "过去7天", "client_message_id": "skill-followup-001",
+            }))
+            self.assertTrue(cache["cached"])
+            self.assertEqual(cache["run_id"], completed["run_id"])
+            auto = result(client.post("/api/chat/stream", json={
+                "session_id": session, "message": "排查过去7天光刻 Cpk 异常的原因",
+            }))
+            self.assertEqual(auto["skill_execution"]["selection"], "automatic")
+            history = client.get(f"/api/sessions/{session}").json()["messages"]
+            self.assertEqual(history[-1]["metadata"]["skill_execution"], auto["skill_execution"])
+
+            from unittest.mock import AsyncMock
+
+            synthesis = AsyncMock(return_value=(
+                {"role": "assistant", "content": "请核对光刻制程能力数据和证据范围。"},
+                {}, None, {},
+            ))
+            model_settings = replace(
+                settings, model_connection=replace(
+                    settings.model_connection, api_key="local-synthesis-fixture",
+                    base_url="http://127.0.0.1:9",
+                ),
+            )
+            with (
+                patch("app.agent_runtime.service.effective_agent_settings", return_value=model_settings),
+                patch("app.agent_runtime.service._request_ready_synthesis_session", synthesis),
+                patch.object(httpx.AsyncClient, "send", side_effect=AssertionError("network prohibited")),
+            ):
+                model_session = client.post("/api/sessions").json()["session_id"]
+                modeled = result(client.post("/api/chat", json={
+                    "session_id": model_session, "skill_id": skill_id,
+                    "message": "排查过去7天光刻 Cpk 异常的原因",
+                }))
+                self.assertEqual(modeled["skill_execution"]["selection"], "manual")
+                synthesis.assert_awaited_once()
+                prompt_messages = synthesis.await_args.args[3]
+                self.assertTrue(any("光刻" in message["content"] for message in prompt_messages if message["role"] == "system"))
+
+            concept = result(client.post("/api/chat", json={
+                "session_id": session, "message": "什么是 Cpk？",
+            }))
+            self.assertNotIn("skill_execution", concept)
+            register(client, "skill", skill_id, access={"owner": "Litho"})
+            denied = client.post("/api/chat", json=request)
+            self.assertEqual(denied.status_code, 403)
+            self.assertEqual(denied.json()["error_code"], "CAPABILITY_DENIED")
+            denied = client.post("/api/chat", json={
+                "session_id": session, "message": "过去7天", "client_message_id": "skill-followup-001",
+            })
+            self.assertEqual(denied.status_code, 403)
+
     @classmethod
     def setUpClass(cls):
         seed_reference_data()

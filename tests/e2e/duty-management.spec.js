@@ -41,6 +41,40 @@ test('platform admin registers a common skill and can restrict it to a departmen
   expect((await visible.json()).items.map(item => item.name)).not.toContain(name);
 });
 
+test('engineer can apply a duty skill for one chat turn', async ({page}) => {
+  const skill = 'litho-cpk-diagnostic';
+  const trend = 'get_capability_trend';
+  async function set(kind, name, enabled) {
+    const response = await page.request.put(`/api/admin/capabilities/${kind}/${name}`, {
+      headers: adminHeaders, data: {access: null, groups: [], enabled},
+    });
+    expect(response.ok()).toBe(true);
+  }
+
+  try {
+    await set('tool', trend, true);
+    await set('skill', skill, true);
+    await page.goto('/');
+    await expect(page.locator('html')).toHaveAttribute('data-app-ready', 'true');
+    const picker = page.locator('[data-chat-skill]');
+    await picker.click();
+    const dialog = page.getByRole('dialog', {name: '选择值班技能'});
+    await dialog.getByRole('combobox').selectOption(skill);
+    await dialog.getByRole('button', {name: '应用'}).click();
+    await expect(picker).toHaveText('Lithography Cpk diagnostic');
+    await page.locator('#chatInput').fill('排查光刻 Cpk 异常');
+    const sent = page.waitForRequest(request => request.url().endsWith('/api/chat/stream'));
+    await page.getByRole('button', {name: '发送', exact: true}).click();
+    expect((await sent).postDataJSON().skill_id).toBe(skill);
+    await expect(page.locator('[data-skill-execution]')).toContainText('待补充');
+    await expect(page.locator('#chatMessages')).toContainText('日期');
+    await expect(picker).toHaveText('选择技能');
+  } finally {
+    await set('skill', skill, false);
+    await set('tool', trend, false);
+  }
+});
+
 test('admin report folders persist and manage flat user report links without changing models',async ({page}) => {
   const before = await (await page.request.get('/api/admin/report-directory',{headers:adminHeaders})).json();
   const modelsBefore = await (await page.request.get('/api/admin/models',{headers:adminHeaders})).json();

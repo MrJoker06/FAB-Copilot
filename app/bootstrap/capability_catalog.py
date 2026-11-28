@@ -121,6 +121,16 @@ def permitted(rule, modules):
     )
 
 
+def skill_allowed(name, principal, rules=None):
+    rules = policies() if rules is None else rules
+    rule = rules.get(("skill", name))
+    return rule is not None and permitted(rule, getattr(principal, "modules", ()))
+
+
+def skills_root():
+    return Path(os.getenv("FAB_SKILLS_ROOT") or PROJECT_DIR / "app/skills")
+
+
 def tool_allowed(name, principal, rules=None):
     rules = policies() if rules is None else rules
     rule = rules.get(("tool", name))
@@ -140,7 +150,7 @@ def inventory():
             version=definition.version,
             builtin=definition.name in _BUILTIN_NAMES,
         )
-    root = Path(os.getenv("FAB_SKILLS_ROOT") or PROJECT_DIR / "app/skills")
+    root = skills_root()
     for file in sorted(root.glob("*/SKILL.md")):
         if file.parent.is_symlink() or file.is_symlink():
             continue

@@ -234,9 +234,10 @@ class _RunRegistry(ToolRegistry):
 
 class _DefaultToolPolicy:
     def __init__(
-        self, declared: frozenset[str], principal: object, manufacturing_tenant: str, management=None
+        self, declared: frozenset[str], principal: object, manufacturing_tenant: str, management=None, skill=None
     ) -> None:
         self.management = management
+        self.skill = skill
         self._declared, self._principal, self._manufacturing_tenant = (
             declared,
             principal,
@@ -246,7 +247,11 @@ class _DefaultToolPolicy:
     def authorize(
         self, principal: object, name: str, scope: ToolScope
     ) -> PolicyDecision:
-        if name not in self._declared or (self.management and not self.management.tool_allowed(name, principal)):
+        if (
+            name not in self._declared
+            or (self.management and not self.management.tool_allowed(name, principal))
+            or (self.skill is not None and not self.skill.authorized())
+        ):
             return PolicyDecision(
                 False, "CAPABILITY_DENIED", "This tool is not authorized."
             )
@@ -290,6 +295,7 @@ def build_default_run_tools(
     baseline_handlers: Mapping[str, Callable[..., Any]] | None = None,
     session_id: str | None = None,
     management=None,
+    skill=None,
 ) -> DefaultRunTools:
     """Build native bindings lazily; legacy functions are an explicit live-patch bridge."""
     from ..agent_runtime.tools.tool_registry import DEFAULT_TOOL_REGISTRY
@@ -446,10 +452,18 @@ def build_default_run_tools(
                 allowed = allowed | {name}
     if any(step.tool not in route_tools for step in plan.steps):
         raise ValueError("plan contains an undeclared default capability")
+    if skill is not None:
+        skill.require_current()
+        if not skill.tools <= allowed:
+            from .duty_chat_skill import DutySkillError
+
+            raise DutySkillError("SKILL_DEPENDENCY_UNAVAILABLE", "所选技能的运行依赖不可用。", 409)
+        skill.bind(plan, registry)
+        allowed = skill.tools
     dispatcher = ToolDispatcher(
         run_id=run_id,
         registry=registry,
-        policy=_DefaultToolPolicy(allowed, principal, tenant, management),
+        policy=_DefaultToolPolicy(allowed, principal, tenant, management, skill),
         budget=LoopGuardToolBudget(guard),
         allowed_tools=allowed,
         legacy_tools=_COMPATIBLE & allowed,

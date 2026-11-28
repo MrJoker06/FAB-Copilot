@@ -6,7 +6,7 @@
 
 ## 当前安排
 
-GitHub #2 第 3 项已在 PE / EE 分支集成 Tool / Skill 注册、部门范围和 Lot 分析会话授权。Skill 目录核对依赖和说明可见性。默认聊天执行 Skill 及企业授权继续单独跟踪。见[本地验收记录](docs/reports/tool-skill-directory.md)。
+GitHub #2 第 3 项已在 PE / EE 分支集成 Tool / Skill 注册、部门范围和 Lot 分析会话授权。Skill 目录核对依赖和说明可见性。光刻 Cpk Skill 已支持值班聊天手动指定和按意图选择，并通过本地验收。企业身份授权继续由 GitHub #3 跟踪。见[目录验收记录](docs/reports/tool-skill-directory.md)与[聊天 Skill 验收记录](docs/reports/duty-chat-skill-execution.md)。
 
 2026-11-23 权限开发分支 `feat/module-access-control` 实施首个本地验证场景。平台管理员可配置基础报表目录的部门范围并预览效果，操作和适用边界见[项目说明](docs/reports/module-report-access.md)。企业身份接入和 GitHub #3 的正式授权仍待实施。
 

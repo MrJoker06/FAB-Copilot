@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.bootstrap import capability_catalog as catalog
+from app.bootstrap.duty_chat_skill import is_chat_skill
 from app.core.identity import current_principal
 
 from .routers.runtime import RouterBundle
@@ -45,6 +46,10 @@ def create_router(current_admin):
 
     @router.get("/api/capabilities")
     def visible():
-        return {"items": catalog.directory(current_principal())}
+        items = catalog.directory(current_principal())
+        for item in items:
+            if item["kind"] == "skill":
+                item["chat_executable"] = is_chat_skill(item["name"]) and item["workflow"]
+        return {"items": items}
 
     return RouterBundle(router, {})

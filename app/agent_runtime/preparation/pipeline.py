@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from ..contracts import PreparationResult
+from ..contracts import PreparationResult, RoutingStageResult
 from .context import ContextStageDependencies, prepare_context_stage
 from .planning import PlanningDependencies, emit_plan_progress, prepare_planning_stage
 from .routing import (
@@ -20,6 +21,7 @@ class PreparationDependencies:
     context: ContextStageDependencies
     routing: RoutingDependencies
     planning: PlanningDependencies
+    adjust_routing: Callable[[RoutingStageResult], RoutingStageResult] | None = None
 
 
 async def prepare_agent_run(
@@ -46,6 +48,8 @@ async def prepare_agent_run(
     routing = await prepare_routing_stage(
         question, history, run_id, progress, context, deps=deps.routing
     )
+    if deps.adjust_routing is not None:
+        routing = deps.adjust_routing(routing)
     planning = await prepare_planning_stage(
         routing.analysis_question,
         routing.intent_route,

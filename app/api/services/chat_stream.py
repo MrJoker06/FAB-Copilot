@@ -7,7 +7,9 @@ import traceback
 import httpx
 from fastapi.responses import StreamingResponse
 
+from ...bootstrap.duty_chat_skill import DutySkillError
 from .analysis_attachment import analysis_references, attached_question
+from .chat import run_chat_agent
 
 
 class ChatStreamService:
@@ -84,8 +86,8 @@ class ChatStreamService:
                 await asyncio.sleep(0)
 
             task = asyncio.create_task(
-                runtime["run_agent"](
-                    question,
+                run_chat_agent(
+                    runtime, request, principal, question,
                     history,
                     progress,
                     thinking=thinking_effort != "off",
@@ -193,6 +195,14 @@ class ChatStreamService:
                 )
                 activity_finished = True
                 raise
+            except DutySkillError as exc:
+                recorder.fail(str(exc))
+                runtime["finish_agent_run"](principal, "error", model=selected_model, error=str(exc))
+                activity_finished = True
+                yield runtime["_stream_line"](
+                    "error", detail=str(exc),
+                    error=runtime["error_payload"](exc.code, str(exc), False),
+                )
             except httpx.HTTPStatusError as exc:
                 recorder.fail(str(exc))
                 runtime["finish_agent_run"](

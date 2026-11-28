@@ -98,6 +98,7 @@ const bootstrap = globalThis.FabAppBootstrap.createBootstrap({
 });
 
 document.addEventListener('DOMContentLoaded', bootstrap.init);
+chat.bindSkillPicker();
 $('[data-close-catalog]').onclick = () => $('[data-my-catalog]').close();
 $('[data-my-capabilities]').onclick = async () => {
   const dialog = $('[data-my-catalog]'), body = $('[data-my-catalog-body]');

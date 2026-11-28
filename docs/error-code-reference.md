@@ -109,6 +109,7 @@ Ready/Loop 的失败传播携带错误码、分类、执行状态和建议。Leg
 | MODEL_PUBLICATION_FAILED、MODEL_STATUS_UPDATE_FAILED、MODEL_CAPABILITIES_UPDATE_FAILED、MODEL_DELETE_FAILED、MODEL_CREDENTIAL_FAILED、MODEL_COMPATIBILITY_FAILED | 对应模型发布、状态、能力、删除、凭据及兼容配置操作失败；按具体响应纠正配置，见 `app/api/routers/admin.py`，本次不修改模型配置 |
 | REPORT_DIRECTORY_CONFLICT、REPORT_DIRECTORY_UNAVAILABLE | 目录并发修改/目录存储不可用；前者刷新后编辑，后者管理员检查路径与配置，见 `app/api/report_directory.py` |
 | SHARED_DOCUMENTS_UNAVAILABLE | 共享文档存储不可用；管理员检查配置，见 `app/api/routers/shared_documents.py` |
+| SKILL_UNAVAILABLE、SKILL_DEPENDENCY_UNAVAILABLE | 选定的 Skill 无法装配或依赖工具不可用。检查发布版本、依赖登记与授权后重新提交。聊天开始前的能力拒绝使用 CAPABILITY_DENIED。 |
 | SESSION_NOT_FOUND、IDEMPOTENCY_CONFLICT | 会话不存在/同幂等键内容冲突；检查当前会话或原请求内容，见 `app/api/services/chat.py` 与 `app/conversation/sessions.py` |
 | INVALID_CURSOR、CURSOR_QUERY_MISMATCH、CURSOR_SCOPE_MISMATCH、INVALID_PAGE_SIZE | 列表游标无效、查询/范围不一致或分页大小错误；按当前筛选重新分页，见个人知识库和会话列表入口 |
 | INVALID_FILTER、INVALID_DATE、INVALID_DATE_RANGE、INVALID_PROCESS_STEP、INVALID_SIGNAL、INVALID_STATUS、UNKNOWN_ENTITY | 业务查询筛选、日期、工序、指标、状态或实体无效；纠正业务参数，不执行任意 SQL，见 `app/demo_data/synthetic_fab.py`、`app/tools/` |

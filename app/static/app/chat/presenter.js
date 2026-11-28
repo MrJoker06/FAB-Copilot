@@ -173,7 +173,11 @@
     const resultPanel = notices.length ? `<section class="source-list" aria-label="工具结果内容状态">${notices.map(item => `<p data-result-state="${escapeHtml(item.status)}">${escapeHtml(item.message)}${item.queried_at ? ` · 查询时间 ${escapeHtml(item.queried_at)}` : ''}${item.result_ref && item.status === 'saved' ? ` <button type="button" class="source-link" data-read-result="${escapeHtml(item.result_ref)}">查看已保存结果</button>` : ''}</p>`).join('')}</section>` : '';
     const page = extra.tool_result_page;
     const nextPage = page?.has_more && page.next_cursor ? `<button type="button" class="source-link" data-read-result="${escapeHtml(page.result_ref)}" data-result-cursor="${escapeHtml(page.next_cursor)}">下一页已保存结果</button>` : '';
-    el.innerHTML = `<div class="message-meta"><div class="message-label">值班智能助手</div></div>${renderToolTrace(extra.tool_trace, extra.run_id)}${resultPanel}<div class="message-content markdown-content">${renderedContent}</div>${nextPage}${renderAnalysisRefs(extra.analysis_refs)}<div class="message-actions">${copyButton}</div>${sourcePanel}`;
+    const skill = extra.skill_execution;
+    const skillLabel = skill?.title && skill?.version
+      ? `<span class="message-skill" data-skill-execution>${escapeHtml(skill.title)} · v${escapeHtml(skill.version)}${skill.status === 'clarification' ? ' · 待补充' : ''}</span>`
+      : '';
+    el.innerHTML = `<div class="message-meta"><div class="message-label">值班智能助手</div>${skillLabel}</div>${renderToolTrace(extra.tool_trace, extra.run_id)}${resultPanel}<div class="message-content markdown-content">${renderedContent}</div>${nextPage}${renderAnalysisRefs(extra.analysis_refs)}<div class="message-actions">${copyButton}</div>${sourcePanel}`;
     for (const button of el.querySelectorAll?.('[data-read-result]') || []) button.addEventListener('click', () => onReadResult?.(button.dataset.readResult, button.dataset.resultCursor || null));
     bindOpenAnalysis(el);
     const copyAnswer = el.querySelector('.copy-answer');

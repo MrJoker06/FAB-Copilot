@@ -36,12 +36,16 @@ class ChatRequest(BaseModel):
     tool_result_cursor: str | None = Field(default=None, min_length=1, max_length=2048)
     analysis_ref: str | None = Field(default=None, pattern=r"^lca_[a-f0-9]{32}$")
 
+    skill_id: str | None = Field(default=None, min_length=1, max_length=64, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
     @model_validator(mode="after")
     def result_cursor_requires_reference(self):
         if self.tool_result_cursor is not None and self.tool_result_ref is None:
             raise ValueError("tool_result_cursor requires tool_result_ref")
         if self.analysis_ref is not None and self.tool_result_ref is not None:
             raise ValueError("analysis_ref cannot be combined with tool_result_ref")
+        if self.skill_id is not None and (self.analysis_ref or self.tool_result_ref):
+            raise ValueError("skill_id cannot be combined with saved result references")
         return self
 
 

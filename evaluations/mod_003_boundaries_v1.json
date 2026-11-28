@@ -533,6 +533,11 @@
       "artifact_group": "application_bundle"
     },
     {
+      "path": "app/bootstrap/duty_chat_skill.py",
+      "primary_module": "application_bootstrap",
+      "artifact_group": "application_bundle"
+    },
+    {
       "path": "app/bootstrap/enterprise_data_assembly.py",
       "primary_module": "application_bootstrap",
       "artifact_group": "application_bundle"

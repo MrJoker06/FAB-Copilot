@@ -24,6 +24,55 @@
     const FabIncrementalMarkdown = FabIncrementalMarkdownImpl;
     const { renderMarkdown, renderAssistantInto, addMessage, renderToolFailure } = presenter;
   let attachment = null;
+  let selectedSkill = null;
+
+  function setSelectedSkill(skill) {
+    selectedSkill = skill;
+    const button = $('[data-chat-skill]');
+    if (button) {
+      button.textContent = skill?.title || '选择技能';
+      button.title = skill?.title || '可为本次消息指定技能';
+    }
+  }
+
+  function bindSkillPicker() {
+    const button = $('[data-chat-skill]');
+    const dialog = $('[data-chat-skill-dialog]');
+    const select = $('[data-chat-skill-select]');
+    const status = $('[data-chat-skill-status]');
+    button.addEventListener('click', async () => {
+      dialog.returnValue = '';
+      select.replaceChildren(new root.Option('按意图选择', ''));
+      select.disabled = true;
+      status.textContent = '正在读取技能目录…';
+      dialog.showModal();
+      try {
+        const {items} = await api('/api/capabilities');
+        if (!dialog.open) return;
+        const skills = items.filter(item => item.kind === 'skill' && item.chat_executable);
+        for (const item of skills) {
+          const option = new root.Option(
+            (item.title || item.name) + (item.dependencies_ready ? '' : '（依赖未就绪）'), item.name,
+          );
+          option.disabled = !item.dependencies_ready;
+          select.add(option);
+        }
+        const current = Array.from(select.options).find(option => option.value === selectedSkill?.id && !option.disabled);
+        select.value = current?.value || '';
+        status.textContent = skills.length ? '' : '当前没有可运行的值班技能。';
+      } catch (error) {
+        status.textContent = error.message;
+      } finally {
+        select.disabled = false;
+      }
+    });
+    dialog.addEventListener('close', () => {
+      if (dialog.returnValue !== 'apply' || select.disabled) return;
+      const option = select.selectedOptions[0];
+      setSelectedSkill(option?.value ? {id:option.value, title:option.textContent} : null);
+      if (option?.value) clearAnalysisAttachment();
+    });
+  }
   function renderAttachment() {
     const node = $('#chatAttachment');
     if (!node) return;
@@ -32,6 +81,7 @@
     node.querySelector('.chat-attachment-remove')?.addEventListener('click', clearAnalysisAttachment);
   }
   function attachAnalysis({analysisRef, label, message}) {
+    setSelectedSkill(null);
     attachment = {analysisRef, label: label || analysisRef};
     renderAttachment();
     const input = $('#chatInput');
@@ -224,12 +274,13 @@
     renderLiveAnalysis(live);
   }
 
-  async function streamAgent(message, clientMessageId, onProgress, diagnostics, effort = 'off', resultRef = null, resultCursor = null, analysisRef = null) {
+  async function streamAgent(message, clientMessageId, onProgress, diagnostics, effort = 'off', resultRef = null, resultCursor = null, analysisRef = null, skillId = null) {
     let response;
     try {
       const payload = thinkingControl.requestPayload({message, session_id:state.sessionId, client_message_id:clientMessageId}, state.modelConfig, effort);
       if (resultRef) Object.assign(payload, {tool_result_ref:resultRef, tool_result_cursor:resultCursor});
       else if (analysisRef) payload.analysis_ref = analysisRef;
+      else if (skillId) payload.skill_id = skillId;
       const headers = identityHeaders({'Content-Type':'application/json'});
       response = await fetch('/api/chat/stream', {method:'POST', headers, body:JSON.stringify(payload)});
     } catch {
@@ -290,12 +341,16 @@
     live.el.querySelector('.live-indicator').textContent = '失败';
   }
 
-  async function sendChat(message, {clientMessageId = newClientMessageId(), isRetry = false, effort = thinkingEffort(), resultRef = null, resultCursor = null, analysisRef = null} = {}) {
+  async function sendChat(message, {clientMessageId = newClientMessageId(), isRetry = false, effort = thinkingEffort(), resultRef = null, resultCursor = null, analysisRef = null, skillId = null} = {}) {
     const text = message.trim(); if (!text || state.streaming) return;
     if (!state.sessionId) await createConversation();
     $('.suggestions')?.remove();
     if (!isRetry) {
       if (!resultRef && pendingAnalysisRef()) { analysisRef = pendingAnalysisRef(); clearAnalysisAttachment(); }
+      if (!resultRef && !analysisRef && selectedSkill) {
+        skillId = selectedSkill.id;
+        setSelectedSkill(null);
+      }
       addMessage('user', text, analysisRef ? {analysis_ref:analysisRef} : {}); state.history.push({role:'user', content:text});
       $('#chatInput').value = '';
       localStorage.removeItem(chatDraftKey);
@@ -303,7 +358,7 @@
     $('#sendButton').disabled = true; state.streaming = true;
     const live = createLiveAnalysis();
     try {
-      const result = await streamAgent(text, clientMessageId, event => updateLiveAnalysis(live, event), live.telemetry, effort, resultRef, resultCursor, analysisRef);
+      const result = await streamAgent(text, clientMessageId, event => updateLiveAnalysis(live, event), live.telemetry, effort, resultRef, resultCursor, analysisRef, skillId);
       await finishLiveAnswer(live, result.answer);
       reportStreamTelemetry(live, result.answer);
       renderAssistantInto(live.el, result.answer, result);
@@ -314,7 +369,7 @@
       updateLiveAnalysis(live, {event:'run_failed', message:error.message});
       renderAgentRequestError(live, error, () => {
         live.el.remove();
-        sendChat(text, {clientMessageId, isRetry:true, effort, resultRef, resultCursor, analysisRef});
+        sendChat(text, {clientMessageId, isRetry:true, effort, resultRef, resultCursor, analysisRef, skillId});
       });
     }
     finally {
@@ -328,7 +383,7 @@
       createLiveAnalysis, renderLiveAnalysis, startLiveAnswer, resolveLiveAnswerDrain,
       renderLiveAnswerFrame, scheduleLiveAnswerFrame, armLiveAnswerStall, appendLiveAnswer,
       finishLiveAnswer, cancelLiveAnswer, updateLiveAnalysis, streamAgent, reportStreamTelemetry,
-      renderAgentRequestError, sendChat, attachAnalysis, clearAnalysisAttachment,
+      renderAgentRequestError, sendChat, attachAnalysis, clearAnalysisAttachment, bindSkillPicker,
     };
   }
 

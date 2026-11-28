@@ -1,5 +1,7 @@
 # 当前项目精细结构快照
 
+当前聊天链路已接入光刻 Cpk Skill，支持工程师为本次消息指定技能或由助手按意图选择。运行编排复用光刻工作流、能力目录及 Dispatcher。下文保留历史基线。[实现与验收](reports/duty-chat-skill-execution.md)
+
 2026-11-19 路由补充：`intent_runtime` 独立表达 request_type / business_topics，再选择兼容 intent；`conversation/decision_arbiter.py` 处理类型一致性与新操作追问的范围来源，Planner 批次解析复用任务文本，默认装配收窄 SOP 的运行 Tool。HTTP/Session 保留新增元数据；无新增应用文件或运行依赖。见[报告](reports/issue-2-intent-routing.md)。
 
 2026-11-18 存储补充：历史 SOP/case、运行状态及个人上传索引已分库；运行状态默认在 `runtime/local/state/`，启动器使用实例 `state/`。旧布局通过显式维护迁移保留原数据，不在普通启动中悄悄迁移。见[验收报告](reports/issue-2-runtime-storage-separation.md)。

@@ -365,6 +365,8 @@ tbody tr:hover { background: #f8fbfa; }
 .chat-attachment-remove { margin-left: auto; padding: 2px 6px; border: 1px solid #a9cbc2; border-radius: 3px; color: #2f5a51; background: #fff; font-size: 9px; cursor: pointer; }
 .message-attachment { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 4px; color: #54706a; font-size: 9px; }.message-attachment code { font-size: 9px; }.message-attachment .source-link { padding: 0; border: 0; background: transparent; font-size: 9px; }
 .analysis-refs p { margin: 7px 0 0; }.analysis-refs code { font-size: 9px; }
+.message-skill { color: #2f5a51; font-size: 11px; }
+[data-chat-skill] { max-width: 116px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-actions { margin-top: 7px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .chat-actions span { color: #62716c; font-size: 8px; }
 .chat-action-buttons { display: flex; align-items: center; gap: 7px; }
